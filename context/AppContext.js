@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { Platform } from 'react-native'
 
 const AppContext = createContext()
@@ -43,12 +43,27 @@ export function AppProvider({ children }) {
   const [userId, setUserId] = useState(session?.userId || null)
   const [userNom, setUserNom] = useState(session?.userNom || null)
 
+  // Ref toujours à jour — utilisée dans pagehide (pas de closure stale)
+  const sessionRef = useRef({})
+  sessionRef.current = { roleActif, restaurantId, restaurantNom, userId, userNom, pointId, dateJour, pointValide }
+
   // Sauvegarder la session à chaque changement de ces valeurs clés
   useEffect(() => {
     if (roleActif) {
       sauvegarderSession({ roleActif, restaurantId, restaurantNom, userId, userNom, pointId, dateJour, pointValide })
     }
   }, [roleActif, restaurantId, restaurantNom, userId, userNom, pointId, dateJour, pointValide])
+
+  // Sur iPhone : iOS décharge la page avant d'ouvrir le sélecteur photo
+  // pagehide garantit que la session est sauvegardée AVANT le déchargement
+  useEffect(() => {
+    if (Platform.OS !== 'web') return
+    function onPageHide() {
+      if (sessionRef.current.roleActif) sauvegarderSession(sessionRef.current)
+    }
+    window.addEventListener('pagehide', onPageHide)
+    return () => window.removeEventListener('pagehide', onPageHide)
+  }, [])
   const [paiesJour, setPaiesJour] = useState({})
   const [presencesJour, setPresencesJour] = useState({})
   const [depensesJour, setDepensesJour] = useState({
