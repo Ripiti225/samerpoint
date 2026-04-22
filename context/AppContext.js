@@ -9,19 +9,25 @@ const SESSION_KEY = 'samerpoint_session'
 function lireSession() {
   if (Platform.OS !== 'web') return null
   try {
-    const s = sessionStorage.getItem(SESSION_KEY)
+    const s = localStorage.getItem(SESSION_KEY)
     return s ? JSON.parse(s) : null
   } catch { return null }
 }
 
 function sauvegarderSession(data) {
   if (Platform.OS !== 'web') return
-  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(data)) } catch {}
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(data))
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(data)) // double sécurité
+  } catch {}
 }
 
 function effacerSession() {
   if (Platform.OS !== 'web') return
-  try { sessionStorage.removeItem(SESSION_KEY) } catch {}
+  try {
+    localStorage.removeItem(SESSION_KEY)
+    sessionStorage.removeItem(SESSION_KEY)
+  } catch {}
 }
 
 export function AppProvider({ children }) {
