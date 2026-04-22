@@ -1,4 +1,3 @@
-import * as ImagePicker from 'expo-image-picker'
 import { router } from 'expo-router'
 import { useEffect, useState } from 'react'
 import {
@@ -14,6 +13,7 @@ import {
 } from 'react-native'
 import { useApp } from '../context/AppContext'
 import { saveTransactionsFournisseurs } from '../lib/api'
+import { usePhoto } from '../lib/usePhoto'
 import { supabase } from '../lib/supabase'
 
 export default function FournisseursScreen() {
@@ -21,6 +21,7 @@ export default function FournisseursScreen() {
     pointId, pointValide, fournisseursJour,
     setFournisseursJour, estBloque, restaurantId
   } = useApp()
+  const { prendrePhoto: capturer, choisirPhoto: choisir } = usePhoto()
 
   const [fournisseurs, setFournisseurs] = useState([])
   const [creditsVeille, setCreditsVeille] = useState({})
@@ -109,28 +110,18 @@ export default function FournisseursScreen() {
   function fmt(n) { return Math.round(n).toLocaleString('fr-FR') + ' FCFA' }
 
   async function prendrePhoto(id) {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync()
-    if (status !== 'granted') {
-      Alert.alert('Permission requise', "Autorisez l'accès à la caméra dans les paramètres.")
-      return
-    }
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.7 })
-    if (!result.canceled && result.assets[0]) {
+    const url = await capturer('fournisseurs')
+    if (url) {
       setTransaction(id, 'hasPhoto', true)
-      setTransaction(id, 'photoUri', result.assets[0].uri)
+      setTransaction(id, 'photoUri', url)
     }
   }
 
   async function choisirPhoto(id) {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
-    if (status !== 'granted') {
-      Alert.alert('Permission requise', "Autorisez l'accès à la galerie dans les paramètres.")
-      return
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 })
-    if (!result.canceled && result.assets[0]) {
+    const url = await choisir('fournisseurs')
+    if (url) {
       setTransaction(id, 'hasPhoto', true)
-      setTransaction(id, 'photoUri', result.assets[0].uri)
+      setTransaction(id, 'photoUri', url)
     }
   }
 

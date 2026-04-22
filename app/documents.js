@@ -1,4 +1,3 @@
-import * as ImagePicker from 'expo-image-picker'
 import { router } from 'expo-router'
 import { useEffect, useState } from 'react'
 import {
@@ -18,10 +17,12 @@ import {
     View
 } from 'react-native'
 import { useApp } from '../context/AppContext'
+import { usePhoto } from '../lib/usePhoto'
 import { supabase } from '../lib/supabase'
 
 export default function DocumentsScreen() {
   const { roleActif, restaurantId, restaurantNom } = useApp()
+  const { prendrePhoto: capturer, choisirPhoto: choisir } = usePhoto()
   const isRH = roleActif === 'rh'
   const isManager = roleActif === 'manager'
   const canAdd = isRH || isManager
@@ -76,40 +77,13 @@ export default function DocumentsScreen() {
   }
 
   async function choisirPhoto() {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
-    if (status !== 'granted') {
-      Alert.alert('Permission requise', 'Autorisez l\'accès à la galerie dans les paramètres.')
-      return
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-    })
-    if (!result.canceled && result.assets[0]) {
-      setForm(p => ({
-        ...p,
-        type: 'photo',
-        localUri: result.assets[0].uri,
-        url: result.assets[0].uri,
-      }))
-    }
+    const url = await choisir('documents')
+    if (url) setForm(p => ({ ...p, type: 'photo', localUri: url, url }))
   }
 
   async function prendrePhoto() {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync()
-    if (status !== 'granted') {
-      Alert.alert('Permission requise', 'Autorisez l\'accès à la caméra dans les paramètres.')
-      return
-    }
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 })
-    if (!result.canceled && result.assets[0]) {
-      setForm(p => ({
-        ...p,
-        type: 'photo',
-        localUri: result.assets[0].uri,
-        url: result.assets[0].uri,
-      }))
-    }
+    const url = await capturer('documents')
+    if (url) setForm(p => ({ ...p, type: 'photo', localUri: url, url }))
   }
 
   async function sauvegarder() {
