@@ -1,17 +1,48 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
+import { Platform } from 'react-native'
 
 const AppContext = createContext()
 
+// ─── Persistance session web (résout écran blanc après sélecteur photo) ───
+const SESSION_KEY = 'samerpoint_session'
+
+function lireSession() {
+  if (Platform.OS !== 'web') return null
+  try {
+    const s = sessionStorage.getItem(SESSION_KEY)
+    return s ? JSON.parse(s) : null
+  } catch { return null }
+}
+
+function sauvegarderSession(data) {
+  if (Platform.OS !== 'web') return
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(data)) } catch {}
+}
+
+function effacerSession() {
+  if (Platform.OS !== 'web') return
+  try { sessionStorage.removeItem(SESSION_KEY) } catch {}
+}
+
 export function AppProvider({ children }) {
-  const [pointId, setPointId] = useState(null)
-  const [dateJour, setDateJour] = useState(null)
-  const [pointValide, setPointValide] = useState(false)
+  const session = lireSession()
+
+  const [pointId, setPointId] = useState(session?.pointId || null)
+  const [dateJour, setDateJour] = useState(session?.dateJour || null)
+  const [pointValide, setPointValide] = useState(session?.pointValide || false)
   const [inventaireTermine, setInventaireTermine] = useState(false)
-  const [roleActif, setRoleActif] = useState(null)
-  const [restaurantId, setRestaurantId] = useState(null)
-  const [restaurantNom, setRestaurantNom] = useState(null)
-  const [userId, setUserId] = useState(null)
-  const [userNom, setUserNom] = useState(null)
+  const [roleActif, setRoleActif] = useState(session?.roleActif || null)
+  const [restaurantId, setRestaurantId] = useState(session?.restaurantId || null)
+  const [restaurantNom, setRestaurantNom] = useState(session?.restaurantNom || null)
+  const [userId, setUserId] = useState(session?.userId || null)
+  const [userNom, setUserNom] = useState(session?.userNom || null)
+
+  // Sauvegarder la session à chaque changement de ces valeurs clés
+  useEffect(() => {
+    if (roleActif) {
+      sauvegarderSession({ roleActif, restaurantId, restaurantNom, userId, userNom, pointId, dateJour, pointValide })
+    }
+  }, [roleActif, restaurantId, restaurantNom, userId, userNom, pointId, dateJour, pointValide])
   const [paiesJour, setPaiesJour] = useState({})
   const [presencesJour, setPresencesJour] = useState({})
   const [depensesJour, setDepensesJour] = useState({
@@ -110,6 +141,12 @@ export function AppProvider({ children }) {
 
   // ─── Reset complet — déconnexion ───────────────────────────
   function resetJour() {
+    effacerSession()
+    setRoleActif(null)
+    setRestaurantId(null)
+    setRestaurantNom(null)
+    setUserId(null)
+    setUserNom(null)
     setPointId(null)
     setDateJour(null)
     setPointValide(false)
