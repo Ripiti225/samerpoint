@@ -160,14 +160,11 @@ export function AppProvider({ children }) {
       + resteEspeces()
   }
 
-  // ─── Reset complet — déconnexion ───────────────────────────
+  // ─── Reset données du jour — appelé entre deux connexions ────
+  // NE PAS toucher roleActif/restaurantId/userId ici
+  // (resetJour est appelé dans verifierPinUtilisateur avant que les nouveaux
+  //  setRoleActif etc. soient faits — les effacer ici casserait le login)
   function resetJour() {
-    effacerSession()
-    setRoleActif(null)
-    setRestaurantId(null)
-    setRestaurantNom(null)
-    setUserId(null)
-    setUserNom(null)
     setPointId(null)
     setDateJour(null)
     setPointValide(false)
@@ -198,6 +195,17 @@ export function AppProvider({ children }) {
       photo_kdo: null,
       photo_retour: null,
     })
+  }
+
+  // ─── Déconnexion complète — efface session + identité ────────
+  function deconnecter() {
+    effacerSession()
+    setRoleActif(null)
+    setRestaurantId(null)
+    setRestaurantNom(null)
+    setUserId(null)
+    setUserNom(null)
+    resetJour()
   }
 
   // ─── Reset shift — après validation shift caissier ─────────
@@ -245,6 +253,7 @@ export function AppProvider({ children }) {
       fc,
       beneficeSC,
       resetJour,
+      deconnecter,
       resetShift,
     }}>
       {children}

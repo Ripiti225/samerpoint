@@ -5,7 +5,7 @@ import { useApp } from '../context/AppContext'
 
 export default function AccueilScreen() {
   const { nom, role } = useLocalSearchParams()
-  const { pointValide, inventaireTermine, estBloque, roleActif } = useApp()
+  const { pointValide, inventaireTermine, estBloque, roleActif, deconnecter } = useApp()
 
   const roleEffectif = role || roleActif
 
@@ -212,7 +212,7 @@ export default function AccueilScreen() {
         {/* Déconnexion */}
         <TouchableOpacity
           style={styles.logoutBtn}
-          onPress={() => router.replace('/login')}
+          onPress={() => { deconnecter(); router.replace('/login') }}
         >
           <Text style={styles.logoutText}>⏻ Se déconnecter</Text>
         </TouchableOpacity>
