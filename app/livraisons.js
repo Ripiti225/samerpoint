@@ -167,36 +167,41 @@ export default function LivraisonsScreen() {
       </TouchableOpacity>
 
       <Modal visible={modalVisible} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.modalOverlay}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-              <View style={styles.modal}>
-                <Text style={styles.modalTitre}>Nouvelle commande {partenaire}</Text>
-                <Text style={styles.modalLabel}>Numéro de commande</Text>
-                <TextInput style={styles.modalInput} placeholder="Ex: 1098" value={form.numero} onChangeText={v => setForm(p => ({ ...p, numero: v }))} keyboardType="numeric" placeholderTextColor="#bbb" />
-                <Text style={styles.modalLabel}>Contact client</Text>
-                <View style={styles.contactRow}>
-                  <TextInput style={[styles.modalInput, { flex: 1, marginBottom: 0 }]} placeholder="Ex: +225 07 12 34 56" value={form.contact} onChangeText={v => setForm(p => ({ ...p, contact: v }))} keyboardType="phone-pad" placeholderTextColor="#bbb" />
-                  {form.contact ? (
-                    <TouchableOpacity style={styles.callBtnModal} onPress={() => appeler(form.contact)}>
-                      <Text style={styles.callBtnModalTxt}>📞</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-                <Text style={[styles.modalLabel, { marginTop: 14 }]}>Plat commandé</Text>
-                <TextInput style={styles.modalInput} placeholder="Ex: Chawarma poulet" value={form.plat} onChangeText={v => setForm(p => ({ ...p, plat: v }))} placeholderTextColor="#bbb" returnKeyType="done" onSubmitEditing={Keyboard.dismiss} />
-                <View style={styles.modalBtns}>
-                  <TouchableOpacity style={styles.modalCancel} onPress={() => { setForm({ numero: '', contact: '', plat: '' }); setModalVisible(false) }}>
-                    <Text style={styles.modalCancelText}>Annuler</Text>
+        <View style={styles.modalOverlay}>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={{ flex: 1 }} />
+          </TouchableWithoutFeedback>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <ScrollView
+              style={styles.modal}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.modalTitre}>Nouvelle commande {partenaire}</Text>
+              <Text style={styles.modalLabel}>Numéro de commande</Text>
+              <TextInput style={styles.modalInput} placeholder="Ex: 1098" value={form.numero} onChangeText={v => setForm(p => ({ ...p, numero: v }))} keyboardType="numeric" placeholderTextColor="#bbb" />
+              <Text style={styles.modalLabel}>Contact client</Text>
+              <View style={styles.contactRow}>
+                <TextInput style={[styles.modalInput, { flex: 1, marginBottom: 0 }]} placeholder="Ex: +225 07 12 34 56" value={form.contact} onChangeText={v => setForm(p => ({ ...p, contact: v }))} keyboardType="phone-pad" placeholderTextColor="#bbb" />
+                {form.contact ? (
+                  <TouchableOpacity style={styles.callBtnModal} onPress={() => appeler(form.contact)}>
+                    <Text style={styles.callBtnModalTxt}>📞</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.modalConfirm} onPress={ajouterCommande}>
-                    <Text style={styles.modalConfirmText}>Ajouter</Text>
-                  </TouchableOpacity>
-                </View>
+                ) : null}
               </View>
-            </KeyboardAvoidingView>
-          </View>
-        </TouchableWithoutFeedback>
+              <Text style={[styles.modalLabel, { marginTop: 14 }]}>Plat commandé</Text>
+              <TextInput style={styles.modalInput} placeholder="Ex: Chawarma poulet" value={form.plat} onChangeText={v => setForm(p => ({ ...p, plat: v }))} placeholderTextColor="#bbb" returnKeyType="done" onSubmitEditing={Keyboard.dismiss} />
+              <View style={[styles.modalBtns, { paddingBottom: 20 }]}>
+                <TouchableOpacity style={styles.modalCancel} onPress={() => { setForm({ numero: '', contact: '', plat: '' }); setModalVisible(false) }}>
+                  <Text style={styles.modalCancelText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalConfirm} onPress={ajouterCommande}>
+                  <Text style={styles.modalConfirmText}>Ajouter</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
     </SafeAreaView>
   )
