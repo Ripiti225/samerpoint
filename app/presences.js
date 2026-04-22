@@ -459,10 +459,16 @@ export default function PresencesScreen() {
 
       {/* Modal shift */}
       <Modal visible={modalShift} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.modalOverlay}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-              <View style={styles.modal}>
+        <View style={styles.modalOverlay}>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={{ flex: 1 }} />
+          </TouchableWithoutFeedback>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <ScrollView
+              style={styles.modal}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
                 <Text style={styles.modalTitre}>
                   Shift de {travailleurEnCours?.nom}
                 </Text>
@@ -545,7 +551,7 @@ export default function PresencesScreen() {
                   keyboardType="numeric"
                 />
 
-                <View style={styles.modalBtns}>
+                <View style={[styles.modalBtns, { paddingBottom: 20 }]}>
                   <TouchableOpacity
                     style={styles.modalCancel}
                     onPress={() => {
@@ -567,10 +573,9 @@ export default function PresencesScreen() {
                     <Text style={styles.modalConfirmTxt}>Confirmer</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
-            </KeyboardAvoidingView>
-          </View>
-        </TouchableWithoutFeedback>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
     </SafeAreaView>
   )
