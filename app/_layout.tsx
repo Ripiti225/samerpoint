@@ -3,9 +3,13 @@ import { useEffect } from 'react'
 import { Platform } from 'react-native'
 import { AppProvider, useApp } from '../context/AppContext'
 
-// Redirige vers /accueil si la session existe mais le contexte est vide (après reload web)
+// Restaure la session ET le contexte React après un reload sur iPhone/Chrome
 function SessionGuard() {
-  const { roleActif } = useApp()
+  const {
+    roleActif,
+    setRoleActif, setRestaurantId, setRestaurantNom,
+    setUserId, setUserNom, setPointId, setDateJour, setPointValide,
+  } = useApp()
   const segments = useSegments()
 
   useEffect(() => {
@@ -16,18 +20,29 @@ function SessionGuard() {
     if (publicRoutes.includes(currentRoute)) return
 
     if (!roleActif) {
-      // Contexte vide sur un écran protégé → chercher la session
       try {
-        const raw = localStorage.getItem('samerpoint_session') || sessionStorage.getItem('samerpoint_session')
+        const raw = localStorage.getItem('samerpoint_session')
+          || sessionStorage.getItem('samerpoint_session')
         const session = raw ? JSON.parse(raw) : null
+
         if (session?.roleActif) {
-          // Session valide → retour à l'accueil
+          // ── Restaurer le contexte React EN PREMIER ──────────────
+          // Sans ça, roleActif reste null → boucle infinie de redirections
+          setRoleActif(session.roleActif)
+          setRestaurantId(session.restaurantId || null)
+          setRestaurantNom(session.restaurantNom || null)
+          setUserId(session.userId || null)
+          setUserNom(session.userNom || null)
+          if (session.pointId) setPointId(session.pointId)
+          if (session.dateJour) setDateJour(session.dateJour)
+          if (session.pointValide) setPointValide(true)
+
+          // ── Puis naviguer vers accueil ──────────────────────────
           router.replace({
             pathname: '/accueil',
             params: { nom: session.userNom || '', role: session.roleActif }
           })
         } else {
-          // Pas de session → login
           router.replace('/login')
         }
       } catch {
