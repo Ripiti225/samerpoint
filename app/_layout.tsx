@@ -3,39 +3,46 @@ import { useEffect, useRef } from 'react'
 import { Platform } from 'react-native'
 import { AppProvider, useApp } from '../context/AppContext'
 
+const PUBLIC_ROUTES = ['login', 'index', '(tabs)', '']
+
 function SessionGuard() {
   const {
     roleActif,
     setRoleActif, setRestaurantId, setRestaurantNom,
     setUserId, setUserNom, setPointId, setDateJour, setPointValide,
+    setLastRoute,
+    setFournisseursJour, setDepensesJour, setPresencesJour,
+    setLivraisonsJour, setVentesJour, setPaiesJour, setInventaireJour,
   } = useApp()
   const segments = useSegments()
-  // Empêche le Guard d'agir pendant une navigation interne (ex: login → accueil)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Mémoriser la route actuelle pour y revenir après rechargement iOS
+  useEffect(() => {
+    if (Platform.OS !== 'web') return
+    if (!roleActif) return
+    const currentRoute = segments[0] || ''
+    if (!PUBLIC_ROUTES.includes(currentRoute) && currentRoute) {
+      setLastRoute(currentRoute)
+    }
+  }, [segments, roleActif])
 
   useEffect(() => {
     if (Platform.OS !== 'web') return
 
     const currentRoute = segments[0] || ''
-    const publicRoutes = ['login', 'index', '(tabs)', '']
-    if (publicRoutes.includes(currentRoute)) return
-
-    // Si le contexte est déjà rempli, rien à faire
+    if (PUBLIC_ROUTES.includes(currentRoute)) return
     if (roleActif) return
 
-    // Attendre 400ms pour laisser React propager le contexte après une connexion
-    // (évite de rediriger vers login juste après que verifierPinUtilisateur ait
-    //  appelé setRoleActif mais avant que le re-render soit terminé)
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => {
-      // Re-vérifier après le délai : si roleActif a été mis à jour, ignorer
-      // On ne peut pas lire roleActif ici (closure stale), donc on lit le storage
       try {
         const raw = localStorage.getItem('samerpoint_session')
           || sessionStorage.getItem('samerpoint_session')
         const session = raw ? JSON.parse(raw) : null
 
         if (session?.roleActif) {
+          // Restaurer identité
           setRoleActif(session.roleActif)
           setRestaurantId(session.restaurantId || null)
           setRestaurantNom(session.restaurantNom || null)
@@ -44,10 +51,27 @@ function SessionGuard() {
           if (session.pointId) setPointId(session.pointId)
           if (session.dateJour) setDateJour(session.dateJour)
           if (session.pointValide) setPointValide(true)
-          router.replace({
-            pathname: '/accueil',
-            params: { nom: session.userNom || '', role: session.roleActif }
-          })
+
+          // Restaurer données du jour (perdues quand iOS recharge la page)
+          if (session.fournisseursJour) setFournisseursJour(session.fournisseursJour)
+          if (session.depensesJour) setDepensesJour(session.depensesJour)
+          if (session.presencesJour) setPresencesJour(session.presencesJour)
+          if (session.livraisonsJour) setLivraisonsJour(session.livraisonsJour)
+          if (session.ventesJour) setVentesJour(session.ventesJour)
+          if (session.paiesJour) setPaiesJour(session.paiesJour)
+          if (session.inventaireJour) setInventaireJour(session.inventaireJour)
+
+          // Revenir à l'écran où l'utilisateur était (ex: fournisseurs après photo)
+          const target = session.lastRoute
+          const isProtected = target && !PUBLIC_ROUTES.includes(target) && target !== 'accueil'
+          if (isProtected) {
+            router.replace(`/${target}` as any)
+          } else {
+            router.replace({
+              pathname: '/accueil',
+              params: { nom: session.userNom || '', role: session.roleActif }
+            })
+          }
         } else {
           router.replace('/login')
         }

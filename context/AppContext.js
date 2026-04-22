@@ -9,7 +9,7 @@ const SESSION_KEY = 'samerpoint_session'
 function lireSession() {
   if (Platform.OS !== 'web') return null
   try {
-    const s = localStorage.getItem(SESSION_KEY)
+    const s = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY)
     return s ? JSON.parse(s) : null
   } catch { return null }
 }
@@ -18,7 +18,7 @@ function sauvegarderSession(data) {
   if (Platform.OS !== 'web') return
   try {
     localStorage.setItem(SESSION_KEY, JSON.stringify(data))
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(data)) // double sécurité
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(data))
   } catch {}
 }
 
@@ -33,6 +33,7 @@ function effacerSession() {
 export function AppProvider({ children }) {
   const session = lireSession()
 
+  // ─── Identité & session ────────────────────────────────────
   const [pointId, setPointId] = useState(session?.pointId || null)
   const [dateJour, setDateJour] = useState(session?.dateJour || null)
   const [pointValide, setPointValide] = useState(session?.pointValide || false)
@@ -42,44 +43,25 @@ export function AppProvider({ children }) {
   const [restaurantNom, setRestaurantNom] = useState(session?.restaurantNom || null)
   const [userId, setUserId] = useState(session?.userId || null)
   const [userNom, setUserNom] = useState(session?.userNom || null)
+  const [lastRoute, setLastRoute] = useState(session?.lastRoute || null)
 
-  // Ref toujours à jour — utilisée dans pagehide (pas de closure stale)
-  const sessionRef = useRef({})
-  sessionRef.current = { roleActif, restaurantId, restaurantNom, userId, userNom, pointId, dateJour, pointValide }
-
-  // Sauvegarder la session à chaque changement de ces valeurs clés
-  useEffect(() => {
-    if (roleActif) {
-      sauvegarderSession({ roleActif, restaurantId, restaurantNom, userId, userNom, pointId, dateJour, pointValide })
-    }
-  }, [roleActif, restaurantId, restaurantNom, userId, userNom, pointId, dateJour, pointValide])
-
-  // Sur iPhone : iOS décharge la page avant d'ouvrir le sélecteur photo
-  // pagehide garantit que la session est sauvegardée AVANT le déchargement
-  useEffect(() => {
-    if (Platform.OS !== 'web') return
-    function onPageHide() {
-      if (sessionRef.current.roleActif) sauvegarderSession(sessionRef.current)
-    }
-    window.addEventListener('pagehide', onPageHide)
-    return () => window.removeEventListener('pagehide', onPageHide)
-  }, [])
-  const [paiesJour, setPaiesJour] = useState({})
-  const [presencesJour, setPresencesJour] = useState({})
-  const [depensesJour, setDepensesJour] = useState({
+  // ─── Données du jour (restaurées après rechargement iOS) ───
+  const [paiesJour, setPaiesJour] = useState(session?.paiesJour || {})
+  const [presencesJour, setPresencesJour] = useState(session?.presencesJour || {})
+  const [depensesJour, setDepensesJour] = useState(session?.depensesJour || {
     'Marché': [],
     'Légumes': [],
     'Fruits': [],
     'Dépenses annexes': [],
   })
-  const [fournisseursJour, setFournisseursJour] = useState({})
-  const [livraisonsJour, setLivraisonsJour] = useState({
+  const [fournisseursJour, setFournisseursJour] = useState(session?.fournisseursJour || {})
+  const [livraisonsJour, setLivraisonsJour] = useState(session?.livraisonsJour || {
     Yango: [], Glovo: [], OM: [], Wave: [], Djamo: [], Client: []
   })
-  const [inventaireJour, setInventaireJour] = useState({})
+  const [inventaireJour, setInventaireJour] = useState(session?.inventaireJour || {})
   const [shiftsJour, setShiftsJour] = useState([])
   const [stocksParShift, setStocksParShift] = useState({})
-  const [ventesJour, setVentesJour] = useState({
+  const [ventesJour, setVentesJour] = useState(session?.ventesJour || {
     sequences: [],
     yangoCse: '', yangoTab: '', yangoNbCommandes: '',
     glovoCse: '', glovoTab: '', glovoNbCommandes: '',
@@ -97,6 +79,42 @@ export function AppProvider({ children }) {
     photo_kdo: null,
     photo_retour: null,
   })
+
+  // ─── Ref toujours à jour — utilisée dans pagehide (pas de closure stale) ───
+  const sessionRef = useRef({})
+  sessionRef.current = {
+    roleActif, restaurantId, restaurantNom, userId, userNom,
+    pointId, dateJour, pointValide, lastRoute,
+    fournisseursJour, depensesJour, presencesJour,
+    livraisonsJour, ventesJour, paiesJour, inventaireJour,
+  }
+
+  // ─── Sauvegarder toutes les données à chaque changement ───
+  useEffect(() => {
+    if (roleActif) {
+      sauvegarderSession({
+        roleActif, restaurantId, restaurantNom, userId, userNom,
+        pointId, dateJour, pointValide, lastRoute,
+        fournisseursJour, depensesJour, presencesJour,
+        livraisonsJour, ventesJour, paiesJour, inventaireJour,
+      })
+    }
+  }, [
+    roleActif, restaurantId, restaurantNom, userId, userNom,
+    pointId, dateJour, pointValide, lastRoute,
+    fournisseursJour, depensesJour, presencesJour,
+    livraisonsJour, ventesJour, paiesJour, inventaireJour,
+  ])
+
+  // ─── Sur iPhone : iOS décharge la page avant d'ouvrir le sélecteur photo ───
+  useEffect(() => {
+    if (Platform.OS !== 'web') return
+    function onPageHide() {
+      if (sessionRef.current.roleActif) sauvegarderSession(sessionRef.current)
+    }
+    window.addEventListener('pagehide', onPageHide)
+    return () => window.removeEventListener('pagehide', onPageHide)
+  }, [])
 
   const isManager = roleActif === 'manager'
 
@@ -122,7 +140,6 @@ export function AppProvider({ children }) {
   }
 
   function totalDepenses() {
-    // Dépenses + Salaires (paies) + Fournisseurs
     return totalDepensesCat() + totalPaie() + totalFournisseurs()
   }
 
@@ -131,11 +148,9 @@ export function AppProvider({ children }) {
   }
 
   function resteEspeces() {
-    // Gérant/manager : espèces viennent directement du cumul shifts
     if (ventesJour.espece_shifts !== 0 && ventesJour.espece_shifts !== '') {
       return parseFloat(ventesJour.espece_shifts) || 0
     }
-    // Caissier : calcul classique depuis séquences
     return totalVentes() - totalDepenses()
       - (parseFloat(ventesJour.yangoCse) || 0)
       - (parseFloat(ventesJour.glovoCse) || 0)
@@ -147,7 +162,6 @@ export function AppProvider({ children }) {
   }
 
   function fc() {
-    // FC calculé = espèces en caisse + FC de la veille (auto-chargé)
     return resteEspeces() + (parseFloat(ventesJour.fcVeille) || 0)
   }
 
@@ -160,10 +174,7 @@ export function AppProvider({ children }) {
       + resteEspeces()
   }
 
-  // ─── Reset données du jour — appelé entre deux connexions ────
-  // NE PAS toucher roleActif/restaurantId/userId ici
-  // (resetJour est appelé dans verifierPinUtilisateur avant que les nouveaux
-  //  setRoleActif etc. soient faits — les effacer ici casserait le login)
+  // ─── Reset données du jour ─────────────────────────────────
   function resetJour() {
     setPointId(null)
     setDateJour(null)
@@ -177,6 +188,7 @@ export function AppProvider({ children }) {
     setInventaireJour({})
     setShiftsJour([])
     setStocksParShift({})
+    setLastRoute(null)
     setVentesJour({
       sequences: [],
       yangoCse: '', yangoTab: '', yangoNbCommandes: '',
@@ -197,7 +209,7 @@ export function AppProvider({ children }) {
     })
   }
 
-  // ─── Déconnexion complète — efface session + identité ────────
+  // ─── Déconnexion complète ──────────────────────────────────
   function deconnecter() {
     effacerSession()
     setRoleActif(null)
@@ -208,9 +220,7 @@ export function AppProvider({ children }) {
     resetJour()
   }
 
-  // ─── Reset shift — après validation shift caissier ─────────
-  // Remet à 0 uniquement les données locales du caissier
-  // Le pointId reste le même — c'est le même jour
+  // ─── Reset shift ───────────────────────────────────────────
   function resetShift() {
     setPaiesJour({})
     setPresencesJour({})
@@ -234,6 +244,7 @@ export function AppProvider({ children }) {
       restaurantNom, setRestaurantNom,
       userId, setUserId,
       userNom, setUserNom,
+      lastRoute, setLastRoute,
       isManager,
       estBloque,
       paiesJour, setPaiesJour,
