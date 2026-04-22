@@ -2,6 +2,7 @@ import { router } from 'expo-router'
 import { useEffect, useState } from 'react'
 import {
   ActivityIndicator, Alert,
+  Modal,
   SafeAreaView, ScrollView, StyleSheet,
   Text, TouchableOpacity, View
 } from 'react-native'
@@ -30,6 +31,7 @@ export default function RecapPointScreen() {
 
   const [loading, setLoading] = useState(true)
   const [validating, setValidating] = useState(false)
+  const [confirmVisible, setConfirmVisible] = useState(false)
   const [presences, setPresences] = useState([])
   const [depenses, setDepenses] = useState([])
   const [transactions, setTransactions] = useState([])
@@ -167,8 +169,7 @@ export default function RecapPointScreen() {
       + resteEspecesCalc()
   }
 
-  async function valider() {
-    // Vérification : si Yango CSE ou Glovo CSE > 0, le TAB et le nb commandes sont obligatoires
+  function valider() {
     const yangoCseCumul = cumulShifts ? cumulShifts.yangoCse : (parseFloat(ventesJour.yangoCse) || 0)
     const glovoCseCumul = cumulShifts ? cumulShifts.glovoCse : (parseFloat(ventesJour.glovoCse) || 0)
 
@@ -193,49 +194,39 @@ export default function RecapPointScreen() {
       }
     }
 
-    Alert.alert(
-      '✅ Valider le point',
-      `Valider le point du ${formatDate(dateJour)} ?\n\nVente shifts : ${fmt(cumulShifts?.venteTotal || totalVentes())}\nFC calculé : ${fmt(fcCalc())}\nBénéfice SC : ${fmt(beneficeSCCalc())}\n\n⚠️ Cette action est irréversible.`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Valider', onPress: async () => {
-            setValidating(true)
-            const ok = await validerPoint(pointId, {
-              vente_total: cumulShifts?.venteTotal || totalVentes(),
-              depense_total: totalDepensesGlobal(),
-              kdo: cumulShifts ? cumulShifts.kdo : (parseFloat(ventesJour.kdo) || 0),
-              retour: cumulShifts ? cumulShifts.retour : (parseFloat(ventesJour.retour) || 0),
-              yango_cse: cumulShifts ? cumulShifts.yangoCse : (parseFloat(ventesJour.yangoCse) || 0),
-              yango_tab: parseFloat(ventesJour.yangoTab) || 0,
-              yango_nb_commandes: parseInt(ventesJour.yangoNbCommandes) || 0,
-              glovo_cse: cumulShifts ? cumulShifts.glovoCse : (parseFloat(ventesJour.glovoCse) || 0),
-              glovo_tab: parseFloat(ventesJour.glovoTab) || 0,
-              glovo_nb_commandes: parseInt(ventesJour.glovoNbCommandes) || 0,
-              wave: cumulShifts ? cumulShifts.wave : (parseFloat(ventesJour.wave) || 0),
-              om: cumulShifts ? cumulShifts.om : (parseFloat(ventesJour.om) || 0),
-              djamo: cumulShifts ? cumulShifts.djamo : (parseFloat(ventesJour.djamo) || 0),
-              fc_veille: parseFloat(ventesJour.fcVeille) || 0,
-              reste_especes: resteEspecesCalc(),
-              reste_fc: fcCalc(),
-              fc_compte: parseFloat(ventesJour.fc_actuel) || 0,
-              benefice_sc: beneficeSCCalc(),
-            })
-            setValidating(false)
-            if (ok) {
-              setPointValide(true)
-              Alert.alert(
-                '✅ Point validé !',
-                'Le point de la journée a été validé avec succès.',
-                [{ text: 'OK', onPress: () => router.replace('/accueil') }]
-              )
-            } else {
-              Alert.alert('Erreur', 'Impossible de valider le point.')
-            }
-          }
-        }
-      ]
-    )
+    setConfirmVisible(true)
+  }
+
+  async function confirmerValider() {
+    setConfirmVisible(false)
+    setValidating(true)
+    const ok = await validerPoint(pointId, {
+      vente_total: cumulShifts?.venteTotal || totalVentes(),
+      depense_total: totalDepensesGlobal(),
+      kdo: cumulShifts ? cumulShifts.kdo : (parseFloat(ventesJour.kdo) || 0),
+      retour: cumulShifts ? cumulShifts.retour : (parseFloat(ventesJour.retour) || 0),
+      yango_cse: cumulShifts ? cumulShifts.yangoCse : (parseFloat(ventesJour.yangoCse) || 0),
+      yango_tab: parseFloat(ventesJour.yangoTab) || 0,
+      yango_nb_commandes: parseInt(ventesJour.yangoNbCommandes) || 0,
+      glovo_cse: cumulShifts ? cumulShifts.glovoCse : (parseFloat(ventesJour.glovoCse) || 0),
+      glovo_tab: parseFloat(ventesJour.glovoTab) || 0,
+      glovo_nb_commandes: parseInt(ventesJour.glovoNbCommandes) || 0,
+      wave: cumulShifts ? cumulShifts.wave : (parseFloat(ventesJour.wave) || 0),
+      om: cumulShifts ? cumulShifts.om : (parseFloat(ventesJour.om) || 0),
+      djamo: cumulShifts ? cumulShifts.djamo : (parseFloat(ventesJour.djamo) || 0),
+      fc_veille: parseFloat(ventesJour.fcVeille) || 0,
+      reste_especes: resteEspecesCalc(),
+      reste_fc: fcCalc(),
+      fc_compte: parseFloat(ventesJour.fc_actuel) || 0,
+      benefice_sc: beneficeSCCalc(),
+    })
+    setValidating(false)
+    if (ok) {
+      setPointValide(true)
+      router.replace('/accueil')
+    } else {
+      Alert.alert('Erreur', 'Impossible de valider le point.')
+    }
   }
 
   if (loading) {
@@ -591,6 +582,29 @@ export default function RecapPointScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <Modal visible={confirmVisible} transparent animationType="fade">
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitre}>✅ Valider le point</Text>
+            <Text style={styles.confirmMsg}>
+              Valider le point du {formatDate(dateJour)} ?{'\n\n'}
+              Vente shifts : {fmt(cumulShifts?.venteTotal || totalVentes())}{'\n'}
+              FC calculé : {fmt(fcCalc())}{'\n'}
+              Bénéfice SC : {fmt(beneficeSCCalc())}{'\n\n'}
+              ⚠️ Cette action est irréversible.
+            </Text>
+            <View style={styles.confirmBtns}>
+              <TouchableOpacity style={styles.confirmCancel} onPress={() => setConfirmVisible(false)}>
+                <Text style={styles.confirmCancelTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.confirmOk} onPress={confirmerValider}>
+                <Text style={styles.confirmOkTxt}>Valider</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -684,4 +698,25 @@ const styles = StyleSheet.create({
     padding: 16, alignItems: 'center', marginBottom: 10
   },
   validerTxt: { fontSize: 15, fontWeight: '600', color: '#fff' },
+  confirmOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center', justifyContent: 'center', padding: 24
+  },
+  confirmBox: {
+    backgroundColor: '#fff', borderRadius: 18,
+    padding: 24, width: '100%', maxWidth: 380
+  },
+  confirmTitre: { fontSize: 17, fontWeight: '700', color: '#1a1a1a', marginBottom: 12 },
+  confirmMsg: { fontSize: 14, color: '#555', lineHeight: 22, marginBottom: 20 },
+  confirmBtns: { flexDirection: 'row', gap: 10 },
+  confirmCancel: {
+    flex: 1, padding: 14, borderRadius: 12,
+    backgroundColor: '#f5f5f5', alignItems: 'center'
+  },
+  confirmCancelTxt: { fontSize: 14, color: '#888' },
+  confirmOk: {
+    flex: 1, padding: 14, borderRadius: 12,
+    backgroundColor: '#3B6D11', alignItems: 'center'
+  },
+  confirmOkTxt: { fontSize: 14, fontWeight: '600', color: '#fff' },
 })

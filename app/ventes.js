@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   SafeAreaView, ScrollView,
   StyleSheet,
   Text,
@@ -28,6 +29,7 @@ export default function VentesScreen() {
   const [etape, setEtape] = useState(1)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [photosAlertVisible, setPhotosAlertVisible] = useState(false)
   const [chargementShifts, setChargementShifts] = useState(false)
   const [cumulShifts, setCumulShifts] = useState(null)
 
@@ -151,14 +153,7 @@ export default function VentesScreen() {
     if (!isManager) {
       const manquantes = verifierPhotosObligatoires()
       if (manquantes.length > 0) {
-        Alert.alert(
-          '⚠️ Photos manquantes',
-          `Les éléments suivants n'ont pas de photo :\n\n${manquantes.map(m => `• ${m}`).join('\n')}\n\nVeuillez ajouter les photos.`,
-          [
-            { text: 'Annuler', style: 'cancel' },
-            { text: 'Continuer quand même', onPress: () => sauvegarderEtContinuer() }
-          ]
-        )
+        setPhotosAlertVisible(true)
         return
       }
     }
@@ -556,6 +551,26 @@ export default function VentesScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <Modal visible={photosAlertVisible} transparent animationType="fade">
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitre}>⚠️ Photos manquantes</Text>
+            <Text style={styles.confirmMsg}>
+              {verifierPhotosObligatoires().map(m => `• ${m}`).join('\n')}
+              {'\n\n'}Veuillez ajouter les photos manquantes.
+            </Text>
+            <View style={styles.confirmBtns}>
+              <TouchableOpacity style={styles.confirmCancel} onPress={() => setPhotosAlertVisible(false)}>
+                <Text style={styles.confirmCancelTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.confirmOk} onPress={() => { setPhotosAlertVisible(false); sauvegarderEtContinuer() }}>
+                <Text style={styles.confirmOkTxt}>Continuer quand même</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -717,4 +732,25 @@ const styles = StyleSheet.create({
     padding: 16, alignItems: 'center', marginBottom: 10
   },
   recapTxt: { fontSize: 15, fontWeight: '600', color: '#fff' },
+  confirmOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center', justifyContent: 'center', padding: 24
+  },
+  confirmBox: {
+    backgroundColor: '#fff', borderRadius: 18,
+    padding: 24, width: '100%', maxWidth: 380
+  },
+  confirmTitre: { fontSize: 17, fontWeight: '700', color: '#1a1a1a', marginBottom: 12 },
+  confirmMsg: { fontSize: 14, color: '#555', lineHeight: 22, marginBottom: 20 },
+  confirmBtns: { flexDirection: 'row', gap: 10 },
+  confirmCancel: {
+    flex: 1, padding: 14, borderRadius: 12,
+    backgroundColor: '#f5f5f5', alignItems: 'center'
+  },
+  confirmCancelTxt: { fontSize: 14, color: '#888' },
+  confirmOk: {
+    flex: 1, padding: 14, borderRadius: 12,
+    backgroundColor: '#EF9F27', alignItems: 'center'
+  },
+  confirmOkTxt: { fontSize: 14, fontWeight: '600', color: '#412402' },
 })

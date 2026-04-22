@@ -439,15 +439,8 @@ export default function PresencesScreen() {
         <TouchableOpacity
           style={styles.validerBtn}
           onPress={() => {
-            const nbPresents = Object.values(presences).filter(p => p.statut === 'Présent').length
-            Alert.alert(
-              '✅ Salaires enregistrés',
-              `${nbPresents} présence(s) enregistrée(s)\nTotal paie : ${fmt(totalPaie())}`,
-              [{ text: 'OK', onPress: () => {
-                if (router.canGoBack()) router.back()
-                else router.replace('/accueil')
-              }}]
-            )
+            if (router.canGoBack()) router.back()
+            else router.replace('/accueil')
           }}
         >
           <Text style={styles.validerTxt}>✅ Valider les présences</Text>
