@@ -625,7 +625,7 @@ export default function ModifierPointScreen() {
         <>
           {/* ETAPE 1 */}
           {etape === 1 && (
-            <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <Text style={styles.sectionTitre}>Choisissez un restaurant</Text>
               {restaurants.map(r => (
                 <TouchableOpacity
@@ -650,7 +650,7 @@ export default function ModifierPointScreen() {
 
           {/* ETAPE 2 */}
           {etape === 2 && (
-            <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <Text style={styles.sectionTitre}>{selectedResto?.nom}</Text>
               <View style={styles.legendeRow}>
                 <View style={styles.legendeItem}>

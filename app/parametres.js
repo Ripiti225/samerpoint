@@ -1129,11 +1129,15 @@ export default function ParametresScreen() {
       <Modal visible={modal.visible} transparent animationType="slide">
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.modalOverlay}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={{ width: '100%' }}
+            >
               <ScrollView
                 style={styles.modal}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 40 }}
               >
                 {renderModalContent()}
                 <View style={styles.modalBtns}>

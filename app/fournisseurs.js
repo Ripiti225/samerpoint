@@ -199,7 +199,7 @@ export default function FournisseursScreen() {
         </View>
       )}
 
-      <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {fournisseurs.length === 0 ? (
           <View style={styles.emptyBox}>
             <Text style={styles.emptyTxt}>Aucun fournisseur actif</Text>

@@ -285,7 +285,7 @@ export default function ChargesScreen() {
           <Text style={styles.loadingTxt}>Chargement...</Text>
         </View>
       ) : (
-        <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
           {/* Bilan financier — uniquement pour manager/admin */}
           {!isRH && (

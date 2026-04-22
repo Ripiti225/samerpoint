@@ -236,7 +236,7 @@ export default function ModifierInventaireScreen() {
       ) : (
         <>
           {etape === 1 && (
-            <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <Text style={styles.sectionTitre}>Choisissez un restaurant</Text>
               {restaurants.map(r => (
                 <TouchableOpacity
@@ -260,7 +260,7 @@ export default function ModifierInventaireScreen() {
           )}
 
           {etape === 2 && (
-            <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <Text style={styles.sectionTitre}>{selectedResto?.nom}</Text>
               <Calendar
                 onDayPress={day => {
@@ -303,7 +303,7 @@ export default function ModifierInventaireScreen() {
                 ))}
               </ScrollView>
 
-              <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+              <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 {(() => {
                   let catMontant = 0
                   catCourante?.produits.forEach(p => {

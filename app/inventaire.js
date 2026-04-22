@@ -475,7 +475,7 @@ export default function InventaireScreen() {
             ))}
           </ScrollView>
 
-          <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             {catCourante?.produits.map(produit => {
               const ecart = calculEcart(produit)
               const hasEcart = ecart !== null && Math.abs(ecart) > 0.01

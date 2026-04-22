@@ -270,7 +270,7 @@ export default function DepensesScreen() {
         </View>
       )}
 
-      <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
         {/* ══════════════════════════════════════════
             VUE CAISSIER — Ses propres dépenses

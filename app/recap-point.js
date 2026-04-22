@@ -281,7 +281,7 @@ export default function RecapPointScreen() {
         <View style={{ width: 60 }} />
       </View>
 
-      <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
         {/* KPIs */}
         <View style={styles.kpiGrid}>

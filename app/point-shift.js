@@ -16,6 +16,99 @@ import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
 
+// ─── Composants stables hors du composant principal ───────────────────────────
+// Définis ici pour éviter le re-montage à chaque re-render (perte de focus clavier)
+
+function PhotoInput({ label, value, setter, dossier, obligatoire, onGererPhoto, uploading }) {
+  return (
+    <View style={[styles.photoBlock, obligatoire && !value && styles.photoBlockRequired]}>
+      <View style={styles.photoHeader}>
+        <Text style={styles.photoLabel}>
+          📷 {label}
+          {obligatoire && <Text style={{ color: '#A32D2D' }}> *</Text>}
+        </Text>
+        {value ? (
+          <View style={styles.photoBadgeOk}>
+            <Text style={styles.photoBadgeOkTxt}>✅ OK</Text>
+          </View>
+        ) : obligatoire ? (
+          <View style={styles.photoBadgeReq}>
+            <Text style={styles.photoBadgeReqTxt}>⚠️ Requis</Text>
+          </View>
+        ) : null}
+      </View>
+      {value && (
+        <Image source={{ uri: value }} style={styles.photoPreview} resizeMode="cover" />
+      )}
+      <TouchableOpacity
+        style={styles.photoBtn}
+        onPress={() => onGererPhoto(setter, dossier)}
+        disabled={uploading}
+      >
+        {uploading ? (
+          <ActivityIndicator size="small" color="#EF9F27" />
+        ) : (
+          <Text style={styles.photoBtnTxt}>
+            {value ? '🔄 Changer la photo' : '📷 Ajouter une photo'}
+          </Text>
+        )}
+      </TouchableOpacity>
+    </View>
+  )
+}
+
+function LigneSaisie({ label, value, setter, photoValue, photoSetter, dossier, onGererPhoto, uploading }) {
+  const montant = parseFloat(value) || 0
+  return (
+    <View style={styles.ligneCard}>
+      <View style={styles.ligneHeader}>
+        <Text style={styles.ligneLabel}>{label}</Text>
+      </View>
+      <TextInput
+        style={styles.ligneInput}
+        value={value}
+        onChangeText={setter}
+        keyboardType="numeric"
+        placeholder="0 FCFA"
+        placeholderTextColor="#bbb"
+      />
+      {montant > 0 && (
+        <PhotoInput
+          label={`Justificatif ${label}`}
+          value={photoValue}
+          setter={photoSetter}
+          dossier={dossier}
+          obligatoire={montant > 0}
+          onGererPhoto={onGererPhoto}
+          uploading={uploading}
+        />
+      )}
+    </View>
+  )
+}
+
+function LigneSaisieSimple({ label, value, setter, note }) {
+  return (
+    <View style={styles.ligneCard}>
+      <View style={styles.ligneHeader}>
+        <Text style={styles.ligneLabel}>{label}</Text>
+        <View style={styles.noPhotoBadge}>
+          <Text style={styles.noPhotoBadgeTxt}>Sans photo</Text>
+        </View>
+      </View>
+      <TextInput
+        style={styles.ligneInput}
+        value={value}
+        onChangeText={setter}
+        keyboardType="numeric"
+        placeholder="0 FCFA"
+        placeholderTextColor="#bbb"
+      />
+      {note && <Text style={styles.ligneNote}>{note}</Text>}
+    </View>
+  )
+}
+
 export default function PointShiftScreen() {
   const {
     pointId, restaurantId, roleActif,
@@ -273,96 +366,6 @@ export default function PointShiftScreen() {
     }
   }
 
-  // ─── Composant Photo ───────────────────────────────────────
-  function PhotoInput({ label, value, setter, dossier, obligatoire }) {
-    return (
-      <View style={[styles.photoBlock, obligatoire && !value && styles.photoBlockRequired]}>
-        <View style={styles.photoHeader}>
-          <Text style={styles.photoLabel}>
-            📷 {label}
-            {obligatoire && <Text style={{ color: '#A32D2D' }}> *</Text>}
-          </Text>
-          {value ? (
-            <View style={styles.photoBadgeOk}>
-              <Text style={styles.photoBadgeOkTxt}>✅ OK</Text>
-            </View>
-          ) : obligatoire ? (
-            <View style={styles.photoBadgeReq}>
-              <Text style={styles.photoBadgeReqTxt}>⚠️ Requis</Text>
-            </View>
-          ) : null}
-        </View>
-        {value && (
-          <Image source={{ uri: value }} style={styles.photoPreview} resizeMode="cover" />
-        )}
-        <TouchableOpacity
-          style={styles.photoBtn}
-          onPress={() => gererPhoto(setter, dossier)}
-          disabled={uploading}
-        >
-          {uploading ? (
-            <ActivityIndicator size="small" color="#EF9F27" />
-          ) : (
-            <Text style={styles.photoBtnTxt}>
-              {value ? '🔄 Changer la photo' : '📷 Ajouter une photo'}
-            </Text>
-          )}
-        </TouchableOpacity>
-      </View>
-    )
-  }
-
-  // ─── Composant Ligne avec photo ────────────────────────────
-  function LigneSaisie({ label, value, setter, photoValue, photoSetter, dossier }) {
-    const montant = parseFloat(value) || 0
-    return (
-      <View style={styles.ligneCard}>
-        <View style={styles.ligneHeader}>
-          <Text style={styles.ligneLabel}>{label}</Text>
-        </View>
-        <TextInput
-          style={styles.ligneInput}
-          value={value}
-          onChangeText={setter}
-          keyboardType="numeric"
-          placeholder="0 FCFA"
-          placeholderTextColor="#bbb"
-        />
-        {montant > 0 && (
-          <PhotoInput
-            label={`Justificatif ${label}`}
-            value={photoValue}
-            setter={photoSetter}
-            dossier={dossier}
-            obligatoire={montant > 0}
-          />
-        )}
-      </View>
-    )
-  }
-
-  function LigneSaisieSimple({ label, value, setter, note }) {
-    return (
-      <View style={styles.ligneCard}>
-        <View style={styles.ligneHeader}>
-          <Text style={styles.ligneLabel}>{label}</Text>
-          <View style={styles.noPhotoBadge}>
-            <Text style={styles.noPhotoBadgeTxt}>Sans photo</Text>
-          </View>
-        </View>
-        <TextInput
-          style={styles.ligneInput}
-          value={value}
-          onChangeText={setter}
-          keyboardType="numeric"
-          placeholder="0 FCFA"
-          placeholderTextColor="#bbb"
-        />
-        {note && <Text style={styles.ligneNote}>{note}</Text>}
-      </View>
-    )
-  }
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -406,7 +409,7 @@ export default function PointShiftScreen() {
           CAISSIER — Formulaire
       ══════════════════════════════════════════ */}
       {isCaissier && (
-        <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
           {new Date().getHours() >= 0 && new Date().getHours() < 5 && (
             <View style={styles.alerteMinuit}>
@@ -462,19 +465,26 @@ export default function PointShiftScreen() {
           </Text>
 
           <LigneSaisie label="🎁 KDO offerts" value={kdo} setter={setKdo}
-            photoValue={photoKdo} photoSetter={setPhotoKdo} dossier="kdo" />
+            photoValue={photoKdo} photoSetter={setPhotoKdo} dossier="kdo"
+            onGererPhoto={gererPhoto} uploading={uploading} />
           <LigneSaisie label="↩️ Retours" value={retour} setter={setRetour}
-            photoValue={photoRetour} photoSetter={setPhotoRetour} dossier="retour" />
+            photoValue={photoRetour} photoSetter={setPhotoRetour} dossier="retour"
+            onGererPhoto={gererPhoto} uploading={uploading} />
           <LigneSaisie label="🛵 Yango CSE" value={yangoCse} setter={setYangoCse}
-            photoValue={photoYangoCse} photoSetter={setPhotoYangoCse} dossier="yango" />
+            photoValue={photoYangoCse} photoSetter={setPhotoYangoCse} dossier="yango"
+            onGererPhoto={gererPhoto} uploading={uploading} />
           <LigneSaisie label="🛵 Glovo CSE" value={glovoCse} setter={setGlovoCse}
-            photoValue={photoGlovoCse} photoSetter={setPhotoGlovoCse} dossier="glovo" />
+            photoValue={photoGlovoCse} photoSetter={setPhotoGlovoCse} dossier="glovo"
+            onGererPhoto={gererPhoto} uploading={uploading} />
           <LigneSaisie label="💳 Wave" value={wave} setter={setWave}
-            photoValue={photoWave} photoSetter={setPhotoWave} dossier="wave" />
+            photoValue={photoWave} photoSetter={setPhotoWave} dossier="wave"
+            onGererPhoto={gererPhoto} uploading={uploading} />
           <LigneSaisie label="💳 Djamo" value={djamo} setter={setDjamo}
-            photoValue={photoDjamo} photoSetter={setPhotoDjamo} dossier="djamo" />
+            photoValue={photoDjamo} photoSetter={setPhotoDjamo} dossier="djamo"
+            onGererPhoto={gererPhoto} uploading={uploading} />
           <LigneSaisie label="💳 Orange Money" value={om} setter={setOm}
-            photoValue={photoOm} photoSetter={setPhotoOm} dossier="om" />
+            photoValue={photoOm} photoSetter={setPhotoOm} dossier="om"
+            onGererPhoto={gererPhoto} uploading={uploading} />
 
           <Text style={styles.sectionTitre}>Espèces en caisse</Text>
           <LigneSaisieSimple
@@ -561,7 +571,7 @@ export default function PointShiftScreen() {
           GÉRANT — Vue journalière cumul
       ══════════════════════════════════════════ */}
       {(isGerant || isManager) && vue === 'liste' && (
-        <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {loading ? (
             <View style={styles.loadingBox}>
               <ActivityIndicator size="large" color="#EF9F27" />
@@ -638,7 +648,7 @@ export default function PointShiftScreen() {
           GÉRANT — Détail par shift
       ══════════════════════════════════════════ */}
       {(isGerant || isManager) && vue === 'detail' && (
-        <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {loading ? (
             <View style={styles.loadingBox}>
               <ActivityIndicator size="large" color="#EF9F27" />

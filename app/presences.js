@@ -301,7 +301,7 @@ export default function PresencesScreen() {
         })}
       </ScrollView>
 
-      <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {travailleurs.length === 0 ? (
           <View style={styles.emptyBox}>
             <Text style={styles.emptyTxt}>Aucun travailleur actif</Text>

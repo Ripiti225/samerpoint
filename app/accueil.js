@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router'
+import { useEffect } from 'react'
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { useApp } from '../context/AppContext'
 
@@ -7,6 +8,14 @@ export default function AccueilScreen() {
   const { pointValide, inventaireTermine, estBloque, roleActif } = useApp()
 
   const roleEffectif = role || roleActif
+
+  // Sur web, si le contexte est vide après un refresh → redirect login
+  useEffect(() => {
+    if (!roleEffectif) {
+      const t = setTimeout(() => router.replace('/login'), 800)
+      return () => clearTimeout(t)
+    }
+  }, [roleEffectif])
 
   const isManager = roleEffectif === 'manager'
   const isGerant = roleEffectif === 'gerant'

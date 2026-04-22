@@ -5,6 +5,7 @@ import {
   FlatList,
   Image,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text, TouchableOpacity,
   View
@@ -311,18 +312,25 @@ export default function LoginScreen() {
         >
           <Text style={styles.backTxt}>‹ Changer de restaurant</Text>
         </TouchableOpacity>
-        <Image
-          source={require('../assets/icon.png')}
-          style={styles.logoImageSm}
-          resizeMode="contain"
-        />
-        <Text style={styles.restoHeaderNom}>{selectedResto?.nom}</Text>
-        <Text style={styles.restoHeaderLoc}>{selectedResto?.localisation || 'Abidjan'}</Text>
-        <PinPad
-          titre="Code d'accès du restaurant"
-          sousTitre="Entrez le code PIN du restaurant"
-          couleur={couleur}
-        />
+        <ScrollView
+          style={{ width: '100%' }}
+          contentContainerStyle={styles.pinScrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Image
+            source={require('../assets/icon.png')}
+            style={styles.logoImageSm}
+            resizeMode="contain"
+          />
+          <Text style={styles.restoHeaderNom}>{selectedResto?.nom}</Text>
+          <Text style={styles.restoHeaderLoc}>{selectedResto?.localisation || 'Abidjan'}</Text>
+          <PinPad
+            titre="Code d'accès du restaurant"
+            sousTitre="Entrez le code PIN du restaurant"
+            couleur={couleur}
+          />
+        </ScrollView>
       </SafeAreaView>
     )
   }
@@ -413,42 +421,49 @@ export default function LoginScreen() {
         <Text style={styles.backTxt}>‹ Changer d'utilisateur</Text>
       </TouchableOpacity>
 
-      <Image
-        source={require('../assets/icon.png')}
-        style={styles.logoImageSm}
-        resizeMode="contain"
-      />
-
-      <View style={[styles.whoBox, { borderColor: couleur }]}>
-        <View style={[styles.avatar, { backgroundColor: couleur }]}>
-          <Text style={styles.avatarText}>
-            {selected?.nom.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-          </Text>
-        </View>
-        <View>
-          <Text style={styles.userName}>{selected?.nom}</Text>
-          <Text style={styles.userSubtitle}>
-            {ROLES_GLOBAUX.includes(selected?.role)
-              ? 'Accès global — tous les restaurants'
-              : `${selectedResto?.nom} — ${selected?.role}`}
-          </Text>
-        </View>
-      </View>
-
-      {chargement ? (
-        <View style={{ marginTop: 40, alignItems: 'center' }}>
-          <ActivityIndicator size="large" color={couleur} />
-          <Text style={{ fontSize: 13, color: '#888', marginTop: 12 }}>
-            Chargement...
-          </Text>
-        </View>
-      ) : (
-        <PinPad
-          titre="Code PIN personnel"
-          sousTitre="Entrez votre code PIN"
-          couleur={couleur}
+      <ScrollView
+        style={{ width: '100%' }}
+        contentContainerStyle={styles.pinScrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <Image
+          source={require('../assets/icon.png')}
+          style={styles.logoImageSm}
+          resizeMode="contain"
         />
-      )}
+
+        <View style={[styles.whoBox, { borderColor: couleur }]}>
+          <View style={[styles.avatar, { backgroundColor: couleur }]}>
+            <Text style={styles.avatarText}>
+              {selected?.nom.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+            </Text>
+          </View>
+          <View>
+            <Text style={styles.userName}>{selected?.nom}</Text>
+            <Text style={styles.userSubtitle}>
+              {ROLES_GLOBAUX.includes(selected?.role)
+                ? 'Accès global — tous les restaurants'
+                : `${selectedResto?.nom} — ${selected?.role}`}
+            </Text>
+          </View>
+        </View>
+
+        {chargement ? (
+          <View style={{ marginTop: 40, alignItems: 'center' }}>
+            <ActivityIndicator size="large" color={couleur} />
+            <Text style={{ fontSize: 13, color: '#888', marginTop: 12 }}>
+              Chargement...
+            </Text>
+          </View>
+        ) : (
+          <PinPad
+            titre="Code PIN personnel"
+            sousTitre="Entrez votre code PIN"
+            couleur={couleur}
+          />
+        )}
+      </ScrollView>
     </SafeAreaView>
   )
 }
@@ -508,16 +523,16 @@ const styles = StyleSheet.create({
     marginVertical: 16, width: '90%', borderWidth: 1.5,
   },
   userSubtitle: { fontSize: 12, color: '#888', marginTop: 2 },
-  pinContainer: { alignItems: 'center', width: '100%', paddingHorizontal: 20 },
+  pinContainer: { alignItems: 'center', width: '100%', paddingHorizontal: 20, paddingBottom: 20 },
   pinTitre: { fontSize: 16, fontWeight: '600', color: '#1a1a1a', marginBottom: 6 },
   pinSousTitre: { fontSize: 13, color: '#888', marginBottom: 20 },
   dots: { flexDirection: 'row', gap: 14, marginBottom: 12 },
   dot: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: '#EF9F27' },
   dotError: { borderColor: '#A32D2D', backgroundColor: '#FAECE7' },
   pinErrorTxt: { fontSize: 13, color: '#A32D2D', marginBottom: 16, fontWeight: '500' },
-  pinpad: { flexDirection: 'row', flexWrap: 'wrap', width: 260, gap: 12, marginTop: 20 },
+  pinpad: { flexDirection: 'row', flexWrap: 'wrap', width: 252, gap: 10, marginTop: 16 },
   pinBtn: {
-    width: 72, height: 72, borderRadius: 16, backgroundColor: '#f5f5f5',
+    width: 74, height: 74, borderRadius: 16, backgroundColor: '#f5f5f5',
     alignItems: 'center', justifyContent: 'center', borderWidth: 0.5, borderColor: '#eee'
   },
   pinBtnEmpty: { backgroundColor: 'transparent', borderColor: 'transparent' },
@@ -548,4 +563,5 @@ const styles = StyleSheet.create({
   globalBtnTxt: { fontSize: 14, fontWeight: '700', color: '#3C3489' },
   globalBtnSub: { fontSize: 11, color: '#6B63C4', marginTop: 2 },
   globalBtnArrow: { marginLeft: 'auto', fontSize: 20, color: '#6B63C4' },
+  pinScrollContent: { alignItems: 'center', paddingBottom: 40, paddingTop: 8 },
 })

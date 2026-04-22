@@ -268,7 +268,7 @@ export default function VentesScreen() {
         </View>
       )}
 
-      <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
         {/* ══════════════════════════════════════════
             ÉTAPE 1 — Livraisons TAB
