@@ -218,13 +218,8 @@ export default function ChargesScreen() {
   }
 
   async function supprimerCharge(charge) {
-    Alert.alert('Confirmer', `Supprimer "${charge.libelle}" ?`, [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: async () => {
-        await supabase.from('charges').delete().eq('id', charge.id)
-        chargerCharges()
-      }}
-    ])
+    await supabase.from('charges').delete().eq('id', charge.id)
+    chargerCharges()
   }
 
   function ouvrirEdition(charge) {
@@ -409,75 +404,80 @@ export default function ChargesScreen() {
 
       {/* Modal ajout/édition charge */}
       <Modal visible={modalCharge} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.modalOverlay}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-              <View style={styles.modal}>
-                <Text style={styles.modalTitre}>
-                  {chargeEnEdition ? 'Modifier la charge' : 'Nouvelle charge'}
-                </Text>
+        <View style={styles.modalOverlay}>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={{ flex: 1 }} />
+          </TouchableWithoutFeedback>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <ScrollView
+              style={styles.modal}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.modalTitre}>
+                {chargeEnEdition ? 'Modifier la charge' : 'Nouvelle charge'}
+              </Text>
 
-                <Text style={styles.modalLabel}>Libellé *</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="Ex: Loyer, Électricité, Salaire fixe..."
-                  value={formCharge.libelle}
-                  onChangeText={v => setFormCharge(p => ({ ...p, libelle: v }))}
-                  placeholderTextColor="#bbb"
-                />
+              <Text style={styles.modalLabel}>Libellé *</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Ex: Loyer, Électricité, Salaire fixe..."
+                value={formCharge.libelle}
+                onChangeText={v => setFormCharge(p => ({ ...p, libelle: v }))}
+                placeholderTextColor="#bbb"
+              />
 
-                <Text style={styles.modalLabel}>Montant (FCFA) *</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="Ex: 500000"
-                  value={formCharge.montant}
-                  onChangeText={v => setFormCharge(p => ({ ...p, montant: v }))}
-                  keyboardType="numeric"
-                  placeholderTextColor="#bbb"
-                />
+              <Text style={styles.modalLabel}>Montant (FCFA) *</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Ex: 500000"
+                value={formCharge.montant}
+                onChangeText={v => setFormCharge(p => ({ ...p, montant: v }))}
+                keyboardType="numeric"
+                placeholderTextColor="#bbb"
+              />
 
-                {!isRH && parseFloat(formCharge.montant) > 0 && (
-                  <View style={[styles.previewBox, {
-                    backgroundColor: beneficeApresCharge() >= 0 ? '#EAF3DE' : '#FAECE7',
-                    borderColor: beneficeApresCharge() >= 0 ? '#3B6D11' : '#A32D2D',
+              {!isRH && parseFloat(formCharge.montant) > 0 && (
+                <View style={[styles.previewBox, {
+                  backgroundColor: beneficeApresCharge() >= 0 ? '#EAF3DE' : '#FAECE7',
+                  borderColor: beneficeApresCharge() >= 0 ? '#3B6D11' : '#A32D2D',
+                }]}>
+                  <Text style={styles.previewLabel}>Bénéfice réel après cette charge</Text>
+                  <Text style={[styles.previewVal, {
+                    color: beneficeApresCharge() >= 0 ? '#3B6D11' : '#A32D2D'
                   }]}>
-                    <Text style={styles.previewLabel}>Bénéfice réel après cette charge</Text>
-                    <Text style={[styles.previewVal, {
-                      color: beneficeApresCharge() >= 0 ? '#3B6D11' : '#A32D2D'
-                    }]}>
-                      {fmt(beneficeApresCharge())}
-                    </Text>
-                    <Text style={styles.previewSub}>
-                      BSC {fmt(bscMois)} − Charges {fmt(totalApresCharge())}
-                    </Text>
-                  </View>
-                )}
-
-                <View style={styles.modalBtns}>
-                  <TouchableOpacity
-                    style={styles.modalCancel}
-                    onPress={() => {
-                      setModalCharge(false)
-                      setChargeEnEdition(null)
-                      setFormCharge({ libelle: '', montant: '' })
-                    }}
-                  >
-                    <Text style={styles.modalCancelTxt}>Annuler</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.modalConfirm, saving && { opacity: 0.6 }]}
-                    onPress={sauvegarder}
-                    disabled={saving}
-                  >
-                    <Text style={styles.modalConfirmTxt}>
-                      {saving ? 'Enregistrement...' : 'Enregistrer'}
-                    </Text>
-                  </TouchableOpacity>
+                    {fmt(beneficeApresCharge())}
+                  </Text>
+                  <Text style={styles.previewSub}>
+                    BSC {fmt(bscMois)} − Charges {fmt(totalApresCharge())}
+                  </Text>
                 </View>
+              )}
+
+              <View style={[styles.modalBtns, { paddingBottom: 20 }]}>
+                <TouchableOpacity
+                  style={styles.modalCancel}
+                  onPress={() => {
+                    setModalCharge(false)
+                    setChargeEnEdition(null)
+                    setFormCharge({ libelle: '', montant: '' })
+                  }}
+                >
+                  <Text style={styles.modalCancelTxt}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalConfirm, saving && { opacity: 0.6 }]}
+                  onPress={sauvegarder}
+                  disabled={saving}
+                >
+                  <Text style={styles.modalConfirmTxt}>
+                    {saving ? 'Enregistrement...' : 'Enregistrer'}
+                  </Text>
+                </TouchableOpacity>
               </View>
-            </KeyboardAvoidingView>
-          </View>
-        </TouchableWithoutFeedback>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
     </SafeAreaView>
   )
