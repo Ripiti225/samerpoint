@@ -399,6 +399,14 @@ export default function PointShiftScreen() {
       {(isGerant || isManager) && (
         <View style={styles.onglets}>
           <TouchableOpacity
+            style={[styles.onglet, vue === 'monshift' && styles.ongletActive]}
+            onPress={() => setVue('monshift')}
+          >
+            <Text style={[styles.ongletTxt, vue === 'monshift' && styles.ongletTxtActive]}>
+              📝 Mon shift
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={[styles.onglet, vue === 'liste' && styles.ongletActive]}
             onPress={() => setVue('liste')}
           >
@@ -418,9 +426,9 @@ export default function PointShiftScreen() {
       )}
 
       {/* ══════════════════════════════════════════
-          CAISSIER — Formulaire
+          CAISSIER / GÉRANT — Formulaire shift
       ══════════════════════════════════════════ */}
-      {isCaissier && (
+      {(isCaissier || ((isGerant || isManager) && vue === 'monshift')) && (
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
           {new Date().getHours() >= 0 && new Date().getHours() < 5 && (

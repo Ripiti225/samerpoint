@@ -100,13 +100,31 @@ export default function VentesScreen() {
       }))
     }
 
-    // Charger la liste des fournisseurs du restaurant
+    // Charger la liste des fournisseurs du restaurant + crédit veille (dernier reste)
     const { data: fours } = await supabase
       .from('fournisseurs')
       .select('id, nom')
       .eq('restaurant_id', restaurantId)
       .order('nom')
-    setFournisseursList(fours || [])
+
+    let creditMap = {}
+    if (fours && fours.length > 0) {
+      const fourIds = fours.map(f => f.id)
+      const { data: lastTrans } = await supabase
+        .from('transactions_fournisseurs')
+        .select('fournisseur_id, reste, created_at')
+        .in('fournisseur_id', fourIds)
+        .order('created_at', { ascending: false })
+      ;(lastTrans || []).forEach(t => {
+        if (creditMap[t.fournisseur_id] === undefined) {
+          creditMap[t.fournisseur_id] = t.reste || 0
+        }
+      })
+    }
+    setFournisseursList((fours || []).map(f => ({
+      ...f,
+      credit_veille: creditMap[f.id] || 0
+    })))
 
     setChargementShifts(false)
   }
@@ -146,6 +164,12 @@ export default function VentesScreen() {
       ...prev,
       [fourId]: { ...prev[fourId], nom: fourNom, [champ]: valeur }
     }))
+  }
+
+  function getCreditVeille(four) {
+    const data = fournisseursGerantCaisse[four.id]
+    if (data?.credit_veille !== undefined) return parseFloat(data.credit_veille) || 0
+    return four.credit_veille || 0
   }
 
   function setVente(champ, valeur) {
@@ -594,46 +618,108 @@ export default function VentesScreen() {
                       fournisseursList.map(four => {
                         const data = fournisseursGerantCaisse[four.id] || {}
                         const fourOpen = sectionsOuvertes.has(`four_${four.id}`)
+                        const creditV = getCreditVeille(four)
+                        const montFact = parseFloat(data.montant_facture) || 0
+                        const payé = parseFloat(data.paye) || 0
+                        const reste = creditV + montFact - payé
                         return (
                           <View key={four.id}>
                             <TouchableOpacity style={styles.fourRow} onPress={() => toggleSection(`four_${four.id}`)}>
-                              <Text style={styles.fourNom}>{four.nom}</Text>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.fourNom}>{four.nom}</Text>
+                                {creditV > 0 && (
+                                  <Text style={{ fontSize: 10, color: '#888', marginTop: 1 }}>
+                                    Crédit veille : {fmt(creditV)}
+                                  </Text>
+                                )}
+                              </View>
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                {data.paye ? (
-                                  <Text style={styles.fourMontant}>{fmt(parseFloat(data.paye) || 0)}</Text>
-                                ) : null}
+                                {payé > 0 && (
+                                  <Text style={styles.fourMontant}>Payé {fmt(payé)}</Text>
+                                )}
                                 {data.photoUri && <Text style={{ fontSize: 12 }}>📷</Text>}
                                 <Text style={styles.bandChevron}>{fourOpen ? '▲' : '▼'}</Text>
                               </View>
                             </TouchableOpacity>
                             {fourOpen && (
                               <View style={styles.fourDetails}>
+                                {/* Crédit veille */}
+                                <View style={styles.fourCreditRow}>
+                                  <View style={{ flex: 1 }}>
+                                    <Text style={styles.fourCreditLabel}>Crédit veille</Text>
+                                    <Text style={{ fontSize: 10, color: '#888' }}>
+                                      {isManager ? 'Modifiable' : 'Calculé auto'}
+                                    </Text>
+                                  </View>
+                                  {isManager ? (
+                                    <TextInput
+                                      style={styles.fourCreditInput}
+                                      value={data.credit_veille !== undefined ? String(data.credit_veille) : String(four.credit_veille || 0)}
+                                      onChangeText={v => updateFournisseurGerant(four.id, four.nom, 'credit_veille', v)}
+                                      keyboardType="numeric"
+                                      placeholderTextColor="#bbb"
+                                    />
+                                  ) : (
+                                    <Text style={styles.fourCreditVal}>{fmt(creditV)}</Text>
+                                  )}
+                                </View>
+
+                                {/* N° facture */}
                                 <TextInput
                                   style={styles.depInput}
-                                  value={data.facture || ''}
-                                  onChangeText={v => updateFournisseurGerant(four.id, four.nom, 'facture', v)}
-                                  placeholder="N° facture / référence"
+                                  value={data.facture_ref || ''}
+                                  onChangeText={v => updateFournisseurGerant(four.id, four.nom, 'facture_ref', v)}
+                                  placeholder="N° facture / référence (optionnel)"
                                   placeholderTextColor="#bbb"
                                 />
+
+                                {/* Montant facture */}
                                 <TextInput
                                   style={styles.depInput}
+                                  value={data.montant_facture || ''}
+                                  onChangeText={v => updateFournisseurGerant(four.id, four.nom, 'montant_facture', v)}
+                                  keyboardType="numeric"
+                                  placeholder="Montant facture du jour (FCFA)"
+                                  placeholderTextColor="#bbb"
+                                />
+
+                                {/* Montant payé */}
+                                <TextInput
+                                  style={[styles.depInput, { borderWidth: 1, borderColor: '#EF9F27' }]}
                                   value={data.paye || ''}
                                   onChangeText={v => updateFournisseurGerant(four.id, four.nom, 'paye', v)}
                                   keyboardType="numeric"
-                                  placeholder="Montant payé (FCFA)"
+                                  placeholder="Montant payé ce jour (FCFA)"
                                   placeholderTextColor="#bbb"
                                 />
+
+                                {/* Reste calculé */}
+                                {(montFact > 0 || creditV > 0) && (
+                                  <View style={[styles.fourResteRow, {
+                                    backgroundColor: reste <= 0 ? '#EAF3DE' : '#FAEEDA',
+                                    borderColor: reste <= 0 ? '#3B6D11' : '#EF9F27',
+                                  }]}>
+                                    <Text style={[styles.fourResteLabel, { color: reste <= 0 ? '#3B6D11' : '#854F0B' }]}>
+                                      Reste dû après paiement
+                                    </Text>
+                                    <Text style={[styles.fourResteVal, { color: reste <= 0 ? '#3B6D11' : '#A32D2D' }]}>
+                                      {fmt(Math.max(0, reste))}
+                                    </Text>
+                                  </View>
+                                )}
+
+                                {/* Photo */}
                                 <View style={[styles.photoBlock,
-                                  parseFloat(data.paye) > 0 && !data.photoUri && styles.photoBlockRequired
+                                  payé > 0 && !data.photoUri && styles.photoBlockRequired
                                 ]}>
                                   <View style={styles.photoBlockHeader}>
                                     <Text style={styles.photoBlockLabel}>
                                       📷 Justificatif
-                                      {parseFloat(data.paye) > 0 && <Text style={{ color: '#A32D2D' }}> *</Text>}
+                                      {payé > 0 && <Text style={{ color: '#A32D2D' }}> *</Text>}
                                     </Text>
                                     {data.photoUri ? (
                                       <View style={styles.photoBadgeOk}><Text style={styles.photoBadgeOkTxt}>✅ OK</Text></View>
-                                    ) : parseFloat(data.paye) > 0 ? (
+                                    ) : payé > 0 ? (
                                       <View style={styles.photoBadgeReq}><Text style={styles.photoBadgeReqTxt}>⚠️ Requis</Text></View>
                                     ) : null}
                                   </View>
@@ -1152,9 +1238,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#eee'
   },
-  fourNom: { fontSize: 13, color: '#1a1a1a', fontWeight: '500', flex: 1 },
-  fourMontant: { fontSize: 13, color: '#A32D2D', fontWeight: '600' },
+  fourNom: { fontSize: 13, color: '#1a1a1a', fontWeight: '500' },
+  fourMontant: { fontSize: 12, color: '#A32D2D', fontWeight: '600' },
   fourDetails: { paddingTop: 10, paddingBottom: 6 },
+  fourCreditRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#EEEDFE', borderRadius: 10, padding: 10, marginBottom: 8
+  },
+  fourCreditLabel: { fontSize: 12, fontWeight: '600', color: '#534AB7' },
+  fourCreditVal: { fontSize: 14, fontWeight: '700', color: '#3C3489' },
+  fourCreditInput: {
+    width: 120, backgroundColor: '#fff', borderRadius: 8, padding: 8,
+    fontSize: 14, color: '#3C3489', textAlign: 'right',
+    borderWidth: 1, borderColor: '#534AB7', fontWeight: '600'
+  },
+  fourResteRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderRadius: 10, padding: 10, marginBottom: 8, borderWidth: 1
+  },
+  fourResteLabel: { fontSize: 12, fontWeight: '500' },
+  fourResteVal: { fontSize: 14, fontWeight: '700' },
   depInput: {
     backgroundColor: '#f5f5f5', borderRadius: 10, padding: 11,
     fontSize: 14, color: '#1a1a1a', marginBottom: 8
