@@ -5,6 +5,7 @@ import {
     Alert,
     Image,
     Modal,
+    Platform,
     SafeAreaView, ScrollView,
     StyleSheet,
     Text,
@@ -15,6 +16,21 @@ import {
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
+
+const DRAFT_KEY = 'samerpoint_shift_draft'
+
+function lireDraft() {
+  if (Platform.OS !== 'web') return null
+  try {
+    const s = localStorage.getItem(DRAFT_KEY)
+    return s ? JSON.parse(s) : null
+  } catch { return null }
+}
+
+function effacerDraft() {
+  if (Platform.OS !== 'web') return
+  try { localStorage.removeItem(DRAFT_KEY) } catch {}
+}
 
 // ─── Composants stables hors du composant principal ───────────────────────────
 // Définis ici pour éviter le re-montage à chaque re-render (perte de focus clavier)
@@ -123,8 +139,9 @@ export default function PointShiftScreen() {
   const isGerant = roleActif === 'gerant'
   const isManager = roleActif === 'manager'
 
-  const [heureDebut, setHeureDebut] = useState('')
-  const [heureFin, setHeureFin] = useState('')
+  const _d = lireDraft()
+  const [heureDebut, setHeureDebut] = useState(_d?.heureDebut || '')
+  const [heureFin, setHeureFin] = useState(_d?.heureFin || '')
   const [dateShift, setDateShift] = useState(() => {
     const now = new Date()
     const heure = now.getHours()
@@ -135,23 +152,22 @@ export default function PointShiftScreen() {
     }
     return now.toISOString().split('T')[0]
   })
+  const [kdo, setKdo] = useState(_d?.kdo || '')
+  const [retour, setRetour] = useState(_d?.retour || '')
+  const [yangoCse, setYangoCse] = useState(_d?.yangoCse || '')
+  const [glovoCse, setGlovoCse] = useState(_d?.glovoCse || '')
+  const [wave, setWave] = useState(_d?.wave || '')
+  const [djamo, setDjamo] = useState(_d?.djamo || '')
+  const [om, setOm] = useState(_d?.om || '')
+  const [espece, setEspece] = useState(_d?.espece || '')
 
-  const [kdo, setKdo] = useState('')
-  const [retour, setRetour] = useState('')
-  const [yangoCse, setYangoCse] = useState('')
-  const [glovoCse, setGlovoCse] = useState('')
-  const [wave, setWave] = useState('')
-  const [djamo, setDjamo] = useState('')
-  const [om, setOm] = useState('')
-  const [espece, setEspece] = useState('')
-
-  const [photoKdo, setPhotoKdo] = useState(null)
-  const [photoRetour, setPhotoRetour] = useState(null)
-  const [photoYangoCse, setPhotoYangoCse] = useState(null)
-  const [photoGlovoCse, setPhotoGlovoCse] = useState(null)
-  const [photoWave, setPhotoWave] = useState(null)
-  const [photoDjamo, setPhotoDjamo] = useState(null)
-  const [photoOm, setPhotoOm] = useState(null)
+  const [photoKdo, setPhotoKdo] = useState(_d?.photoKdo || null)
+  const [photoRetour, setPhotoRetour] = useState(_d?.photoRetour || null)
+  const [photoYangoCse, setPhotoYangoCse] = useState(_d?.photoYangoCse || null)
+  const [photoGlovoCse, setPhotoGlovoCse] = useState(_d?.photoGlovoCse || null)
+  const [photoWave, setPhotoWave] = useState(_d?.photoWave || null)
+  const [photoDjamo, setPhotoDjamo] = useState(_d?.photoDjamo || null)
+  const [photoOm, setPhotoOm] = useState(_d?.photoOm || null)
 
   const [shiftsGerant, setShiftsGerant] = useState([])
   const [loading, setLoading] = useState(true)
@@ -168,6 +184,19 @@ export default function PointShiftScreen() {
     else setLoading(false)
     verifierHeure()
   }, [])
+
+  // Sauvegarder le brouillon dans localStorage (résout écran blanc après photo sur iOS)
+  useEffect(() => {
+    if (Platform.OS !== 'web') return
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        heureDebut, heureFin,
+        kdo, retour, yangoCse, glovoCse, wave, djamo, om, espece,
+        photoKdo, photoRetour, photoYangoCse, photoGlovoCse, photoWave, photoDjamo, photoOm,
+      }))
+    } catch {}
+  }, [heureDebut, heureFin, kdo, retour, yangoCse, glovoCse, wave, djamo, om, espece,
+      photoKdo, photoRetour, photoYangoCse, photoGlovoCse, photoWave, photoDjamo, photoOm])
 
   function verifierHeure() {
     const now = new Date()
@@ -310,6 +339,7 @@ export default function PointShiftScreen() {
     await supabase.from('presences').delete().eq('point_id', shiftPointId)
 
     resetShift()
+    effacerDraft()
 
     setHeureDebut(''); setHeureFin('')
     setKdo(''); setRetour('')
