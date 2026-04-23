@@ -67,6 +67,8 @@ export function AppProvider({ children }) {
     kdo: '', retour: '',
     fcVeille: '', fc_actuel: '',
     espece_shifts: 0,
+    venteMachine: '',
+    photoVenteMachine: null,
     photo_yango_cse: null,
     photo_glovo_cse: null,
     photo_wave: null,
@@ -77,6 +79,7 @@ export function AppProvider({ children }) {
     photo_kdo: null,
     photo_retour: null,
   })
+  const [depensesGerantCaisse, setDepensesGerantCaisse] = useState(session?.depensesGerantCaisse || [])
 
   // ─── Ref toujours à jour — utilisée dans pagehide (pas de closure stale) ───
   const sessionRef = useRef({})
@@ -85,6 +88,7 @@ export function AppProvider({ children }) {
     pointId, dateJour, pointValide, lastRoute,
     fournisseursJour, depensesJour, presencesJour,
     livraisonsJour, ventesJour, paiesJour, inventaireJour,
+    depensesGerantCaisse,
   }
 
   // ─── Sauvegarder toutes les données à chaque changement ───
@@ -95,6 +99,7 @@ export function AppProvider({ children }) {
         pointId, dateJour, pointValide, lastRoute,
         fournisseursJour, depensesJour, presencesJour,
         livraisonsJour, ventesJour, paiesJour, inventaireJour,
+        depensesGerantCaisse,
       })
     }
   }, [
@@ -102,6 +107,7 @@ export function AppProvider({ children }) {
     pointId, dateJour, pointValide, lastRoute,
     fournisseursJour, depensesJour, presencesJour,
     livraisonsJour, ventesJour, paiesJour, inventaireJour,
+    depensesGerantCaisse,
   ])
 
   // ─── Sur iPhone : iOS décharge la page avant d'ouvrir le sélecteur photo ───
@@ -148,9 +154,14 @@ export function AppProvider({ children }) {
     return (ventesJour.sequences || []).reduce((sum, s) => sum + (parseFloat(s.montant) || 0), 0)
   }
 
+  function totalDepensesGerantCaisse() {
+    return depensesGerantCaisse.reduce((sum, d) => sum + (parseFloat(d.montant) || 0), 0)
+  }
+
   function resteEspeces() {
+    const deduc = totalDepensesGerantCaisse()
     if (ventesJour.espece_shifts !== 0 && ventesJour.espece_shifts !== '') {
-      return parseFloat(ventesJour.espece_shifts) || 0
+      return (parseFloat(ventesJour.espece_shifts) || 0) - deduc
     }
     return totalVentes() - totalDepenses()
       - (parseFloat(ventesJour.yangoCse) || 0)
@@ -160,6 +171,7 @@ export function AppProvider({ children }) {
       - (parseFloat(ventesJour.djamo) || 0)
       - (parseFloat(ventesJour.kdo) || 0)
       - (parseFloat(ventesJour.retour) || 0)
+      - deduc
   }
 
   function fc() {
@@ -190,6 +202,7 @@ export function AppProvider({ children }) {
     setShiftsJour([])
     setStocksParShift({})
     setLastRoute(null)
+    setDepensesGerantCaisse([])
     setVentesJour({
       sequences: [],
       yangoCse: '', yangoTab: '', yangoNbCommandes: '',
@@ -198,6 +211,8 @@ export function AppProvider({ children }) {
       kdo: '', retour: '',
       fcVeille: '', fc_actuel: '',
       espece_shifts: 0,
+      venteMachine: '',
+      photoVenteMachine: null,
       photo_yango_cse: null,
       photo_glovo_cse: null,
       photo_wave: null,
@@ -257,10 +272,12 @@ export function AppProvider({ children }) {
       shiftsJour, setShiftsJour,
       stocksParShift, setStocksParShift,
       ventesJour, setVentesJour,
+      depensesGerantCaisse, setDepensesGerantCaisse,
       totalPaie,
       totalFournisseurs,
       totalDepenses,
       totalVentes,
+      totalDepensesGerantCaisse,
       resteEspeces,
       fc,
       beneficeSC,

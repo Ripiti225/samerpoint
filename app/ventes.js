@@ -1,5 +1,5 @@
 import { router } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -30,8 +30,10 @@ export default function VentesScreen() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [photosAlertVisible, setPhotosAlertVisible] = useState(false)
+  const [photoModalVisible, setPhotoModalVisible] = useState(false)
   const [chargementShifts, setChargementShifts] = useState(false)
   const [cumulShifts, setCumulShifts] = useState(null)
+  const photoPickerRef = useRef({ champ: '', dossier: '' })
 
   const isGerant = roleActif === 'gerant'
   const isManager = roleActif === 'manager'
@@ -105,28 +107,24 @@ export default function VentesScreen() {
     setVentesJour(prev => ({ ...prev, [champ]: uri }))
   }
 
-  async function gererPhoto(champ, dossier) {
+  function gererPhoto(champ, dossier) {
     if (bloque && !isManager) return
+    photoPickerRef.current = { champ, dossier }
+    setPhotoModalVisible(true)
+  }
+
+  async function selectionnerPhoto(source) {
+    setPhotoModalVisible(false)
+    const { champ, dossier } = photoPickerRef.current
     setUploading(true)
-    Alert.alert('Photo', 'Choisir la source', [
-      {
-        text: '📷 Caméra',
-        onPress: async () => {
-          const url = await prendrePhoto(dossier)
-          if (url) setPhoto(champ, url)
-          setUploading(false)
-        }
-      },
-      {
-        text: '🖼 Galerie',
-        onPress: async () => {
-          const url = await choisirPhoto(dossier)
-          if (url) setPhoto(champ, url)
-          setUploading(false)
-        }
-      },
-      { text: 'Annuler', style: 'cancel', onPress: () => setUploading(false) }
-    ])
+    try {
+      const url = source === 'camera'
+        ? await prendrePhoto(dossier)
+        : await choisirPhoto(dossier)
+      if (url) setPhoto(champ, url)
+    } finally {
+      setUploading(false)
+    }
   }
 
   function fmt(n) { return Math.round(n).toLocaleString('fr-FR') + ' FCFA' }
@@ -135,6 +133,9 @@ export default function VentesScreen() {
     const manquantes = []
     if (parseFloat(ventesJour.yangoTab) > 0 && !ventesJour.photo_yango_tab) manquantes.push('Yango TAB')
     if (parseFloat(ventesJour.glovoTab) > 0 && !ventesJour.photo_glovo_tab) manquantes.push('Glovo TAB')
+    if ((isGerant || isManager) && parseFloat(ventesJour.venteMachine) > 0 && !ventesJour.photoVenteMachine) {
+      manquantes.push('Photo vente machine')
+    }
     return manquantes
   }
 
@@ -143,6 +144,12 @@ export default function VentesScreen() {
     const updates = {}
     const photos = ['photo_yango_tab', 'photo_glovo_tab']
     photos.forEach(p => { if (ventesJour[p]) updates[p] = ventesJour[p] })
+    if (ventesJour.photoVenteMachine) updates.photo_vente_machine = ventesJour.photoVenteMachine
+    if (ventesJour.venteMachine !== '') {
+      updates.vente_machine = parseFloat(ventesJour.venteMachine) || 0
+      const venteTheo = cumulShifts?.venteTotal || 0
+      updates.ecart_caisse = venteTheo - (parseFloat(ventesJour.venteMachine) || 0)
+    }
     if (Object.keys(updates).length > 0) {
       await supabase.from('points').update(updates).eq('id', pointId)
     }
@@ -507,6 +514,104 @@ export default function VentesScreen() {
               </View>
             </View>
 
+            {/* Vente machine */}
+            {(isGerant || isManager) && (
+              <>
+                <Text style={styles.sectionTitre}>Vente machine</Text>
+                <View style={styles.venteMachineCard}>
+                  {/* Vente théorique */}
+                  {cumulShifts && (
+                    <View style={styles.vmRow}>
+                      <View style={styles.vmRowLeft}>
+                        <Text style={styles.vmLabel}>Vente théorique</Text>
+                        <View style={styles.autoBadge}><Text style={styles.autoBadgeTxt}>Shifts</Text></View>
+                      </View>
+                      <Text style={styles.vmValAuto}>{fmt(cumulShifts.venteTotal)}</Text>
+                    </View>
+                  )}
+
+                  {/* Saisie vente machine */}
+                  <View style={[styles.vmRow, { alignItems: 'flex-start', paddingTop: 14 }]}>
+                    <View style={styles.vmRowLeft}>
+                      <Text style={[styles.vmLabel, { fontWeight: '600', color: '#1a1a1a' }]}>
+                        Vente machine
+                      </Text>
+                      <Text style={{ fontSize: 10, color: '#888', marginTop: 2 }}>
+                        Montant lu sur la caisse / POS
+                      </Text>
+                    </View>
+                    <TextInput
+                      style={styles.vmInput}
+                      value={ventesJour.venteMachine || ''}
+                      onChangeText={v => setVente('venteMachine', v)}
+                      keyboardType="numeric"
+                      placeholder="Saisir..."
+                      placeholderTextColor="#bbb"
+                      editable={!bloque || isManager}
+                    />
+                  </View>
+
+                  {/* Photo vente machine */}
+                  {(!bloque || isManager) && (
+                    <View style={[styles.photoBlock,
+                      parseFloat(ventesJour.venteMachine) > 0 && !ventesJour.photoVenteMachine && styles.photoBlockRequired
+                    ]}>
+                      <View style={styles.photoBlockHeader}>
+                        <Text style={styles.photoBlockLabel}>
+                          📷 Photo vente machine
+                          {parseFloat(ventesJour.venteMachine) > 0 && (
+                            <Text style={{ color: '#A32D2D' }}> *</Text>
+                          )}
+                        </Text>
+                        {ventesJour.photoVenteMachine ? (
+                          <View style={styles.photoBadgeOk}><Text style={styles.photoBadgeOkTxt}>✅ OK</Text></View>
+                        ) : parseFloat(ventesJour.venteMachine) > 0 ? (
+                          <View style={styles.photoBadgeReq}><Text style={styles.photoBadgeReqTxt}>⚠️ Requis</Text></View>
+                        ) : null}
+                      </View>
+                      {ventesJour.photoVenteMachine && (
+                        <Image source={{ uri: ventesJour.photoVenteMachine }} style={styles.photoPreview} resizeMode="cover" />
+                      )}
+                      <TouchableOpacity
+                        style={styles.photoBtn}
+                        onPress={() => gererPhoto('photoVenteMachine', 'vente-machine')}
+                        disabled={uploading}
+                      >
+                        {uploading ? (
+                          <ActivityIndicator size="small" color="#412402" />
+                        ) : (
+                          <Text style={styles.photoBtnTxt}>
+                            {ventesJour.photoVenteMachine ? '🔄 Changer la photo' : '📷 Ajouter une photo'}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  {/* Écart */}
+                  {ventesJour.venteMachine !== '' && cumulShifts && (() => {
+                    const ecart = cumulShifts.venteTotal - (parseFloat(ventesJour.venteMachine) || 0)
+                    const parfait = Math.abs(ecart) < 500
+                    const surplus = ecart > 0
+                    return (
+                      <View style={[styles.ecartBanner, {
+                        backgroundColor: parfait ? '#EAF3DE' : surplus ? '#E6F1FB' : '#FAECE7',
+                        borderColor: parfait ? '#3B6D11' : surplus ? '#185FA5' : '#A32D2D',
+                        marginTop: 10,
+                      }]}>
+                        <Text style={[styles.ecartTxt, {
+                          color: parfait ? '#3B6D11' : surplus ? '#185FA5' : '#A32D2D'
+                        }]}>
+                          {parfait ? '✅ Parfait — ' : surplus ? '📈 Surplus — ' : '📉 Manquant — '}
+                          Écart : {ecart >= 0 ? '+' : ''}{fmt(ecart)}
+                        </Text>
+                      </View>
+                    )
+                  })()}
+                </View>
+              </>
+            )}
+
             {/* Statut photos */}
             {!isManager && (() => {
               const manquantes = verifierPhotosObligatoires()
@@ -551,6 +656,23 @@ export default function VentesScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Modal choix source photo */}
+      <Modal visible={photoModalVisible} transparent animationType="fade">
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitre}>📷 Ajouter une photo</Text>
+            <View style={styles.confirmBtns}>
+              <TouchableOpacity style={styles.confirmCancel} onPress={() => setPhotoModalVisible(false)}>
+                <Text style={styles.confirmCancelTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.confirmOk} onPress={() => selectionnerPhoto('gallery')}>
+                <Text style={styles.confirmOkTxt}>🖼 Galerie</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={photosAlertVisible} transparent animationType="fade">
         <View style={styles.confirmOverlay}>
@@ -686,6 +808,24 @@ const styles = StyleSheet.create({
     padding: 16, alignItems: 'center', marginBottom: 10, marginTop: 4
   },
   nextTxt: { fontSize: 15, fontWeight: '600', color: '#412402' },
+  // ── Vente machine ──
+  venteMachineCard: {
+    backgroundColor: '#fff', borderRadius: 14, padding: 14,
+    marginBottom: 14, borderWidth: 0.5, borderColor: '#eee'
+  },
+  vmRow: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', paddingVertical: 10,
+    borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5'
+  },
+  vmRowLeft: { flex: 1 },
+  vmLabel: { fontSize: 13, color: '#555' },
+  vmValAuto: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
+  vmInput: {
+    width: 140, backgroundColor: '#f5f5f5', borderRadius: 10,
+    padding: 10, fontSize: 15, color: '#1a1a1a', textAlign: 'right',
+    borderWidth: 1, borderColor: '#EF9F27'
+  },
   // ── FC ──
   fcCard: {
     backgroundColor: '#fff', borderRadius: 14, padding: 14,

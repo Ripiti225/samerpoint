@@ -24,6 +24,7 @@ export default function RecapPointScreen() {
     pointId, dateJour,
     totalVentes, ventesJour,
     setPointValide, roleActif,
+    depensesGerantCaisse,
   } = useApp()
 
   const isGerant = roleActif === 'gerant'
@@ -132,9 +133,13 @@ export default function RecapPointScreen() {
     return totalDepensesTable() + totalPaiePresences() + totalFournisseursTransactions()
   }
 
+  function totalDepGerantCaisse() {
+    return depensesGerantCaisse.reduce((sum, d) => sum + (parseFloat(d.montant) || 0), 0)
+  }
+
   function resteEspecesCalc() {
-    // Gérant/manager : espèces viennent directement du cumul shifts
-    if (cumulShifts) return cumulShifts.espece
+    const deduc = totalDepGerantCaisse()
+    if (cumulShifts) return cumulShifts.espece - deduc
     return totalVentes() - totalDepensesGlobal()
       - (parseFloat(ventesJour.yangoCse) || 0)
       - (parseFloat(ventesJour.glovoCse) || 0)
@@ -143,10 +148,10 @@ export default function RecapPointScreen() {
       - (parseFloat(ventesJour.djamo) || 0)
       - (parseFloat(ventesJour.kdo) || 0)
       - (parseFloat(ventesJour.retour) || 0)
+      - deduc
   }
 
   function fcCalc() {
-    // FC calculé = espèces en caisse + FC de la veille (auto)
     return resteEspecesCalc() + (parseFloat(ventesJour.fcVeille) || 0)
   }
 
@@ -159,7 +164,7 @@ export default function RecapPointScreen() {
         + (cumulShifts.om * 0.99)
         + (cumulShifts.wave * 0.99)
         + (cumulShifts.djamo * 0.99)
-        + cumulShifts.espece
+        + resteEspecesCalc()
     }
     return (yangoTab * 0.77)
       + (glovoTab * 0.705)
@@ -200,8 +205,29 @@ export default function RecapPointScreen() {
   async function confirmerValider() {
     setConfirmVisible(false)
     setValidating(true)
+
+    // Sauvegarder les dépenses caisse gérant dans une table dédiée
+    if (depensesGerantCaisse.length > 0) {
+      await supabase.from('depenses_gerant_caisse').delete().eq('point_id', pointId)
+      const lignes = depensesGerantCaisse
+        .filter(d => parseFloat(d.montant) > 0)
+        .map(d => ({
+          point_id: pointId,
+          description: d.description || '',
+          montant: parseFloat(d.montant) || 0,
+          photo_url: d.photoUri || null,
+        }))
+      if (lignes.length > 0) {
+        await supabase.from('depenses_gerant_caisse').insert(lignes)
+      }
+    }
+
+    const venteTheo = cumulShifts?.venteTotal || totalVentes()
+    const venteMachine = parseFloat(ventesJour.venteMachine) || null
+    const ecartCaisse = venteMachine !== null ? venteTheo - venteMachine : null
+
     const ok = await validerPoint(pointId, {
-      vente_total: cumulShifts?.venteTotal || totalVentes(),
+      vente_total: venteTheo,
       depense_total: totalDepensesGlobal(),
       kdo: cumulShifts ? cumulShifts.kdo : (parseFloat(ventesJour.kdo) || 0),
       retour: cumulShifts ? cumulShifts.retour : (parseFloat(ventesJour.retour) || 0),
@@ -219,6 +245,10 @@ export default function RecapPointScreen() {
       reste_fc: fcCalc(),
       fc_compte: parseFloat(ventesJour.fc_actuel) || 0,
       benefice_sc: beneficeSCCalc(),
+      vente_machine: venteMachine,
+      photo_vente_machine: ventesJour.photoVenteMachine || null,
+      ecart_caisse: ecartCaisse,
+      depenses_gerant_caisse_total: totalDepGerantCaisse(),
     })
     setValidating(false)
     if (ok) {
@@ -505,6 +535,76 @@ export default function RecapPointScreen() {
           </>
         )}
 
+        {/* DÉPENSES CAISSE GÉRANT */}
+        {depensesGerantCaisse.length > 0 && (
+          <>
+            <Text style={styles.sectionTitre}>💵 Dépenses caisse gérant</Text>
+            <View style={styles.card}>
+              {depensesGerantCaisse.map((d, i) => (
+                <View key={i} style={styles.row}>
+                  <View style={styles.rowLeft}>
+                    <Text style={styles.rowLabel}>{d.description || 'Sans description'}</Text>
+                    {d.photoUri ? (
+                      <Text style={{ fontSize: 10, color: '#3B6D11', marginTop: 2 }}>📷 Photo jointe</Text>
+                    ) : (
+                      <Text style={{ fontSize: 10, color: '#A32D2D', marginTop: 2 }}>⚠️ Photo manquante</Text>
+                    )}
+                  </View>
+                  <Text style={[styles.rowValue, { color: '#A32D2D' }]}>− {fmt(parseFloat(d.montant) || 0)}</Text>
+                </View>
+              ))}
+              <View style={[styles.row, styles.rowTotal]}>
+                <Text style={styles.rowTotalLabel}>Total dépenses caisse</Text>
+                <Text style={[styles.rowTotalValue, { color: '#A32D2D' }]}>
+                  − {fmt(totalDepGerantCaisse())}
+                </Text>
+              </View>
+            </View>
+          </>
+        )}
+
+        {/* VENTE MACHINE */}
+        {ventesJour.venteMachine !== '' && ventesJour.venteMachine !== undefined && cumulShifts && (
+          <>
+            <Text style={styles.sectionTitre}>🖥️ Vente machine</Text>
+            <View style={styles.card}>
+              <View style={styles.row}>
+                <Text style={styles.rowLabel}>Vente théorique (shifts)</Text>
+                <Text style={[styles.rowValue, { color: '#BA7517' }]}>{fmt(cumulShifts.venteTotal)}</Text>
+              </View>
+              <View style={styles.row}>
+                <Text style={styles.rowLabel}>Vente machine</Text>
+                <Text style={styles.rowValue}>{fmt(parseFloat(ventesJour.venteMachine) || 0)}</Text>
+              </View>
+              {ventesJour.photoVenteMachine && (
+                <View style={styles.row}>
+                  <Text style={styles.rowLabel}>Photo machine</Text>
+                  <Text style={{ fontSize: 12, color: '#3B6D11' }}>✅ Jointe</Text>
+                </View>
+              )}
+              {(() => {
+                const ecart = cumulShifts.venteTotal - (parseFloat(ventesJour.venteMachine) || 0)
+                const parfait = Math.abs(ecart) < 500
+                const surplus = ecart > 0
+                return (
+                  <View style={[styles.row, { borderBottomWidth: 0 }]}>
+                    <Text style={[styles.rowLabel, { fontWeight: '600' }]}>Écart</Text>
+                    <View style={[styles.ecartBadge, {
+                      backgroundColor: parfait ? '#EAF3DE' : surplus ? '#E6F1FB' : '#FAECE7'
+                    }]}>
+                      <Text style={[styles.ecartBadgeTxt, {
+                        color: parfait ? '#3B6D11' : surplus ? '#185FA5' : '#A32D2D'
+                      }]}>
+                        {parfait ? '✅ Parfait' : surplus ? `📈 Surplus +${fmt(ecart)}` : `📉 Manquant ${fmt(ecart)}`}
+                      </Text>
+                    </View>
+                  </View>
+                )
+              })()}
+            </View>
+          </>
+        )}
+
         {/* BILAN FINAL */}
         <View style={styles.bilanCard}>
           <Text style={styles.bilanTitre}>📊 Bilan final</Text>
@@ -590,6 +690,13 @@ export default function RecapPointScreen() {
             <Text style={styles.confirmMsg}>
               Valider le point du {formatDate(dateJour)} ?{'\n\n'}
               Vente shifts : {fmt(cumulShifts?.venteTotal || totalVentes())}{'\n'}
+              {ventesJour.venteMachine !== '' && ventesJour.venteMachine !== undefined
+                ? `Vente machine : ${fmt(parseFloat(ventesJour.venteMachine) || 0)}\n`
+                : ''}
+              {depensesGerantCaisse.length > 0
+                ? `Dép. caisse gérant : − ${fmt(totalDepGerantCaisse())}\n`
+                : ''}
+              Espèces réelles : {fmt(resteEspecesCalc())}{'\n'}
               FC calculé : {fmt(fcCalc())}{'\n'}
               Bénéfice SC : {fmt(beneficeSCCalc())}{'\n\n'}
               ⚠️ Cette action est irréversible.
@@ -680,6 +787,8 @@ const styles = StyleSheet.create({
   statutTxt: { fontSize: 10, fontWeight: '500' },
   shiftNomTxt: { fontSize: 10, color: '#534AB7', marginTop: 2 },
   resteTxt: { fontSize: 10, color: '#A32D2D', marginTop: 2 },
+  ecartBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  ecartBadgeTxt: { fontSize: 12, fontWeight: '600' },
   emptyTxt: { fontSize: 13, color: '#bbb', textAlign: 'center', paddingVertical: 10 },
   bilanCard: {
     backgroundColor: '#FAEEDA', borderRadius: 14, padding: 14,
