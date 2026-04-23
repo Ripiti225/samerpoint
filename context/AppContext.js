@@ -9,7 +9,7 @@ const SESSION_KEY = 'samerpoint_session'
 function lireSession() {
   if (Platform.OS !== 'web') return null
   try {
-    const s = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY)
+    const s = localStorage.getItem(SESSION_KEY)
     return s ? JSON.parse(s) : null
   } catch { return null }
 }
@@ -18,7 +18,6 @@ function sauvegarderSession(data) {
   if (Platform.OS !== 'web') return
   try {
     localStorage.setItem(SESSION_KEY, JSON.stringify(data))
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(data))
   } catch {}
 }
 
@@ -26,7 +25,6 @@ function effacerSession() {
   if (Platform.OS !== 'web') return
   try {
     localStorage.removeItem(SESSION_KEY)
-    sessionStorage.removeItem(SESSION_KEY)
   } catch {}
 }
 
@@ -109,7 +107,10 @@ export function AppProvider({ children }) {
   // ─── Sur iPhone : iOS décharge la page avant d'ouvrir le sélecteur photo ───
   useEffect(() => {
     if (Platform.OS !== 'web') return
-    function onPageHide() {
+    function onPageHide(event) {
+      // Si event.persisted = true, la page va en bfcache (sélecteur photo iOS)
+      // → ne PAS écrire dans le storage, sinon on empêche le bfcache et iOS recharge la page
+      if (event.persisted) return
       if (sessionRef.current.roleActif) sauvegarderSession(sessionRef.current)
     }
     window.addEventListener('pagehide', onPageHide)

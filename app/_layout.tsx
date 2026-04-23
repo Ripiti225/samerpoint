@@ -70,7 +70,6 @@ function SessionGuard() {
     timerRef.current = setTimeout(() => {
       try {
         const raw = localStorage.getItem('samerpoint_session')
-          || sessionStorage.getItem('samerpoint_session')
         const session = raw ? JSON.parse(raw) : null
 
         if (session?.roleActif) {
