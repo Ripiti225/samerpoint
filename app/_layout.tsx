@@ -27,6 +27,38 @@ function SessionGuard() {
     }
   }, [segments, roleActif])
 
+  // CAS iOS : page rechargée → index.js redirige vers /login → mais roleActif est
+  // déjà restauré depuis localStorage par AppContext. Revenir au bon écran.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return
+    if (!roleActif) return  // Pas de session dans le contexte
+
+    const currentRoute = segments[0] || ''
+    if (!PUBLIC_ROUTES.includes(currentRoute)) return  // Déjà sur le bon écran
+
+    // On a une session MAIS on est sur login/index/root → iOS a rechargé la page
+    try {
+      const raw = localStorage.getItem('samerpoint_session')
+        || sessionStorage.getItem('samerpoint_session')
+      const session = raw ? JSON.parse(raw) : null
+      const target = session?.lastRoute
+
+      // Pas de lastRoute = première connexion normale, laisser le flux habituel
+      if (!target) return
+
+      if (!PUBLIC_ROUTES.includes(target) && target !== 'accueil') {
+        router.replace(`/${target}` as any)
+      } else {
+        router.replace({
+          pathname: '/accueil',
+          params: { nom: session?.userNom || '', role: roleActif }
+        })
+      }
+    } catch {
+      // Silencieux — le flux normal prend le relais
+    }
+  }, [roleActif, segments])
+
   useEffect(() => {
     if (Platform.OS !== 'web') return
 
