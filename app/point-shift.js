@@ -1,5 +1,5 @@
 import { router } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
     ActivityIndicator,
     Alert,
@@ -159,6 +159,9 @@ export default function PointShiftScreen() {
   const [uploading, setUploading] = useState(false)
   const [vue, setVue] = useState(isCaissier ? 'nouveau' : 'liste')
   const [modalDate, setModalDate] = useState(false)
+  const [photoModalVisible, setPhotoModalVisible] = useState(false)
+  const [confirmShiftVisible, setConfirmShiftVisible] = useState(false)
+  const photoPickerRef = useRef({ setter: null, dossier: '' })
 
   useEffect(() => {
     if (isGerant || isManager) chargerShiftsGerant()
@@ -215,39 +218,31 @@ export default function PointShiftScreen() {
     return manquantes
   }
 
-  async function gererPhoto(setter, dossier) {
-    setUploading(true)
-    Alert.alert('Photo', 'Choisir la source', [
-      {
-        text: '📷 Caméra',
-        onPress: async () => {
-          const url = await prendrePhoto(dossier)
-          if (url) setter(url)
-          setUploading(false)
-        }
-      },
-      {
-        text: '🖼 Galerie',
-        onPress: async () => {
-          const url = await choisirPhoto(dossier)
-          if (url) setter(url)
-          setUploading(false)
-        }
-      },
-      {
-        text: 'Annuler',
-        style: 'cancel',
-        onPress: () => setUploading(false)
-      }
-    ])
+  function gererPhoto(setter, dossier) {
+    photoPickerRef.current = { setter, dossier }
+    setPhotoModalVisible(true)
   }
 
-  async function validerShift() {
+  async function selectionnerPhoto(source) {
+    setPhotoModalVisible(false)
+    const { setter, dossier } = photoPickerRef.current
+    if (!setter) return
+    setUploading(true)
+    try {
+      const url = source === 'camera'
+        ? await prendrePhoto(dossier)
+        : await choisirPhoto(dossier)
+      if (url) setter(url)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  function validerShift() {
     if (!heureDebut || !heureFin) {
       Alert.alert('Erreur', 'Veuillez indiquer les heures de début et de fin du shift')
       return
     }
-
     const manquantes = verifierPhotosManquantes()
     if (manquantes.length > 0) {
       Alert.alert(
@@ -256,15 +251,7 @@ export default function PointShiftScreen() {
       )
       return
     }
-
-    Alert.alert(
-      'Confirmer le point shift',
-      `Vente shift : ${fmt(venteShift())}\n\nUne fois validé :\n• Ce shift ne pourra plus être modifié\n• Toutes vos données seront remises à zéro pour le prochain caissier`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { text: '✅ Valider', onPress: () => sauvegarderShift() }
-      ]
-    )
+    setConfirmShiftVisible(true)
   }
 
   async function sauvegarderShift() {
@@ -333,12 +320,7 @@ export default function PointShiftScreen() {
     setPhotoWave(null); setPhotoDjamo(null); setPhotoOm(null)
 
     setSaving(false)
-
-    Alert.alert(
-      '✅ Shift validé !',
-      `Vente shift : ${fmt(vente)}\n\nToutes les données ont été remises à zéro pour le prochain caissier.`,
-      [{ text: 'OK', onPress: () => router.replace('/accueil') }]
-    )
+    router.replace('/accueil')
   }
 
   function fmt(n) { return Math.round(n).toLocaleString('fr-FR') + ' FCFA' }
@@ -712,6 +694,46 @@ export default function PointShiftScreen() {
         </ScrollView>
       )}
 
+      {/* Modal choix source photo */}
+      <Modal visible={photoModalVisible} transparent animationType="fade">
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitre}>📷 Ajouter une photo</Text>
+            <View style={styles.confirmBtns}>
+              <TouchableOpacity style={styles.confirmCancel} onPress={() => { setPhotoModalVisible(false); setUploading(false) }}>
+                <Text style={styles.confirmCancelTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.confirmOk} onPress={() => selectionnerPhoto('gallery')}>
+                <Text style={styles.confirmOkTxt}>🖼 Galerie</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal confirmation shift */}
+      <Modal visible={confirmShiftVisible} transparent animationType="fade">
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitre}>Confirmer le point shift</Text>
+            <Text style={styles.confirmMsg}>
+              Vente shift : {fmt(venteShift())}{'\n\n'}
+              Une fois validé :{'\n'}
+              • Ce shift ne pourra plus être modifié{'\n'}
+              • Vos données seront remises à zéro pour le prochain caissier
+            </Text>
+            <View style={styles.confirmBtns}>
+              <TouchableOpacity style={styles.confirmCancel} onPress={() => setConfirmShiftVisible(false)}>
+                <Text style={styles.confirmCancelTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.confirmOk, { backgroundColor: '#3B6D11' }]} onPress={() => { setConfirmShiftVisible(false); sauvegarderShift() }}>
+                <Text style={styles.confirmOkTxt}>✅ Valider</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Modal alerte minuit */}
       <Modal visible={modalDate} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -904,4 +926,13 @@ const styles = StyleSheet.create({
   modalTxtSub: { fontSize: 12, color: '#888', textAlign: 'center', lineHeight: 18, marginBottom: 20 },
   modalBtn: { backgroundColor: '#EF9F27', borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 },
   modalBtnTxt: { fontSize: 14, fontWeight: '600', color: '#412402' },
+  confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  confirmBox: { backgroundColor: '#fff', borderRadius: 18, padding: 24, width: '100%', maxWidth: 380 },
+  confirmTitre: { fontSize: 17, fontWeight: '700', color: '#1a1a1a', marginBottom: 12 },
+  confirmMsg: { fontSize: 14, color: '#555', lineHeight: 22, marginBottom: 20 },
+  confirmBtns: { flexDirection: 'row', gap: 10 },
+  confirmCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#f5f5f5', alignItems: 'center' },
+  confirmCancelTxt: { fontSize: 14, color: '#888' },
+  confirmOk: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#EF9F27', alignItems: 'center' },
+  confirmOkTxt: { fontSize: 14, fontWeight: '600', color: '#fff' },
 })
