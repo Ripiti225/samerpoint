@@ -79,7 +79,13 @@ export function AppProvider({ children }) {
     photo_kdo: null,
     photo_retour: null,
   })
-  const [depensesGerantCaisse, setDepensesGerantCaisse] = useState(session?.depensesGerantCaisse || [])
+  const [depensesGerantCaisse, setDepensesGerantCaisse] = useState(session?.depensesGerantCaisse || {
+    'Marché': [],
+    'Légumes': [],
+    'Fruits': [],
+    'Dépenses annexes': [],
+  })
+  const [fournisseursGerantCaisse, setFournisseursGerantCaisse] = useState(session?.fournisseursGerantCaisse || {})
 
   // ─── Ref toujours à jour — utilisée dans pagehide (pas de closure stale) ───
   const sessionRef = useRef({})
@@ -88,7 +94,7 @@ export function AppProvider({ children }) {
     pointId, dateJour, pointValide, lastRoute,
     fournisseursJour, depensesJour, presencesJour,
     livraisonsJour, ventesJour, paiesJour, inventaireJour,
-    depensesGerantCaisse,
+    depensesGerantCaisse, fournisseursGerantCaisse,
   }
 
   // ─── Sauvegarder toutes les données à chaque changement ───
@@ -99,7 +105,7 @@ export function AppProvider({ children }) {
         pointId, dateJour, pointValide, lastRoute,
         fournisseursJour, depensesJour, presencesJour,
         livraisonsJour, ventesJour, paiesJour, inventaireJour,
-        depensesGerantCaisse,
+        depensesGerantCaisse, fournisseursGerantCaisse,
       })
     }
   }, [
@@ -107,7 +113,7 @@ export function AppProvider({ children }) {
     pointId, dateJour, pointValide, lastRoute,
     fournisseursJour, depensesJour, presencesJour,
     livraisonsJour, ventesJour, paiesJour, inventaireJour,
-    depensesGerantCaisse,
+    depensesGerantCaisse, fournisseursGerantCaisse,
   ])
 
   // ─── Sur iPhone : iOS décharge la page avant d'ouvrir le sélecteur photo ───
@@ -155,7 +161,11 @@ export function AppProvider({ children }) {
   }
 
   function totalDepensesGerantCaisse() {
-    return depensesGerantCaisse.reduce((sum, d) => sum + (parseFloat(d.montant) || 0), 0)
+    const cats = Object.values(depensesGerantCaisse).reduce((sum, lignes) => {
+      return sum + (lignes || []).reduce((s, l) => s + (parseFloat(l.montant) || 0), 0)
+    }, 0)
+    const fours = Object.values(fournisseursGerantCaisse).reduce((sum, f) => sum + (parseFloat(f?.paye) || 0), 0)
+    return cats + fours
   }
 
   function resteEspeces() {
@@ -202,7 +212,8 @@ export function AppProvider({ children }) {
     setShiftsJour([])
     setStocksParShift({})
     setLastRoute(null)
-    setDepensesGerantCaisse([])
+    setDepensesGerantCaisse({ 'Marché': [], 'Légumes': [], 'Fruits': [], 'Dépenses annexes': [] })
+    setFournisseursGerantCaisse({})
     setVentesJour({
       sequences: [],
       yangoCse: '', yangoTab: '', yangoNbCommandes: '',
@@ -273,6 +284,7 @@ export function AppProvider({ children }) {
       stocksParShift, setStocksParShift,
       ventesJour, setVentesJour,
       depensesGerantCaisse, setDepensesGerantCaisse,
+      fournisseursGerantCaisse, setFournisseursGerantCaisse,
       totalPaie,
       totalFournisseurs,
       totalDepenses,

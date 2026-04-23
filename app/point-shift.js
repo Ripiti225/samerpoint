@@ -131,7 +131,6 @@ export default function PointShiftScreen() {
     depensesJour, fournisseursJour,
     userId, userNom, resetShift,
     totalDepenses, totalFournisseurs,
-    depensesGerantCaisse, setDepensesGerantCaisse,
   } = useApp()
 
   const { prendrePhoto, choisirPhoto } = usePhoto()
@@ -179,28 +178,6 @@ export default function PointShiftScreen() {
   const [photoModalVisible, setPhotoModalVisible] = useState(false)
   const [confirmShiftVisible, setConfirmShiftVisible] = useState(false)
   const photoPickerRef = useRef({ setter: null, dossier: '' })
-
-  // ─── Dépenses caisse gérant ───────────────────────────────
-  function ajouterDepenseGerant() {
-    setDepensesGerantCaisse(prev => [...prev, {
-      id: Date.now().toString(),
-      description: '',
-      montant: '',
-      photoUri: null,
-    }])
-  }
-
-  function supprimerDepenseGerant(id) {
-    setDepensesGerantCaisse(prev => prev.filter(d => d.id !== id))
-  }
-
-  function updateDepenseGerant(id, champ, valeur) {
-    setDepensesGerantCaisse(prev => prev.map(d => d.id === id ? { ...d, [champ]: valeur } : d))
-  }
-
-  function totalDepensesGerantCaisse() {
-    return depensesGerantCaisse.reduce((sum, d) => sum + (parseFloat(d.montant) || 0), 0)
-  }
 
   useEffect(() => {
     if (isGerant || isManager) chargerShiftsGerant()
@@ -427,19 +404,6 @@ export default function PointShiftScreen() {
           >
             <Text style={[styles.ongletTxt, vue === 'liste' && styles.ongletTxtActive]}>
               📊 Journalier
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.onglet, vue === 'depenses' && styles.ongletActive]}
-            onPress={() => setVue('depenses')}
-          >
-            <Text style={[styles.ongletTxt, vue === 'depenses' && styles.ongletTxtActive]}>
-              💵 Dépenses
-              {depensesGerantCaisse.length > 0 && (
-                <Text style={{ color: vue === 'depenses' ? '#EF9F27' : '#A32D2D' }}>
-                  {' '}({depensesGerantCaisse.length})
-                </Text>
-              )}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -688,134 +652,6 @@ export default function PointShiftScreen() {
               </View>
             </>
           )}
-          <View style={{ height: 40 }} />
-        </ScrollView>
-      )}
-
-      {/* ══════════════════════════════════════════
-          GÉRANT — Dépenses caisse
-      ══════════════════════════════════════════ */}
-      {(isGerant || isManager) && vue === 'depenses' && (
-        <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-
-          {/* Info */}
-          <View style={styles.depInfoCard}>
-            <Text style={styles.depInfoTitre}>💵 Dépenses caisse gérant</Text>
-            <Text style={styles.depInfoTxt}>
-              Ces dépenses sont prélevées sur les espèces du jour.
-              Elles ne sont pas comptées comme ventes mais réduisent les espèces restantes.
-              Chaque ligne doit être justifiée par une photo.
-            </Text>
-          </View>
-
-          {/* Espèces shifts */}
-          {shiftsGerant.length > 0 && (() => {
-            const especeShifts = cumulShifts().espece
-            const totalDep = totalDepensesGerantCaisse()
-            const especeReel = especeShifts - totalDep
-            return (
-              <View style={styles.especeCard}>
-                <View style={styles.especeRow}>
-                  <Text style={styles.especeLabel}>Espèces shifts</Text>
-                  <Text style={styles.especeVal}>{fmt(especeShifts)}</Text>
-                </View>
-                <View style={styles.especeRow}>
-                  <Text style={[styles.especeLabel, { color: '#A32D2D' }]}>− Dépenses gérant</Text>
-                  <Text style={[styles.especeVal, { color: '#A32D2D' }]}>− {fmt(totalDep)}</Text>
-                </View>
-                <View style={[styles.especeRow, { borderBottomWidth: 0, paddingTop: 10, borderTopWidth: 1.5, borderTopColor: '#EF9F27', marginTop: 4 }]}>
-                  <Text style={[styles.especeLabel, { fontWeight: '700', color: '#412402', fontSize: 14 }]}>
-                    Espèces réelles
-                  </Text>
-                  <Text style={[styles.especeVal, {
-                    fontWeight: '700', fontSize: 18,
-                    color: especeReel >= 0 ? '#3B6D11' : '#A32D2D'
-                  }]}>
-                    {especeReel >= 0 ? '' : '− '}{fmt(Math.abs(especeReel))}
-                  </Text>
-                </View>
-              </View>
-            )
-          })()}
-
-          {/* Liste des dépenses */}
-          {depensesGerantCaisse.length === 0 ? (
-            <View style={styles.depVide}>
-              <Text style={styles.depVideTxt}>Aucune dépense ajoutée</Text>
-              <Text style={styles.depVideSub}>Ajoutez les dépenses effectuées à votre niveau</Text>
-            </View>
-          ) : (
-            depensesGerantCaisse.map((dep, i) => (
-              <View key={dep.id} style={styles.depCard}>
-                <View style={styles.depCardHeader}>
-                  <Text style={styles.depCardNum}>Dépense {i + 1}</Text>
-                  <TouchableOpacity onPress={() => supprimerDepenseGerant(dep.id)} style={styles.depSupprBtn}>
-                    <Text style={styles.depSupprTxt}>✕ Supprimer</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <TextInput
-                  style={styles.depDescInput}
-                  value={dep.description}
-                  onChangeText={v => updateDepenseGerant(dep.id, 'description', v)}
-                  placeholder="Description (ex: fournisseur légumes, électricité...)"
-                  placeholderTextColor="#bbb"
-                />
-
-                <TextInput
-                  style={styles.depMontantInput}
-                  value={dep.montant}
-                  onChangeText={v => updateDepenseGerant(dep.id, 'montant', v)}
-                  keyboardType="numeric"
-                  placeholder="Montant en FCFA"
-                  placeholderTextColor="#bbb"
-                />
-
-                {/* Photo */}
-                <View style={[styles.photoBlock, !dep.photoUri && styles.photoBlockRequired]}>
-                  <View style={styles.photoHeader}>
-                    <Text style={styles.photoLabel}>
-                      📷 Justificatif <Text style={{ color: '#A32D2D' }}>*</Text>
-                    </Text>
-                    {dep.photoUri ? (
-                      <View style={styles.photoBadgeOk}>
-                        <Text style={styles.photoBadgeOkTxt}>✅ OK</Text>
-                      </View>
-                    ) : (
-                      <View style={styles.photoBadgeReq}>
-                        <Text style={styles.photoBadgeReqTxt}>⚠️ Requis</Text>
-                      </View>
-                    )}
-                  </View>
-                  {dep.photoUri && (
-                    <Image source={{ uri: dep.photoUri }} style={styles.photoPreview} resizeMode="cover" />
-                  )}
-                  <TouchableOpacity
-                    style={styles.photoBtn}
-                    onPress={() => gererPhoto(
-                      (url) => updateDepenseGerant(dep.id, 'photoUri', url),
-                      'depenses-gerant'
-                    )}
-                    disabled={uploading}
-                  >
-                    {uploading ? (
-                      <ActivityIndicator size="small" color="#412402" />
-                    ) : (
-                      <Text style={styles.photoBtnTxt}>
-                        {dep.photoUri ? '🔄 Changer la photo' : '📷 Ajouter une photo'}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))
-          )}
-
-          {/* Bouton ajouter */}
-          <TouchableOpacity style={styles.depAjouterBtn} onPress={ajouterDepenseGerant}>
-            <Text style={styles.depAjouterTxt}>+ Ajouter une dépense</Text>
-          </TouchableOpacity>
-
           <View style={{ height: 40 }} />
         </ScrollView>
       )}
@@ -1120,50 +956,6 @@ const styles = StyleSheet.create({
   modalTxtSub: { fontSize: 12, color: '#888', textAlign: 'center', lineHeight: 18, marginBottom: 20 },
   modalBtn: { backgroundColor: '#EF9F27', borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 },
   modalBtnTxt: { fontSize: 14, fontWeight: '600', color: '#412402' },
-  // ── Dépenses gérant caisse ──
-  depInfoCard: {
-    backgroundColor: '#E6F1FB', borderRadius: 12, padding: 14,
-    marginBottom: 14, borderWidth: 0.5, borderColor: '#B8D4F5'
-  },
-  depInfoTitre: { fontSize: 13, fontWeight: '600', color: '#185FA5', marginBottom: 6 },
-  depInfoTxt: { fontSize: 12, color: '#185FA5', lineHeight: 18 },
-  especeCard: {
-    backgroundColor: '#FAEEDA', borderRadius: 14, padding: 14,
-    marginBottom: 14, borderWidth: 1, borderColor: '#EF9F27'
-  },
-  especeRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    paddingVertical: 7, borderBottomWidth: 0.5, borderBottomColor: '#F5D9A0'
-  },
-  especeLabel: { fontSize: 13, color: '#854F0B' },
-  especeVal: { fontSize: 13, fontWeight: '500', color: '#412402' },
-  depVide: { alignItems: 'center', paddingVertical: 30 },
-  depVideTxt: { fontSize: 14, color: '#888', fontWeight: '500', marginBottom: 6 },
-  depVideSub: { fontSize: 12, color: '#bbb', textAlign: 'center' },
-  depCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14,
-    marginBottom: 10, borderWidth: 0.5, borderColor: '#eee'
-  },
-  depCardHeader: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 10
-  },
-  depCardNum: { fontSize: 13, fontWeight: '600', color: '#1a1a1a' },
-  depSupprBtn: { backgroundColor: '#FAECE7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-  depSupprTxt: { fontSize: 11, color: '#993C1D', fontWeight: '500' },
-  depDescInput: {
-    backgroundColor: '#f5f5f5', borderRadius: 10, padding: 12,
-    fontSize: 14, color: '#1a1a1a', marginBottom: 8
-  },
-  depMontantInput: {
-    backgroundColor: '#f5f5f5', borderRadius: 10, padding: 12,
-    fontSize: 16, color: '#1a1a1a', marginBottom: 8
-  },
-  depAjouterBtn: {
-    backgroundColor: '#EF9F27', borderRadius: 14, padding: 16,
-    alignItems: 'center', marginBottom: 10, marginTop: 4
-  },
-  depAjouterTxt: { fontSize: 15, fontWeight: '600', color: '#412402' },
   confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 },
   confirmBox: { backgroundColor: '#fff', borderRadius: 18, padding: 24, width: '100%', maxWidth: 380 },
   confirmTitre: { fontSize: 17, fontWeight: '700', color: '#1a1a1a', marginBottom: 12 },

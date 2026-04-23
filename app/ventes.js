@@ -22,6 +22,9 @@ export default function VentesScreen() {
     ventesJour, setVentesJour,
     resteEspeces, fc, beneficeSC,
     roleActif, restaurantId,
+    depensesGerantCaisse, setDepensesGerantCaisse,
+    fournisseursGerantCaisse, setFournisseursGerantCaisse,
+    totalDepensesGerantCaisse,
   } = useApp()
 
   const { prendrePhoto, choisirPhoto } = usePhoto()
@@ -33,7 +36,9 @@ export default function VentesScreen() {
   const [photoModalVisible, setPhotoModalVisible] = useState(false)
   const [chargementShifts, setChargementShifts] = useState(false)
   const [cumulShifts, setCumulShifts] = useState(null)
-  const photoPickerRef = useRef({ champ: '', dossier: '' })
+  const [sectionsOuvertes, setSectionsOuvertes] = useState(new Set())
+  const [fournisseursList, setFournisseursList] = useState([])
+  const photoPickerRef = useRef({ champOuSetter: '', dossier: '' })
 
   const isGerant = roleActif === 'gerant'
   const isManager = roleActif === 'manager'
@@ -95,7 +100,52 @@ export default function VentesScreen() {
       }))
     }
 
+    // Charger la liste des fournisseurs du restaurant
+    const { data: fours } = await supabase
+      .from('fournisseurs')
+      .select('id, nom')
+      .eq('restaurant_id', restaurantId)
+      .order('nom')
+    setFournisseursList(fours || [])
+
     setChargementShifts(false)
+  }
+
+  function toggleSection(key) {
+    setSectionsOuvertes(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  function ajouterLigneDep(cat) {
+    setDepensesGerantCaisse(prev => ({
+      ...prev,
+      [cat]: [...(prev[cat] || []), { id: Date.now().toString(), description: '', montant: '', photoUri: null }]
+    }))
+  }
+
+  function supprimerLigneDep(cat, index) {
+    setDepensesGerantCaisse(prev => ({
+      ...prev,
+      [cat]: (prev[cat] || []).filter((_, i) => i !== index)
+    }))
+  }
+
+  function updateLigneDep(cat, index, champ, valeur) {
+    setDepensesGerantCaisse(prev => ({
+      ...prev,
+      [cat]: (prev[cat] || []).map((l, i) => i === index ? { ...l, [champ]: valeur } : l)
+    }))
+  }
+
+  function updateFournisseurGerant(fourId, fourNom, champ, valeur) {
+    setFournisseursGerantCaisse(prev => ({
+      ...prev,
+      [fourId]: { ...prev[fourId], nom: fourNom, [champ]: valeur }
+    }))
   }
 
   function setVente(champ, valeur) {
@@ -107,21 +157,24 @@ export default function VentesScreen() {
     setVentesJour(prev => ({ ...prev, [champ]: uri }))
   }
 
-  function gererPhoto(champ, dossier) {
+  function gererPhoto(champOuSetter, dossier) {
     if (bloque && !isManager) return
-    photoPickerRef.current = { champ, dossier }
+    photoPickerRef.current = { champOuSetter, dossier }
     setPhotoModalVisible(true)
   }
 
   async function selectionnerPhoto(source) {
     setPhotoModalVisible(false)
-    const { champ, dossier } = photoPickerRef.current
+    const { champOuSetter, dossier } = photoPickerRef.current
     setUploading(true)
     try {
       const url = source === 'camera'
         ? await prendrePhoto(dossier)
         : await choisirPhoto(dossier)
-      if (url) setPhoto(champ, url)
+      if (url) {
+        if (typeof champOuSetter === 'function') champOuSetter(url)
+        else setPhoto(champOuSetter, url)
+      }
     } finally {
       setUploading(false)
     }
@@ -514,6 +567,191 @@ export default function VentesScreen() {
               </View>
             </View>
 
+            {/* ── Dépenses caisse gérant ── */}
+            {(isGerant || isManager) && (
+              <>
+                <Text style={styles.sectionTitre}>Dépenses caisse gérant</Text>
+                <Text style={styles.sectionSub}>
+                  Prélevées sur les espèces — chaque ligne doit être justifiée par une photo
+                </Text>
+
+                {/* Bande Fournisseurs */}
+                <TouchableOpacity style={styles.bandHeader} onPress={() => toggleSection('fournisseurs')}>
+                  <Text style={styles.bandTitre}>🏪 Fournisseurs</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {Object.keys(fournisseursGerantCaisse).length > 0 && (
+                      <Text style={styles.bandCount}>{Object.keys(fournisseursGerantCaisse).length} saisie(s)</Text>
+                    )}
+                    <Text style={styles.bandChevron}>{sectionsOuvertes.has('fournisseurs') ? '▲' : '▼'}</Text>
+                  </View>
+                </TouchableOpacity>
+
+                {sectionsOuvertes.has('fournisseurs') && (
+                  <View style={styles.bandContent}>
+                    {fournisseursList.length === 0 ? (
+                      <Text style={styles.bandVide}>Aucun fournisseur enregistré pour ce restaurant</Text>
+                    ) : (
+                      fournisseursList.map(four => {
+                        const data = fournisseursGerantCaisse[four.id] || {}
+                        const fourOpen = sectionsOuvertes.has(`four_${four.id}`)
+                        return (
+                          <View key={four.id}>
+                            <TouchableOpacity style={styles.fourRow} onPress={() => toggleSection(`four_${four.id}`)}>
+                              <Text style={styles.fourNom}>{four.nom}</Text>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                {data.paye ? (
+                                  <Text style={styles.fourMontant}>{fmt(parseFloat(data.paye) || 0)}</Text>
+                                ) : null}
+                                {data.photoUri && <Text style={{ fontSize: 12 }}>📷</Text>}
+                                <Text style={styles.bandChevron}>{fourOpen ? '▲' : '▼'}</Text>
+                              </View>
+                            </TouchableOpacity>
+                            {fourOpen && (
+                              <View style={styles.fourDetails}>
+                                <TextInput
+                                  style={styles.depInput}
+                                  value={data.facture || ''}
+                                  onChangeText={v => updateFournisseurGerant(four.id, four.nom, 'facture', v)}
+                                  placeholder="N° facture / référence"
+                                  placeholderTextColor="#bbb"
+                                />
+                                <TextInput
+                                  style={styles.depInput}
+                                  value={data.paye || ''}
+                                  onChangeText={v => updateFournisseurGerant(four.id, four.nom, 'paye', v)}
+                                  keyboardType="numeric"
+                                  placeholder="Montant payé (FCFA)"
+                                  placeholderTextColor="#bbb"
+                                />
+                                <View style={[styles.photoBlock,
+                                  parseFloat(data.paye) > 0 && !data.photoUri && styles.photoBlockRequired
+                                ]}>
+                                  <View style={styles.photoBlockHeader}>
+                                    <Text style={styles.photoBlockLabel}>
+                                      📷 Justificatif
+                                      {parseFloat(data.paye) > 0 && <Text style={{ color: '#A32D2D' }}> *</Text>}
+                                    </Text>
+                                    {data.photoUri ? (
+                                      <View style={styles.photoBadgeOk}><Text style={styles.photoBadgeOkTxt}>✅ OK</Text></View>
+                                    ) : parseFloat(data.paye) > 0 ? (
+                                      <View style={styles.photoBadgeReq}><Text style={styles.photoBadgeReqTxt}>⚠️ Requis</Text></View>
+                                    ) : null}
+                                  </View>
+                                  {data.photoUri && (
+                                    <Image source={{ uri: data.photoUri }} style={styles.photoPreview} resizeMode="cover" />
+                                  )}
+                                  <TouchableOpacity
+                                    style={styles.photoBtn}
+                                    onPress={() => gererPhoto(url => updateFournisseurGerant(four.id, four.nom, 'photoUri', url), 'depenses-gerant')}
+                                    disabled={uploading}
+                                  >
+                                    <Text style={styles.photoBtnTxt}>
+                                      {data.photoUri ? '🔄 Changer la photo' : '📷 Ajouter une photo'}
+                                    </Text>
+                                  </TouchableOpacity>
+                                </View>
+                              </View>
+                            )}
+                          </View>
+                        )
+                      })
+                    )}
+                  </View>
+                )}
+
+                {/* Bandes catégories */}
+                {[
+                  { key: 'Marché', emoji: '🛒' },
+                  { key: 'Légumes', emoji: '🥦' },
+                  { key: 'Fruits', emoji: '🍊' },
+                  { key: 'Dépenses annexes', emoji: '📦' },
+                ].map(({ key, emoji }) => {
+                  const lignes = depensesGerantCaisse[key] || []
+                  const isOpen = sectionsOuvertes.has(key)
+                  return (
+                    <View key={key}>
+                      <TouchableOpacity style={styles.bandHeader} onPress={() => toggleSection(key)}>
+                        <Text style={styles.bandTitre}>{emoji} {key}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          {lignes.length > 0 && (
+                            <Text style={styles.bandCount}>{lignes.length} ligne(s)</Text>
+                          )}
+                          <Text style={styles.bandChevron}>{isOpen ? '▲' : '▼'}</Text>
+                        </View>
+                      </TouchableOpacity>
+                      {isOpen && (
+                        <View style={styles.bandContent}>
+                          {lignes.map((ligne, i) => (
+                            <View key={ligne.id || i} style={styles.ligneDepCard}>
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                                <Text style={styles.ligneDepNum}>Ligne {i + 1}</Text>
+                                <TouchableOpacity onPress={() => supprimerLigneDep(key, i)}>
+                                  <Text style={{ color: '#993C1D', fontSize: 12, fontWeight: '500' }}>✕ Supprimer</Text>
+                                </TouchableOpacity>
+                              </View>
+                              <TextInput
+                                style={styles.depInput}
+                                value={ligne.description || ''}
+                                onChangeText={v => updateLigneDep(key, i, 'description', v)}
+                                placeholder="Description"
+                                placeholderTextColor="#bbb"
+                              />
+                              <TextInput
+                                style={styles.depInput}
+                                value={ligne.montant || ''}
+                                onChangeText={v => updateLigneDep(key, i, 'montant', v)}
+                                keyboardType="numeric"
+                                placeholder="Montant (FCFA)"
+                                placeholderTextColor="#bbb"
+                              />
+                              <View style={[styles.photoBlock,
+                                parseFloat(ligne.montant) > 0 && !ligne.photoUri && styles.photoBlockRequired
+                              ]}>
+                                <View style={styles.photoBlockHeader}>
+                                  <Text style={styles.photoBlockLabel}>
+                                    📷 Justificatif
+                                    {parseFloat(ligne.montant) > 0 && <Text style={{ color: '#A32D2D' }}> *</Text>}
+                                  </Text>
+                                  {ligne.photoUri ? (
+                                    <View style={styles.photoBadgeOk}><Text style={styles.photoBadgeOkTxt}>✅ OK</Text></View>
+                                  ) : parseFloat(ligne.montant) > 0 ? (
+                                    <View style={styles.photoBadgeReq}><Text style={styles.photoBadgeReqTxt}>⚠️ Requis</Text></View>
+                                  ) : null}
+                                </View>
+                                {ligne.photoUri && (
+                                  <Image source={{ uri: ligne.photoUri }} style={styles.photoPreview} resizeMode="cover" />
+                                )}
+                                <TouchableOpacity
+                                  style={styles.photoBtn}
+                                  onPress={() => gererPhoto(url => updateLigneDep(key, i, 'photoUri', url), 'depenses-gerant')}
+                                  disabled={uploading}
+                                >
+                                  <Text style={styles.photoBtnTxt}>
+                                    {ligne.photoUri ? '🔄 Changer la photo' : '📷 Ajouter une photo'}
+                                  </Text>
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          ))}
+                          <TouchableOpacity style={styles.ajouterLigneBtn} onPress={() => ajouterLigneDep(key)}>
+                            <Text style={styles.ajouterLigneTxt}>+ Ajouter une ligne</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  )
+                })}
+
+                {/* Total dépenses gérant */}
+                {totalDepensesGerantCaisse() > 0 && (
+                  <View style={styles.totalDepGerantCard}>
+                    <Text style={styles.totalDepGerantLabel}>Total dépenses gérant caisse</Text>
+                    <Text style={styles.totalDepGerantVal}>− {fmt(totalDepensesGerantCaisse())}</Text>
+                  </View>
+                )}
+              </>
+            )}
+
             {/* Vente machine */}
             {(isGerant || isManager) && (
               <>
@@ -893,4 +1131,49 @@ const styles = StyleSheet.create({
     backgroundColor: '#EF9F27', alignItems: 'center'
   },
   confirmOkTxt: { fontSize: 14, fontWeight: '600', color: '#412402' },
+  // ── Dépenses gérant caisse ──
+  bandHeader: {
+    backgroundColor: '#fff', borderRadius: 12, padding: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 2, borderWidth: 0.5, borderColor: '#eee'
+  },
+  bandTitre: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
+  bandChevron: { fontSize: 12, color: '#888' },
+  bandCount: {
+    fontSize: 11, color: '#EF9F27', fontWeight: '600',
+    backgroundColor: '#FAEEDA', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10
+  },
+  bandContent: {
+    backgroundColor: '#fafafa', borderRadius: 12, padding: 12,
+    marginBottom: 6, borderWidth: 0.5, borderColor: '#eee', borderTopWidth: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0
+  },
+  bandVide: { fontSize: 12, color: '#bbb', textAlign: 'center', paddingVertical: 12 },
+  fourRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#eee'
+  },
+  fourNom: { fontSize: 13, color: '#1a1a1a', fontWeight: '500', flex: 1 },
+  fourMontant: { fontSize: 13, color: '#A32D2D', fontWeight: '600' },
+  fourDetails: { paddingTop: 10, paddingBottom: 6 },
+  depInput: {
+    backgroundColor: '#f5f5f5', borderRadius: 10, padding: 11,
+    fontSize: 14, color: '#1a1a1a', marginBottom: 8
+  },
+  ligneDepCard: {
+    backgroundColor: '#fff', borderRadius: 10, padding: 12,
+    marginBottom: 8, borderWidth: 0.5, borderColor: '#eee'
+  },
+  ligneDepNum: { fontSize: 12, fontWeight: '600', color: '#888' },
+  ajouterLigneBtn: {
+    backgroundColor: '#EF9F27', borderRadius: 10, padding: 12,
+    alignItems: 'center', marginTop: 6
+  },
+  ajouterLigneTxt: { fontSize: 13, fontWeight: '600', color: '#412402' },
+  totalDepGerantCard: {
+    backgroundColor: '#FAECE7', borderRadius: 12, padding: 14,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: 8, borderWidth: 1, borderColor: '#F09595'
+  },
+  totalDepGerantLabel: { fontSize: 13, color: '#993C1D', fontWeight: '500' },
+  totalDepGerantVal: { fontSize: 16, fontWeight: '700', color: '#A32D2D' },
 })

@@ -24,7 +24,8 @@ export default function RecapPointScreen() {
     pointId, dateJour,
     totalVentes, ventesJour,
     setPointValide, roleActif,
-    depensesGerantCaisse,
+    depensesGerantCaisse, fournisseursGerantCaisse,
+    totalDepensesGerantCaisse,
   } = useApp()
 
   const isGerant = roleActif === 'gerant'
@@ -133,12 +134,8 @@ export default function RecapPointScreen() {
     return totalDepensesTable() + totalPaiePresences() + totalFournisseursTransactions()
   }
 
-  function totalDepGerantCaisse() {
-    return depensesGerantCaisse.reduce((sum, d) => sum + (parseFloat(d.montant) || 0), 0)
-  }
-
   function resteEspecesCalc() {
-    const deduc = totalDepGerantCaisse()
+    const deduc = totalDepensesGerantCaisse()
     if (cumulShifts) return cumulShifts.espece - deduc
     return totalVentes() - totalDepensesGlobal()
       - (parseFloat(ventesJour.yangoCse) || 0)
@@ -206,20 +203,32 @@ export default function RecapPointScreen() {
     setConfirmVisible(false)
     setValidating(true)
 
-    // Sauvegarder les dépenses caisse gérant dans une table dédiée
-    if (depensesGerantCaisse.length > 0) {
-      await supabase.from('depenses_gerant_caisse').delete().eq('point_id', pointId)
-      const lignes = depensesGerantCaisse
+    // Sauvegarder les dépenses caisse gérant (catégories + fournisseurs)
+    await supabase.from('depenses_gerant_caisse').delete().eq('point_id', pointId)
+    const lignesCat = Object.entries(depensesGerantCaisse).flatMap(([cat, lignes]) =>
+      (lignes || [])
         .filter(d => parseFloat(d.montant) > 0)
         .map(d => ({
           point_id: pointId,
+          categorie: cat,
           description: d.description || '',
           montant: parseFloat(d.montant) || 0,
           photo_url: d.photoUri || null,
         }))
-      if (lignes.length > 0) {
-        await supabase.from('depenses_gerant_caisse').insert(lignes)
-      }
+    )
+    const lignesFour = Object.entries(fournisseursGerantCaisse)
+      .filter(([, f]) => parseFloat(f?.paye) > 0)
+      .map(([, f]) => ({
+        point_id: pointId,
+        categorie: 'Fournisseur',
+        description: f.nom || '',
+        facture: f.facture || '',
+        montant: parseFloat(f.paye) || 0,
+        photo_url: f.photoUri || null,
+      }))
+    const toutesLignes = [...lignesCat, ...lignesFour]
+    if (toutesLignes.length > 0) {
+      await supabase.from('depenses_gerant_caisse').insert(toutesLignes)
     }
 
     const venteTheo = cumulShifts?.venteTotal || totalVentes()
@@ -248,7 +257,7 @@ export default function RecapPointScreen() {
       vente_machine: venteMachine,
       photo_vente_machine: ventesJour.photoVenteMachine || null,
       ecart_caisse: ecartCaisse,
-      depenses_gerant_caisse_total: totalDepGerantCaisse(),
+      depenses_gerant_caisse_total: totalDepensesGerantCaisse(),
     })
     setValidating(false)
     if (ok) {
@@ -536,27 +545,47 @@ export default function RecapPointScreen() {
         )}
 
         {/* DÉPENSES CAISSE GÉRANT */}
-        {depensesGerantCaisse.length > 0 && (
+        {totalDepensesGerantCaisse() > 0 && (
           <>
             <Text style={styles.sectionTitre}>💵 Dépenses caisse gérant</Text>
             <View style={styles.card}>
-              {depensesGerantCaisse.map((d, i) => (
-                <View key={i} style={styles.row}>
-                  <View style={styles.rowLeft}>
-                    <Text style={styles.rowLabel}>{d.description || 'Sans description'}</Text>
-                    {d.photoUri ? (
-                      <Text style={{ fontSize: 10, color: '#3B6D11', marginTop: 2 }}>📷 Photo jointe</Text>
-                    ) : (
-                      <Text style={{ fontSize: 10, color: '#A32D2D', marginTop: 2 }}>⚠️ Photo manquante</Text>
-                    )}
+              {/* Fournisseurs */}
+              {Object.entries(fournisseursGerantCaisse)
+                .filter(([, f]) => parseFloat(f?.paye) > 0)
+                .map(([id, f]) => (
+                  <View key={id} style={styles.row}>
+                    <View style={styles.rowLeft}>
+                      <Text style={styles.rowLabel}>🏪 {f.nom || 'Fournisseur'}</Text>
+                      {f.facture ? <Text style={{ fontSize: 10, color: '#888', marginTop: 2 }}>Facture: {f.facture}</Text> : null}
+                      {f.photoUri
+                        ? <Text style={{ fontSize: 10, color: '#3B6D11', marginTop: 2 }}>📷 Photo jointe</Text>
+                        : <Text style={{ fontSize: 10, color: '#A32D2D', marginTop: 2 }}>⚠️ Photo manquante</Text>
+                      }
+                    </View>
+                    <Text style={[styles.rowValue, { color: '#A32D2D' }]}>− {fmt(parseFloat(f.paye) || 0)}</Text>
                   </View>
-                  <Text style={[styles.rowValue, { color: '#A32D2D' }]}>− {fmt(parseFloat(d.montant) || 0)}</Text>
-                </View>
-              ))}
+                ))
+              }
+              {/* Catégories */}
+              {Object.entries(depensesGerantCaisse).map(([cat, lignes]) =>
+                (lignes || []).filter(l => parseFloat(l.montant) > 0).map((l, i) => (
+                  <View key={`${cat}-${i}`} style={styles.row}>
+                    <View style={styles.rowLeft}>
+                      <Text style={styles.rowLabel}>{l.description || cat}</Text>
+                      <Text style={{ fontSize: 10, color: '#888', marginTop: 2 }}>{cat}</Text>
+                      {l.photoUri
+                        ? <Text style={{ fontSize: 10, color: '#3B6D11', marginTop: 2 }}>📷 Photo jointe</Text>
+                        : <Text style={{ fontSize: 10, color: '#A32D2D', marginTop: 2 }}>⚠️ Photo manquante</Text>
+                      }
+                    </View>
+                    <Text style={[styles.rowValue, { color: '#A32D2D' }]}>− {fmt(parseFloat(l.montant) || 0)}</Text>
+                  </View>
+                ))
+              )}
               <View style={[styles.row, styles.rowTotal]}>
                 <Text style={styles.rowTotalLabel}>Total dépenses caisse</Text>
                 <Text style={[styles.rowTotalValue, { color: '#A32D2D' }]}>
-                  − {fmt(totalDepGerantCaisse())}
+                  − {fmt(totalDepensesGerantCaisse())}
                 </Text>
               </View>
             </View>
@@ -693,8 +722,8 @@ export default function RecapPointScreen() {
               {ventesJour.venteMachine !== '' && ventesJour.venteMachine !== undefined
                 ? `Vente machine : ${fmt(parseFloat(ventesJour.venteMachine) || 0)}\n`
                 : ''}
-              {depensesGerantCaisse.length > 0
-                ? `Dép. caisse gérant : − ${fmt(totalDepGerantCaisse())}\n`
+              {totalDepensesGerantCaisse() > 0
+                ? `Dép. caisse gérant : − ${fmt(totalDepensesGerantCaisse())}\n`
                 : ''}
               Espèces réelles : {fmt(resteEspecesCalc())}{'\n'}
               FC calculé : {fmt(fcCalc())}{'\n'}
