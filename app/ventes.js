@@ -186,10 +186,17 @@ export default function VentesScreen() {
     if (bloque && !isManager) return
     photoPickerRef.current = { champOuSetter, dossier }
     if (Platform.OS === 'web') {
-      // Sur web/iOS : bypasser la modal — l'animation de fermeture bloque le sélecteur de fichiers
       selectionnerPhoto('gallery')
     } else {
-      setPhotoModalVisible(true)
+      Alert.alert(
+        'Ajouter une photo',
+        'Choisissez la source',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: '📷 Caméra', onPress: () => selectionnerPhoto('camera') },
+          { text: '🖼 Galerie', onPress: () => selectionnerPhoto('gallery') },
+        ]
+      )
     }
   }
 
