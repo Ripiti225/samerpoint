@@ -5,6 +5,7 @@ import {
   Alert,
   Image,
   Modal,
+  Platform,
   SafeAreaView, ScrollView,
   StyleSheet,
   Text,
@@ -184,7 +185,12 @@ export default function VentesScreen() {
   function gererPhoto(champOuSetter, dossier) {
     if (bloque && !isManager) return
     photoPickerRef.current = { champOuSetter, dossier }
-    setPhotoModalVisible(true)
+    if (Platform.OS === 'web') {
+      // Sur web/iOS : bypasser la modal — l'animation de fermeture bloque le sélecteur de fichiers
+      selectionnerPhoto('gallery')
+    } else {
+      setPhotoModalVisible(true)
+    }
   }
 
   async function selectionnerPhoto(source) {
@@ -710,16 +716,16 @@ export default function VentesScreen() {
 
                                 {/* Photo */}
                                 <View style={[styles.photoBlock,
-                                  payé > 0 && !data.photoUri && styles.photoBlockRequired
+                                  montFact > 0 && !data.photoUri && styles.photoBlockRequired
                                 ]}>
                                   <View style={styles.photoBlockHeader}>
                                     <Text style={styles.photoBlockLabel}>
-                                      📷 Justificatif
-                                      {payé > 0 && <Text style={{ color: '#A32D2D' }}> *</Text>}
+                                      📷 Justificatif facture
+                                      {montFact > 0 && <Text style={{ color: '#A32D2D' }}> *</Text>}
                                     </Text>
                                     {data.photoUri ? (
                                       <View style={styles.photoBadgeOk}><Text style={styles.photoBadgeOkTxt}>✅ OK</Text></View>
-                                    ) : payé > 0 ? (
+                                    ) : montFact > 0 ? (
                                       <View style={styles.photoBadgeReq}><Text style={styles.photoBadgeReqTxt}>⚠️ Requis</Text></View>
                                     ) : null}
                                   </View>

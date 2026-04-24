@@ -249,7 +249,12 @@ export default function PointShiftScreen() {
 
   function gererPhoto(setter, dossier) {
     photoPickerRef.current = { setter, dossier }
-    setPhotoModalVisible(true)
+    if (Platform.OS === 'web') {
+      // Sur web/iOS : bypasser la modal — l'animation de fermeture bloque le sélecteur de fichiers
+      selectionnerPhoto('gallery')
+    } else {
+      setPhotoModalVisible(true)
+    }
   }
 
   async function selectionnerPhoto(source) {
