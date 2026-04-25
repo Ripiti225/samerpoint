@@ -235,6 +235,7 @@ export default function RecapPointScreen() {
     const venteMachine = parseFloat(ventesJour.venteMachine) || null
     const ecartCaisse = venteMachine !== null ? venteTheo - venteMachine : null
 
+    // ── 1. Validation avec les colonnes existantes ─────────
     const ok = await validerPoint(pointId, {
       vente_total: venteTheo,
       depense_total: totalDepensesGlobal(),
@@ -254,11 +255,22 @@ export default function RecapPointScreen() {
       reste_fc: fcCalc(),
       fc_compte: parseFloat(ventesJour.fc_actuel) || 0,
       benefice_sc: beneficeSCCalc(),
-      vente_machine: venteMachine,
-      photo_vente_machine: ventesJour.photoVenteMachine || null,
-      ecart_caisse: ecartCaisse,
-      depenses_gerant_caisse_total: totalDepensesGerantCaisse(),
     })
+
+    // ── 2. Colonnes étendues (ignorées si pas encore créées) ─
+    if (ok) {
+      try {
+        const extended = {}
+        if (venteMachine !== null) extended.vente_machine = venteMachine
+        if (ecartCaisse !== null) extended.ecart_caisse = ecartCaisse
+        if (ventesJour.photoVenteMachine) extended.photo_vente_machine = ventesJour.photoVenteMachine
+        const totalDep = totalDepensesGerantCaisse()
+        if (totalDep > 0) extended.depenses_gerant_caisse_total = totalDep
+        if (Object.keys(extended).length > 0) {
+          await supabase.from('points').update(extended).eq('id', pointId)
+        }
+      } catch (_) { /* colonnes pas encore ajoutées — ignoré */ }
+    }
     setValidating(false)
     if (ok) {
       setPointValide(true)

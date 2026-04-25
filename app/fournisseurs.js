@@ -226,6 +226,11 @@ export default function FournisseursScreen() {
                             </Text>
                           </View>
                           <Text style={styles.fournNom}>{f.nom}</Text>
+                          {credit > 0 && (
+                            <View style={styles.creditBadge}>
+                              <Text style={styles.creditBadgeTxt}>💳 {fmt(credit)}</Text>
+                            </View>
+                          )}
                           {t.hasPhoto && <View style={styles.photoBadge}><Text style={styles.photoTxt}>📷</Text></View>}
                         </View>
 
@@ -402,6 +407,8 @@ const styles = StyleSheet.create({
   fournNom: { fontSize: 14, fontWeight: '600', color: '#1a1a1a', flex: 1 },
   photoBadge: { backgroundColor: '#E6F1FB', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   photoTxt: { fontSize: 12 },
+  creditBadge: { backgroundColor: '#FFF3CD', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 0.5, borderColor: '#EF9F27' },
+  creditBadgeTxt: { fontSize: 10, color: '#854F0B', fontWeight: '600' },
   creditBanner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFF3CD', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 10 },
   creditLabel: { fontSize: 11, color: '#7A4F00', fontWeight: '500' },
   creditVal: { fontSize: 13, fontWeight: '700', color: '#A32D2D' },

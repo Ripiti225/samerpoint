@@ -1,5 +1,5 @@
 import { router } from 'expo-router'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -34,12 +34,10 @@ export default function VentesScreen() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [photosAlertVisible, setPhotosAlertVisible] = useState(false)
-  const [photoModalVisible, setPhotoModalVisible] = useState(false)
   const [chargementShifts, setChargementShifts] = useState(false)
   const [cumulShifts, setCumulShifts] = useState(null)
   const [sectionsOuvertes, setSectionsOuvertes] = useState(new Set())
   const [fournisseursList, setFournisseursList] = useState([])
-  const photoPickerRef = useRef({ champOuSetter: '', dossier: '' })
 
   const isGerant = roleActif === 'gerant'
   const isManager = roleActif === 'manager'
@@ -178,42 +176,33 @@ export default function VentesScreen() {
     setVentesJour(prev => ({ ...prev, [champ]: valeur }))
   }
 
-  function setPhoto(champ, uri) {
-    setVentesJour(prev => ({ ...prev, [champ]: uri }))
-  }
-
-  function gererPhoto(champOuSetter, dossier) {
+  function gererPhoto(setter, dossier) {
     if (bloque && !isManager) return
-    photoPickerRef.current = { champOuSetter, dossier }
+
+    async function executer(source) {
+      setUploading(true)
+      try {
+        const url = source === 'camera'
+          ? await prendrePhoto(dossier)
+          : await choisirPhoto(dossier)
+        if (url) setter(url)
+      } finally {
+        setUploading(false)
+      }
+    }
+
     if (Platform.OS === 'web') {
-      selectionnerPhoto('gallery')
+      executer('gallery')
     } else {
       Alert.alert(
         'Ajouter une photo',
         'Choisissez la source',
         [
           { text: 'Annuler', style: 'cancel' },
-          { text: '📷 Caméra', onPress: () => selectionnerPhoto('camera') },
-          { text: '🖼 Galerie', onPress: () => selectionnerPhoto('gallery') },
+          { text: '📷 Caméra', onPress: () => executer('camera') },
+          { text: '🖼 Galerie', onPress: () => executer('gallery') },
         ]
       )
-    }
-  }
-
-  async function selectionnerPhoto(source) {
-    setPhotoModalVisible(false)
-    const { champOuSetter, dossier } = photoPickerRef.current
-    setUploading(true)
-    try {
-      const url = source === 'camera'
-        ? await prendrePhoto(dossier)
-        : await choisirPhoto(dossier)
-      if (url) {
-        if (typeof champOuSetter === 'function') champOuSetter(url)
-        else setPhoto(champOuSetter, url)
-      }
-    } finally {
-      setUploading(false)
     }
   }
 
@@ -265,8 +254,7 @@ export default function VentesScreen() {
   }
 
   // ─── Composant Photo ───────────────────────────────────────
-  function PhotoBlock({ champ, label, dossier, obligatoireSi = true }) {
-    const uri = ventesJour[champ]
+  function PhotoBlock({ uri, setter, label, dossier, obligatoireSi = true }) {
     const aPhoto = !!uri
     const estRequis = obligatoireSi && !aPhoto
     return (
@@ -284,7 +272,7 @@ export default function VentesScreen() {
         </View>
         {uri && <Image source={{ uri }} style={styles.photoPreview} resizeMode="cover" />}
         {(!bloque || isManager) && (
-          <TouchableOpacity style={styles.photoBtn} onPress={() => gererPhoto(champ, dossier)} disabled={uploading}>
+          <TouchableOpacity style={styles.photoBtn} onPress={() => gererPhoto(setter, dossier)} disabled={uploading}>
             {uploading ? (
               <ActivityIndicator size="small" color="#412402" />
             ) : (
@@ -415,7 +403,8 @@ export default function VentesScreen() {
                 />
               </View>
               <PhotoBlock
-                champ="photo_yango_tab"
+                uri={ventesJour.photo_yango_tab}
+                setter={url => setVentesJour(prev => ({ ...prev, photo_yango_tab: url }))}
                 label="Photo Yango TAB"
                 dossier="yango_tab"
                 obligatoireSi={parseFloat(ventesJour.yangoTab) > 0}
@@ -453,7 +442,8 @@ export default function VentesScreen() {
                 />
               </View>
               <PhotoBlock
-                champ="photo_glovo_tab"
+                uri={ventesJour.photo_glovo_tab}
+                setter={url => setVentesJour(prev => ({ ...prev, photo_glovo_tab: url }))}
                 label="Photo Glovo TAB"
                 dossier="glovo_tab"
                 obligatoireSi={parseFloat(ventesJour.glovoTab) > 0}
@@ -744,9 +734,13 @@ export default function VentesScreen() {
                                     onPress={() => gererPhoto(url => updateFournisseurGerant(four.id, four.nom, 'photoUri', url), 'depenses-gerant')}
                                     disabled={uploading}
                                   >
-                                    <Text style={styles.photoBtnTxt}>
-                                      {data.photoUri ? '🔄 Changer la photo' : '📷 Ajouter une photo'}
-                                    </Text>
+                                    {uploading ? (
+                                      <ActivityIndicator size="small" color="#412402" />
+                                    ) : (
+                                      <Text style={styles.photoBtnTxt}>
+                                        {data.photoUri ? '🔄 Changer la photo' : '📷 Ajouter une photo'}
+                                      </Text>
+                                    )}
                                   </TouchableOpacity>
                                 </View>
                               </View>
@@ -825,9 +819,13 @@ export default function VentesScreen() {
                                   onPress={() => gererPhoto(url => updateLigneDep(key, i, 'photoUri', url), 'depenses-gerant')}
                                   disabled={uploading}
                                 >
-                                  <Text style={styles.photoBtnTxt}>
-                                    {ligne.photoUri ? '🔄 Changer la photo' : '📷 Ajouter une photo'}
-                                  </Text>
+                                  {uploading ? (
+                                    <ActivityIndicator size="small" color="#412402" />
+                                  ) : (
+                                    <Text style={styles.photoBtnTxt}>
+                                      {ligne.photoUri ? '🔄 Changer la photo' : '📷 Ajouter une photo'}
+                                    </Text>
+                                  )}
                                 </TouchableOpacity>
                               </View>
                             </View>
@@ -911,7 +909,7 @@ export default function VentesScreen() {
                       )}
                       <TouchableOpacity
                         style={styles.photoBtn}
-                        onPress={() => gererPhoto('photoVenteMachine', 'vente-machine')}
+                        onPress={() => gererPhoto(url => setVentesJour(prev => ({ ...prev, photoVenteMachine: url })), 'vente-machine')}
                         disabled={uploading}
                       >
                         {uploading ? (
@@ -993,23 +991,6 @@ export default function VentesScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
-
-      {/* Modal choix source photo */}
-      <Modal visible={photoModalVisible} transparent animationType="fade">
-        <View style={styles.confirmOverlay}>
-          <View style={styles.confirmBox}>
-            <Text style={styles.confirmTitre}>📷 Ajouter une photo</Text>
-            <View style={styles.confirmBtns}>
-              <TouchableOpacity style={styles.confirmCancel} onPress={() => setPhotoModalVisible(false)}>
-                <Text style={styles.confirmCancelTxt}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.confirmOk} onPress={() => selectionnerPhoto('gallery')}>
-                <Text style={styles.confirmOkTxt}>🖼 Galerie</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
 
       <Modal visible={photosAlertVisible} transparent animationType="fade">
         <View style={styles.confirmOverlay}>
