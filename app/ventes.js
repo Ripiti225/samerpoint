@@ -14,6 +14,7 @@ import {
   View
 } from 'react-native'
 import { useApp } from '../context/AppContext'
+import { CATEGORIES_DEPENSES, COEFFICIENTS } from '../lib/constants'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
 
@@ -569,11 +570,11 @@ export default function VentesScreen() {
             <Text style={styles.sectionTitre}>Bénéfice SC</Text>
             <View style={styles.beneficeCard}>
               {[
-                { label: 'Yango TAB ×0.77', val: (parseFloat(ventesJour.yangoTab) || 0) * 0.77 },
-                { label: 'Glovo TAB ×0.705', val: (parseFloat(ventesJour.glovoTab) || 0) * 0.705 },
-                { label: 'Wave ×0.99', val: (parseFloat(ventesJour.wave) || 0) * 0.99 },
-                { label: 'Orange Money ×0.99', val: (parseFloat(ventesJour.om) || 0) * 0.99 },
-                { label: 'Djamo ×0.99', val: (parseFloat(ventesJour.djamo) || 0) * 0.99 },
+                { label: `Yango TAB ×${COEFFICIENTS.YANGO}`, val: (parseFloat(ventesJour.yangoTab) || 0) * COEFFICIENTS.YANGO },
+                { label: `Glovo TAB ×${COEFFICIENTS.GLOVO}`, val: (parseFloat(ventesJour.glovoTab) || 0) * COEFFICIENTS.GLOVO },
+                { label: `Wave ×${COEFFICIENTS.WAVE}`, val: (parseFloat(ventesJour.wave) || 0) * COEFFICIENTS.WAVE },
+                { label: `Orange Money ×${COEFFICIENTS.OM}`, val: (parseFloat(ventesJour.om) || 0) * COEFFICIENTS.OM },
+                { label: `Djamo ×${COEFFICIENTS.DJAMO}`, val: (parseFloat(ventesJour.djamo) || 0) * COEFFICIENTS.DJAMO },
                 { label: 'Espèces en caisse', val: resteEspeces() },
               ].filter(r => r.val > 0).map((r, i) => (
                 <View key={i} style={styles.beneficeRow}>
@@ -754,10 +755,10 @@ export default function VentesScreen() {
 
                 {/* Bandes catégories */}
                 {[
-                  { key: 'Marché', emoji: '🛒' },
-                  { key: 'Légumes', emoji: '🥦' },
-                  { key: 'Fruits', emoji: '🍊' },
-                  { key: 'Dépenses annexes', emoji: '📦' },
+                  { key: CATEGORIES_DEPENSES[0], emoji: '🛒' },
+                  { key: CATEGORIES_DEPENSES[1], emoji: '🥦' },
+                  { key: CATEGORIES_DEPENSES[2], emoji: '🍊' },
+                  { key: CATEGORIES_DEPENSES[3], emoji: '📦' },
                 ].map(({ key, emoji }) => {
                   const lignes = depensesGerantCaisse[key] || []
                   const isOpen = sectionsOuvertes.has(key)

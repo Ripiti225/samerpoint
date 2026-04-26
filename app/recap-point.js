@@ -8,6 +8,7 @@ import {
 } from 'react-native'
 import { useApp } from '../context/AppContext'
 import { validerPoint } from '../lib/api'
+import { COEFFICIENTS } from '../lib/constants'
 import { supabase } from '../lib/supabase'
 
 const STATUT_COLORS = {
@@ -156,18 +157,18 @@ export default function RecapPointScreen() {
     const yangoTab = parseFloat(ventesJour.yangoTab) || 0
     const glovoTab = parseFloat(ventesJour.glovoTab) || 0
     if (cumulShifts) {
-      return (yangoTab * 0.77)
-        + (glovoTab * 0.705)
-        + (cumulShifts.om * 0.99)
-        + (cumulShifts.wave * 0.99)
-        + (cumulShifts.djamo * 0.99)
+      return (yangoTab * COEFFICIENTS.YANGO)
+        + (glovoTab * COEFFICIENTS.GLOVO)
+        + (cumulShifts.om * COEFFICIENTS.OM)
+        + (cumulShifts.wave * COEFFICIENTS.WAVE)
+        + (cumulShifts.djamo * COEFFICIENTS.DJAMO)
         + resteEspecesCalc()
     }
-    return (yangoTab * 0.77)
-      + (glovoTab * 0.705)
-      + ((parseFloat(ventesJour.om) || 0) * 0.99)
-      + ((parseFloat(ventesJour.wave) || 0) * 0.99)
-      + ((parseFloat(ventesJour.djamo) || 0) * 0.99)
+    return (yangoTab * COEFFICIENTS.YANGO)
+      + (glovoTab * COEFFICIENTS.GLOVO)
+      + ((parseFloat(ventesJour.om) || 0) * COEFFICIENTS.OM)
+      + ((parseFloat(ventesJour.wave) || 0) * COEFFICIENTS.WAVE)
+      + ((parseFloat(ventesJour.djamo) || 0) * COEFFICIENTS.DJAMO)
       + resteEspecesCalc()
   }
 

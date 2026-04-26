@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { Platform } from 'react-native'
+import { COEFFICIENTS, depensesVides } from '../lib/constants'
 
 const AppContext = createContext()
 
@@ -46,12 +47,7 @@ export function AppProvider({ children }) {
   // ─── Données du jour (restaurées après rechargement iOS) ───
   const [paiesJour, setPaiesJour] = useState(session?.paiesJour || {})
   const [presencesJour, setPresencesJour] = useState(session?.presencesJour || {})
-  const [depensesJour, setDepensesJour] = useState(session?.depensesJour || {
-    'Marché': [],
-    'Légumes': [],
-    'Fruits': [],
-    'Dépenses annexes': [],
-  })
+  const [depensesJour, setDepensesJour] = useState(session?.depensesJour || depensesVides())
   const [fournisseursJour, setFournisseursJour] = useState(session?.fournisseursJour || {})
   const [livraisonsJour, setLivraisonsJour] = useState(session?.livraisonsJour || {
     Yango: [], Glovo: [], OM: [], Wave: [], Djamo: [], Client: []
@@ -79,12 +75,7 @@ export function AppProvider({ children }) {
     photo_kdo: null,
     photo_retour: null,
   })
-  const [depensesGerantCaisse, setDepensesGerantCaisse] = useState(session?.depensesGerantCaisse || {
-    'Marché': [],
-    'Légumes': [],
-    'Fruits': [],
-    'Dépenses annexes': [],
-  })
+  const [depensesGerantCaisse, setDepensesGerantCaisse] = useState(session?.depensesGerantCaisse || depensesVides())
   const [fournisseursGerantCaisse, setFournisseursGerantCaisse] = useState(session?.fournisseursGerantCaisse || {})
 
   // ─── Ref toujours à jour — utilisée dans pagehide (pas de closure stale) ───
@@ -139,25 +130,25 @@ export function AppProvider({ children }) {
   // ─── Totaux ────────────────────────────────────────────────
 
   function totalPaie() {
-    return Object.values(paiesJour).reduce((sum, v) => sum + (parseFloat(v) || 0), 0)
+    return Math.round(Object.values(paiesJour).reduce((sum, v) => sum + (parseFloat(v) || 0), 0))
   }
 
   function totalFournisseurs() {
-    return Object.values(fournisseursJour).reduce((sum, t) => sum + (parseFloat(t?.paye) || 0), 0)
+    return Math.round(Object.values(fournisseursJour).reduce((sum, t) => sum + (parseFloat(t?.paye) || 0), 0))
   }
 
   function totalDepensesCat() {
-    return Object.values(depensesJour).reduce((sum, lignes) => {
+    return Math.round(Object.values(depensesJour).reduce((sum, lignes) => {
       return sum + (lignes || []).reduce((s, l) => s + (parseFloat(l.montant) || 0), 0)
-    }, 0)
+    }, 0))
   }
 
   function totalDepenses() {
-    return totalDepensesCat() + totalPaie() + totalFournisseurs()
+    return Math.round(totalDepensesCat() + totalPaie() + totalFournisseurs())
   }
 
   function totalVentes() {
-    return (ventesJour.sequences || []).reduce((sum, s) => sum + (parseFloat(s.montant) || 0), 0)
+    return Math.round((ventesJour.sequences || []).reduce((sum, s) => sum + (parseFloat(s.montant) || 0), 0))
   }
 
   function totalDepensesGerantCaisse() {
@@ -165,15 +156,15 @@ export function AppProvider({ children }) {
       return sum + (lignes || []).reduce((s, l) => s + (parseFloat(l.montant) || 0), 0)
     }, 0)
     const fours = Object.values(fournisseursGerantCaisse).reduce((sum, f) => sum + (parseFloat(f?.paye) || 0), 0)
-    return cats + fours
+    return Math.round(cats + fours)
   }
 
   function resteEspeces() {
     const deduc = totalDepensesGerantCaisse()
     if (ventesJour.espece_shifts !== 0 && ventesJour.espece_shifts !== '') {
-      return (parseFloat(ventesJour.espece_shifts) || 0) - deduc
+      return Math.round((parseFloat(ventesJour.espece_shifts) || 0) - deduc)
     }
-    return totalVentes() - totalDepenses()
+    return Math.round(totalVentes() - totalDepenses()
       - (parseFloat(ventesJour.yangoCse) || 0)
       - (parseFloat(ventesJour.glovoCse) || 0)
       - (parseFloat(ventesJour.wave) || 0)
@@ -181,20 +172,22 @@ export function AppProvider({ children }) {
       - (parseFloat(ventesJour.djamo) || 0)
       - (parseFloat(ventesJour.kdo) || 0)
       - (parseFloat(ventesJour.retour) || 0)
-      - deduc
+      - deduc)
   }
 
   function fc() {
-    return resteEspeces() + (parseFloat(ventesJour.fcVeille) || 0)
+    return Math.round(resteEspeces() + (parseFloat(ventesJour.fcVeille) || 0))
   }
 
   function beneficeSC() {
-    return ((parseFloat(ventesJour.yangoTab) || 0) * 0.77)
-      + ((parseFloat(ventesJour.glovoTab) || 0) * 0.705)
-      + ((parseFloat(ventesJour.om) || 0) * 0.99)
-      + ((parseFloat(ventesJour.wave) || 0) * 0.99)
-      + ((parseFloat(ventesJour.djamo) || 0) * 0.99)
+    return Math.round(
+      ((parseFloat(ventesJour.yangoTab) || 0) * COEFFICIENTS.YANGO)
+      + ((parseFloat(ventesJour.glovoTab) || 0) * COEFFICIENTS.GLOVO)
+      + ((parseFloat(ventesJour.om) || 0) * COEFFICIENTS.OM)
+      + ((parseFloat(ventesJour.wave) || 0) * COEFFICIENTS.WAVE)
+      + ((parseFloat(ventesJour.djamo) || 0) * COEFFICIENTS.DJAMO)
       + resteEspeces()
+    )
   }
 
   // ─── Reset données du jour ─────────────────────────────────
@@ -205,14 +198,14 @@ export function AppProvider({ children }) {
     setInventaireTermine(false)
     setPaiesJour({})
     setPresencesJour({})
-    setDepensesJour({ 'Marché': [], 'Légumes': [], 'Fruits': [], 'Dépenses annexes': [] })
+    setDepensesJour(depensesVides())
     setFournisseursJour({})
     setLivraisonsJour({ Yango: [], Glovo: [], OM: [], Wave: [], Djamo: [], Client: [] })
     setInventaireJour({})
     setShiftsJour([])
     setStocksParShift({})
     setLastRoute(null)
-    setDepensesGerantCaisse({ 'Marché': [], 'Légumes': [], 'Fruits': [], 'Dépenses annexes': [] })
+    setDepensesGerantCaisse(depensesVides())
     setFournisseursGerantCaisse({})
     setVentesJour({
       sequences: [],
@@ -251,12 +244,7 @@ export function AppProvider({ children }) {
   function resetShift() {
     setPaiesJour({})
     setPresencesJour({})
-    setDepensesJour({
-      'Marché': [],
-      'Légumes': [],
-      'Fruits': [],
-      'Dépenses annexes': [],
-    })
+    setDepensesJour(depensesVides())
     setFournisseursJour({})
   }
 

@@ -27,6 +27,28 @@ export default function LoginScreen() {
   const [loadingRestos, setLoadingRestos] = useState(true)
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [pinError, setPinError] = useState(false)
+  const [tentativesResto, setTentativesResto] = useState(0)
+  const [tentativesUser, setTentativesUser] = useState(0)
+  const [bloqueJusquaResto, setBloqueJusquaResto] = useState(null)
+  const [bloqueJusquaUser, setBloqueJusquaUser] = useState(null)
+  const [secondesRestantes, setSecondesRestantes] = useState(0)
+
+  useEffect(() => {
+    if (!bloqueJusquaResto && !bloqueJusquaUser) return
+    const interval = setInterval(() => {
+      const cible = bloqueJusquaResto || bloqueJusquaUser
+      const reste = Math.ceil((cible - Date.now()) / 1000)
+      if (reste <= 0) {
+        setBloqueJusquaResto(null)
+        setBloqueJusquaUser(null)
+        setSecondesRestantes(0)
+        clearInterval(interval)
+      } else {
+        setSecondesRestantes(reste)
+      }
+    }, 500)
+    return () => clearInterval(interval)
+  }, [bloqueJusquaResto, bloqueJusquaUser])
 
   const {
     setRoleActif, setPointId, setDateJour, resetJour,
@@ -47,17 +69,27 @@ export default function LoginScreen() {
     setSelectedResto(resto)
     setPin('')
     setPinError(false)
+    setTentativesResto(0)
+    setBloqueJusquaResto(null)
     setEtape(2)
   }
 
   function verifierPinRestaurant(pinSaisi) {
+    if (bloqueJusquaResto && Date.now() < bloqueJusquaResto) return
     if (pinSaisi === selectedResto.pin) {
       setPinError(false)
       setPin('')
+      setTentativesResto(0)
       chargerUtilisateurs()
     } else {
+      const nouvellesTentatives = tentativesResto + 1
+      setTentativesResto(nouvellesTentatives)
       setPinError(true)
       setPin('')
+      if (nouvellesTentatives >= 3) {
+        setBloqueJusquaResto(Date.now() + 30_000)
+        setTentativesResto(0)
+      }
     }
   }
 
@@ -100,6 +132,8 @@ export default function LoginScreen() {
     setSelected(user)
     setPin('')
     setPinError(false)
+    setTentativesUser(0)
+    setBloqueJusquaUser(null)
     setEtape(4)
   }
 
@@ -120,9 +154,16 @@ export default function LoginScreen() {
   }
 
   async function verifierPinUtilisateur(pinSaisi) {
+    if (bloqueJusquaUser && Date.now() < bloqueJusquaUser) return
     if (pinSaisi !== selected.pin) {
+      const nouvellesTentatives = tentativesUser + 1
+      setTentativesUser(nouvellesTentatives)
       setPinError(true)
       setPin('')
+      if (nouvellesTentatives >= 3) {
+        setBloqueJusquaUser(Date.now() + 30_000)
+        setTentativesUser(0)
+      }
       return
     }
 
@@ -207,7 +248,7 @@ export default function LoginScreen() {
     return '#f5f5f5'
   }
 
-  function PinPad({ titre, sousTitre, couleur }) {
+  function PinPad({ titre, sousTitre, couleur, bloque }) {
     return (
       <View style={styles.pinContainer}>
         <Text style={styles.pinTitre}>{titre}</Text>
@@ -216,23 +257,26 @@ export default function LoginScreen() {
           {[0,1,2,3].map(i => (
             <View key={i} style={[
               styles.dot,
-              pin.length > i && { backgroundColor: couleur },
-              { borderColor: pinError ? '#A32D2D' : couleur },
-              pinError && styles.dotError,
+              pin.length > i && { backgroundColor: bloque ? '#A32D2D' : couleur },
+              { borderColor: bloque ? '#A32D2D' : pinError ? '#A32D2D' : couleur },
+              (pinError || bloque) && styles.dotError,
             ]} />
           ))}
         </View>
-        {pinError && (
+        {bloque ? (
+          <Text style={styles.pinErrorTxt}>🔒 Trop de tentatives — réessayez dans {secondesRestantes}s</Text>
+        ) : pinError ? (
           <Text style={styles.pinErrorTxt}>❌ Code incorrect, réessayez</Text>
-        )}
+        ) : null}
         <View style={styles.pinpad}>
           {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((k, i) => (
             <TouchableOpacity
               key={i}
-              style={[styles.pinBtn, k === '' && styles.pinBtnEmpty]}
-              onPress={() => k === '⌫' ? supprimer() : k !== '' ? appuyerChiffre(k) : null}
+              style={[styles.pinBtn, k === '' && styles.pinBtnEmpty, bloque && styles.pinBtnBloque]}
+              onPress={() => bloque ? null : k === '⌫' ? supprimer() : k !== '' ? appuyerChiffre(k) : null}
+              disabled={bloque}
             >
-              <Text style={styles.pinBtnText}>{k}</Text>
+              <Text style={[styles.pinBtnText, bloque && { color: '#ccc' }]}>{k}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -329,6 +373,7 @@ export default function LoginScreen() {
             titre="Code d'accès du restaurant"
             sousTitre="Entrez le code PIN du restaurant"
             couleur={couleur}
+            bloque={!!(bloqueJusquaResto && Date.now() < bloqueJusquaResto)}
           />
         </ScrollView>
       </SafeAreaView>
@@ -461,6 +506,7 @@ export default function LoginScreen() {
             titre="Code PIN personnel"
             sousTitre="Entrez votre code PIN"
             couleur={couleur}
+            bloque={!!(bloqueJusquaUser && Date.now() < bloqueJusquaUser)}
           />
         )}
       </ScrollView>
@@ -536,6 +582,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', borderWidth: 0.5, borderColor: '#eee'
   },
   pinBtnEmpty: { backgroundColor: 'transparent', borderColor: 'transparent' },
+  pinBtnBloque: { backgroundColor: '#f0f0f0', borderColor: '#eee' },
   pinBtnText: { fontSize: 24, fontWeight: '500', color: '#1a1a1a' },
   restoGrid: { paddingHorizontal: 16, paddingBottom: 30, paddingTop: 8 },
   restoGridRow: { justifyContent: 'space-between', marginBottom: 14 },
