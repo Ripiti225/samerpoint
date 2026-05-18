@@ -11,14 +11,30 @@ workflows:
     scripts:
       - name: Install dependencies
         script: npm ci
+
       - name: Expo Prebuild Android
         script: npx expo prebuild --platform android --clean
+
+      - name: Generate keystore
+        script: |
+          keytool -genkey -v -keystore release.keystore \
+            -alias samerapp -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Samer, OU=App, O=Samer, L=Abidjan, S=Abidjan, C=CI" \
+            -storepass samerapp123 -keypass samerapp123 -noprompt
+
       - name: Build APK Release
         script: |
           cd android
-          ./gradlew assembleRelease
+          chmod +x gradlew
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=$CM_BUILD_DIR/release.keystore \
+            -Pandroid.injected.signing.store.password=samerapp123 \
+            -Pandroid.injected.signing.key.alias=samerapp \
+            -Pandroid.injected.signing.key.password=samerapp123
+
     artifacts:
       - android/app/build/outputs/apk/release/*.apk
+
     publishing:
       email:
         recipients:
