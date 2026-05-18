@@ -1,0 +1,28 @@
+workflows:
+  android-release:
+    name: Android Release (APK)
+    max_build_duration: 60
+    environment:
+      vars:
+        EXPO_PUBLIC_SUPABASE_URL: $EXPO_PUBLIC_SUPABASE_URL
+        EXPO_PUBLIC_SUPABASE_ANON_KEY: $EXPO_PUBLIC_SUPABASE_ANON_KEY
+      node: 20.18.0
+      java: 17
+    scripts:
+      - name: Install dependencies
+        script: npm ci
+      - name: Expo Prebuild Android
+        script: npx expo prebuild --platform android --clean
+      - name: Build APK Release
+        script: |
+          cd android
+          ./gradlew assembleRelease
+    artifacts:
+      - android/app/build/outputs/apk/release/*.apk
+    publishing:
+      email:
+        recipients:
+          - djea9906@gmail.com
+        notify:
+          success: true
+          failure: true
