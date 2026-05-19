@@ -46,7 +46,8 @@ jobs:
             -Pandroid.injected.signing.store.file=${{ github.workspace }}/release.keystore \
             -Pandroid.injected.signing.store.password=samerapp123 \
             -Pandroid.injected.signing.key.alias=samerapp \
-            -Pandroid.injected.signing.key.password=samerapp123
+            -Pandroid.injected.signing.key.password=samerapp123 \
+            -Pandroid.enableProguardInReleaseBuilds=false
         env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}

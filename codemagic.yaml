@@ -30,7 +30,8 @@ workflows:
             -Pandroid.injected.signing.store.file=$CM_BUILD_DIR/release.keystore \
             -Pandroid.injected.signing.store.password=samerapp123 \
             -Pandroid.injected.signing.key.alias=samerapp \
-            -Pandroid.injected.signing.key.password=samerapp123
+            -Pandroid.injected.signing.key.password=samerapp123 \
+            -Pandroid.enableProguardInReleaseBuilds=false
 
     artifacts:
       - android/app/build/outputs/apk/release/*.apk
