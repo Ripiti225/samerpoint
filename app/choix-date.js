@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -10,6 +10,7 @@ import {
 } from 'react-native'
 import { Calendar } from 'react-native-calendars'
 import { useApp } from '../context/AppContext'
+import { useTheme } from '../context/ThemeContext'
 import { getOrCreatePoint, getSequences } from '../lib/api'
 import { supabase } from '../lib/supabase'
 
@@ -22,11 +23,15 @@ export default function ChoixDateScreen() {
   } = useApp()
 
   const [datesAvecDonnees, setDatesAvecDonnees] = useState({})
-  const [dateSelectionnee, setDateSelectionnee] = useState('')
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
+
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
 
   const today = new Date().toISOString().split('T')[0]
+
+  const [dateSelectionnee, setDateSelectionnee] = useState(today)
 
   useEffect(() => {
     if (restaurantId) fetchDatesAvecDonnees()
@@ -264,8 +269,8 @@ export default function ChoixDateScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+function makeStyles(colors) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
     backgroundColor: '#EF9F27', padding: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'
@@ -279,12 +284,12 @@ const styles = StyleSheet.create({
     marginBottom: 14, borderWidth: 0.5, borderColor: '#C0DD97'
   },
   infoTxt: { fontSize: 12, color: '#3B6D11', lineHeight: 20 },
-  calendar: { borderRadius: 16, borderWidth: 0.5, borderColor: '#eee', marginBottom: 14 },
+  calendar: { borderRadius: 16, borderWidth: 0.5, borderColor: colors.borderLight, marginBottom: 14 },
   selectedBox: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 14,
-    marginBottom: 14, borderWidth: 0.5, borderColor: '#eee', alignItems: 'center'
+    backgroundColor: colors.surface, borderRadius: 12, padding: 14,
+    marginBottom: 14, borderWidth: 0.5, borderColor: colors.borderLight, alignItems: 'center'
   },
-  selectedLabel: { fontSize: 11, color: '#888', marginBottom: 4 },
+  selectedLabel: { fontSize: 11, color: colors.textMuted, marginBottom: 4 },
   selectedDate: { fontSize: 20, fontWeight: '600', color: '#EF9F27' },
   selectedSub: { fontSize: 12, color: '#3B6D11', marginTop: 4 },
   confirmerBtn: {
@@ -292,4 +297,4 @@ const styles = StyleSheet.create({
   },
   confirmerBtnDisabled: { backgroundColor: '#f5c87a' },
   confirmerTxt: { fontSize: 15, fontWeight: '600', color: '#412402' },
-})
+}) }

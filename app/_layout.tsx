@@ -1,7 +1,11 @@
 import { router, Stack, useSegments } from 'expo-router'
 import { useEffect, useRef } from 'react'
 import { Platform } from 'react-native'
+import NetworkStatusBar from '../components/NetworkStatusBar'
 import { AppProvider, useApp } from '../context/AppContext'
+import { NetworkProvider } from '../context/NetworkContext'
+import { NotificationsProvider } from '../context/NotificationsContext'
+import { ThemeProvider } from '../context/ThemeContext'
 
 const PUBLIC_ROUTES = ['login', 'index', '(tabs)', '']
 
@@ -121,9 +125,13 @@ function SessionGuard() {
 
 export default function RootLayout() {
   return (
+    <ThemeProvider>
     <AppProvider>
-      <SessionGuard />
-      <Stack screenOptions={{ headerShown: false }}>
+      <NetworkProvider>
+      <NotificationsProvider>
+        <SessionGuard />
+        <NetworkStatusBar />
+        <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="login" />
         <Stack.Screen name="choix-date" />
@@ -147,8 +155,18 @@ export default function RootLayout() {
         <Stack.Screen name="documents" />
         <Stack.Screen name="point-shift" />
         <Stack.Screen name="verification" />
+        <Stack.Screen name="rapports" />
+        <Stack.Screen name="stats-caissiers" />
+        <Stack.Screen name="journal" />
+        <Stack.Screen name="gerant-caissier" />
+        <Stack.Screen name="deductions-gerant" />
+        <Stack.Screen name="selectionner-journee" />
+        <Stack.Screen name="credits-fournisseurs" />
         <Stack.Screen name="(tabs)" />
       </Stack>
+      </NotificationsProvider>
+      </NetworkProvider>
     </AppProvider>
+    </ThemeProvider>
   )
 }

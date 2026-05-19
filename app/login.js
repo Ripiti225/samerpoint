@@ -1,29 +1,32 @@
 import { router } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
   Image,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text, TouchableOpacity,
   View
 } from 'react-native'
+import SignatureFooter from '../components/SignatureFooter'
 import { useApp } from '../context/AppContext'
-import { getOrCreatePoint } from '../lib/api'
-import { supabase } from '../lib/supabase'
+import { useTheme } from '../context/ThemeContext'
+import { getRestaurants, getUtilisateurs, getUtilisateursGlobaux } from '../lib/api'
 
-const ROLES_GLOBAUX = ['manager', 'rh']
+const ROLES_GLOBAUX = ['manager', 'rh', 'directeur']
 
 export default function LoginScreen() {
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
   const [etape, setEtape] = useState(1)
   const [restaurants, setRestaurants] = useState([])
   const [utilisateurs, setUtilisateurs] = useState([])
   const [selectedResto, setSelectedResto] = useState(null)
   const [selected, setSelected] = useState(null)
   const [pin, setPin] = useState('')
-  const [chargement, setChargement] = useState(false)
   const [loadingRestos, setLoadingRestos] = useState(true)
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [pinError, setPinError] = useState(false)
@@ -51,17 +54,18 @@ export default function LoginScreen() {
   }, [bloqueJusquaResto, bloqueJusquaUser])
 
   const {
-    setRoleActif, setPointId, setDateJour, resetJour,
-    setPointValide, setRestaurantId, setRestaurantNom,
+    setRoleActif, resetJour,
+    setRestaurantId, setRestaurantNom,
     setUserId, setUserNom,
+    userId: userIdEnSession,
   } = useApp()
 
   useEffect(() => { fetchRestaurants() }, [])
 
   async function fetchRestaurants() {
     setLoadingRestos(true)
-    const { data } = await supabase.from('restaurants').select('*').order('nom')
-    setRestaurants(data || [])
+    const data = await getRestaurants()
+    setRestaurants(data)
     setLoadingRestos(false)
   }
 
@@ -71,15 +75,29 @@ export default function LoginScreen() {
     setPinError(false)
     setTentativesResto(0)
     setBloqueJusquaResto(null)
+    if (Platform.OS === 'web') {
+      try {
+        const stored = localStorage.getItem(`sam_lockout_resto_${resto.id}`)
+        if (stored) {
+          const until = parseInt(stored)
+          if (Date.now() < until) setBloqueJusquaResto(until)
+          else localStorage.removeItem(`sam_lockout_resto_${resto.id}`)
+        }
+      } catch {}
+    }
     setEtape(2)
   }
 
   function verifierPinRestaurant(pinSaisi) {
     if (bloqueJusquaResto && Date.now() < bloqueJusquaResto) return
-    if (pinSaisi === selectedResto.pin) {
+    const ok = pinSaisi === String(selectedResto.pin)
+    if (ok) {
       setPinError(false)
       setPin('')
       setTentativesResto(0)
+      if (Platform.OS === 'web') {
+        try { localStorage.removeItem(`sam_lockout_resto_${selectedResto.id}`) } catch {}
+      }
       chargerUtilisateurs()
     } else {
       const nouvellesTentatives = tentativesResto + 1
@@ -87,7 +105,11 @@ export default function LoginScreen() {
       setPinError(true)
       setPin('')
       if (nouvellesTentatives >= 3) {
-        setBloqueJusquaResto(Date.now() + 30_000)
+        const until = Date.now() + 30_000
+        setBloqueJusquaResto(until)
+        if (Platform.OS === 'web') {
+          try { localStorage.setItem(`sam_lockout_resto_${selectedResto.id}`, String(until)) } catch {}
+        }
         setTentativesResto(0)
       }
     }
@@ -96,13 +118,8 @@ export default function LoginScreen() {
   async function chargerUtilisateurs() {
     setLoadingUsers(true)
     setEtape(3)
-    const { data } = await supabase
-      .from('utilisateurs')
-      .select('*, restaurants(id, nom)')
-      .eq('actif', true)
-      .or(`restaurant_id.eq.${selectedResto.id},restaurant_id.is.null`)
-      .order('nom')
-    setUtilisateurs(data || [])
+    const data = await getUtilisateurs(selectedResto.id)
+    setUtilisateurs(data)
     setLoadingUsers(false)
   }
 
@@ -110,21 +127,8 @@ export default function LoginScreen() {
     setSelectedResto(null)
     setLoadingUsers(true)
     setEtape(3)
-    const { data } = await supabase
-      .from('utilisateurs')
-      .select('*')
-      .eq('actif', true)
-      .in('role', ROLES_GLOBAUX)
-      .order('nom')
-    // Dédoublonner par nom+rôle (ces profils existent dans chaque restaurant)
-    const vus = new Set()
-    const uniques = (data || []).filter(u => {
-      const cle = `${u.nom.trim().toLowerCase()}-${u.role}`
-      if (vus.has(cle)) return false
-      vus.add(cle)
-      return true
-    })
-    setUtilisateurs(uniques)
+    const data = await getUtilisateursGlobaux()
+    setUtilisateurs(data)
     setLoadingUsers(false)
   }
 
@@ -134,6 +138,16 @@ export default function LoginScreen() {
     setPinError(false)
     setTentativesUser(0)
     setBloqueJusquaUser(null)
+    if (Platform.OS === 'web') {
+      try {
+        const stored = localStorage.getItem(`sam_lockout_user_${user.id}`)
+        if (stored) {
+          const until = parseInt(stored)
+          if (Date.now() < until) setBloqueJusquaUser(until)
+          else localStorage.removeItem(`sam_lockout_user_${user.id}`)
+        }
+      } catch {}
+    }
     setEtape(4)
   }
 
@@ -155,23 +169,34 @@ export default function LoginScreen() {
 
   async function verifierPinUtilisateur(pinSaisi) {
     if (bloqueJusquaUser && Date.now() < bloqueJusquaUser) return
-    if (pinSaisi !== selected.pin) {
+    const pinOk = pinSaisi === String(selected.pin)
+    if (!pinOk) {
       const nouvellesTentatives = tentativesUser + 1
       setTentativesUser(nouvellesTentatives)
       setPinError(true)
       setPin('')
       if (nouvellesTentatives >= 3) {
-        setBloqueJusquaUser(Date.now() + 30_000)
+        const until = Date.now() + 30_000
+        setBloqueJusquaUser(until)
+        if (Platform.OS === 'web') {
+          try { localStorage.setItem(`sam_lockout_user_${selected.id}`, String(until)) } catch {}
+        }
         setTentativesUser(0)
       }
       return
     }
 
+    if (Platform.OS === 'web') {
+      try { localStorage.removeItem(`sam_lockout_user_${selected.id}`) } catch {}
+    }
     setPinError(false)
-    setRoleActif(selected.role)
-    resetJour()
 
-    // Stocker userId et userNom dans le contexte
+    const memeUtilisateur = userIdEnSession === selected.id
+    if (!memeUtilisateur) {
+      resetJour()
+    }
+
+    setRoleActif(selected.role)
     setUserId(selected.id)
     setUserNom(selected.nom)
 
@@ -181,48 +206,25 @@ export default function LoginScreen() {
     setRestaurantId(restoId)
     setRestaurantNom(restoNom)
 
-    if (selected.role === 'manager') {
-      // Manager → accueil avec menu complet
+    if (selected.role === 'manager' || selected.role === 'directeur') {
       router.replace({
         pathname: '/accueil',
         params: { userId: selected.id, nom: selected.nom, role: selected.role }
       })
-
     } else if (selected.role === 'rh') {
-      // RH → accueil avec menu limité
       router.replace({
         pathname: '/accueil',
         params: { userId: selected.id, nom: selected.nom, role: selected.role }
       })
-
     } else if (selected.role === 'gerant') {
-      // Gérant → choix de la date
       router.replace({
         pathname: '/choix-date',
         params: { userId: selected.id, nom: selected.nom, role: selected.role }
       })
-
     } else {
-      // ─── CAISSIER ──────────────────────────────────────────
-      // On charge UNIQUEMENT le pointId — pas les dépenses/fournisseurs/présences
-      // car ils appartiennent aux shifts déjà validés
-      // Le caissier repart TOUJOURS de zéro
-      setChargement(true)
-      const today = new Date().toISOString().split('T')[0]
-      const point = await getOrCreatePoint(today, selected.id, restoId)
-
-      if (point) {
-        setPointId(point.id)
-        setDateJour(today)
-        setPointValide(point.valide || false)
-        // ✅ On ne charge PAS les données existantes
-        // Le caissier repart de zéro — ses dépenses sont fraîches
-      }
-
-      setChargement(false)
       router.replace({
-        pathname: '/accueil',
-        params: { userId: selected.id, nom: selected.nom, role: selected.role }
+        pathname: '/selectionner-journee',
+        params: { userId: selected.id, nom: selected.nom, role: selected.role, restoId },
       })
     }
   }
@@ -307,7 +309,7 @@ export default function LoginScreen() {
             keyExtractor={item => item.id}
             numColumns={2}
             style={styles.list}
-            contentContainerStyle={styles.restoGrid}
+            contentContainerStyle={[styles.restoGrid, { paddingBottom: 60 }]}
             columnWrapperStyle={styles.restoGridRow}
             renderItem={({ item }) => (
               <TouchableOpacity
@@ -341,6 +343,7 @@ export default function LoginScreen() {
             }
           />
         )}
+        <SignatureFooter />
       </SafeAreaView>
     )
   }
@@ -376,6 +379,7 @@ export default function LoginScreen() {
             bloque={!!(bloqueJusquaResto && Date.now() < bloqueJusquaResto)}
           />
         </ScrollView>
+        <SignatureFooter />
       </SafeAreaView>
     )
   }
@@ -416,41 +420,39 @@ export default function LoginScreen() {
         ) : (
           <FlatList
             key="users-1col"
-            data={modeGlobal
-              ? globaux
-              : specifiques
-            }
-            keyExtractor={(item, index) => item.separateur ? 'sep' : item.id}
+            data={modeGlobal ? globaux : specifiques}
+            keyExtractor={(item) => item.id}
             style={styles.list}
-            contentContainerStyle={{ paddingBottom: 20 }}
+            contentContainerStyle={{ paddingBottom: 60 }}
             renderItem={({ item }) => (
               <TouchableOpacity style={styles.userItem} onPress={() => choisirUtilisateur(item)}>
-                  <View style={[styles.avatar, { backgroundColor: getRoleCouleur(item.role) }]}>
-                    <Text style={styles.avatarText}>
-                      {item.nom.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={styles.userInfo}>
-                    <Text style={styles.userName}>{item.nom}</Text>
-                    <View style={styles.userRoleRow}>
-                      <View style={[styles.roleBadge, { backgroundColor: getRoleBg(item.role) }]}>
-                        <Text style={[styles.roleBadgeTxt, { color: getRoleCouleur(item.role) }]}>
-                          {getRoleLabel(item.role)}
-                        </Text>
-                      </View>
-                      {modeGlobal && (
-                        <Text style={styles.globalTxt}>Accès global</Text>
-                      )}
+                <View style={[styles.avatar, { backgroundColor: getRoleCouleur(item.role) }]}>
+                  <Text style={styles.avatarText}>
+                    {item.nom.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.userInfo}>
+                  <Text style={styles.userName}>{item.nom}</Text>
+                  <View style={styles.userRoleRow}>
+                    <View style={[styles.roleBadge, { backgroundColor: getRoleBg(item.role) }]}>
+                      <Text style={[styles.roleBadgeTxt, { color: getRoleCouleur(item.role) }]}>
+                        {getRoleLabel(item.role)}
+                      </Text>
                     </View>
+                    {modeGlobal && (
+                      <Text style={styles.globalTxt}>Accès global</Text>
+                    )}
                   </View>
-                  <Text style={styles.arrow}>›</Text>
-                </TouchableOpacity>
+                </View>
+                <Text style={styles.arrow}>›</Text>
+              </TouchableOpacity>
             )}
             ListEmptyComponent={
               <Text style={styles.empty}>Aucun utilisateur pour ce restaurant</Text>
             }
           />
         )}
+        <SignatureFooter />
       </SafeAreaView>
     )
   }
@@ -494,121 +496,115 @@ export default function LoginScreen() {
           </View>
         </View>
 
-        {chargement ? (
-          <View style={{ marginTop: 40, alignItems: 'center' }}>
-            <ActivityIndicator size="large" color={couleur} />
-            <Text style={{ fontSize: 13, color: '#888', marginTop: 12 }}>
-              Chargement...
-            </Text>
-          </View>
-        ) : (
-          <PinPad
-            titre="Code PIN personnel"
-            sousTitre="Entrez votre code PIN"
-            couleur={couleur}
-            bloque={!!(bloqueJusquaUser && Date.now() < bloqueJusquaUser)}
-          />
-        )}
+        <PinPad
+          titre="Code PIN personnel"
+          sousTitre="Entrez votre code PIN"
+          couleur={couleur}
+          bloque={!!(bloqueJusquaUser && Date.now() < bloqueJusquaUser)}
+        />
       </ScrollView>
+      <SignatureFooter />
     </SafeAreaView>
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', alignItems: 'center', paddingTop: 20 },
-  logoImage: { width: 200, height: 120, marginBottom: 4 },
-  logoImageSm: { width: 140, height: 80, marginBottom: 8 },
-  appSub: { fontSize: 13, color: '#888', marginBottom: 28 },
-  question: { fontSize: 14, color: '#555', marginBottom: 12 },
-  list: { width: '100%', paddingHorizontal: 20 },
-  separateur: {
-    fontSize: 11, fontWeight: '600', color: '#888',
-    textTransform: 'uppercase', letterSpacing: 0.5,
-    marginVertical: 10, paddingHorizontal: 4
-  },
-  restoItem: {
-    flexDirection: 'row', alignItems: 'center', padding: 16,
-    backgroundColor: '#f9f9f9', borderRadius: 14, marginBottom: 10,
-    borderWidth: 0.5, borderColor: '#eee',
-  },
-  restoDot: { width: 12, height: 12, borderRadius: 6, marginRight: 12 },
-  restoInfo: { flex: 1 },
-  restoNom: { fontSize: 15, fontWeight: '600', color: '#1a1a1a' },
-  restoLoc: { fontSize: 11, color: '#888', marginTop: 2 },
-  restoHeaderNom: { fontSize: 20, fontWeight: '700', color: '#1a1a1a', marginBottom: 4 },
-  restoHeaderLoc: { fontSize: 12, color: '#888', marginBottom: 20 },
-  restoHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#f5f5f5', paddingHorizontal: 16, paddingVertical: 10,
-    borderRadius: 12, marginBottom: 16, width: '90%',
-  },
-  restoHeaderNom2: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
-  userItem: {
-    flexDirection: 'row', alignItems: 'center', padding: 14,
-    backgroundColor: '#f9f9f9', borderRadius: 12, marginBottom: 8,
-    borderWidth: 0.5, borderColor: '#eee'
-  },
-  avatar: {
-    width: 44, height: 44, borderRadius: 22,
-    alignItems: 'center', justifyContent: 'center', marginRight: 12
-  },
-  avatarText: { fontSize: 14, fontWeight: '600', color: '#fff' },
-  userInfo: { flex: 1 },
-  userName: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
-  userRoleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-  roleBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-  roleBadgeTxt: { fontSize: 11, fontWeight: '500' },
-  globalTxt: { fontSize: 10, color: '#888' },
-  arrow: { fontSize: 18, color: '#ccc' },
-  empty: { textAlign: 'center', color: '#888', marginTop: 40 },
-  backBtn: { alignSelf: 'flex-start', paddingHorizontal: 20, paddingVertical: 8 },
-  backTxt: { fontSize: 15, color: '#EF9F27', fontWeight: '500' },
-  whoBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#f9f9f9', padding: 14, borderRadius: 14,
-    marginVertical: 16, width: '90%', borderWidth: 1.5,
-  },
-  userSubtitle: { fontSize: 12, color: '#888', marginTop: 2 },
-  pinContainer: { alignItems: 'center', width: '100%', paddingHorizontal: 20, paddingBottom: 20 },
-  pinTitre: { fontSize: 16, fontWeight: '600', color: '#1a1a1a', marginBottom: 6 },
-  pinSousTitre: { fontSize: 13, color: '#888', marginBottom: 20 },
-  dots: { flexDirection: 'row', gap: 14, marginBottom: 12 },
-  dot: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: '#EF9F27' },
-  dotError: { borderColor: '#A32D2D', backgroundColor: '#FAECE7' },
-  pinErrorTxt: { fontSize: 13, color: '#A32D2D', marginBottom: 16, fontWeight: '500' },
-  pinpad: { flexDirection: 'row', flexWrap: 'wrap', width: 252, gap: 10, marginTop: 16 },
-  pinBtn: {
-    width: 74, height: 74, borderRadius: 16, backgroundColor: '#f5f5f5',
-    alignItems: 'center', justifyContent: 'center', borderWidth: 0.5, borderColor: '#eee'
-  },
-  pinBtnEmpty: { backgroundColor: 'transparent', borderColor: 'transparent' },
-  pinBtnBloque: { backgroundColor: '#f0f0f0', borderColor: '#eee' },
-  pinBtnText: { fontSize: 24, fontWeight: '500', color: '#1a1a1a' },
-  restoGrid: { paddingHorizontal: 16, paddingBottom: 30, paddingTop: 8 },
-  restoGridRow: { justifyContent: 'space-between', marginBottom: 14 },
-  restoBadge: {
-    width: '48%', backgroundColor: '#f9f9f9', borderRadius: 18,
-    alignItems: 'center', padding: 16, borderWidth: 0.5, borderColor: '#eee',
-    position: 'relative',
-  },
-  restoBadgePhoto: { width: 80, height: 80, borderRadius: 14, marginBottom: 10 },
-  restoBadgeInitials: {
-    width: 80, height: 80, borderRadius: 14, marginBottom: 10,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  restoBadgeInitialsTxt: { fontSize: 26, fontWeight: '800', color: '#fff' },
-  restoBadgeNom: { fontSize: 13, fontWeight: '700', color: '#1a1a1a', textAlign: 'center', marginBottom: 3 },
-  restoBadgeLoc: { fontSize: 10, color: '#888', textAlign: 'center' },
-  restoBadgeDot: { width: 8, height: 8, borderRadius: 4, marginTop: 8 },
-  globalBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#EEEDFE', borderRadius: 16, padding: 16,
-    marginTop: 8, marginHorizontal: 0,
-    borderWidth: 1, borderColor: '#CECBF6',
-  },
-  globalBtnIcon: { fontSize: 28 },
-  globalBtnTxt: { fontSize: 14, fontWeight: '700', color: '#3C3489' },
-  globalBtnSub: { fontSize: 11, color: '#6B63C4', marginTop: 2 },
-  globalBtnArrow: { marginLeft: 'auto', fontSize: 20, color: '#6B63C4' },
-  pinScrollContent: { alignItems: 'center', paddingBottom: 40, paddingTop: 8 },
-})
+function makeStyles(colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.surface, alignItems: 'center', paddingTop: 20 },
+    logoImage: { width: 200, height: 120, marginBottom: 4 },
+    logoImageSm: { width: 140, height: 80, marginBottom: 8 },
+    appSub: { fontSize: 13, color: colors.textMuted, marginBottom: 28 },
+    question: { fontSize: 14, color: colors.textSecondary, marginBottom: 12 },
+    list: { width: '100%', paddingHorizontal: 20 },
+    separateur: {
+      fontSize: 11, fontWeight: '600', color: colors.textMuted,
+      textTransform: 'uppercase', letterSpacing: 0.5,
+      marginVertical: 10, paddingHorizontal: 4
+    },
+    restoItem: {
+      flexDirection: 'row', alignItems: 'center', padding: 16,
+      backgroundColor: colors.surfaceAlt, borderRadius: 14, marginBottom: 10,
+      borderWidth: 0.5, borderColor: colors.border,
+    },
+    restoDot: { width: 12, height: 12, borderRadius: 6, marginRight: 12 },
+    restoInfo: { flex: 1 },
+    restoNom: { fontSize: 15, fontWeight: '600', color: colors.text },
+    restoLoc: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+    restoHeaderNom: { fontSize: 20, fontWeight: '700', color: colors.text, marginBottom: 4 },
+    restoHeaderLoc: { fontSize: 12, color: colors.textMuted, marginBottom: 20 },
+    restoHeader: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      backgroundColor: colors.surfaceAlt, paddingHorizontal: 16, paddingVertical: 10,
+      borderRadius: 12, marginBottom: 16, width: '90%',
+    },
+    restoHeaderNom2: { fontSize: 14, fontWeight: '600', color: colors.text },
+    userItem: {
+      flexDirection: 'row', alignItems: 'center', padding: 14,
+      backgroundColor: colors.surfaceAlt, borderRadius: 12, marginBottom: 8,
+      borderWidth: 0.5, borderColor: colors.border
+    },
+    avatar: {
+      width: 44, height: 44, borderRadius: 22,
+      alignItems: 'center', justifyContent: 'center', marginRight: 12
+    },
+    avatarText: { fontSize: 14, fontWeight: '600', color: '#fff' },
+    userInfo: { flex: 1 },
+    userName: { fontSize: 14, fontWeight: '600', color: colors.text },
+    userRoleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+    roleBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+    roleBadgeTxt: { fontSize: 11, fontWeight: '500' },
+    globalTxt: { fontSize: 10, color: colors.textMuted },
+    arrow: { fontSize: 18, color: colors.border },
+    empty: { textAlign: 'center', color: colors.textMuted, marginTop: 40 },
+    backBtn: { alignSelf: 'flex-start', paddingHorizontal: 20, paddingVertical: 8 },
+    backTxt: { fontSize: 15, color: '#EF9F27', fontWeight: '500' },
+    whoBox: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: colors.surfaceAlt, padding: 14, borderRadius: 14,
+      marginVertical: 16, width: '90%', borderWidth: 1.5,
+    },
+    userSubtitle: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+    pinContainer: { alignItems: 'center', width: '100%', paddingHorizontal: 20, paddingBottom: 20 },
+    pinTitre: { fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 6 },
+    pinSousTitre: { fontSize: 13, color: colors.textMuted, marginBottom: 20 },
+    dots: { flexDirection: 'row', gap: 14, marginBottom: 12 },
+    dot: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: '#EF9F27' },
+    dotError: { borderColor: '#A32D2D', backgroundColor: '#FAECE7' },
+    pinErrorTxt: { fontSize: 13, color: '#A32D2D', marginBottom: 16, fontWeight: '500' },
+    pinpad: { flexDirection: 'row', flexWrap: 'wrap', width: 252, gap: 10, marginTop: 16 },
+    pinBtn: {
+      width: 74, height: 74, borderRadius: 16, backgroundColor: colors.surfaceAlt,
+      alignItems: 'center', justifyContent: 'center', borderWidth: 0.5, borderColor: colors.border
+    },
+    pinBtnEmpty: { backgroundColor: 'transparent', borderColor: 'transparent' },
+    pinBtnBloque: { backgroundColor: colors.borderLight, borderColor: colors.border },
+    pinBtnText: { fontSize: 24, fontWeight: '500', color: colors.text },
+    restoGrid: { paddingHorizontal: 16, paddingBottom: 30, paddingTop: 8 },
+    restoGridRow: { justifyContent: 'space-between', marginBottom: 14 },
+    restoBadge: {
+      width: '48%', backgroundColor: colors.surfaceAlt, borderRadius: 18,
+      alignItems: 'center', padding: 16, borderWidth: 0.5, borderColor: colors.border,
+      position: 'relative',
+    },
+    restoBadgePhoto: { width: 80, height: 80, borderRadius: 14, marginBottom: 10 },
+    restoBadgeInitials: {
+      width: 80, height: 80, borderRadius: 14, marginBottom: 10,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    restoBadgeInitialsTxt: { fontSize: 26, fontWeight: '800', color: '#fff' },
+    restoBadgeNom: { fontSize: 13, fontWeight: '700', color: colors.text, textAlign: 'center', marginBottom: 3 },
+    restoBadgeLoc: { fontSize: 10, color: colors.textMuted, textAlign: 'center' },
+    restoBadgeDot: { width: 8, height: 8, borderRadius: 4, marginTop: 8 },
+    globalBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: colors.primaryLight, borderRadius: 16, padding: 16,
+      marginTop: 8, marginHorizontal: 0,
+      borderWidth: 1, borderColor: colors.primaryText,
+    },
+    globalBtnIcon: { fontSize: 28 },
+    globalBtnTxt: { fontSize: 14, fontWeight: '700', color: colors.primaryDark },
+    globalBtnSub: { fontSize: 11, color: colors.primary, marginTop: 2 },
+    globalBtnArrow: { marginLeft: 'auto', fontSize: 20, color: colors.primary },
+    pinScrollContent: { alignItems: 'center', paddingBottom: 40, paddingTop: 8 },
+  })
+}

@@ -1,5 +1,5 @@
 import { router } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
     ActivityIndicator,
     Dimensions,
@@ -10,19 +10,22 @@ import {
     View
 } from 'react-native'
 import { Calendar } from 'react-native-calendars'
+import { useTheme } from '../context/ThemeContext'
 import { supabase } from '../lib/supabase'
 
 const { width } = Dimensions.get('window')
 
-const RESTAURANTS = [
-  { id: '2f09688d-a4b9-4b14-8c45-943543953379', nom: 'Samer Angré 7E', court: 'Angré 7E', couleur: '#EF9F27', famille: 'Samer' },
-  { id: 'rest2', nom: 'Samer Lavage', court: 'Lavage', couleur: '#F5B942', famille: 'Samer' },
-  { id: 'rest3', nom: 'Samer Oasis', court: 'Oasis', couleur: '#F5C842', famille: 'Samer' },
-  { id: 'rest4', nom: 'Samer Maroc', court: 'Maroc', couleur: '#E8952A', famille: 'Samer' },
-  { id: 'rest5', nom: 'Samer Palm', court: 'Palm', couleur: '#D4841A', famille: 'Samer' },
-  { id: 'rest6', nom: 'Al Kayan Yop', court: 'AK Yop', couleur: '#2D7D46', famille: 'Al Kayan' },
-  { id: 'rest7', nom: 'Al Kayan KMS', court: 'AK KMS', couleur: '#3B9957', famille: 'Al Kayan' },
-]
+function couleurResto(c) {
+  return { vert: '#2D7D46', bleu: '#185FA5', rouge: '#A32D2D', violet: '#534AB7' }[c] || '#EF9F27'
+}
+function familleResto(nom) {
+  return (nom || '').toLowerCase().includes('al kayan') ? 'Al Kayan' : 'Samer'
+}
+function courtNom(nom) {
+  if (!nom) return ''
+  if (nom.length <= 9) return nom
+  return nom.substring(0, 8) + '…'
+}
 
 const PERIODES = [
   { label: "Aujourd'hui", key: 'today' },
@@ -33,17 +36,30 @@ const PERIODES = [
 ]
 
 export default function DashboardGlobalScreen() {
-  const [periodeKey, setPeriodeKey] = useState('today')
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
+
+  const [periodeKey, setPeriodeKey] = useState('7days')
   const [points, setPoints] = useState({})
   const [loading, setLoading] = useState(false)
   const [modalCalendrier, setModalCalendrier] = useState(false)
   const [dateDebut, setDateDebut] = useState('')
   const [dateFin, setDateFin] = useState('')
   const [etapeCalendrier, setEtapeCalendrier] = useState('debut')
+  const [restaurants, setRestaurants] = useState([])
+
+  useEffect(() => { chargerRestaurants() }, [])
 
   useEffect(() => {
-    if (periodeKey !== 'custom') chargerPoints()
-  }, [periodeKey])
+    if (restaurants.length > 0 && periodeKey !== 'custom') {
+      chargerPoints(restaurants)
+    }
+  }, [periodeKey, restaurants])
+
+  async function chargerRestaurants() {
+    const { data } = await supabase.from('restaurants').select('id, nom, couleur').order('nom')
+    if (data?.length) setRestaurants(data)
+  }
 
   function getDateRange() {
     const today = new Date()
@@ -56,18 +72,26 @@ export default function DashboardGlobalScreen() {
     return null
   }
 
-  async function chargerPoints() {
+  async function chargerPoints(restoList) {
+    const list = restoList || restaurants
+    if (!list.length) return
     setLoading(true)
     const range = getDateRange()
     if (!range) { setLoading(false); return }
+
+    const { data: allPoints, error } = await supabase
+      .from('points')
+      .select('id, date, restaurant_id, vente_total, depense_total, benefice_sc')
+      .gte('date', range.debut)
+      .lte('date', range.fin)
+
+    if (error) { console.error('[Dashboard]', error.message); setLoading(false); return }
+
     const resultats = {}
-    for (const rest of RESTAURANTS) {
-      const { data } = await supabase
-        .from('points').select('*')
-        .eq('restaurant_id', rest.id).eq('valide', true)
-        .gte('date', range.debut).lte('date', range.fin)
-      resultats[rest.id] = data || []
-    }
+    list.forEach(r => { resultats[r.id] = [] })
+    ;(allPoints || []).forEach(p => {
+      if (resultats[p.restaurant_id] !== undefined) resultats[p.restaurant_id].push(p)
+    })
     setPoints(resultats)
     setLoading(false)
   }
@@ -77,7 +101,7 @@ export default function DashboardGlobalScreen() {
   }
 
   function totalGlobal(champ) {
-    return RESTAURANTS.reduce((sum, r) => sum + totalResto(r.id, champ), 0)
+    return restaurants.reduce((sum, r) => sum + totalResto(r.id, champ), 0)
   }
 
   function tauxRenta(ventes, benefice) {
@@ -107,14 +131,20 @@ export default function DashboardGlobalScreen() {
   async function confirmerPeriode() {
     if (!dateDebut || !dateFin) return
     setModalCalendrier(false); setPeriodeKey('custom'); setLoading(true)
+
+    const { data: allPoints, error } = await supabase
+      .from('points')
+      .select('id, date, restaurant_id, vente_total, depense_total, benefice_sc')
+      .gte('date', dateDebut)
+      .lte('date', dateFin)
+
+    if (error) { console.error('[Dashboard]', error.message); setLoading(false); return }
+
     const resultats = {}
-    for (const rest of RESTAURANTS) {
-      const { data } = await supabase
-        .from('points').select('*')
-        .eq('restaurant_id', rest.id).eq('valide', true)
-        .gte('date', dateDebut).lte('date', dateFin)
-      resultats[rest.id] = data || []
-    }
+    restaurants.forEach(r => { resultats[r.id] = [] })
+    ;(allPoints || []).forEach(p => {
+      if (resultats[p.restaurant_id] !== undefined) resultats[p.restaurant_id].push(p)
+    })
     setPoints(resultats); setLoading(false)
   }
 
@@ -142,9 +172,12 @@ export default function DashboardGlobalScreen() {
     return 'Période personnalisée'
   }
 
-  const classement = [...RESTAURANTS]
+  const classement = restaurants
     .map(r => ({
       ...r,
+      court: courtNom(r.nom),
+      couleur: couleurResto(r.couleur),
+      famille: familleResto(r.nom),
       ventes: totalResto(r.id, 'vente_total'),
       depenses: totalResto(r.id, 'depense_total'),
       benefice: totalResto(r.id, 'benefice_sc'),
@@ -360,22 +393,22 @@ export default function DashboardGlobalScreen() {
               <View style={[styles.familleBox, { borderColor: '#FAC775' }]}>
                 <Text style={styles.familleTitre}>🟡 Samer</Text>
                 <Text style={styles.familleValeur}>
-                  {fmt(RESTAURANTS.filter(r => r.famille === 'Samer').reduce((sum, r) => sum + totalResto(r.id, 'benefice_sc'), 0))}
+                  {fmt(classement.filter(r => r.famille === 'Samer').reduce((sum, r) => sum + totalResto(r.id, 'benefice_sc'), 0))}
                 </Text>
                 <Text style={styles.familleSub}>Bénéfice SC</Text>
                 <Text style={styles.familleVenteVal}>
-                  {fmt(RESTAURANTS.filter(r => r.famille === 'Samer').reduce((sum, r) => sum + totalResto(r.id, 'vente_total'), 0))}
+                  {fmt(classement.filter(r => r.famille === 'Samer').reduce((sum, r) => sum + totalResto(r.id, 'vente_total'), 0))}
                 </Text>
                 <Text style={styles.familleSub}>Ventes</Text>
               </View>
               <View style={[styles.familleBox, { borderColor: '#C0DD97' }]}>
                 <Text style={styles.familleTitre}>🟢 Al Kayan</Text>
                 <Text style={[styles.familleValeur, { color: '#3B6D11' }]}>
-                  {fmt(RESTAURANTS.filter(r => r.famille === 'Al Kayan').reduce((sum, r) => sum + totalResto(r.id, 'benefice_sc'), 0))}
+                  {fmt(classement.filter(r => r.famille === 'Al Kayan').reduce((sum, r) => sum + totalResto(r.id, 'benefice_sc'), 0))}
                 </Text>
                 <Text style={styles.familleSub}>Bénéfice SC</Text>
                 <Text style={styles.familleVenteVal}>
-                  {fmt(RESTAURANTS.filter(r => r.famille === 'Al Kayan').reduce((sum, r) => sum + totalResto(r.id, 'vente_total'), 0))}
+                  {fmt(classement.filter(r => r.famille === 'Al Kayan').reduce((sum, r) => sum + totalResto(r.id, 'vente_total'), 0))}
                 </Text>
                 <Text style={styles.familleSub}>Ventes</Text>
               </View>
@@ -466,88 +499,88 @@ export default function DashboardGlobalScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  header: { backgroundColor: '#534AB7', padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  back: { fontSize: 16, color: '#CECBF6', fontWeight: '500' },
-  headerTitre: { fontSize: 16, fontWeight: '600', color: '#fff', textAlign: 'center' },
-  headerSub: { fontSize: 11, color: '#CECBF6', textAlign: 'center' },
-  periodeBar: { backgroundColor: '#fff', maxHeight: 46, borderBottomWidth: 0.5, borderBottomColor: '#eee' },
+function makeStyles(colors) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
+  header: { backgroundColor: colors.headerBg, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  back: { fontSize: 16, color: colors.primaryText, fontWeight: '500' },
+  headerTitre: { fontSize: 16, fontWeight: '600', color: colors.surface, textAlign: 'center' },
+  headerSub: { fontSize: 11, color: colors.primaryText, textAlign: 'center' },
+  periodeBar: { backgroundColor: colors.surface, maxHeight: 46, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
   periodeBtn: { paddingHorizontal: 16, paddingVertical: 12 },
-  periodeBtnActive: { borderBottomWidth: 2, borderBottomColor: '#534AB7' },
-  periodeTxt: { fontSize: 13, color: '#888' },
-  periodeTxtActive: { color: '#534AB7', fontWeight: '600' },
-  periodeBanner: { backgroundColor: '#EEEDFE', padding: 10, paddingHorizontal: 16, borderBottomWidth: 0.5, borderBottomColor: '#CECBF6' },
-  periodeBannerTxt: { fontSize: 13, color: '#3C3489', fontWeight: '500' },
+  periodeBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
+  periodeTxt: { fontSize: 13, color: colors.textMuted },
+  periodeTxtActive: { color: colors.primary, fontWeight: '600' },
+  periodeBanner: { backgroundColor: colors.primaryLight, padding: 10, paddingHorizontal: 16, borderBottomWidth: 0.5, borderBottomColor: colors.primaryText },
+  periodeBannerTxt: { fontSize: 13, color: colors.primaryDark, fontWeight: '500' },
   loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
-  loadingTxt: { fontSize: 13, color: '#888', marginTop: 12 },
+  loadingTxt: { fontSize: 13, color: colors.textMuted, marginTop: 12 },
   body: { flex: 1, padding: 14 },
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
-  kpiCard: { width: (width - 44) / 2, backgroundColor: '#fff', borderRadius: 12, padding: 14, borderWidth: 0.5, borderColor: '#eee' },
-  kpiLabel: { fontSize: 11, color: '#888', marginBottom: 6 },
+  kpiCard: { width: (width - 44) / 2, backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderWidth: 0.5, borderColor: colors.borderLight },
+  kpiLabel: { fontSize: 11, color: colors.textMuted, marginBottom: 6 },
   kpiValue: { fontSize: 14, fontWeight: '600' },
-  graphCard: { backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 0.5, borderColor: '#eee' },
-  graphTitre: { fontSize: 13, fontWeight: '600', color: '#1a1a1a', marginBottom: 12 },
+  graphCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 0.5, borderColor: colors.borderLight },
+  graphTitre: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 12 },
   graphNote: { fontSize: 10, color: '#aaa', textAlign: 'center', marginTop: 4 },
   barRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  barLabel: { fontSize: 11, color: '#555', width: 60 },
-  barTrack: { flex: 1, height: 14, backgroundColor: '#f5f5f5', borderRadius: 7, overflow: 'hidden', marginHorizontal: 8, position: 'relative' },
+  barLabel: { fontSize: 11, color: colors.textSecondary, width: 60 },
+  barTrack: { flex: 1, height: 14, backgroundColor: colors.bg, borderRadius: 7, overflow: 'hidden', marginHorizontal: 8, position: 'relative' },
   barFill: { height: '100%', borderRadius: 7 },
   barMark: { position: 'absolute', top: 0, bottom: 0, width: 1.5, backgroundColor: '#ccc' },
-  barValeur: { fontSize: 11, fontWeight: '600', color: '#1a1a1a', width: 40, textAlign: 'right' },
+  barValeur: { fontSize: 11, fontWeight: '600', color: colors.text, width: 40, textAlign: 'right' },
   legende: { flexDirection: 'row', gap: 16, justifyContent: 'center', marginTop: 8 },
   legendeItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendeColor: { width: 12, height: 12, borderRadius: 3 },
-  legendeTxt: { fontSize: 11, color: '#888' },
+  legendeTxt: { fontSize: 11, color: colors.textMuted },
   familleGraphRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 14 },
   famillePuce: { width: 12, height: 12, borderRadius: 6, marginTop: 3 },
-  familleGraphNom: { fontSize: 12, fontWeight: '600', color: '#1a1a1a', marginBottom: 4 },
-  familleGraphSub: { fontSize: 10, color: '#888', marginTop: 4 },
+  familleGraphNom: { fontSize: 12, fontWeight: '600', color: colors.text, marginBottom: 4 },
+  familleGraphSub: { fontSize: 10, color: colors.textMuted, marginTop: 4 },
   section: { marginBottom: 14 },
-  sectionTitre: { fontSize: 13, fontWeight: '600', color: '#888', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
-  classementCard: { backgroundColor: '#fff', borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: '#eee' },
-  classementRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5' },
+  sectionTitre: { fontSize: 13, fontWeight: '600', color: colors.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  classementCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: colors.borderLight },
+  classementRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: colors.bg },
   classementLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  rangBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#f5f5f5', alignItems: 'center', justifyContent: 'center' },
+  rangBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
   rangOr: { backgroundColor: '#FFF3CC' },
-  rangArgent: { backgroundColor: '#F0F0F0' },
+  rangArgent: { backgroundColor: colors.borderLight },
   rangBronze: { backgroundColor: '#FAE8DC' },
   rangTxt: { fontSize: 14 },
   classementInfo: { flex: 1 },
-  classementNom: { fontSize: 13, fontWeight: '600', color: '#1a1a1a', marginBottom: 3 },
+  classementNom: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 3 },
   classementBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   familleBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 },
   familleTxt: { fontSize: 9, fontWeight: '500' },
   classementJours: { fontSize: 10, color: '#bbb' },
   classementRight: { alignItems: 'flex-end' },
   classementBenefice: { fontSize: 14, fontWeight: '600' },
-  classementVentes: { fontSize: 10, color: '#888', marginTop: 2 },
+  classementVentes: { fontSize: 10, color: colors.textMuted, marginTop: 2 },
   classementRenta: { fontSize: 10, marginTop: 1 },
   familleCompare: { flexDirection: 'row', gap: 10 },
-  familleBox: { flex: 1, backgroundColor: '#fff', borderRadius: 14, padding: 14, borderWidth: 1.5, alignItems: 'center' },
-  familleTitre: { fontSize: 13, fontWeight: '600', color: '#1a1a1a', marginBottom: 8 },
+  familleBox: { flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 1.5, alignItems: 'center' },
+  familleTitre: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 8 },
   familleValeur: { fontSize: 15, fontWeight: '600', color: '#BA7517' },
-  familleSub: { fontSize: 10, color: '#888', marginBottom: 6 },
-  familleVenteVal: { fontSize: 13, fontWeight: '500', color: '#1a1a1a' },
-  recapCard: { backgroundColor: '#fff', borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: '#eee' },
-  recapRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5' },
-  recapLabel: { fontSize: 13, color: '#888' },
-  recapValue: { fontSize: 13, fontWeight: '500', color: '#1a1a1a' },
+  familleSub: { fontSize: 10, color: colors.textMuted, marginBottom: 6 },
+  familleVenteVal: { fontSize: 13, fontWeight: '500', color: colors.text },
+  recapCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: colors.borderLight },
+  recapRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: colors.bg },
+  recapLabel: { fontSize: 13, color: colors.textMuted },
+  recapValue: { fontSize: 13, fontWeight: '500', color: colors.text },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modal: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40 },
+  modal: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitre: { fontSize: 18, fontWeight: '600', color: '#1a1a1a' },
-  modalClose: { fontSize: 18, color: '#888' },
+  modalTitre: { fontSize: 18, fontWeight: '600', color: colors.text },
+  modalClose: { fontSize: 18, color: colors.textMuted },
   etapeRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  etapeBadge: { flex: 1, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, backgroundColor: '#f5f5f5', alignItems: 'center' },
-  etapeBadgeActive: { backgroundColor: '#534AB7' },
-  etapeTxt: { fontSize: 12, color: '#888', fontWeight: '500' },
-  etapeTxtActive: { color: '#fff' },
-  etapeLine: { width: 20, height: 1, backgroundColor: '#eee', marginHorizontal: 4 },
-  selectedDates: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f5f5f5', borderRadius: 12, padding: 12, marginBottom: 14 },
+  etapeBadge: { flex: 1, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, backgroundColor: colors.bg, alignItems: 'center' },
+  etapeBadgeActive: { backgroundColor: colors.primary },
+  etapeTxt: { fontSize: 12, color: colors.textMuted, fontWeight: '500' },
+  etapeTxtActive: { color: colors.surface },
+  etapeLine: { width: 20, height: 1, backgroundColor: colors.borderLight, marginHorizontal: 4 },
+  selectedDates: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: 12, padding: 12, marginBottom: 14 },
   modalBtns: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  modalCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#f5f5f5', alignItems: 'center' },
-  modalCancelTxt: { fontSize: 14, color: '#888' },
-  modalConfirm: { flex: 2, padding: 14, borderRadius: 12, backgroundColor: '#534AB7', alignItems: 'center' },
-  modalConfirmTxt: { fontSize: 14, fontWeight: '600', color: '#fff' },
-})
+  modalCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.bg, alignItems: 'center' },
+  modalCancelTxt: { fontSize: 14, color: colors.textMuted },
+  modalConfirm: { flex: 2, padding: 14, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center' },
+  modalConfirmTxt: { fontSize: 14, fontWeight: '600', color: colors.surface },
+}) }

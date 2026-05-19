@@ -1,5 +1,5 @@
 import { router } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import {
     ActivityIndicator,
     Alert,
@@ -11,78 +11,13 @@ import {
     View
 } from 'react-native'
 import { Calendar } from 'react-native-calendars'
+import { CATEGORIES_INVENTAIRE as CATEGORIES } from '../lib/constants'
 import { supabase } from '../lib/supabase'
-
-const CATEGORIES = [
-  {
-    nom: 'Pains',
-    produits: [
-      { id: 'p1', nom: 'Pain chawarma', prix: 2500 },
-      { id: 'p2', nom: 'Pain burger', prix: 3500 },
-      { id: 'p3', nom: 'Pain fahita', prix: 3000 },
-    ]
-  },
-  {
-    nom: 'Poulet',
-    produits: [
-      { id: 'po1', nom: 'Poulet frais', prix: 0, noAlert: true },
-      { id: 'po2', nom: 'Pané', prix: 0 },
-      { id: 'po3', nom: 'Rôti', prix: 0 },
-      { id: 'po4', nom: 'Braise', prix: 0 },
-      { id: 'po5', nom: 'Désossé', prix: 0 },
-      { id: 'po6', nom: 'Cuisses de poulet', prix: 0 },
-      { id: 'po8', nom: 'Total poulet', prix: 8000, totalPoulet: true },
-    ]
-  },
-  {
-    nom: 'Apéritifs',
-    produits: [
-      { id: 'a1', nom: 'Nems', prix: 2000 },
-      { id: 'a2', nom: 'Kébbé', prix: 1000 },
-      { id: 'a3', nom: 'Bourak', prix: 2000 },
-      { id: 'a4', nom: 'Fatayer viande', prix: 1000 },
-      { id: 'a5', nom: 'Fatayer légumes', prix: 1000 },
-      { id: 'a6', nom: 'Fatayer maison', prix: 1500 },
-      { id: 'a8', nom: 'Mini tacos', prix: 2000 },
-      { id: 'a10', nom: 'Brochette poulet', prix: 5000 },
-      { id: 'a11', nom: 'Brochette viande', prix: 5000 },
-    ]
-  },
-  {
-    nom: 'Fromage',
-    produits: [
-      { id: 'f1', nom: 'Philadelphia', prix: 2500 },
-      { id: 'f10', nom: 'Total Fromage (g)', prix: 5, totalFromage: true },
-    ]
-  },
-  {
-    nom: 'Boissons',
-    produits: [
-      { id: 'b1', nom: 'Nespresso', prix: 1000 },
-      { id: 'b2', nom: 'Eau G', prix: 1000 },
-      { id: 'b3', nom: 'Eau P', prix: 500 },
-      { id: 'b4', nom: 'Boisson 1000f', prix: 1000 },
-      { id: 'b5', nom: 'Boisson 1500f', prix: 1500 },
-      { id: 'b6', nom: 'Pot Fresco', prix: 1000 },
-      { id: 'b8', nom: 'Thé', prix: 1000 },
-    ]
-  },
-  {
-    nom: 'Glaces',
-    produits: [
-      { id: 'g3', nom: 'Pot de glace', prix: 6000 },
-      { id: 'g4', nom: 'Cornets', prix: 1000 },
-    ]
-  },
-  {
-    nom: 'Frites',
-    produits: [
-      { id: 'fr3', nom: 'Sachet de frites', prix: 2500 },
-    ]
-  },
-]
+import { useTheme } from '../context/ThemeContext'
 
 export default function ModifierInventaireScreen() {
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
   const [etape, setEtape] = useState(1)
   const [restaurants, setRestaurants] = useState([])
   const [selectedResto, setSelectedResto] = useState(null)
@@ -132,14 +67,15 @@ export default function ModifierInventaireScreen() {
     const { data: invData } = await supabase
       .from('inventaires').select('*')
       .eq('point_id', pointData.id)
+      .eq('shift_numero', 1)
 
     const newStocks = {}
     ;(invData || []).forEach(inv => {
       newStocks[inv.produit_id] = {
-        initial: String(inv.initial || ''),
-        entrees: String(inv.entrees || ''),
-        sorties: String(inv.sorties || ''),
-        final: String(inv.final || ''),
+        initial: String(inv.stock_initial ?? ''),
+        entrees: String(inv.entrees ?? ''),
+        sorties: String(inv.sorties ?? ''),
+        final: String(inv.stock_final ?? ''),
       }
     })
     setStocks(newStocks)
@@ -164,7 +100,17 @@ export default function ModifierInventaireScreen() {
       { text: 'Annuler', style: 'cancel' },
       { text: 'Confirmer', onPress: async () => {
         setLoading(true)
-        await supabase.from('inventaires').delete().eq('point_id', pointId)
+
+        const { error: delErr } = await supabase
+          .from('inventaires').delete()
+          .eq('point_id', pointId)
+          .eq('shift_numero', 1)
+
+        if (delErr) {
+          setLoading(false)
+          Alert.alert('Erreur', delErr.message)
+          return
+        }
 
         const lignes = []
         CATEGORIES.forEach(cat => {
@@ -175,17 +121,28 @@ export default function ModifierInventaireScreen() {
                 point_id: pointId,
                 produit_id: p.id,
                 produit_nom: p.nom,
-                initial: parseFloat(s.initial) || 0,
+                stock_initial: parseFloat(s.initial) || 0,
                 entrees: parseFloat(s.entrees) || 0,
                 sorties: parseFloat(s.sorties) || 0,
-                final: parseFloat(s.final) || 0,
+                stock_final: parseFloat(s.final) || 0,
+                ecart: 0,
+                prevision: 0,
+                shift_numero: 1,
+                shift_nom: 'Journée',
+                heure_debut: '00:00',
+                heure_fin: '23:59',
               })
             }
           })
         })
 
         if (lignes.length > 0) {
-          await supabase.from('inventaires').insert(lignes)
+          const { error: insErr } = await supabase.from('inventaires').insert(lignes)
+          if (insErr) {
+            setLoading(false)
+            Alert.alert('Erreur', insErr.message)
+            return
+          }
         }
 
         setLoading(false)
@@ -366,49 +323,49 @@ export default function ModifierInventaireScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  header: { backgroundColor: '#534AB7', padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  back: { fontSize: 16, color: '#CECBF6', fontWeight: '500' },
-  headerTitre: { fontSize: 16, fontWeight: '600', color: '#fff', textAlign: 'center' },
-  headerSub: { fontSize: 11, color: '#CECBF6', textAlign: 'center' },
-  stepBar: { flexDirection: 'row', backgroundColor: '#fff', padding: 14, borderBottomWidth: 0.5, borderBottomColor: '#eee', alignItems: 'center', justifyContent: 'center' },
+function makeStyles(colors) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
+  header: { backgroundColor: colors.headerBg, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  back: { fontSize: 16, color: colors.primaryText, fontWeight: '500' },
+  headerTitre: { fontSize: 16, fontWeight: '600', color: colors.surface, textAlign: 'center' },
+  headerSub: { fontSize: 11, color: colors.primaryText, textAlign: 'center' },
+  stepBar: { flexDirection: 'row', backgroundColor: colors.surface, padding: 14, borderBottomWidth: 0.5, borderBottomColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   stepItem: { flexDirection: 'row', alignItems: 'center' },
-  stepNum: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#f5f5f5', alignItems: 'center', justifyContent: 'center', marginRight: 6, borderWidth: 0.5, borderColor: '#eee' },
-  stepDone: { backgroundColor: '#534AB7' },
-  stepActive: { backgroundColor: '#534AB7' },
-  stepNumTxt: { fontSize: 11, fontWeight: '600', color: '#fff' },
-  stepLine: { width: 30, height: 1, backgroundColor: '#eee', marginHorizontal: 6 },
-  stepLabel: { fontSize: 11, color: '#888', marginRight: 6 },
-  stepLabelActive: { color: '#534AB7', fontWeight: '600' },
+  stepNum: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', marginRight: 6, borderWidth: 0.5, borderColor: colors.border },
+  stepDone: { backgroundColor: colors.primary },
+  stepActive: { backgroundColor: colors.primary },
+  stepNumTxt: { fontSize: 11, fontWeight: '600', color: colors.surface },
+  stepLine: { width: 30, height: 1, backgroundColor: colors.border, marginHorizontal: 6 },
+  stepLabel: { fontSize: 11, color: colors.textMuted, marginRight: 6 },
+  stepLabelActive: { color: colors.primary, fontWeight: '600' },
   loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1, padding: 16 },
-  sectionTitre: { fontSize: 13, fontWeight: '600', color: '#888', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  restoCard: { backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 0.5, borderColor: '#eee' },
+  sectionTitre: { fontSize: 13, fontWeight: '600', color: colors.textMuted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  restoCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 0.5, borderColor: colors.border },
   restoDot: { width: 12, height: 12, borderRadius: 6 },
-  restoNom: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
-  restoSub: { fontSize: 11, color: '#888', marginTop: 2 },
+  restoNom: { fontSize: 14, fontWeight: '600', color: colors.text },
+  restoSub: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
   restoArrow: { marginLeft: 'auto', fontSize: 18, color: '#ccc' },
-  calendar: { borderRadius: 14, borderWidth: 0.5, borderColor: '#eee', marginBottom: 14 },
-  infoBar: { backgroundColor: '#534AB7', padding: 12, paddingHorizontal: 16 },
-  infoBarTxt: { fontSize: 13, fontWeight: '600', color: '#fff' },
-  tabs: { backgroundColor: '#fff', maxHeight: 46, borderBottomWidth: 0.5, borderBottomColor: '#eee' },
+  calendar: { borderRadius: 14, borderWidth: 0.5, borderColor: colors.border, marginBottom: 14 },
+  infoBar: { backgroundColor: colors.headerBg, padding: 12, paddingHorizontal: 16 },
+  infoBarTxt: { fontSize: 13, fontWeight: '600', color: colors.surface },
+  tabs: { backgroundColor: colors.surface, maxHeight: 46, borderBottomWidth: 0.5, borderBottomColor: colors.border },
   tab: { paddingHorizontal: 14, paddingVertical: 12 },
-  tabActive: { borderBottomWidth: 2, borderBottomColor: '#534AB7' },
-  tabTxt: { fontSize: 12, color: '#888' },
-  tabTxtActive: { color: '#534AB7', fontWeight: '600' },
-  prodCard: { backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 0.5, borderColor: '#eee' },
+  tabActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
+  tabTxt: { fontSize: 12, color: colors.textMuted },
+  tabTxtActive: { color: colors.primary, fontWeight: '600' },
+  prodCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 0.5, borderColor: colors.border },
   prodHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  prodNom: { fontSize: 13, fontWeight: '600', color: '#1a1a1a', flex: 1 },
+  prodNom: { fontSize: 13, fontWeight: '600', color: colors.text, flex: 1 },
   prodMontant: { fontSize: 12, fontWeight: '600', color: '#EF9F27' },
-  catTotalCard: { backgroundColor: '#FAEEDA', borderRadius: 12, padding: 12, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#FAC775' },
-  catTotalLabel: { fontSize: 12, fontWeight: '600', color: '#854F0B' },
-  catTotalVal: { fontSize: 14, fontWeight: '700', color: '#854F0B' },
+  catTotalCard: { backgroundColor: colors.orangeLight, borderRadius: 12, padding: 12, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderWidth: 1, borderColor: '#FAC775' },
+  catTotalLabel: { fontSize: 12, fontWeight: '600', color: colors.orangeDark },
+  catTotalVal: { fontSize: 14, fontWeight: '700', color: colors.orangeDark },
   prodFields: { flexDirection: 'row', gap: 4 },
   fieldBox: { flex: 1, alignItems: 'center' },
-  fieldLabel: { fontSize: 9, color: '#888', marginBottom: 4 },
-  fieldInput: { width: '100%', backgroundColor: '#f5f5f5', borderRadius: 6, padding: 6, fontSize: 12, textAlign: 'center', color: '#1a1a1a' },
-  fieldEdit: { backgroundColor: '#FAEEDA', color: '#412402' },
-  saveBtn: { backgroundColor: '#534AB7', borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 20 },
-  saveTxt: { fontSize: 15, fontWeight: '600', color: '#fff' },
-})
+  fieldLabel: { fontSize: 9, color: colors.textMuted, marginBottom: 4 },
+  fieldInput: { width: '100%', backgroundColor: colors.bg, borderRadius: 6, padding: 6, fontSize: 12, textAlign: 'center', color: colors.text },
+  fieldEdit: { backgroundColor: colors.orangeLight, color: '#412402' },
+  saveBtn: { backgroundColor: colors.primary, borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 20 },
+  saveTxt: { fontSize: 15, fontWeight: '600', color: colors.surface },
+}) }

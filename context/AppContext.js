@@ -4,21 +4,33 @@ import { COEFFICIENTS, depensesVides } from '../lib/constants'
 
 const AppContext = createContext()
 
-// ─── Persistance session web (résout écran blanc après sélecteur photo) ───
 const SESSION_KEY = 'samerpoint_session'
+const SESSION_MAX_AGE = 8 * 60 * 60 * 1000
+
+let _sessionLoggedInAt = null
 
 function lireSession() {
   if (Platform.OS !== 'web') return null
   try {
     const s = localStorage.getItem(SESSION_KEY)
-    return s ? JSON.parse(s) : null
+    if (!s) return null
+    const parsed = JSON.parse(s)
+    if (parsed.logged_in_at && (Date.now() - parsed.logged_in_at) > SESSION_MAX_AGE) {
+      localStorage.removeItem(SESSION_KEY)
+      return null
+    }
+    _sessionLoggedInAt = parsed.logged_in_at || null
+    return parsed
   } catch { return null }
 }
 
 function sauvegarderSession(data) {
   if (Platform.OS !== 'web') return
   try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(data))
+    localStorage.setItem(SESSION_KEY, JSON.stringify({
+      ...data,
+      logged_in_at: _sessionLoggedInAt || Date.now(),
+    }))
   } catch {}
 }
 
@@ -32,11 +44,10 @@ function effacerSession() {
 export function AppProvider({ children }) {
   const session = lireSession()
 
-  // ─── Identité & session ────────────────────────────────────
   const [pointId, setPointId] = useState(session?.pointId || null)
   const [dateJour, setDateJour] = useState(session?.dateJour || null)
   const [pointValide, setPointValide] = useState(session?.pointValide || false)
-  const [inventaireTermine, setInventaireTermine] = useState(false)
+  const [inventaireTermine, setInventaireTermine] = useState(session?.inventaireTermine || false)
   const [roleActif, setRoleActif] = useState(session?.roleActif || null)
   const [restaurantId, setRestaurantId] = useState(session?.restaurantId || null)
   const [restaurantNom, setRestaurantNom] = useState(session?.restaurantNom || null)
@@ -44,7 +55,6 @@ export function AppProvider({ children }) {
   const [userNom, setUserNom] = useState(session?.userNom || null)
   const [lastRoute, setLastRoute] = useState(session?.lastRoute || null)
 
-  // ─── Données du jour (restaurées après rechargement iOS) ───
   const [paiesJour, setPaiesJour] = useState(session?.paiesJour || {})
   const [presencesJour, setPresencesJour] = useState(session?.presencesJour || {})
   const [depensesJour, setDepensesJour] = useState(session?.depensesJour || depensesVides())
@@ -61,9 +71,10 @@ export function AppProvider({ children }) {
     glovoCse: '', glovoTab: '', glovoNbCommandes: '',
     wave: '', om: '', djamo: '',
     kdo: '', retour: '',
-    fcVeille: '', fc_actuel: '',
+    fcVeille: '', fc_recu: '',
     espece_shifts: 0,
     venteMachine: '',
+    explicacionEcartMachine: '',
     photoVenteMachine: null,
     photo_yango_cse: null,
     photo_glovo_cse: null,
@@ -77,42 +88,38 @@ export function AppProvider({ children }) {
   })
   const [depensesGerantCaisse, setDepensesGerantCaisse] = useState(session?.depensesGerantCaisse || depensesVides())
   const [fournisseursGerantCaisse, setFournisseursGerantCaisse] = useState(session?.fournisseursGerantCaisse || {})
+  const [paiesGerantCaisse, setPaiesGerantCaisse] = useState(session?.paiesGerantCaisse || [])
 
-  // ─── Ref toujours à jour — utilisée dans pagehide (pas de closure stale) ───
   const sessionRef = useRef({})
   sessionRef.current = {
     roleActif, restaurantId, restaurantNom, userId, userNom,
-    pointId, dateJour, pointValide, lastRoute,
+    pointId, dateJour, pointValide, inventaireTermine, lastRoute,
     fournisseursJour, depensesJour, presencesJour,
     livraisonsJour, ventesJour, paiesJour, inventaireJour,
-    depensesGerantCaisse, fournisseursGerantCaisse,
+    depensesGerantCaisse, fournisseursGerantCaisse, paiesGerantCaisse,
   }
 
-  // ─── Sauvegarder toutes les données à chaque changement ───
   useEffect(() => {
     if (roleActif) {
       sauvegarderSession({
         roleActif, restaurantId, restaurantNom, userId, userNom,
-        pointId, dateJour, pointValide, lastRoute,
+        pointId, dateJour, pointValide, inventaireTermine, lastRoute,
         fournisseursJour, depensesJour, presencesJour,
         livraisonsJour, ventesJour, paiesJour, inventaireJour,
-        depensesGerantCaisse, fournisseursGerantCaisse,
+        depensesGerantCaisse, fournisseursGerantCaisse, paiesGerantCaisse,
       })
     }
   }, [
     roleActif, restaurantId, restaurantNom, userId, userNom,
-    pointId, dateJour, pointValide, lastRoute,
+    pointId, dateJour, pointValide, inventaireTermine, lastRoute,
     fournisseursJour, depensesJour, presencesJour,
     livraisonsJour, ventesJour, paiesJour, inventaireJour,
-    depensesGerantCaisse, fournisseursGerantCaisse,
+    depensesGerantCaisse, fournisseursGerantCaisse, paiesGerantCaisse,
   ])
 
-  // ─── Sur iPhone : iOS décharge la page avant d'ouvrir le sélecteur photo ───
   useEffect(() => {
     if (Platform.OS !== 'web') return
     function onPageHide(event) {
-      // Si event.persisted = true, la page va en bfcache (sélecteur photo iOS)
-      // → ne PAS écrire dans le storage, sinon on empêche le bfcache et iOS recharge la page
       if (event.persisted) return
       if (sessionRef.current.roleActif) sauvegarderSession(sessionRef.current)
     }
@@ -126,8 +133,6 @@ export function AppProvider({ children }) {
     if (isManager) return false
     return flag
   }
-
-  // ─── Totaux ────────────────────────────────────────────────
 
   function totalPaie() {
     return Math.round(Object.values(paiesJour).reduce((sum, v) => sum + (parseFloat(v) || 0), 0))
@@ -156,7 +161,8 @@ export function AppProvider({ children }) {
       return sum + (lignes || []).reduce((s, l) => s + (parseFloat(l.montant) || 0), 0)
     }, 0)
     const fours = Object.values(fournisseursGerantCaisse).reduce((sum, f) => sum + (parseFloat(f?.paye) || 0), 0)
-    return Math.round(cats + fours)
+    const paies = paiesGerantCaisse.reduce((sum, p) => sum + (parseFloat(p.montant) || 0), 0)
+    return Math.round(cats + fours + paies)
   }
 
   function resteEspeces() {
@@ -176,7 +182,7 @@ export function AppProvider({ children }) {
   }
 
   function fc() {
-    return Math.round(resteEspeces() + (parseFloat(ventesJour.fcVeille) || 0))
+    return Math.round(resteEspeces() + (parseFloat(ventesJour.fcVeille) || 0) + (parseFloat(ventesJour.fc_recu) || 0))
   }
 
   function beneficeSC() {
@@ -190,8 +196,9 @@ export function AppProvider({ children }) {
     )
   }
 
-  // ─── Reset données du jour ─────────────────────────────────
+  // ─── Reset données du jour — appelé UNIQUEMENT après validation du shift ───
   function resetJour() {
+    _sessionLoggedInAt = Date.now()
     setPointId(null)
     setDateJour(null)
     setPointValide(false)
@@ -207,15 +214,17 @@ export function AppProvider({ children }) {
     setLastRoute(null)
     setDepensesGerantCaisse(depensesVides())
     setFournisseursGerantCaisse({})
+    setPaiesGerantCaisse([])
     setVentesJour({
       sequences: [],
       yangoCse: '', yangoTab: '', yangoNbCommandes: '',
       glovoCse: '', glovoTab: '', glovoNbCommandes: '',
       wave: '', om: '', djamo: '',
       kdo: '', retour: '',
-      fcVeille: '', fc_actuel: '',
+      fcVeille: '', fc_recu: '',
       espece_shifts: 0,
       venteMachine: '',
+      explicacionEcartMachine: '',
       photoVenteMachine: null,
       photo_yango_cse: null,
       photo_glovo_cse: null,
@@ -229,7 +238,7 @@ export function AppProvider({ children }) {
     })
   }
 
-  // ─── Déconnexion complète ──────────────────────────────────
+  // ─── Déconnexion — efface uniquement la session, PAS les données du jour ───
   function deconnecter() {
     effacerSession()
     setRoleActif(null)
@@ -237,11 +246,17 @@ export function AppProvider({ children }) {
     setRestaurantNom(null)
     setUserId(null)
     setUserNom(null)
-    resetJour()
+    // NE PAS appeler resetJour() ici
+    // Les données du jour persistent jusqu'à la validation du shift
   }
 
-  // ─── Reset shift ───────────────────────────────────────────
+  // ─── Flag éphémère : indique que resetShift vient d'être appelé ──────────
+  // Permet à fournisseurs.js de NE PAS restaurer depuis la DB après reset shift
+  const [postShiftReset, setPostShiftReset] = useState(false)
+
+  // ─── Reset shift — appelé après validation du shift caissier ─────────────
   function resetShift() {
+    setPostShiftReset(true)
     setPaiesJour({})
     setPresencesJour({})
     setDepensesJour(depensesVides())
@@ -273,6 +288,7 @@ export function AppProvider({ children }) {
       ventesJour, setVentesJour,
       depensesGerantCaisse, setDepensesGerantCaisse,
       fournisseursGerantCaisse, setFournisseursGerantCaisse,
+      paiesGerantCaisse, setPaiesGerantCaisse,
       totalPaie,
       totalFournisseurs,
       totalDepenses,
@@ -284,6 +300,7 @@ export function AppProvider({ children }) {
       resetJour,
       deconnecter,
       resetShift,
+      postShiftReset, setPostShiftReset,
     }}>
       {children}
     </AppContext.Provider>

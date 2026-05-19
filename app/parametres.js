@@ -1,6 +1,9 @@
 import { router } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import FormulaireTravailleur from '../components/FormulaireTravailleur'
+import { useTheme } from '../context/ThemeContext'
 import {
+    ActivityIndicator,
     Alert,
     Image,
     Keyboard,
@@ -9,6 +12,7 @@ import {
     Platform,
     SafeAreaView, ScrollView,
     StyleSheet,
+    Switch,
     Text,
     TextInput,
     TouchableOpacity,
@@ -18,6 +22,7 @@ import {
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
+import { connecterOneDrive, deconnecterOneDrive, estatConnecte } from '../lib/onedrive'
 
 const SECTIONS = [
   { key: 'restaurants', label: '🏪 Restaurants' },
@@ -28,6 +33,8 @@ const SECTIONS = [
 
 export default function ParametresScreen() {
   const { isManager } = useApp()
+  const { colors, isDark, mode, setThemeMode } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
   const { prendrePhoto, choisirPhoto } = usePhoto()
 
   const [sectionActive, setSectionActive] = useState('restaurants')
@@ -41,16 +48,51 @@ export default function ParametresScreen() {
   const [loading, setLoading] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [creditActuel, setCreditActuel] = useState(null)
+  const [montantCotise, setMontantCotise] = useState(null)
   const [restaurantFiltre, setRestaurantFiltre] = useState(null)
   const [badgeTravailleur, setBadgeTravailleur] = useState(null)
+  const [oneDriveConnecte, setOneDriveConnecte] = useState(false)
+  const [oneDriveLoading, setOneDriveLoading] = useState(false)
+  const [oneDriveEmail, setOneDriveEmail] = useState('')
+  const [ongletTravailleur, setOngletTravailleur] = useState('infos')
+  const [docsTravailleur, setDocsTravailleur] = useState([])
+  const [loadingDocs, setLoadingDocs] = useState(false)
+  const [ajoutDocVisible, setAjoutDocVisible] = useState(false)
+  const [formDoc, setFormDoc] = useState({ type_document: 'CNI', description: '' })
+  const [uploadingDoc, setUploadingDoc] = useState(false)
 
   useEffect(() => { chargerTousRestaurants() }, [])
   useEffect(() => { chargerDonnees() }, [sectionActive])
+  useEffect(() => { estatConnecte().then(setOneDriveConnecte) }, [])
   useEffect(() => {
     if (tousRestaurants.length > 0 && !restaurantFiltre) {
       setRestaurantFiltre(tousRestaurants[0].id)
     }
   }, [tousRestaurants])
+
+  async function gererConnexionOneDrive() {
+    if (oneDriveConnecte) {
+      Alert.alert('OneDrive', 'Se déconnecter de OneDrive ?', [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Déconnecter', style: 'destructive', onPress: async () => {
+          await deconnecterOneDrive()
+          setOneDriveConnecte(false)
+          setOneDriveEmail('')
+        }},
+      ])
+      return
+    }
+    setOneDriveLoading(true)
+    const result = await connecterOneDrive()
+    setOneDriveLoading(false)
+    if (result.success) {
+      setOneDriveConnecte(true)
+      setOneDriveEmail(result.email || '')
+      Alert.alert('✅ Connecté', `OneDrive connecté${result.email ? ` (${result.email})` : ''}.`)
+    } else {
+      Alert.alert('Erreur', result.error || 'Impossible de se connecter à OneDrive.')
+    }
+  }
 
   async function chargerTousRestaurants() {
     const { data } = await supabase.from('restaurants').select('*').order('nom')
@@ -83,52 +125,36 @@ export default function ParametresScreen() {
     setForm(data ? { ...data } : { ...defaults })
     setModal({ visible: true, type, data })
     setCreditActuel(null)
+    setOngletTravailleur('infos')
+    setDocsTravailleur([])
+    setAjoutDocVisible(false)
+    setFormDoc({ type_document: 'CNI', description: '' })
+
+    if (type === 'travailleur' && data?.id) {
+      chargerDocsTravailleur(data.id)
+    }
 
     if (type === 'fournisseur' && data?.id && isManager) {
-      const { data: derniereTrans } = await supabase
-        .from('transactions_fournisseurs')
-        .select('reste')
-        .eq('fournisseur_id', data.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
-      setCreditActuel(derniereTrans?.reste ?? 0)
+      setCreditActuel(data.credit_actuel ?? 0)
+      setMontantCotise(data.montant_cotise ?? 0)
     }
   }
 
-  async function modifierCredit(fournisseurId, restaurantId, nouveauCredit) {
-    const { data: derniereTrans } = await supabase
-      .from('transactions_fournisseurs')
-      .select('id')
-      .eq('fournisseur_id', fournisseurId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
-
-    if (derniereTrans) {
-      await supabase
-        .from('transactions_fournisseurs')
-        .update({ reste: nouveauCredit })
-        .eq('id', derniereTrans.id)
-    } else {
-      const { data: point } = await supabase
-        .from('points')
-        .select('id')
-        .eq('restaurant_id', restaurantId)
-        .order('date', { ascending: false })
-        .limit(1)
-        .single()
-      if (point) {
-        await supabase.from('transactions_fournisseurs').insert({
-          point_id: point.id,
-          fournisseur_id: fournisseurId,
-          facture: 0,
-          paye: 0,
-          reste: nouveauCredit,
-          photo_url: null,
-        })
-      }
+  async function modifierCredit(fournisseurId, nouveauCredit, nouveauCotise) {
+    const mc = parseFloat(nouveauCotise)
+    if (!isNaN(mc) && mc < 0) {
+      Alert.alert('Erreur', 'Le montant cotisé ne peut pas être négatif.')
+      return false
     }
+    const { error } = await supabase.from('fournisseurs').update({
+      credit_actuel: parseFloat(nouveauCredit) || 0,
+      montant_cotise: isNaN(mc) ? 0 : mc,
+    }).eq('id', fournisseurId)
+    if (error) {
+      Alert.alert('Erreur', error.message)
+      return false
+    }
+    return true
   }
 
   async function sauvegarder() {
@@ -190,6 +216,8 @@ export default function ParametresScreen() {
               identifiant: form.identifiant || null,
               contact: form.contact || null,
               photo_url: form.photo_url || null,
+              salaire_journalier: parseInt(form.salaire_journalier) || null,
+              date_embauche: form.date_embauche || null,
             })
             .eq('id', data.id)
           if (error) throw error
@@ -203,7 +231,10 @@ export default function ParametresScreen() {
               identifiant: form.identifiant || null,
               contact: form.contact || null,
               photo_url: form.photo_url || null,
+              salaire_journalier: parseInt(form.salaire_journalier) || null,
+              date_embauche: form.date_embauche || null,
               actif: true,
+              statut: 'actif',
             })
           if (error) throw error
         }
@@ -270,9 +301,12 @@ export default function ParametresScreen() {
             .eq('id', data.id)
           if (error) throw error
 
-          // Modification du crédit (manager uniquement)
-          if (isManager && form.nouveau_credit !== undefined && form.nouveau_credit !== '') {
-            await modifierCredit(data.id, data.restaurant_id, parseFloat(form.nouveau_credit) || 0)
+          // Modification du crédit et du montant cotisé (manager uniquement)
+          if (isManager && (form.nouveau_credit !== undefined || form.nouveau_montant_cotise !== undefined)) {
+            const creditVal = form.nouveau_credit !== undefined && form.nouveau_credit !== '' ? form.nouveau_credit : (creditActuel ?? 0)
+            const cotiseVal = form.nouveau_montant_cotise !== undefined && form.nouveau_montant_cotise !== '' ? form.nouveau_montant_cotise : (montantCotise ?? 0)
+            const ok = await modifierCredit(data.id, creditVal, cotiseVal)
+            if (!ok) { setLoading(false); return }
           }
         } else {
           // Création multi-restaurants
@@ -282,7 +316,7 @@ export default function ParametresScreen() {
             setLoading(false); return
           }
           for (const rId of ids) {
-            const { error } = await supabase.from('fournisseurs')
+            const { data: newFour, error } = await supabase.from('fournisseurs')
               .insert({
                 nom: form.nom,
                 type: form.type || 'fournisseur',
@@ -291,7 +325,14 @@ export default function ParametresScreen() {
                 contact: form.contact || null,
                 actif: true,
               })
+              .select()
             if (error) throw error
+            if (newFour?.[0]?.id) {
+              await supabase.from('fournisseurs_restaurants').upsert(
+                { fournisseur_id: newFour[0].id, restaurant_id: rId, credit_actuel: 0 },
+                { onConflict: 'fournisseur_id,restaurant_id' }
+              )
+            }
           }
         }
       }
@@ -308,6 +349,13 @@ export default function ParametresScreen() {
   }
 
   async function choisirPhotoResto() {
+    if (Platform.OS === 'web') {
+      setUploadingPhoto(true)
+      const url = await choisirPhoto('restaurants')
+      if (url) setForm(p => ({ ...p, photo_url: url }))
+      setUploadingPhoto(false)
+      return
+    }
     setUploadingPhoto(true)
     Alert.alert('Photo du restaurant', 'Choisir la source', [
       {
@@ -331,6 +379,13 @@ export default function ParametresScreen() {
   }
 
   async function choisirPhotoProfil() {
+    if (Platform.OS === 'web') {
+      setUploadingPhoto(true)
+      const url = await choisirPhoto('travailleurs')
+      if (url) setForm(p => ({ ...p, photo_url: url }))
+      setUploadingPhoto(false)
+      return
+    }
     setUploadingPhoto(true)
     Alert.alert('Photo de profil', 'Choisir la source', [
       {
@@ -350,6 +405,64 @@ export default function ParametresScreen() {
         }
       },
       { text: 'Annuler', style: 'cancel', onPress: () => setUploadingPhoto(false) }
+    ])
+  }
+
+  async function chargerDocsTravailleur(travailleurId) {
+    setLoadingDocs(true)
+    const { data } = await supabase
+      .from('documents_travailleurs')
+      .select('*')
+      .eq('travailleur_id', travailleurId)
+      .order('created_at')
+    setDocsTravailleur(data || [])
+    setLoadingDocs(false)
+  }
+
+  async function ajouterDocument(source) {
+    setUploadingDoc(true)
+    try {
+      const url = source === 'camera'
+        ? await prendrePhoto('documents-travailleurs')
+        : await choisirPhoto('documents-travailleurs')
+      if (!url) return
+      const { error } = await supabase.from('documents_travailleurs').insert({
+        travailleur_id: modal.data.id,
+        type_document: formDoc.type_document,
+        fichier_url: url,
+        description: formDoc.description || null,
+      })
+      if (!error) {
+        setAjoutDocVisible(false)
+        setFormDoc({ type_document: 'CNI', description: '' })
+        chargerDocsTravailleur(modal.data.id)
+      } else {
+        Alert.alert('Erreur', error.message || 'Impossible d\'enregistrer le document')
+      }
+    } finally {
+      setUploadingDoc(false)
+    }
+  }
+
+  function gererPhotoDoc() {
+    if (Platform.OS === 'web') {
+      ajouterDocument('gallery')
+    } else {
+      Alert.alert('Ajouter un document', 'Choisir la source', [
+        { text: 'Annuler', style: 'cancel' },
+        { text: '📷 Caméra', onPress: () => ajouterDocument('camera') },
+        { text: '🖼 Galerie', onPress: () => ajouterDocument('gallery') },
+      ])
+    }
+  }
+
+  async function supprimerDocument(docId) {
+    Alert.alert('Supprimer', 'Supprimer ce document ?', [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Supprimer', style: 'destructive', onPress: async () => {
+        await supabase.from('documents_travailleurs').delete().eq('id', docId)
+        chargerDocsTravailleur(modal.data.id)
+      }},
     ])
   }
 
@@ -792,87 +905,154 @@ export default function ParametresScreen() {
       <>
         <Text style={styles.modalTitre}>{modal.data ? 'Modifier travailleur' : 'Nouveau travailleur'}</Text>
 
-        {/* Photo de profil */}
-        <View style={styles.photoProfilBox}>
-          {form.photo_url ? (
-            <Image source={{ uri: form.photo_url }} style={styles.photoProfilPreview} />
-          ) : (
-            <View style={styles.photoProfilVide}>
-              <Text style={styles.photoProfilVideEmoji}>👤</Text>
-            </View>
-          )}
-          <TouchableOpacity
-            style={styles.photoProfilBtn}
-            onPress={choisirPhotoProfil}
-            disabled={uploadingPhoto}
-          >
-            <Text style={styles.photoProfilBtnTxt}>
-              {uploadingPhoto ? '⏳ Chargement...' : form.photo_url ? '🔄 Changer la photo' : '📷 Ajouter une photo'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.modalLabel}>Nom complet *</Text>
-        <TextInput
-          style={styles.modalInput}
-          value={form.nom || ''}
-          onChangeText={v => setForm(p => ({ ...p, nom: v }))}
-          placeholder="Ex: Kouamé Assi"
-          placeholderTextColor="#bbb"
-        />
-
-        <Text style={styles.modalLabel}>Identifiant unique</Text>
-        <View style={styles.identifiantRow}>
-          <TextInput
-            style={[styles.modalInput, { flex: 1, marginBottom: 0 }]}
-            value={form.identifiant || ''}
-            onChangeText={v => setForm(p => ({ ...p, identifiant: v }))}
-            placeholder="Ex: EMP-001"
-            placeholderTextColor="#bbb"
-            autoCapitalize="characters"
-          />
-          <TouchableOpacity
-            style={styles.genererBtn}
-            onPress={() => setForm(p => ({ ...p, identifiant: 'EMP-' + Date.now().toString().slice(-5) }))}
-          >
-            <Text style={styles.genererTxt}>Générer</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={{ height: 14 }} />
-
-        <Text style={styles.modalLabel}>Contact (téléphone)</Text>
-        <TextInput
-          style={styles.modalInput}
-          value={form.contact || ''}
-          onChangeText={v => setForm(p => ({ ...p, contact: v }))}
-          placeholder="Ex: +225 07 00 00 00 00"
-          placeholderTextColor="#bbb"
-          keyboardType="phone-pad"
-        />
-
-        <Text style={styles.modalLabel}>Poste</Text>
-        <TextInput
-          style={styles.modalInput}
-          value={form.poste || ''}
-          onChangeText={v => setForm(p => ({ ...p, poste: v }))}
-          placeholder="Ex: Caissier, Cuisine, Service"
-          placeholderTextColor="#bbb"
-        />
-
-        <Text style={styles.modalLabel}>Type de contrat</Text>
-        <View style={styles.contratRow}>
-          {['CDI', 'CDD', 'Journalier'].map(c => (
+        {/* Onglets Infos / Documents */}
+        <View style={styles.ongletRow}>
+          {[
+            { key: 'infos', label: '📋 Infos' },
+            { key: 'documents', label: `📄 Documents${docsTravailleur.length > 0 ? ` (${docsTravailleur.length})` : ''}` },
+          ].map(o => (
             <TouchableOpacity
-              key={c}
-              style={[styles.contratBtn, form.type_contrat === c && styles.contratBtnSelected]}
-              onPress={() => setForm(p => ({ ...p, type_contrat: c }))}
+              key={o.key}
+              style={[styles.ongletBtn, ongletTravailleur === o.key && styles.ongletBtnActive]}
+              onPress={() => setOngletTravailleur(o.key)}
             >
-              <Text style={[styles.contratTxt, form.type_contrat === c && styles.contratTxtSelected]}>{c}</Text>
+              <Text style={[styles.ongletTxt, ongletTravailleur === o.key && styles.ongletTxtActive]}>{o.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        <SelectRestaurant />
+        {ongletTravailleur === 'infos' && (
+          <>
+            {/* Photo de profil */}
+            <View style={styles.photoProfilBox}>
+              {form.photo_url ? (
+                <Image source={{ uri: form.photo_url }} style={styles.photoProfilPreview} />
+              ) : (
+                <View style={styles.photoProfilVide}>
+                  <Text style={styles.photoProfilVideEmoji}>👤</Text>
+                </View>
+              )}
+              <TouchableOpacity
+                style={styles.photoProfilBtn}
+                onPress={choisirPhotoProfil}
+                disabled={uploadingPhoto}
+              >
+                <Text style={styles.photoProfilBtnTxt}>
+                  {uploadingPhoto ? '⏳ Chargement...' : form.photo_url ? '🔄 Changer la photo' : '📷 Ajouter une photo'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <FormulaireTravailleur form={form} setForm={setForm} colors={colors} />
+
+            <Text style={styles.modalLabel}>Identifiant unique</Text>
+            <View style={styles.identifiantRow}>
+              <TextInput
+                style={[styles.modalInput, { flex: 1, marginBottom: 0 }]}
+                value={form.identifiant || ''}
+                onChangeText={v => setForm(p => ({ ...p, identifiant: v }))}
+                placeholder="Ex: EMP-001"
+                placeholderTextColor="#bbb"
+                autoCapitalize="characters"
+              />
+              <TouchableOpacity
+                style={styles.genererBtn}
+                onPress={() => setForm(p => ({ ...p, identifiant: 'EMP-' + Date.now().toString().slice(-5) }))}
+              >
+                <Text style={styles.genererTxt}>Générer</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ height: 14 }} />
+
+            <SelectRestaurant />
+          </>
+        )}
+
+        {ongletTravailleur === 'documents' && (
+          <>
+            {!modal.data ? (
+              <View style={styles.infoBox}>
+                <Text style={styles.infoTxt}>💡 Enregistrez d'abord le travailleur pour pouvoir ajouter des documents.</Text>
+              </View>
+            ) : (
+              <>
+                {loadingDocs ? (
+                  <ActivityIndicator size="small" color="#EF9F27" style={{ marginVertical: 20 }} />
+                ) : (
+                  <>
+                    {docsTravailleur.length === 0 && !ajoutDocVisible && (
+                      <View style={styles.emptyFiltreBox}>
+                        <Text style={styles.emptyFiltreTxt}>Aucun document enregistré</Text>
+                      </View>
+                    )}
+
+                    {docsTravailleur.map(doc => (
+                      <View key={doc.id} style={styles.docCard}>
+                        <Image source={{ uri: doc.fichier_url }} style={styles.docThumb} />
+                        <View style={styles.docInfo}>
+                          <Text style={styles.docType}>{doc.type_document}</Text>
+                          {doc.description ? <Text style={styles.docDesc}>{doc.description}</Text> : null}
+                        </View>
+                        <TouchableOpacity style={styles.docDelBtn} onPress={() => supprimerDocument(doc.id)}>
+                          <Text style={{ fontSize: 16 }}>🗑</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+
+                    {ajoutDocVisible ? (
+                      <View style={styles.ajoutDocBox}>
+                        <Text style={styles.modalLabel}>Type de document</Text>
+                        <View style={styles.docTypeRow}>
+                          {['CNI', 'Contrat', 'CNPS', 'Attestation', 'Autre'].map(t => (
+                            <TouchableOpacity
+                              key={t}
+                              style={[styles.docTypeBtn, formDoc.type_document === t && styles.docTypeBtnActive]}
+                              onPress={() => setFormDoc(p => ({ ...p, type_document: t }))}
+                            >
+                              <Text style={[styles.docTypeTxt, formDoc.type_document === t && styles.docTypeTxtActive]}>{t}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                        <Text style={styles.modalLabel}>Description (optionnel)</Text>
+                        <TextInput
+                          style={styles.modalInput}
+                          value={formDoc.description}
+                          onChangeText={v => setFormDoc(p => ({ ...p, description: v }))}
+                          placeholder="Ex: CNI recto-verso"
+                          placeholderTextColor="#bbb"
+                        />
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                          <TouchableOpacity
+                            style={[styles.modalCancel, { flex: 1 }]}
+                            onPress={() => setAjoutDocVisible(false)}
+                          >
+                            <Text style={styles.modalCancelTxt}>Annuler</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.modalConfirm, { flex: 2 }, uploadingDoc && { opacity: 0.6 }]}
+                            onPress={gererPhotoDoc}
+                            disabled={uploadingDoc}
+                          >
+                            <Text style={styles.modalConfirmTxt}>
+                              {uploadingDoc ? '⏳ Upload...' : '📷 Choisir la photo'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        style={[styles.addBtn, { marginTop: 10 }]}
+                        onPress={() => setAjoutDocVisible(true)}
+                      >
+                        <Text style={styles.addTxt}>+ Ajouter un document</Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </>
+        )}
       </>
     )
 
@@ -1007,6 +1187,51 @@ export default function ParametresScreen() {
                 ⚠️ Cette valeur écrase le crédit actuel du fournisseur. À utiliser uniquement pour corriger une erreur.
               </Text>
             </View>
+
+            <View style={styles.creditSeparateur} />
+            <Text style={styles.modalLabel}>Montant Cotisé</Text>
+            <Text style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>
+              Somme déjà versée en attente de facture
+            </Text>
+            {montantCotise !== null && (
+              <View style={[styles.creditActuelBanner, { backgroundColor: '#E6F1FB', borderColor: '#B8D4F5' }]}>
+                <Text style={[styles.creditActuelLabel, { color: '#185FA5' }]}>Montant cotisé enregistré</Text>
+                <Text style={[styles.creditActuelVal, { color: '#185FA5' }]}>
+                  {Math.round(montantCotise).toLocaleString('fr-FR')} FCFA
+                </Text>
+              </View>
+            )}
+            <TextInput
+              style={styles.modalInput}
+              value={form.nouveau_montant_cotise || ''}
+              onChangeText={v => setForm(p => ({ ...p, nouveau_montant_cotise: v }))}
+              keyboardType="numeric"
+              placeholder="Montant cotisé (ex: 20000)"
+              placeholderTextColor="#bbb"
+            />
+            {(() => {
+              const credit = parseFloat(form.nouveau_credit || creditActuel) || 0
+              const cotise = parseFloat(form.nouveau_montant_cotise || montantCotise) || 0
+              const reste = credit - cotise
+              if (credit === 0 && cotise === 0) return null
+              return (
+                <View style={[styles.creditActuelBanner, {
+                  backgroundColor: reste === 0 ? '#EAF3DE' : reste < 0 ? '#E6F1FB' : '#FAEEDA',
+                  borderColor: reste === 0 ? '#3B6D11' : reste < 0 ? '#185FA5' : '#EF9F27',
+                }]}>
+                  <Text style={[styles.creditActuelLabel, {
+                    color: reste === 0 ? '#3B6D11' : reste < 0 ? '#185FA5' : '#854F0B',
+                  }]}>
+                    {reste === 0 ? '✅ Reste dû' : reste < 0 ? '💙 Avance excédentaire' : '🟡 Reste dû'}
+                  </Text>
+                  <Text style={[styles.creditActuelVal, {
+                    color: reste === 0 ? '#3B6D11' : reste < 0 ? '#185FA5' : '#A32D2D',
+                  }]}>
+                    {Math.abs(Math.round(reste)).toLocaleString('fr-FR')} FCFA
+                  </Text>
+                </View>
+              )
+            })()}
           </>
         )}
       </>
@@ -1043,6 +1268,49 @@ export default function ParametresScreen() {
         {sectionActive === 'travailleurs' && renderTravailleurs()}
         {sectionActive === 'utilisateurs' && renderUtilisateurs()}
         {sectionActive === 'fournisseurs' && renderFournisseurs()}
+
+        {/* ── Apparence ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitreApp}>Apparence</Text>
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Mode sombre</Text>
+            <Switch
+              value={isDark}
+              onValueChange={(val) => setThemeMode(val ? 'dark' : 'light')}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={isDark ? colors.primaryText : colors.surface}
+            />
+          </View>
+          <TouchableOpacity
+            onPress={() => setThemeMode('auto')}
+            style={[styles.autoBtn, mode === 'auto' && styles.autoBtnActif]}
+          >
+            <Text style={[styles.autoBtnTxt, mode === 'auto' && styles.autoBtnTxtActif]}>
+              🔄 Suivre le thème système {mode === 'auto' ? '(actif)' : ''}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── OneDrive ── */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitreApp}>Sauvegarde OneDrive</Text>
+          <Text style={[styles.rowSub, { marginBottom: 10 }]}>
+            Sauvegarde automatique des points journaliers en Excel sur votre OneDrive Microsoft.
+          </Text>
+          <TouchableOpacity
+            style={[styles.oneDriveBtn, oneDriveConnecte && styles.oneDriveBtnConnecte]}
+            onPress={gererConnexionOneDrive}
+            disabled={oneDriveLoading}
+          >
+            <Text style={styles.oneDriveBtnTxt}>
+              {oneDriveLoading ? '⏳ Connexion…' : oneDriveConnecte ? '✅ Connecté à OneDrive' : '🔗 Connecter OneDrive'}
+            </Text>
+            {oneDriveConnecte && oneDriveEmail ? (
+              <Text style={styles.oneDriveEmail}>{oneDriveEmail}</Text>
+            ) : null}
+          </TouchableOpacity>
+        </View>
+
         <View style={{ height: 40 }} />
       </ScrollView>
 
@@ -1167,36 +1435,36 @@ export default function ParametresScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+function makeStyles(colors) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
-    backgroundColor: '#534AB7', padding: 16,
+    backgroundColor: colors.headerBg, padding: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'
   },
-  back: { fontSize: 16, color: '#CECBF6', fontWeight: '500' },
-  headerTitre: { fontSize: 16, fontWeight: '600', color: '#fff' },
-  tabs: { backgroundColor: '#fff', maxHeight: 46, borderBottomWidth: 0.5, borderBottomColor: '#eee' },
+  back: { fontSize: 16, color: colors.primaryText, fontWeight: '500' },
+  headerTitre: { fontSize: 16, fontWeight: '600', color: colors.surface },
+  tabs: { backgroundColor: colors.surface, maxHeight: 46, borderBottomWidth: 0.5, borderBottomColor: colors.border },
   tab: { paddingHorizontal: 16, paddingVertical: 12 },
-  tabActive: { borderBottomWidth: 2, borderBottomColor: '#534AB7' },
-  tabTxt: { fontSize: 13, color: '#888' },
-  tabTxtActive: { color: '#534AB7', fontWeight: '600' },
+  tabActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
+  tabTxt: { fontSize: 13, color: colors.textMuted },
+  tabTxtActive: { color: colors.primary, fontWeight: '600' },
   body: { flex: 1, padding: 14 },
   addBtn: {
-    borderWidth: 1, borderStyle: 'dashed', borderColor: '#534AB7',
+    borderWidth: 1, borderStyle: 'dashed', borderColor: colors.primary,
     borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 12
   },
-  addTxt: { fontSize: 14, color: '#534AB7', fontWeight: '500' },
+  addTxt: { fontSize: 14, color: colors.primary, fontWeight: '500' },
   separateur: {
-    fontSize: 11, fontWeight: '600', color: '#888',
+    fontSize: 11, fontWeight: '600', color: colors.textMuted,
     letterSpacing: 0.5, textTransform: 'uppercase', marginVertical: 10
   },
   itemCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 10,
+    backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    borderWidth: 0.5, borderColor: '#eee'
+    borderWidth: 0.5, borderColor: colors.border
   },
   itemCardInactif: { opacity: 0.5 },
-  itemCardManager: { borderColor: '#534AB7', backgroundColor: '#EEEDFE' },
+  itemCardManager: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
   itemLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   itemDot: { width: 12, height: 12, borderRadius: 6 },
   avatar: {
@@ -1204,10 +1472,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#EF9F27', alignItems: 'center', justifyContent: 'center'
   },
   avatarTxt: { fontSize: 13, fontWeight: '600', color: '#fff' },
-  itemNom: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
-  itemSub: { fontSize: 11, color: '#888', marginTop: 2 },
-  itemSub2: { fontSize: 10, color: '#bbb', marginTop: 1 },
-  itemPin: { fontSize: 10, color: '#534AB7', marginTop: 2, fontWeight: '500' },
+  itemNom: { fontSize: 14, fontWeight: '600', color: colors.text },
+  itemSub: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  itemSub2: { fontSize: 10, color: colors.textPlaceholder, marginTop: 1 },
+  itemPin: { fontSize: 10, color: colors.primary, marginTop: 2, fontWeight: '500' },
   itemActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   editBtn: { padding: 6 },
   editTxt: { fontSize: 16 },
@@ -1215,134 +1483,168 @@ const styles = StyleSheet.create({
   deleteTxt: { fontSize: 16 },
   statutBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   statutTxt: { fontSize: 11, fontWeight: '500' },
-  globalBadge: { backgroundColor: '#534AB7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  globalTxt: { fontSize: 11, color: '#fff', fontWeight: '500' },
-  typeBadge: { backgroundColor: '#FAEEDA', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
+  globalBadge: { backgroundColor: colors.primary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  globalTxt: { fontSize: 11, color: colors.surface, fontWeight: '500' },
+  typeBadge: { backgroundColor: colors.orangeLight, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
   typeBadgeCotis: { backgroundColor: '#E6F1FB' },
-  typeTxt: { fontSize: 10, color: '#854F0B', fontWeight: '500' },
+  typeTxt: { fontSize: 10, color: colors.orangeDark, fontWeight: '500' },
   typeTxtCotis: { color: '#185FA5' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modal: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '90%' },
-  modalTitre: { fontSize: 18, fontWeight: '600', color: '#1a1a1a', marginBottom: 20 },
+  modal: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '90%' },
+  modalTitre: { fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 20 },
   modalLabel: {
-    fontSize: 11, fontWeight: '600', color: '#888',
+    fontSize: 11, fontWeight: '600', color: colors.textMuted,
     letterSpacing: 0.5, marginBottom: 6, textTransform: 'uppercase'
   },
   modalInput: {
-    backgroundColor: '#f5f5f5', borderRadius: 12,
-    padding: 14, fontSize: 15, color: '#1a1a1a', marginBottom: 14
+    backgroundColor: colors.surfaceAlt, borderRadius: 12,
+    padding: 14, fontSize: 15, color: colors.text, marginBottom: 14
   },
   pinInfo: {
-    backgroundColor: '#EEEDFE', borderRadius: 10,
+    backgroundColor: colors.primaryLight, borderRadius: 10,
     padding: 10, marginBottom: 14
   },
-  pinInfoTxt: { fontSize: 12, color: '#3C3489', lineHeight: 18 },
+  pinInfoTxt: { fontSize: 12, color: colors.primaryDark, lineHeight: 18 },
   couleurRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
   couleurBtn: { flex: 1, padding: 12, borderRadius: 10, alignItems: 'center', opacity: 0.6 },
-  couleurBtnSelected: { opacity: 1, borderWidth: 2, borderColor: '#1a1a1a' },
+  couleurBtnSelected: { opacity: 1, borderWidth: 2, borderColor: colors.text },
   couleurTxt: { fontSize: 13, color: '#fff', fontWeight: '600' },
   contratRow: { flexDirection: 'row', gap: 8, marginBottom: 14, flexWrap: 'wrap' },
   contratBtn: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    backgroundColor: '#f5f5f5', borderWidth: 0.5, borderColor: '#eee'
+    backgroundColor: colors.surfaceAlt, borderWidth: 0.5, borderColor: colors.border
   },
-  contratBtnSelected: { backgroundColor: '#534AB7', borderColor: '#534AB7' },
-  contratTxt: { fontSize: 13, color: '#888' },
-  contratTxtSelected: { color: '#fff', fontWeight: '600' },
+  contratBtnSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+  contratTxt: { fontSize: 13, color: colors.textMuted },
+  contratTxtSelected: { color: colors.surface, fontWeight: '600' },
   restoBtn: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    backgroundColor: '#f5f5f5', borderWidth: 0.5, borderColor: '#eee', marginRight: 8
+    backgroundColor: colors.surfaceAlt, borderWidth: 0.5, borderColor: colors.border, marginRight: 8
   },
   restoBtnSelected: { backgroundColor: '#EF9F27', borderColor: '#EF9F27' },
-  restoTxt: { fontSize: 12, color: '#888' },
+  restoTxt: { fontSize: 12, color: colors.textMuted },
   restoTxtSelected: { color: '#412402', fontWeight: '600' },
   infoBox: { backgroundColor: '#EAF3DE', borderRadius: 10, padding: 10, marginBottom: 14 },
   infoTxt: { fontSize: 12, color: '#3B6D11', lineHeight: 18 },
   modalBtns: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  modalCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#f5f5f5', alignItems: 'center' },
-  modalCancelTxt: { fontSize: 14, color: '#888' },
-  modalConfirm: { flex: 2, padding: 14, borderRadius: 12, backgroundColor: '#534AB7', alignItems: 'center' },
-  modalConfirmTxt: { fontSize: 14, fontWeight: '600', color: '#fff' },
+  modalCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.surfaceAlt, alignItems: 'center' },
+  modalCancelTxt: { fontSize: 14, color: colors.textMuted },
+  modalConfirm: { flex: 2, padding: 14, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center' },
+  modalConfirmTxt: { fontSize: 14, fontWeight: '600', color: colors.surface },
   filtreBar: { marginBottom: 4, marginHorizontal: -14 },
-  filtrePill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: '#f0f0f0', marginRight: 8, borderWidth: 1, borderColor: 'transparent' },
-  filtrePillActive: { backgroundColor: '#EEEDFE', borderColor: '#534AB7' },
+  filtrePill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: colors.borderLight, marginRight: 8, borderWidth: 1, borderColor: 'transparent' },
+  filtrePillActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
   filtreDot: { width: 8, height: 8, borderRadius: 4 },
-  filtrePillTxt: { fontSize: 12, color: '#888', fontWeight: '500' },
-  filtrePillTxtActive: { color: '#534AB7', fontWeight: '600' },
+  filtrePillTxt: { fontSize: 12, color: colors.textMuted, fontWeight: '500' },
+  filtrePillTxtActive: { color: colors.primary, fontWeight: '600' },
   emptyFiltreBox: { alignItems: 'center', paddingVertical: 30 },
-  emptyFiltreTxt: { fontSize: 13, color: '#bbb' },
+  emptyFiltreTxt: { fontSize: 13, color: colors.textPlaceholder },
   identifiantRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 0 },
-  genererBtn: { backgroundColor: '#EEEDFE', paddingHorizontal: 12, paddingVertical: 14, borderRadius: 12 },
-  genererTxt: { fontSize: 12, color: '#534AB7', fontWeight: '600' },
+  genererBtn: { backgroundColor: colors.primaryLight, paddingHorizontal: 12, paddingVertical: 14, borderRadius: 12 },
+  genererTxt: { fontSize: 12, color: colors.primary, fontWeight: '600' },
   avatarPhoto: { width: 40, height: 40, borderRadius: 20 },
   photoProfilBox: { alignItems: 'center', marginBottom: 20 },
   photoProfilPreview: { width: 100, height: 100, borderRadius: 50, marginBottom: 10 },
   photoProfilVide: {
-    width: 100, height: 100, borderRadius: 50, backgroundColor: '#EEEDFE',
+    width: 100, height: 100, borderRadius: 50, backgroundColor: colors.primaryLight,
     alignItems: 'center', justifyContent: 'center', marginBottom: 10,
   },
   photoProfilVideEmoji: { fontSize: 40 },
   photoProfilBtn: {
-    backgroundColor: '#EEEDFE', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
+    backgroundColor: colors.primaryLight, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
   },
-  photoProfilBtnTxt: { fontSize: 13, color: '#534AB7', fontWeight: '500' },
+  photoProfilBtnTxt: { fontSize: 13, color: colors.primary, fontWeight: '500' },
   badgeOverlay: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center', alignItems: 'center', padding: 24,
   },
   badgeCard: {
-    backgroundColor: '#fff', borderRadius: 24, width: '100%',
+    backgroundColor: colors.surface, borderRadius: 24, width: '100%',
     overflow: 'hidden', alignItems: 'center',
   },
   badgeHeader: {
-    backgroundColor: '#534AB7', width: '100%', paddingHorizontal: 20,
+    backgroundColor: colors.primary, width: '100%', paddingHorizontal: 20,
     paddingVertical: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
-  badgeHeaderTxt: { fontSize: 13, fontWeight: '600', color: '#CECBF6' },
-  badgeClose: { fontSize: 18, color: '#fff' },
+  badgeHeaderTxt: { fontSize: 13, fontWeight: '600', color: colors.primaryText },
+  badgeClose: { fontSize: 18, color: colors.surface },
   badgeAvatarBox: { marginTop: 24, marginBottom: 12, position: 'relative' },
-  badgePhoto: { width: 110, height: 110, borderRadius: 55, borderWidth: 3, borderColor: '#534AB7' },
+  badgePhoto: { width: 110, height: 110, borderRadius: 55, borderWidth: 3, borderColor: colors.primary },
   badgeAvatarVide: {
     width: 110, height: 110, borderRadius: 55,
-    backgroundColor: '#EEEDFE', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 3, borderColor: '#534AB7',
+    backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 3, borderColor: colors.primary,
   },
-  badgeAvatarTxt: { fontSize: 36, fontWeight: '700', color: '#534AB7' },
+  badgeAvatarTxt: { fontSize: 36, fontWeight: '700', color: colors.primary },
   badgeStatutDot: {
     position: 'absolute', bottom: 4, right: 4,
-    width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#fff',
+    width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: colors.surface,
   },
-  badgeNom: { fontSize: 22, fontWeight: '700', color: '#1a1a1a', textAlign: 'center', paddingHorizontal: 20 },
-  badgePoste: { fontSize: 14, color: '#534AB7', fontWeight: '500', marginTop: 4, marginBottom: 16 },
-  badgeSeparateur: { height: 1, backgroundColor: '#f0f0f0', width: '85%', marginBottom: 16 },
+  badgeNom: { fontSize: 22, fontWeight: '700', color: colors.text, textAlign: 'center', paddingHorizontal: 20 },
+  badgePoste: { fontSize: 14, color: colors.primary, fontWeight: '500', marginTop: 4, marginBottom: 16 },
+  badgeSeparateur: { height: 1, backgroundColor: colors.borderLight, width: '85%', marginBottom: 16 },
   badgeInfoGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10, paddingHorizontal: 20, marginBottom: 16 },
-  badgeInfoItem: { backgroundColor: '#f5f5f5', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', minWidth: '40%' },
-  badgeInfoLabel: { fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
-  badgeInfoVal: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
+  badgeInfoItem: { backgroundColor: colors.surfaceAlt, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', minWidth: '40%' },
+  badgeInfoLabel: { fontSize: 10, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  badgeInfoVal: { fontSize: 14, fontWeight: '600', color: colors.text },
   badgeId: {
-    backgroundColor: '#EEEDFE', borderRadius: 20, paddingHorizontal: 20, paddingVertical: 8,
-    marginBottom: 20, borderWidth: 1, borderColor: '#CECBF6',
+    backgroundColor: colors.primaryLight, borderRadius: 20, paddingHorizontal: 20, paddingVertical: 8,
+    marginBottom: 20, borderWidth: 1, borderColor: colors.primaryText,
   },
-  badgeIdTxt: { fontSize: 13, fontWeight: '700', color: '#534AB7', letterSpacing: 1 },
+  badgeIdTxt: { fontSize: 13, fontWeight: '700', color: colors.primary, letterSpacing: 1 },
   badgeEditBtn: {
-    backgroundColor: '#534AB7', marginHorizontal: 24, marginBottom: 24,
+    backgroundColor: colors.primary, marginHorizontal: 24, marginBottom: 24,
     padding: 14, borderRadius: 14, alignItems: 'center', width: '85%',
   },
-  badgeEditTxt: { fontSize: 14, fontWeight: '600', color: '#fff' },
-  creditSeparateur: { height: 1, backgroundColor: '#eee', marginVertical: 16 },
-  creditActuelBanner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFF3CD', borderRadius: 10, padding: 12, marginBottom: 10 },
-  creditActuelLabel: { fontSize: 12, color: '#7A4F00', fontWeight: '500' },
+  badgeEditTxt: { fontSize: 14, fontWeight: '600', color: colors.surface },
+  creditSeparateur: { height: 1, backgroundColor: colors.border, marginVertical: 16 },
+  creditActuelBanner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.warningLight, borderRadius: 10, padding: 12, marginBottom: 10 },
+  creditActuelLabel: { fontSize: 12, color: colors.warningDark, fontWeight: '500' },
   creditActuelVal: { fontSize: 15, fontWeight: '700', color: '#A32D2D' },
   restoPhotoPreview: { width: 100, height: 100, borderRadius: 14, marginBottom: 10 },
   restoBadgeBtn: {
     alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 14,
-    backgroundColor: '#f5f5f5', borderWidth: 1, borderColor: '#eee', marginRight: 8, minWidth: 72,
+    backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border, marginRight: 8, minWidth: 72,
   },
-  restoBadgeBtnSelected: { backgroundColor: '#EEEDFE', borderColor: '#534AB7' },
+  restoBadgeBtnSelected: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
   restoBadgeImg: { width: 44, height: 44, borderRadius: 10, marginBottom: 4 },
   restoBadgeAvatar: { width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   restoBadgeAvatarTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
-  restoBadgeTxt: { fontSize: 10, color: '#888', textAlign: 'center', maxWidth: 70 },
-  restoBadgeTxtSelected: { color: '#534AB7', fontWeight: '600' },
-  restoBadgeCheck: { fontSize: 12, color: '#534AB7', fontWeight: '700', marginTop: 2 },
-})
+  restoBadgeTxt: { fontSize: 10, color: colors.textMuted, textAlign: 'center', maxWidth: 70 },
+  restoBadgeTxtSelected: { color: colors.primary, fontWeight: '600' },
+  restoBadgeCheck: { fontSize: 12, color: colors.primary, fontWeight: '700', marginTop: 2 },
+  // Section Apparence
+  section: { backgroundColor: colors.surface, borderRadius: 14, padding: 16, marginTop: 16, borderWidth: 0.5, borderColor: colors.border },
+  sectionTitreApp: { fontSize: 13, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  rowLabel: { fontSize: 15, color: colors.text },
+  autoBtn: { marginTop: 8, padding: 10, borderRadius: 8, backgroundColor: colors.surfaceAlt, alignItems: 'center' },
+  autoBtnActif: { backgroundColor: colors.primaryLight },
+  autoBtnTxt: { fontSize: 13, color: colors.textMuted },
+  autoBtnTxtActif: { color: colors.primary, fontWeight: '600' },
+  // Onglets travailleur
+  ongletRow: { flexDirection: 'row', marginBottom: 16, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
+  ongletBtn: { flex: 1, padding: 10, alignItems: 'center', backgroundColor: colors.surfaceAlt },
+  ongletBtnActive: { backgroundColor: colors.primary },
+  ongletTxt: { fontSize: 13, fontWeight: '500', color: colors.textMuted },
+  ongletTxtActive: { color: colors.surface, fontWeight: '600' },
+  // Documents travailleur
+  docCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceAlt, borderRadius: 12, padding: 10, marginBottom: 8, gap: 12, borderWidth: 0.5, borderColor: colors.border },
+  docThumb: { width: 56, height: 56, borderRadius: 8 },
+  docInfo: { flex: 1 },
+  docType: { fontSize: 13, fontWeight: '600', color: colors.text },
+  docDesc: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  docDelBtn: { padding: 6 },
+  ajoutDocBox: { backgroundColor: colors.surfaceAlt, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: colors.border },
+  docTypeRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 12 },
+  docTypeBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.bg, borderWidth: 0.5, borderColor: colors.border },
+  docTypeBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  docTypeTxt: { fontSize: 12, color: colors.textMuted },
+  docTypeTxtActive: { color: colors.surface, fontWeight: '600' },
+  // OneDrive
+  oneDriveBtn: { backgroundColor: colors.primaryLight, borderRadius: 10, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: colors.primary },
+  oneDriveBtnConnecte: { backgroundColor: colors.successLight, borderColor: colors.success },
+  oneDriveBtnTxt: { fontSize: 14, fontWeight: '700', color: colors.primary },
+  oneDriveEmail: { fontSize: 11, color: colors.textMuted, marginTop: 4 },
+  rowSub: { fontSize: 12, color: colors.textMuted, lineHeight: 17 },
+}) }

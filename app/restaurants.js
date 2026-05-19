@@ -1,5 +1,6 @@
 import { router } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useTheme } from '../context/ThemeContext'
 import {
     ActivityIndicator,
     SafeAreaView, ScrollView,
@@ -11,6 +12,8 @@ import { supabase } from '../lib/supabase'
 
 
 export default function RestaurantsScreen() {
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
   const [restos, setRestos] = useState([])
   const [stats, setStats] = useState({})
   const [loading, setLoading] = useState(true)
@@ -174,28 +177,28 @@ export default function RestaurantsScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  header: { backgroundColor: '#534AB7', padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  back: { fontSize: 16, color: '#CECBF6', fontWeight: '500' },
-  headerTitre: { fontSize: 16, fontWeight: '600', color: '#fff' },
+function makeStyles(colors) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
+  header: { backgroundColor: colors.headerBg, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  back: { fontSize: 16, color: colors.primaryText, fontWeight: '500' },
+  headerTitre: { fontSize: 16, fontWeight: '600', color: colors.surface },
   loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingTxt: { fontSize: 13, color: '#888', marginTop: 12 },
+  loadingTxt: { fontSize: 13, color: colors.textMuted, marginTop: 12 },
   body: { flex: 1, padding: 14 },
   resumeRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  resumeCard: { flex: 1, backgroundColor: '#fff', borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 0.5, borderColor: '#eee' },
-  resumeNum: { fontSize: 24, fontWeight: '600', color: '#534AB7' },
-  resumeLabel: { fontSize: 11, color: '#888', marginTop: 4 },
-  sectionTitre: { fontSize: 13, fontWeight: '600', color: '#888', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  restoCard: { backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 0.5, borderColor: '#eee', borderLeftWidth: 4 },
+  resumeCard: { flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 0.5, borderColor: colors.border },
+  resumeNum: { fontSize: 24, fontWeight: '600', color: colors.primary },
+  resumeLabel: { fontSize: 11, color: colors.textMuted, marginTop: 4 },
+  sectionTitre: { fontSize: 13, fontWeight: '600', color: colors.textMuted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  restoCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 0.5, borderColor: colors.border, borderLeftWidth: 4 },
   restoHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
   restoDot: { width: 10, height: 10, borderRadius: 5 },
-  restoNom: { fontSize: 15, fontWeight: '600', color: '#1a1a1a', flex: 1 },
+  restoNom: { fontSize: 15, fontWeight: '600', color: colors.text, flex: 1 },
   rentaBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   rentaTxt: { fontSize: 12, fontWeight: '600' },
-  restoLocalisation: { fontSize: 11, color: '#888', marginBottom: 12, marginLeft: 20 },
+  restoLocalisation: { fontSize: 11, color: colors.textMuted, marginBottom: 12, marginLeft: 20 },
   restoStats: { flexDirection: 'row', gap: 0 },
-  restoStat: { flex: 1, alignItems: 'center', borderRightWidth: 0.5, borderRightColor: '#f0f0f0' },
-  restoStatVal: { fontSize: 12, fontWeight: '600', color: '#1a1a1a' },
-  restoStatLabel: { fontSize: 9, color: '#888', marginTop: 2 },
-})
+  restoStat: { flex: 1, alignItems: 'center', borderRightWidth: 0.5, borderRightColor: colors.borderLight },
+  restoStatVal: { fontSize: 12, fontWeight: '600', color: colors.text },
+  restoStatLabel: { fontSize: 9, color: colors.textMuted, marginTop: 2 },
+}) }

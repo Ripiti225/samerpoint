@@ -1,8 +1,9 @@
 import { router } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -16,6 +17,8 @@ import {
   View
 } from 'react-native'
 import { useApp } from '../context/AppContext'
+import { useTheme } from '../context/ThemeContext'
+import { saveOnePresence } from '../lib/api'
 import { supabase } from '../lib/supabase'
 
 const STATUTS = ['Présent', 'Absent', 'Repos', 'Congé', 'Malade', 'Permission']
@@ -31,13 +34,21 @@ const STATUT_COLORS = {
 
 export default function PresencesScreen() {
   const {
-    pointId, pointValide, estBloque, restaurantId, setPaiesJour
+    pointId, dateJour, pointValide, estBloque, restaurantId, userId, setPaiesJour
   } = useApp()
+
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
 
   const [travailleurs, setTravailleurs] = useState([])
   const [presences, setPresences] = useState({}) // { travailleurId: { statut, paye, shift_nom, heure_debut, heure_fin, presenceId } }
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState(null)
+  const [autoStatuts, setAutoStatuts] = useState({}) // { travailleur_id: { statut, motif } } — depuis permissions_conges
+
+  // Travailleurs dont la présence a été sauvegardée dans cette session (ce shift)
+  // Évite que les présences chargées depuis la DB (shifts précédents) polluent paiesJour
+  const presencesSession = useRef(new Set())
 
   // Modal shift
   const [modalShift, setModalShift] = useState(false)
@@ -56,11 +67,12 @@ export default function PresencesScreen() {
     if (restaurantId) chargerDonnees()
   }, [restaurantId, pointId])
 
-  // Sync paies vers AppContext pour que point-shift les voie
+  // Sync paies vers AppContext — uniquement les présences sauvegardées dans ce shift
+  // (les présences chargées depuis la DB pour affichage ne doivent pas remonter dans totalDepenses)
   useEffect(() => {
     const paies = {}
     Object.entries(presences).forEach(([id, p]) => {
-      if (parseFloat(p.paye) > 0) paies[id] = p.paye
+      if (presencesSession.current.has(id) && parseFloat(p.paye) > 0) paies[id] = p.paye
     })
     setPaiesJour(paies)
   }, [presences])
@@ -68,84 +80,91 @@ export default function PresencesScreen() {
   async function chargerDonnees() {
     setLoading(true)
 
-    // Charger travailleurs
-    const { data: travData } = await supabase
+    const travQuery = supabase
       .from('travailleurs')
       .select('*')
       .eq('restaurant_id', restaurantId)
       .eq('actif', true)
       .order('nom')
+
+    const presQuery = pointId
+      ? supabase.from('presences').select('*').eq('point_id', pointId)
+      : Promise.resolve({ data: [] })
+
+    const dateRef = dateJour || new Date().toISOString().split('T')[0]
+    const congesQuery = supabase
+      .from('permissions_conges')
+      .select('travailleur_id, type, motif')
+      .eq('restaurant_id', restaurantId)
+      .lte('date_debut', dateRef)
+      .gte('date_fin', dateRef)
+
+    const [{ data: travData }, { data: presData }, { data: congesData }] = await Promise.all([travQuery, presQuery, congesQuery])
+
     setTravailleurs(travData || [])
 
-    // Charger présences existantes depuis Supabase
-    if (pointId) {
-      const { data: presData } = await supabase
-        .from('presences')
-        .select('*')
-        .eq('point_id', pointId)
+    // Statuts automatiques actifs aujourd'hui (congé / permission déclarés dans RH)
+    const autoMap = {}
+    ;(congesData || []).forEach(c => {
+      autoMap[c.travailleur_id] = {
+        statut: c.type === 'conge' ? 'Congé' : 'Permission',
+        motif: c.motif || '',
+      }
+    })
+    setAutoStatuts(autoMap)
 
-      const presMap = {}
-      ;(presData || []).forEach(p => {
-        if (p.travailleur_id) {
-          presMap[p.travailleur_id] = {
-            statut: p.statut,
-            paye: String(p.paye || ''),
-            shift_nom: p.shift_nom || '',
-            heure_debut: p.heure_debut || '',
-            heure_fin: p.heure_fin || '',
-            presenceId: p.id,
-          }
-        }
-      })
-      setPresences(presMap)
-    }
+    // Agréger par travailleur : mon entrée (caissier_id === userId) pour édition,
+    // tout le reste (autre caissier ou legacy) → autresCaissiersPaye (lecture seule)
+    const presMap = {}
+    ;(presData || []).forEach(p => {
+      if (!p.travailleur_id) return
+      const id = p.travailleur_id
+      const paye = parseFloat(p.paye) || 0
+      if (!presMap[id]) {
+        presMap[id] = { statut: null, paye: '', shift_nom: '', heure_debut: '', heure_fin: '', presenceId: null, autresCaissiersPaye: 0 }
+      }
+      // Mon entrée : caissier_id matche, ou caissier_id absent (tentative 4) mais utilisateur_id matche
+      const isMine = p.caissier_id === userId || (p.caissier_id == null && p.utilisateur_id === userId)
+      if (isMine) {
+        // Restaurer dans presencesSession pour que paiesJour soit recalculé correctement
+        presencesSession.current.add(id)
+        presMap[id].statut = p.statut
+        presMap[id].paye = String(paye)
+        presMap[id].shift_nom = p.shift_nom || ''
+        presMap[id].heure_debut = p.heure_debut || ''
+        presMap[id].heure_fin = p.heure_fin || ''
+        presMap[id].presenceId = p.id
+      } else {
+        // Autre caissier → accumulation pour info
+        presMap[id].autresCaissiersPaye += paye
+      }
+    })
+    setPresences(presMap)
 
     setLoading(false)
   }
 
   async function sauvegarderPresence(travailleur, statut, paye, shiftNom, heureDebut, heureFin) {
     if (!pointId) return
+    presencesSession.current.add(travailleur.id)
 
     const existant = presences[travailleur.id]
+    const result = await saveOnePresence(
+      pointId, travailleur.id, travailleur.nom, statut, paye,
+      shiftNom, heureDebut, heureFin,
+      existant?.presenceId || null, userId, restaurantId,
+      dateJour || new Date().toISOString().split('T')[0],
+      userId, // caissier_id : discrimine les entrées par shift
+    )
 
-    if (existant?.presenceId) {
-      // Mettre à jour
-      await supabase.from('presences')
-        .update({
-          statut,
-          paye: parseFloat(paye) || 0,
-          shift_nom: shiftNom || '',
-          heure_debut: heureDebut || '',
-          heure_fin: heureFin || '',
-        })
-        .eq('id', existant.presenceId)
-    } else {
-      // Créer
-      const { data } = await supabase.from('presences')
-        .insert({
-          point_id: pointId,
-          travailleur_id: travailleur.id,
-          travailleur_nom: travailleur.nom,
-          statut,
-          paye: parseFloat(paye) || 0,
-          shift_nom: shiftNom || '',
-          heure_debut: heureDebut || '',
-          heure_fin: heureFin || '',
-          restaurant_id: restaurantId,
-          date: new Date().toISOString().split('T')[0],
-        })
-        .select()
-        .single()
-
-      if (data) {
-        setPresences(prev => ({
-          ...prev,
-          [travailleur.id]: {
-            ...prev[travailleur.id],
-            presenceId: data.id,
-          }
-        }))
-      }
+    if (result && result.id && !existant?.presenceId) {
+      setPresences(prev => ({
+        ...prev,
+        [travailleur.id]: {
+          ...prev[travailleur.id],
+          presenceId: result.id,
+        }
+      }))
     }
   }
 
@@ -311,24 +330,38 @@ export default function PresencesScreen() {
           travailleurs.map(t => {
             const pres = presences[t.id]
             const statut = pres?.statut || null
+            const autoStatut = autoStatuts[t.id]
+            const effectifStatut = autoStatut?.statut || statut
             const isSelected = selectedId === t.id
-            const couleurStatut = statut ? STATUT_COLORS[statut] : null
+            const couleurStatut = effectifStatut ? STATUT_COLORS[effectifStatut] : null
 
             return (
               <View key={t.id} style={[
                 styles.travCard,
-                statut && { borderLeftColor: couleurStatut.text, borderLeftWidth: 3 }
+                effectifStatut && { borderLeftColor: couleurStatut.text, borderLeftWidth: 3 }
               ]}>
-                <TouchableOpacity
-                  style={styles.travHeader}
-                  onPress={() => setSelectedId(isSelected ? null : t.id)}
-                  disabled={estBloque(pointValide)}
-                >
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarTxt}>
-                      {t.nom.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                {autoStatut && (
+                  <View style={styles.autoStatutBanner}>
+                    <Text style={styles.autoStatutTxt}>
+                      {autoStatut.statut === 'Congé' ? '🏖️' : '📋'} {autoStatut.statut} déclaré par RH
+                      {autoStatut.motif ? ` — ${autoStatut.motif}` : ''}
                     </Text>
                   </View>
+                )}
+                <TouchableOpacity
+                  style={styles.travHeader}
+                  onPress={() => !autoStatut && setSelectedId(isSelected ? null : t.id)}
+                  disabled={estBloque(pointValide) || !!autoStatut}
+                >
+                  {t.photo_url ? (
+                    <Image source={{ uri: t.photo_url }} style={styles.avatarPhoto} />
+                  ) : (
+                    <View style={styles.avatar}>
+                      <Text style={styles.avatarTxt}>
+                        {t.nom.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
                   <View style={styles.travInfo}>
                     <Text style={styles.travNom}>{t.nom}</Text>
                     <Text style={styles.travPoste}>{t.poste} — {t.type_contrat}</Text>
@@ -339,20 +372,20 @@ export default function PresencesScreen() {
                     )}
                   </View>
                   <View style={styles.travRight}>
-                    {statut ? (
+                    {effectifStatut ? (
                       <View style={[styles.statutBadge, { backgroundColor: couleurStatut.bg }]}>
-                        <Text style={[styles.statutTxt, { color: couleurStatut.text }]}>{statut}</Text>
+                        <Text style={[styles.statutTxt, { color: couleurStatut.text }]}>{effectifStatut}</Text>
                       </View>
                     ) : (
                       <View style={styles.statutBadgeVide}>
                         <Text style={styles.statutTxtVide}>Non défini</Text>
                       </View>
                     )}
-                    <Text style={styles.chevron}>{isSelected ? '▲' : '▼'}</Text>
+                    {!autoStatut && <Text style={styles.chevron}>{isSelected ? '▲' : '▼'}</Text>}
                   </View>
                 </TouchableOpacity>
 
-                {isSelected && !estBloque(pointValide) && (
+                {isSelected && !estBloque(pointValide) && !autoStatut && (
                   <View style={styles.statutSelector}>
                     <Text style={styles.selectorLabel}>Choisir le statut</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -400,11 +433,19 @@ export default function PresencesScreen() {
                   </View>
                 )}
 
-                {/* Affichage paie */}
+                {/* Affichage paie du shift courant */}
                 {statut === 'Présent' && pres?.paye && parseFloat(pres.paye) > 0 && (
                   <View style={styles.paieAffichage}>
                     <Text style={styles.paieAffichageTxt}>
                       💰 {fmt(parseFloat(pres.paye) || 0)}
+                    </Text>
+                  </View>
+                )}
+                {/* Badge shift précédent — visible même si ce caissier n'a rien saisi */}
+                {pres?.autresCaissiersPaye > 0 && (
+                  <View style={styles.paieAffichage}>
+                    <Text style={styles.autreShiftTxt}>
+                      ⏩ Shift précédent : {fmt(pres.autresCaissiersPaye)} — ajoute ta paie en dessus
                     </Text>
                   </View>
                 )}
@@ -574,8 +615,8 @@ export default function PresencesScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+function makeStyles(colors) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
     backgroundColor: '#EF9F27', padding: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'
@@ -590,63 +631,65 @@ const styles = StyleSheet.create({
   autosaveBanner: { backgroundColor: '#EAF3DE', padding: 8, alignItems: 'center' },
   autosaveTxt: { fontSize: 11, color: '#3B6D11', fontWeight: '500' },
   statsBar: {
-    backgroundColor: '#fff', maxHeight: 44,
-    borderBottomWidth: 0.5, borderBottomColor: '#eee', paddingHorizontal: 12
+    backgroundColor: colors.surface, maxHeight: 44,
+    borderBottomWidth: 0.5, borderBottomColor: colors.borderLight, paddingHorizontal: 12
   },
   statBadge: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, marginRight: 8, marginVertical: 6 },
   statBadgeTxt: { fontSize: 11, fontWeight: '500' },
   loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingTxt: { fontSize: 13, color: '#888', marginTop: 12 },
+  loadingTxt: { fontSize: 13, color: colors.textMuted, marginTop: 12 },
   body: { flex: 1, padding: 14 },
   emptyBox: { alignItems: 'center', paddingVertical: 40 },
-  emptyTxt: { fontSize: 14, color: '#888', fontWeight: '500' },
+  emptyTxt: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
   emptySub: { fontSize: 12, color: '#bbb', marginTop: 6 },
   travCard: {
-    backgroundColor: '#fff', borderRadius: 14, marginBottom: 10,
-    borderWidth: 0.5, borderColor: '#eee', overflow: 'hidden'
+    backgroundColor: colors.surface, borderRadius: 14, marginBottom: 10,
+    borderWidth: 0.5, borderColor: colors.borderLight, overflow: 'hidden'
   },
   travHeader: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 },
   avatar: {
     width: 44, height: 44, borderRadius: 22,
     backgroundColor: '#EF9F27', alignItems: 'center', justifyContent: 'center'
   },
+  avatarPhoto: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: '#fff' },
   avatarTxt: { fontSize: 15, fontWeight: '600', color: '#fff' },
   travInfo: { flex: 1 },
-  travNom: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
-  travPoste: { fontSize: 11, color: '#888', marginTop: 2 },
-  travShift: { fontSize: 10, color: '#534AB7', marginTop: 3 },
+  travNom: { fontSize: 14, fontWeight: '600', color: colors.text },
+  travPoste: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  travShift: { fontSize: 10, color: colors.primary, marginTop: 3 },
   travRight: { alignItems: 'flex-end', gap: 4 },
   statutBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   statutTxt: { fontSize: 11, fontWeight: '500' },
-  statutBadgeVide: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: '#f5f5f5' },
+  statutBadgeVide: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: colors.bg },
   statutTxtVide: { fontSize: 11, color: '#bbb' },
   chevron: { fontSize: 10, color: '#ccc' },
-  statutSelector: { borderTopWidth: 0.5, borderTopColor: '#f0f0f0', padding: 14 },
+  statutSelector: { borderTopWidth: 0.5, borderTopColor: colors.borderLight, padding: 14 },
   selectorLabel: {
-    fontSize: 11, fontWeight: '600', color: '#888',
+    fontSize: 11, fontWeight: '600', color: colors.textMuted,
     marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5
   },
   statutRow: { flexDirection: 'row', gap: 8 },
   statutChoix: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   statutChoixTxt: { fontSize: 13, fontWeight: '500' },
   modifShiftBtn: {
-    marginTop: 12, backgroundColor: '#EEEDFE',
+    marginTop: 12, backgroundColor: colors.primaryLight,
     borderRadius: 10, padding: 10, alignItems: 'center'
   },
-  modifShiftTxt: { fontSize: 13, color: '#534AB7', fontWeight: '500' },
+  modifShiftTxt: { fontSize: 13, color: colors.primary, fontWeight: '500' },
   paieAffichage: { paddingHorizontal: 14, paddingBottom: 10 },
   paieAffichageTxt: { fontSize: 12, color: '#EF9F27', fontWeight: '500' },
+  autreShiftTxt: { fontSize: 11, color: '#185FA5', marginTop: 2 },
   recapCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14,
-    marginBottom: 14, borderWidth: 0.5, borderColor: '#eee'
+    backgroundColor: colors.surface, borderRadius: 14, padding: 14,
+    marginBottom: 14, borderWidth: 0.5, borderColor: colors.borderLight
   },
-  recapTitre: { fontSize: 13, fontWeight: '600', color: '#1a1a1a', marginBottom: 12 },
+  recapTitre: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 12 },
   recapRow: {
     flexDirection: 'row', justifyContent: 'space-between',
-    paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5'
+    paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: colors.bg
   },
-  recapLabel: { fontSize: 13, color: '#888' },
-  recapVal: { fontSize: 13, color: '#1a1a1a' },
+  recapLabel: { fontSize: 13, color: colors.textMuted },
+  recapVal: { fontSize: 13, color: colors.text },
   validerBtn: {
     backgroundColor: '#3B6D11', borderRadius: 14, padding: 16,
     alignItems: 'center', marginBottom: 10
@@ -655,36 +698,41 @@ const styles = StyleSheet.create({
   validerSub: { fontSize: 11, color: '#C0DD97', marginTop: 4 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modal: {
-    backgroundColor: '#fff', borderTopLeftRadius: 24,
+    backgroundColor: colors.surface, borderTopLeftRadius: 24,
     borderTopRightRadius: 24, padding: 24, paddingBottom: 40
   },
-  modalTitre: { fontSize: 18, fontWeight: '600', color: '#1a1a1a', marginBottom: 20 },
+  modalTitre: { fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 20 },
   modalLabel: {
-    fontSize: 11, fontWeight: '600', color: '#888',
+    fontSize: 11, fontWeight: '600', color: colors.textMuted,
     letterSpacing: 0.5, marginBottom: 6, textTransform: 'uppercase'
   },
   modalInput: {
-    backgroundColor: '#f5f5f5', borderRadius: 12,
-    padding: 14, fontSize: 15, color: '#1a1a1a', marginBottom: 14
+    backgroundColor: colors.inputBg, borderRadius: 12,
+    padding: 14, fontSize: 15, color: colors.text, marginBottom: 14
   },
   shiftGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   shiftPresetBtn: {
-    width: '47%', backgroundColor: '#f5f5f5', borderRadius: 12,
-    padding: 12, alignItems: 'center', borderWidth: 1.5, borderColor: '#eee'
+    width: '47%', backgroundColor: colors.inputBg, borderRadius: 12,
+    padding: 12, alignItems: 'center', borderWidth: 1.5, borderColor: colors.borderLight
   },
-  shiftPresetBtnActif: { backgroundColor: '#EEEDFE', borderColor: '#534AB7' },
+  shiftPresetBtnActif: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
   shiftPresetEmoji: { fontSize: 22, marginBottom: 4 },
-  shiftPresetLabel: { fontSize: 13, fontWeight: '600', color: '#1a1a1a', marginBottom: 2 },
-  shiftPresetLabelActif: { color: '#534AB7' },
-  shiftPresetDesc: { fontSize: 10, color: '#888', textAlign: 'center' },
+  shiftPresetLabel: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 2 },
+  shiftPresetLabelActif: { color: colors.primary },
+  shiftPresetDesc: { fontSize: 10, color: colors.textMuted, textAlign: 'center' },
   shiftRecap: {
-    backgroundColor: '#EEEDFE', borderRadius: 10, padding: 10,
+    backgroundColor: colors.primaryLight, borderRadius: 10, padding: 10,
     alignItems: 'center', marginBottom: 14
   },
-  shiftRecapTxt: { fontSize: 14, fontWeight: '600', color: '#534AB7' },
+  shiftRecapTxt: { fontSize: 14, fontWeight: '600', color: colors.primary },
   modalBtns: { flexDirection: 'row', gap: 10, marginTop: 6 },
-  modalCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#f5f5f5', alignItems: 'center' },
-  modalCancelTxt: { fontSize: 14, color: '#888' },
+  modalCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.inputBg, alignItems: 'center' },
+  modalCancelTxt: { fontSize: 14, color: colors.textMuted },
   modalConfirm: { flex: 2, padding: 14, borderRadius: 12, backgroundColor: '#EF9F27', alignItems: 'center' },
   modalConfirmTxt: { fontSize: 14, fontWeight: '600', color: '#412402' },
-})
+  autoStatutBanner: {
+    backgroundColor: '#EEEDFE', paddingHorizontal: 14, paddingVertical: 6,
+    borderBottomWidth: 0.5, borderBottomColor: '#C8C4F8'
+  },
+  autoStatutTxt: { fontSize: 11, color: '#3C3489', fontWeight: '500' },
+}) }

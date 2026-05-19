@@ -1,5 +1,5 @@
 import { router } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator, Dimensions, Modal,
   SafeAreaView, ScrollView, StyleSheet,
@@ -12,6 +12,7 @@ import {
   VictoryPie, VictoryTheme
 } from 'victory-native'
 import { useApp } from '../context/AppContext'
+import { useTheme } from '../context/ThemeContext'
 import { getPointsPeriode } from '../lib/api'
 import { supabase } from '../lib/supabase'
 
@@ -34,6 +35,9 @@ export default function DashboardScreen() {
     restaurantId, restaurantNom, pointId,
     roleActif,
   } = useApp()
+
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
 
   const isGerant = roleActif === 'gerant'
   const isManager = roleActif === 'manager'
@@ -685,8 +689,8 @@ export default function DashboardScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+function makeStyles(colors) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
     backgroundColor: '#EF9F27', padding: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'
@@ -694,101 +698,101 @@ const styles = StyleSheet.create({
   back: { fontSize: 16, color: '#412402', fontWeight: '500' },
   headerTitre: { fontSize: 16, fontWeight: '600', color: '#412402', textAlign: 'center' },
   headerSub: { fontSize: 11, color: '#854F0B', textAlign: 'center' },
-  periodeBar: { backgroundColor: '#fff', maxHeight: 46, borderBottomWidth: 0.5, borderBottomColor: '#eee' },
+  periodeBar: { backgroundColor: colors.surface, maxHeight: 46, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
   periodeBtn: { paddingHorizontal: 16, paddingVertical: 12 },
   periodeBtnActive: { borderBottomWidth: 2, borderBottomColor: '#EF9F27' },
-  periodeTxt: { fontSize: 13, color: '#888' },
+  periodeTxt: { fontSize: 13, color: colors.textMuted },
   periodeTxtActive: { color: '#EF9F27', fontWeight: '600' },
   shiftsBanner: {
-    backgroundColor: '#EEEDFE', padding: 8, paddingHorizontal: 14,
-    borderBottomWidth: 0.5, borderBottomColor: '#CECBF6'
+    backgroundColor: colors.primaryLight, padding: 8, paddingHorizontal: 14,
+    borderBottomWidth: 0.5, borderBottomColor: colors.primaryText
   },
-  shiftsBannerTxt: { fontSize: 12, color: '#534AB7', fontWeight: '500' },
+  shiftsBannerTxt: { fontSize: 12, color: colors.primary, fontWeight: '500' },
   periodeBanner: {
-    backgroundColor: '#FAEEDA', padding: 10,
+    backgroundColor: colors.orangeLight, padding: 10,
     flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16
   },
-  periodeBannerTxt: { fontSize: 13, color: '#854F0B', fontWeight: '500' },
+  periodeBannerTxt: { fontSize: 13, color: colors.orangeDark, fontWeight: '500' },
   periodeBannerSub: { fontSize: 11, color: '#BA7517' },
   loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
-  loadingTxt: { fontSize: 13, color: '#888', marginTop: 12 },
+  loadingTxt: { fontSize: 13, color: colors.textMuted, marginTop: 12 },
   emptyBox: { alignItems: 'center', paddingVertical: 60 },
   emptyIcon: { fontSize: 40, marginBottom: 12 },
-  emptyTxt: { fontSize: 14, color: '#888', fontWeight: '500' },
+  emptyTxt: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
   emptySub: { fontSize: 12, color: '#bbb', marginTop: 6, textAlign: 'center' },
   body: { flex: 1, padding: 14 },
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   kpiCard: {
-    width: (width - 44) / 2, backgroundColor: '#fff',
-    borderRadius: 12, padding: 14, borderWidth: 0.5, borderColor: '#eee'
+    width: (width - 44) / 2, backgroundColor: colors.surface,
+    borderRadius: 12, padding: 14, borderWidth: 0.5, borderColor: colors.borderLight
   },
-  kpiLabel: { fontSize: 11, color: '#888', marginBottom: 6 },
+  kpiLabel: { fontSize: 11, color: colors.textMuted, marginBottom: 6 },
   kpiValue: { fontSize: 14, fontWeight: '600' },
   graphCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14,
-    marginBottom: 14, borderWidth: 0.5, borderColor: '#eee'
+    backgroundColor: colors.surface, borderRadius: 14, padding: 14,
+    marginBottom: 14, borderWidth: 0.5, borderColor: colors.borderLight
   },
-  graphTitre: { fontSize: 13, fontWeight: '600', color: '#1a1a1a', marginBottom: 8 },
+  graphTitre: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 8 },
   legende: { flexDirection: 'row', gap: 16, justifyContent: 'center', marginTop: 4 },
   legendeItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendeColor: { width: 12, height: 12, borderRadius: 3 },
-  legendeTxt: { fontSize: 11, color: '#888' },
+  legendeTxt: { fontSize: 11, color: colors.textMuted },
   pieContainer: { flexDirection: 'row', alignItems: 'center' },
   pieLegend: { flex: 1, paddingLeft: 8 },
   pieLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-  pieLegendLabel: { fontSize: 11, fontWeight: '600', color: '#1a1a1a' },
-  pieLegendValue: { fontSize: 10, color: '#888' },
+  pieLegendLabel: { fontSize: 11, fontWeight: '600', color: colors.text },
+  pieLegendValue: { fontSize: 10, color: colors.textMuted },
   section: { marginBottom: 14 },
   sectionTitre: {
-    fontSize: 12, fontWeight: '600', color: '#888', marginBottom: 8,
+    fontSize: 12, fontWeight: '600', color: colors.textMuted, marginBottom: 8,
     textTransform: 'uppercase', letterSpacing: 0.5
   },
   resultCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14,
-    borderWidth: 0.5, borderColor: '#eee'
+    backgroundColor: colors.surface, borderRadius: 14, padding: 14,
+    borderWidth: 0.5, borderColor: colors.borderLight
   },
   resultRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', paddingVertical: 7,
-    borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5'
+    borderBottomWidth: 0.5, borderBottomColor: colors.bg
   },
-  resultLabel: { fontSize: 13, color: '#888' },
-  resultValue: { fontSize: 13, fontWeight: '500', color: '#1a1a1a' },
+  resultLabel: { fontSize: 13, color: colors.textMuted },
+  resultValue: { fontSize: 13, fontWeight: '500', color: colors.text },
   dateSmall: { fontSize: 10, color: '#aaa', marginTop: 2 },
   messageCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 16,
-    borderWidth: 0.5, borderColor: '#eee', marginBottom: 14
+    backgroundColor: colors.surface, borderRadius: 14, padding: 16,
+    borderWidth: 0.5, borderColor: colors.borderLight, marginBottom: 14
   },
   messageOk: { fontSize: 14, color: '#3B6D11', fontWeight: '500', textAlign: 'center', lineHeight: 22 },
   messageWarn: { fontSize: 14, color: '#854F0B', fontWeight: '500', textAlign: 'center', lineHeight: 22 },
   messageBad: { fontSize: 14, color: '#A32D2D', fontWeight: '500', textAlign: 'center', lineHeight: 22 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modal: {
-    backgroundColor: '#fff', borderTopLeftRadius: 24,
+    backgroundColor: colors.surface, borderTopLeftRadius: 24,
     borderTopRightRadius: 24, padding: 20, paddingBottom: 40
   },
   modalHeader: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginBottom: 16
   },
-  modalTitre: { fontSize: 18, fontWeight: '600', color: '#1a1a1a' },
-  modalClose: { fontSize: 18, color: '#888' },
+  modalTitre: { fontSize: 18, fontWeight: '600', color: colors.text },
+  modalClose: { fontSize: 18, color: colors.textMuted },
   etapeRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   etapeBadge: {
     flex: 1, paddingVertical: 8, paddingHorizontal: 12,
-    borderRadius: 20, backgroundColor: '#f5f5f5', alignItems: 'center'
+    borderRadius: 20, backgroundColor: colors.bg, alignItems: 'center'
   },
   etapeBadgeActive: { backgroundColor: '#EF9F27' },
-  etapeTxt: { fontSize: 12, color: '#888', fontWeight: '500' },
+  etapeTxt: { fontSize: 12, color: colors.textMuted, fontWeight: '500' },
   etapeTxtActive: { color: '#412402' },
-  etapeLine: { width: 20, height: 1, backgroundColor: '#eee', marginHorizontal: 4 },
+  etapeLine: { width: 20, height: 1, backgroundColor: colors.borderLight, marginHorizontal: 4 },
   selectedDates: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#f5f5f5', borderRadius: 12, padding: 12, marginBottom: 14
+    backgroundColor: colors.bg, borderRadius: 12, padding: 12, marginBottom: 14
   },
   modalBtns: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  modalCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#f5f5f5', alignItems: 'center' },
-  modalCancelTxt: { fontSize: 14, color: '#888' },
+  modalCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.bg, alignItems: 'center' },
+  modalCancelTxt: { fontSize: 14, color: colors.textMuted },
   modalConfirm: { flex: 2, padding: 14, borderRadius: 12, backgroundColor: '#EF9F27', alignItems: 'center' },
   modalConfirmTxt: { fontSize: 14, fontWeight: '600', color: '#412402' },
-})
+}) }

@@ -1,5 +1,5 @@
 import { router } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -14,7 +14,8 @@ import {
   View
 } from 'react-native'
 import { useApp } from '../context/AppContext'
-import { CATEGORIES_DEPENSES, COEFFICIENTS } from '../lib/constants'
+import { useTheme } from '../context/ThemeContext'
+import { COEFFICIENTS } from '../lib/constants'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
 
@@ -24,12 +25,11 @@ export default function VentesScreen() {
     ventesJour, setVentesJour,
     resteEspeces, fc, beneficeSC,
     roleActif, restaurantId,
-    depensesGerantCaisse, setDepensesGerantCaisse,
-    fournisseursGerantCaisse, setFournisseursGerantCaisse,
-    totalDepensesGerantCaisse,
   } = useApp()
 
   const { prendrePhoto, choisirPhoto } = usePhoto()
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
 
   const [etape, setEtape] = useState(1)
   const [saving, setSaving] = useState(false)
@@ -37,9 +37,6 @@ export default function VentesScreen() {
   const [photosAlertVisible, setPhotosAlertVisible] = useState(false)
   const [chargementShifts, setChargementShifts] = useState(false)
   const [cumulShifts, setCumulShifts] = useState(null)
-  const [sectionsOuvertes, setSectionsOuvertes] = useState(new Set())
-  const [fournisseursList, setFournisseursList] = useState([])
-
   const isGerant = roleActif === 'gerant'
   const isManager = roleActif === 'manager'
   const bloque = estBloque(pointValide)
@@ -100,76 +97,7 @@ export default function VentesScreen() {
       }))
     }
 
-    // Charger la liste des fournisseurs du restaurant + crédit veille (dernier reste)
-    const { data: fours } = await supabase
-      .from('fournisseurs')
-      .select('id, nom')
-      .eq('restaurant_id', restaurantId)
-      .order('nom')
-
-    let creditMap = {}
-    if (fours && fours.length > 0) {
-      const fourIds = fours.map(f => f.id)
-      const { data: lastTrans } = await supabase
-        .from('transactions_fournisseurs')
-        .select('fournisseur_id, reste, created_at')
-        .in('fournisseur_id', fourIds)
-        .order('created_at', { ascending: false })
-      ;(lastTrans || []).forEach(t => {
-        if (creditMap[t.fournisseur_id] === undefined) {
-          creditMap[t.fournisseur_id] = t.reste || 0
-        }
-      })
-    }
-    setFournisseursList((fours || []).map(f => ({
-      ...f,
-      credit_veille: creditMap[f.id] || 0
-    })))
-
     setChargementShifts(false)
-  }
-
-  function toggleSection(key) {
-    setSectionsOuvertes(prev => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
-
-  function ajouterLigneDep(cat) {
-    setDepensesGerantCaisse(prev => ({
-      ...prev,
-      [cat]: [...(prev[cat] || []), { id: Date.now().toString(), description: '', montant: '', photoUri: null }]
-    }))
-  }
-
-  function supprimerLigneDep(cat, index) {
-    setDepensesGerantCaisse(prev => ({
-      ...prev,
-      [cat]: (prev[cat] || []).filter((_, i) => i !== index)
-    }))
-  }
-
-  function updateLigneDep(cat, index, champ, valeur) {
-    setDepensesGerantCaisse(prev => ({
-      ...prev,
-      [cat]: (prev[cat] || []).map((l, i) => i === index ? { ...l, [champ]: valeur } : l)
-    }))
-  }
-
-  function updateFournisseurGerant(fourId, fourNom, champ, valeur) {
-    setFournisseursGerantCaisse(prev => ({
-      ...prev,
-      [fourId]: { ...prev[fourId], nom: fourNom, [champ]: valeur }
-    }))
-  }
-
-  function getCreditVeille(four) {
-    const data = fournisseursGerantCaisse[four.id]
-    if (data?.credit_veille !== undefined) return parseFloat(data.credit_veille) || 0
-    return four.credit_veille || 0
   }
 
   function setVente(champ, valeur) {
@@ -230,6 +158,9 @@ export default function VentesScreen() {
       const venteTheo = cumulShifts?.venteTotal || 0
       updates.ecart_caisse = venteTheo - (parseFloat(ventesJour.venteMachine) || 0)
     }
+    if (ventesJour.explicacionEcartMachine) {
+      updates.explication_ecart_machine = ventesJour.explicacionEcartMachine
+    }
     if (Object.keys(updates).length > 0) {
       await supabase.from('points').update(updates).eq('id', pointId)
     }
@@ -238,6 +169,17 @@ export default function VentesScreen() {
   async function allerAuRecap() {
     if (!pointId) { Alert.alert('Erreur', 'Aucun point actif'); return }
     if (!isManager) {
+      // Vérifier explication écart machine obligatoire
+      if (cumulShifts && ventesJour.venteMachine !== '') {
+        const ecart = Math.abs(cumulShifts.venteTotal - (parseFloat(ventesJour.venteMachine) || 0))
+        if (ecart > 0 && (ventesJour.explicacionEcartMachine || '').trim().length < 10) {
+          Alert.alert(
+            'Explication requise',
+            'Un écart a été détecté entre la vente théorique et la vente machine.\n\nVeuillez saisir une explication d\'au moins 10 caractères avant de continuer.'
+          )
+          return
+        }
+      }
       const manquantes = verifierPhotosObligatoires()
       if (manquantes.length > 0) {
         setPhotosAlertVisible(true)
@@ -327,11 +269,20 @@ export default function VentesScreen() {
         </View>
       )}
 
-      {(isGerant || isManager) && cumulShifts && (
+      {(isGerant || isManager) && (
         <View style={styles.cumulBanner}>
           <Text style={styles.cumulBannerTxt}>
-            📊 {cumulShifts.nbShifts} shift(s) validé(s) — Vente : {fmt(cumulShifts.venteTotal)}
+            {cumulShifts
+              ? `📊 ${cumulShifts.nbShifts} shift(s) validé(s) — Vente : ${fmt(cumulShifts.venteTotal)}`
+              : '📊 Aucun shift chargé'}
           </Text>
+          <TouchableOpacity
+            onPress={chargerCumulShifts}
+            disabled={chargementShifts}
+            style={styles.cumulRefreshBtn}
+          >
+            <Text style={styles.cumulRefreshTxt}>{chargementShifts ? '...' : '🔄'}</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -509,6 +460,25 @@ export default function VentesScreen() {
                 <Text style={styles.fcValAuto}>{fmt(parseFloat(ventesJour.fcVeille) || 0)}</Text>
               </View>
 
+              {/* FC reçu — ajustement administratif */}
+              <View style={[styles.fcRow, { alignItems: 'flex-start', paddingTop: 14 }]}>
+                <View style={styles.fcRowLeft}>
+                  <Text style={[styles.fcLabel, { fontWeight: '600', color: colors.text }]}>FC reçu</Text>
+                  <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 2 }}>
+                    Ajustement admin (+ complément / − déduction)
+                  </Text>
+                </View>
+                <TextInput
+                  style={styles.fcInput}
+                  value={ventesJour.fc_recu || ''}
+                  onChangeText={v => setVente('fc_recu', v)}
+                  keyboardType="numbers-and-punctuation"
+                  placeholder="0"
+                  placeholderTextColor="#bbb"
+                  editable={!bloque || isManager}
+                />
+              </View>
+
               <View style={styles.fcRow}>
                 <View style={styles.fcRowLeft}>
                   <Text style={styles.fcLabel}>Espèces en caisse</Text>
@@ -517,53 +487,17 @@ export default function VentesScreen() {
                 <Text style={styles.fcValAuto}>{fmt(resteEspeces())}</Text>
               </View>
 
-              <View style={styles.fcRow}>
+              <View style={[styles.fcRow, { borderBottomWidth: 0 }]}>
                 <View style={styles.fcRowLeft}>
-                  <Text style={[styles.fcLabel, { fontWeight: '600', color: '#534AB7' }]}>FC calculé</Text>
-                  <View style={[styles.autoBadge, { backgroundColor: '#EEEDFE' }]}>
-                    <Text style={[styles.autoBadgeTxt, { color: '#534AB7' }]}>espèces + veille</Text>
+                  <Text style={[styles.fcLabel, { fontWeight: '600', color: colors.primary }]}>FC calculé</Text>
+                  <View style={[styles.autoBadge, { backgroundColor: colors.primaryLight }]}>
+                    <Text style={[styles.autoBadgeTxt, { color: colors.primary }]}>veille + reçu + espèces</Text>
                   </View>
                 </View>
-                <Text style={[styles.fcValAuto, { fontWeight: '700', color: '#534AB7', fontSize: 15 }]}>
+                <Text style={[styles.fcValAuto, { fontWeight: '700', color: colors.primary, fontSize: 15 }]}>
                   {fmt(fc())}
                 </Text>
               </View>
-
-              <View style={[styles.fcRow, { borderBottomWidth: 0, alignItems: 'flex-start', paddingTop: 14 }]}>
-                <View style={styles.fcRowLeft}>
-                  <Text style={[styles.fcLabel, { fontWeight: '600', color: '#1a1a1a' }]}>FC saisi</Text>
-                  <Text style={{ fontSize: 10, color: '#888', marginTop: 2 }}>
-                    Montant réel en caisse (peut être négatif)
-                  </Text>
-                </View>
-                <TextInput
-                  style={styles.fcInput}
-                  value={ventesJour.fc_actuel || ''}
-                  onChangeText={v => setVente('fc_actuel', v)}
-                  keyboardType="numbers-and-punctuation"
-                  placeholder="Saisir..."
-                  placeholderTextColor="#bbb"
-                  editable={!bloque || isManager}
-                />
-              </View>
-
-              {/* Écart FC */}
-              {ventesJour.fc_actuel !== '' && ventesJour.fc_actuel !== undefined && (
-                (() => {
-                  const ecart = (parseFloat(ventesJour.fc_actuel) || 0) - fc()
-                  const ok = Math.abs(ecart) < 500
-                  return (
-                    <View style={[styles.ecartBanner, {
-                      backgroundColor: ok ? '#EAF3DE' : '#FAECE7',
-                      borderColor: ok ? '#3B6D11' : '#A32D2D',
-                    }]}>
-                      <Text style={[styles.ecartTxt, { color: ok ? '#3B6D11' : '#A32D2D' }]}>
-                        {ok ? '✅' : '⚠️'} Écart FC : {ecart >= 0 ? '+' : ''}{fmt(ecart)}
-                      </Text>
-                    </View>
-                  )
-                })()
-              )}
             </View>
 
             {/* Bénéfice SC */}
@@ -575,18 +509,24 @@ export default function VentesScreen() {
                 { label: `Wave ×${COEFFICIENTS.WAVE}`, val: (parseFloat(ventesJour.wave) || 0) * COEFFICIENTS.WAVE },
                 { label: `Orange Money ×${COEFFICIENTS.OM}`, val: (parseFloat(ventesJour.om) || 0) * COEFFICIENTS.OM },
                 { label: `Djamo ×${COEFFICIENTS.DJAMO}`, val: (parseFloat(ventesJour.djamo) || 0) * COEFFICIENTS.DJAMO },
-                { label: 'Espèces en caisse', val: resteEspeces() },
               ].filter(r => r.val > 0).map((r, i) => (
                 <View key={i} style={styles.beneficeRow}>
                   <Text style={styles.beneficeLabel}>{r.label}</Text>
                   <Text style={styles.beneficeVal}>{fmt(r.val)}</Text>
                 </View>
               ))}
+              {/* Reste espèces — toujours affiché même si négatif */}
+              <View style={styles.beneficeRow}>
+                <Text style={styles.beneficeLabel}>Reste espèces</Text>
+                <Text style={[styles.beneficeVal, resteEspeces() < 0 && { color: '#A32D2D' }]}>
+                  {resteEspeces() >= 0 ? fmt(resteEspeces()) : `− ${fmt(Math.abs(resteEspeces()))}`}
+                </Text>
+              </View>
               <View style={[styles.beneficeRow, {
                 borderBottomWidth: 0, marginTop: 8, paddingTop: 8,
                 borderTopWidth: 1.5, borderTopColor: '#3B6D11'
               }]}>
-                <Text style={[styles.beneficeLabel, { fontWeight: '700', color: '#1a1a1a', fontSize: 14 }]}>
+                <Text style={[styles.beneficeLabel, { fontWeight: '700', color: colors.text, fontSize: 14 }]}>
                   Bénéfice SC total
                 </Text>
                 <Text style={[styles.beneficeVal, { fontWeight: '700', color: '#3B6D11', fontSize: 18 }]}>
@@ -594,261 +534,6 @@ export default function VentesScreen() {
                 </Text>
               </View>
             </View>
-
-            {/* ── Dépenses caisse gérant ── */}
-            {(isGerant || isManager) && (
-              <>
-                <Text style={styles.sectionTitre}>Dépenses caisse gérant</Text>
-                <Text style={styles.sectionSub}>
-                  Prélevées sur les espèces — chaque ligne doit être justifiée par une photo
-                </Text>
-
-                {/* Bande Fournisseurs */}
-                <TouchableOpacity style={styles.bandHeader} onPress={() => toggleSection('fournisseurs')}>
-                  <Text style={styles.bandTitre}>🏪 Fournisseurs</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    {Object.keys(fournisseursGerantCaisse).length > 0 && (
-                      <Text style={styles.bandCount}>{Object.keys(fournisseursGerantCaisse).length} saisie(s)</Text>
-                    )}
-                    <Text style={styles.bandChevron}>{sectionsOuvertes.has('fournisseurs') ? '▲' : '▼'}</Text>
-                  </View>
-                </TouchableOpacity>
-
-                {sectionsOuvertes.has('fournisseurs') && (
-                  <View style={styles.bandContent}>
-                    {fournisseursList.length === 0 ? (
-                      <Text style={styles.bandVide}>Aucun fournisseur enregistré pour ce restaurant</Text>
-                    ) : (
-                      fournisseursList.map(four => {
-                        const data = fournisseursGerantCaisse[four.id] || {}
-                        const fourOpen = sectionsOuvertes.has(`four_${four.id}`)
-                        const creditV = getCreditVeille(four)
-                        const montFact = parseFloat(data.montant_facture) || 0
-                        const payé = parseFloat(data.paye) || 0
-                        const reste = creditV + montFact - payé
-                        return (
-                          <View key={four.id}>
-                            <TouchableOpacity style={styles.fourRow} onPress={() => toggleSection(`four_${four.id}`)}>
-                              <View style={{ flex: 1 }}>
-                                <Text style={styles.fourNom}>{four.nom}</Text>
-                                {creditV > 0 && (
-                                  <Text style={{ fontSize: 10, color: '#888', marginTop: 1 }}>
-                                    Crédit veille : {fmt(creditV)}
-                                  </Text>
-                                )}
-                              </View>
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                {payé > 0 && (
-                                  <Text style={styles.fourMontant}>Payé {fmt(payé)}</Text>
-                                )}
-                                {data.photoUri && <Text style={{ fontSize: 12 }}>📷</Text>}
-                                <Text style={styles.bandChevron}>{fourOpen ? '▲' : '▼'}</Text>
-                              </View>
-                            </TouchableOpacity>
-                            {fourOpen && (
-                              <View style={styles.fourDetails}>
-                                {/* Crédit veille */}
-                                <View style={styles.fourCreditRow}>
-                                  <View style={{ flex: 1 }}>
-                                    <Text style={styles.fourCreditLabel}>Crédit veille</Text>
-                                    <Text style={{ fontSize: 10, color: '#888' }}>
-                                      {isManager ? 'Modifiable' : 'Calculé auto'}
-                                    </Text>
-                                  </View>
-                                  {isManager ? (
-                                    <TextInput
-                                      style={styles.fourCreditInput}
-                                      value={data.credit_veille !== undefined ? String(data.credit_veille) : String(four.credit_veille || 0)}
-                                      onChangeText={v => updateFournisseurGerant(four.id, four.nom, 'credit_veille', v)}
-                                      keyboardType="numeric"
-                                      placeholderTextColor="#bbb"
-                                    />
-                                  ) : (
-                                    <Text style={styles.fourCreditVal}>{fmt(creditV)}</Text>
-                                  )}
-                                </View>
-
-                                {/* N° facture */}
-                                <TextInput
-                                  style={styles.depInput}
-                                  value={data.facture_ref || ''}
-                                  onChangeText={v => updateFournisseurGerant(four.id, four.nom, 'facture_ref', v)}
-                                  placeholder="N° facture / référence (optionnel)"
-                                  placeholderTextColor="#bbb"
-                                />
-
-                                {/* Montant facture */}
-                                <TextInput
-                                  style={styles.depInput}
-                                  value={data.montant_facture || ''}
-                                  onChangeText={v => updateFournisseurGerant(four.id, four.nom, 'montant_facture', v)}
-                                  keyboardType="numeric"
-                                  placeholder="Montant facture du jour (FCFA)"
-                                  placeholderTextColor="#bbb"
-                                />
-
-                                {/* Montant payé */}
-                                <TextInput
-                                  style={[styles.depInput, { borderWidth: 1, borderColor: '#EF9F27' }]}
-                                  value={data.paye || ''}
-                                  onChangeText={v => updateFournisseurGerant(four.id, four.nom, 'paye', v)}
-                                  keyboardType="numeric"
-                                  placeholder="Montant payé ce jour (FCFA)"
-                                  placeholderTextColor="#bbb"
-                                />
-
-                                {/* Reste calculé */}
-                                {(montFact > 0 || creditV > 0) && (
-                                  <View style={[styles.fourResteRow, {
-                                    backgroundColor: reste <= 0 ? '#EAF3DE' : '#FAEEDA',
-                                    borderColor: reste <= 0 ? '#3B6D11' : '#EF9F27',
-                                  }]}>
-                                    <Text style={[styles.fourResteLabel, { color: reste <= 0 ? '#3B6D11' : '#854F0B' }]}>
-                                      Reste dû après paiement
-                                    </Text>
-                                    <Text style={[styles.fourResteVal, { color: reste <= 0 ? '#3B6D11' : '#A32D2D' }]}>
-                                      {fmt(Math.max(0, reste))}
-                                    </Text>
-                                  </View>
-                                )}
-
-                                {/* Photo */}
-                                <View style={[styles.photoBlock,
-                                  montFact > 0 && !data.photoUri && styles.photoBlockRequired
-                                ]}>
-                                  <View style={styles.photoBlockHeader}>
-                                    <Text style={styles.photoBlockLabel}>
-                                      📷 Justificatif facture
-                                      {montFact > 0 && <Text style={{ color: '#A32D2D' }}> *</Text>}
-                                    </Text>
-                                    {data.photoUri ? (
-                                      <View style={styles.photoBadgeOk}><Text style={styles.photoBadgeOkTxt}>✅ OK</Text></View>
-                                    ) : montFact > 0 ? (
-                                      <View style={styles.photoBadgeReq}><Text style={styles.photoBadgeReqTxt}>⚠️ Requis</Text></View>
-                                    ) : null}
-                                  </View>
-                                  {data.photoUri && (
-                                    <Image source={{ uri: data.photoUri }} style={styles.photoPreview} resizeMode="cover" />
-                                  )}
-                                  <TouchableOpacity
-                                    style={styles.photoBtn}
-                                    onPress={() => gererPhoto(url => updateFournisseurGerant(four.id, four.nom, 'photoUri', url), 'depenses-gerant')}
-                                    disabled={uploading}
-                                  >
-                                    {uploading ? (
-                                      <ActivityIndicator size="small" color="#412402" />
-                                    ) : (
-                                      <Text style={styles.photoBtnTxt}>
-                                        {data.photoUri ? '🔄 Changer la photo' : '📷 Ajouter une photo'}
-                                      </Text>
-                                    )}
-                                  </TouchableOpacity>
-                                </View>
-                              </View>
-                            )}
-                          </View>
-                        )
-                      })
-                    )}
-                  </View>
-                )}
-
-                {/* Bandes catégories */}
-                {[
-                  { key: CATEGORIES_DEPENSES[0], emoji: '🛒' },
-                  { key: CATEGORIES_DEPENSES[1], emoji: '🥦' },
-                  { key: CATEGORIES_DEPENSES[2], emoji: '🍊' },
-                  { key: CATEGORIES_DEPENSES[3], emoji: '📦' },
-                ].map(({ key, emoji }) => {
-                  const lignes = depensesGerantCaisse[key] || []
-                  const isOpen = sectionsOuvertes.has(key)
-                  return (
-                    <View key={key}>
-                      <TouchableOpacity style={styles.bandHeader} onPress={() => toggleSection(key)}>
-                        <Text style={styles.bandTitre}>{emoji} {key}</Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                          {lignes.length > 0 && (
-                            <Text style={styles.bandCount}>{lignes.length} ligne(s)</Text>
-                          )}
-                          <Text style={styles.bandChevron}>{isOpen ? '▲' : '▼'}</Text>
-                        </View>
-                      </TouchableOpacity>
-                      {isOpen && (
-                        <View style={styles.bandContent}>
-                          {lignes.map((ligne, i) => (
-                            <View key={ligne.id || i} style={styles.ligneDepCard}>
-                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                                <Text style={styles.ligneDepNum}>Ligne {i + 1}</Text>
-                                <TouchableOpacity onPress={() => supprimerLigneDep(key, i)}>
-                                  <Text style={{ color: '#993C1D', fontSize: 12, fontWeight: '500' }}>✕ Supprimer</Text>
-                                </TouchableOpacity>
-                              </View>
-                              <TextInput
-                                style={styles.depInput}
-                                value={ligne.description || ''}
-                                onChangeText={v => updateLigneDep(key, i, 'description', v)}
-                                placeholder="Description"
-                                placeholderTextColor="#bbb"
-                              />
-                              <TextInput
-                                style={styles.depInput}
-                                value={ligne.montant || ''}
-                                onChangeText={v => updateLigneDep(key, i, 'montant', v)}
-                                keyboardType="numeric"
-                                placeholder="Montant (FCFA)"
-                                placeholderTextColor="#bbb"
-                              />
-                              <View style={[styles.photoBlock,
-                                parseFloat(ligne.montant) > 0 && !ligne.photoUri && styles.photoBlockRequired
-                              ]}>
-                                <View style={styles.photoBlockHeader}>
-                                  <Text style={styles.photoBlockLabel}>
-                                    📷 Justificatif
-                                    {parseFloat(ligne.montant) > 0 && <Text style={{ color: '#A32D2D' }}> *</Text>}
-                                  </Text>
-                                  {ligne.photoUri ? (
-                                    <View style={styles.photoBadgeOk}><Text style={styles.photoBadgeOkTxt}>✅ OK</Text></View>
-                                  ) : parseFloat(ligne.montant) > 0 ? (
-                                    <View style={styles.photoBadgeReq}><Text style={styles.photoBadgeReqTxt}>⚠️ Requis</Text></View>
-                                  ) : null}
-                                </View>
-                                {ligne.photoUri && (
-                                  <Image source={{ uri: ligne.photoUri }} style={styles.photoPreview} resizeMode="cover" />
-                                )}
-                                <TouchableOpacity
-                                  style={styles.photoBtn}
-                                  onPress={() => gererPhoto(url => updateLigneDep(key, i, 'photoUri', url), 'depenses-gerant')}
-                                  disabled={uploading}
-                                >
-                                  {uploading ? (
-                                    <ActivityIndicator size="small" color="#412402" />
-                                  ) : (
-                                    <Text style={styles.photoBtnTxt}>
-                                      {ligne.photoUri ? '🔄 Changer la photo' : '📷 Ajouter une photo'}
-                                    </Text>
-                                  )}
-                                </TouchableOpacity>
-                              </View>
-                            </View>
-                          ))}
-                          <TouchableOpacity style={styles.ajouterLigneBtn} onPress={() => ajouterLigneDep(key)}>
-                            <Text style={styles.ajouterLigneTxt}>+ Ajouter une ligne</Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
-                    </View>
-                  )
-                })}
-
-                {/* Total dépenses gérant */}
-                {totalDepensesGerantCaisse() > 0 && (
-                  <View style={styles.totalDepGerantCard}>
-                    <Text style={styles.totalDepGerantLabel}>Total dépenses gérant caisse</Text>
-                    <Text style={styles.totalDepGerantVal}>− {fmt(totalDepensesGerantCaisse())}</Text>
-                  </View>
-                )}
-              </>
-            )}
 
             {/* Vente machine */}
             {(isGerant || isManager) && (
@@ -869,10 +554,10 @@ export default function VentesScreen() {
                   {/* Saisie vente machine */}
                   <View style={[styles.vmRow, { alignItems: 'flex-start', paddingTop: 14 }]}>
                     <View style={styles.vmRowLeft}>
-                      <Text style={[styles.vmLabel, { fontWeight: '600', color: '#1a1a1a' }]}>
+                      <Text style={[styles.vmLabel, { fontWeight: '600', color: colors.text }]}>
                         Vente machine
                       </Text>
-                      <Text style={{ fontSize: 10, color: '#888', marginTop: 2 }}>
+                      <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 2 }}>
                         Montant lu sur la caisse / POS
                       </Text>
                     </View>
@@ -927,7 +612,7 @@ export default function VentesScreen() {
                   {/* Écart */}
                   {ventesJour.venteMachine !== '' && cumulShifts && (() => {
                     const ecart = cumulShifts.venteTotal - (parseFloat(ventesJour.venteMachine) || 0)
-                    const parfait = Math.abs(ecart) < 500
+                    const parfait = Math.abs(ecart) === 0
                     const surplus = ecart > 0
                     return (
                       <View style={[styles.ecartBanner, {
@@ -938,12 +623,40 @@ export default function VentesScreen() {
                         <Text style={[styles.ecartTxt, {
                           color: parfait ? '#3B6D11' : surplus ? '#185FA5' : '#A32D2D'
                         }]}>
-                          {parfait ? '✅ Parfait — ' : surplus ? '📈 Surplus — ' : '📉 Manquant — '}
+                          {parfait ? '✅ Aucun écart — ' : surplus ? '📈 Surplus — ' : '📉 Manquant — '}
                           Écart : {ecart >= 0 ? '+' : ''}{fmt(ecart)}
                         </Text>
                       </View>
                     )
                   })()}
+
+                  {/* Explication écart obligatoire */}
+                  {ventesJour.venteMachine !== '' && cumulShifts && Math.abs(cumulShifts.venteTotal - (parseFloat(ventesJour.venteMachine) || 0)) > 0 && (!bloque || isManager) && (
+                    <View style={styles.explicacionCard}>
+                      <Text style={styles.explicacionLabel}>📝 Explication obligatoire</Text>
+                      <Text style={styles.explicacionSub}>
+                        Justifiez l'écart avant de continuer (min. 10 caractères)
+                      </Text>
+                      <TextInput
+                        style={styles.explicacionInput}
+                        value={ventesJour.explicacionEcartMachine || ''}
+                        onChangeText={v => setVente('explicacionEcartMachine', v)}
+                        placeholder="Ex : Erreur de saisie caissier, remboursement client..."
+                        placeholderTextColor="#bbb"
+                        multiline
+                        numberOfLines={3}
+                        editable={!bloque || isManager}
+                      />
+                      {(() => {
+                        const len = (ventesJour.explicacionEcartMachine || '').trim().length
+                        return len > 0 ? (
+                          <Text style={{ fontSize: 11, marginTop: 4, color: len >= 10 ? '#3B6D11' : '#993C1D' }}>
+                            {len}/10 caractères minimum {len >= 10 ? '✅' : ''}
+                          </Text>
+                        ) : null
+                      })()}
+                    </View>
+                  )}
                 </View>
               </>
             )}
@@ -1016,8 +729,8 @@ export default function VentesScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+function makeStyles(colors) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
     backgroundColor: '#EF9F27', padding: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'
@@ -1026,85 +739,88 @@ const styles = StyleSheet.create({
   headerTitre: { fontSize: 16, fontWeight: '600', color: '#412402', textAlign: 'center' },
   headerSub: { fontSize: 11, color: '#854F0B', textAlign: 'center' },
   progressBar: {
-    flexDirection: 'row', backgroundColor: '#fff', padding: 14,
-    borderBottomWidth: 0.5, borderBottomColor: '#eee',
+    flexDirection: 'row', backgroundColor: colors.surface, padding: 14,
+    borderBottomWidth: 0.5, borderBottomColor: colors.border,
     alignItems: 'center', justifyContent: 'center'
   },
   progressItem: { flexDirection: 'row', alignItems: 'center' },
   progressNum: {
-    width: 28, height: 28, borderRadius: 14, backgroundColor: '#f5f5f5',
+    width: 28, height: 28, borderRadius: 14, backgroundColor: colors.bg,
     alignItems: 'center', justifyContent: 'center', marginRight: 6,
-    borderWidth: 0.5, borderColor: '#eee'
+    borderWidth: 0.5, borderColor: colors.border
   },
   progressNumActive: { backgroundColor: '#EF9F27', borderColor: '#EF9F27' },
-  progressNumTxt: { fontSize: 12, fontWeight: '600', color: '#888' },
+  progressNumTxt: { fontSize: 12, fontWeight: '600', color: colors.textMuted },
   progressNumTxtActive: { color: '#412402' },
-  progressLine: { width: 40, height: 1.5, backgroundColor: '#eee', marginHorizontal: 6 },
+  progressLine: { width: 40, height: 1.5, backgroundColor: colors.border, marginHorizontal: 6 },
   progressLineActive: { backgroundColor: '#EF9F27' },
-  progressLabel: { fontSize: 11, color: '#888', marginRight: 6 },
+  progressLabel: { fontSize: 11, color: colors.textMuted, marginRight: 6 },
   progressLabelActive: { color: '#EF9F27', fontWeight: '600' },
   valideBanner: { backgroundColor: '#FAECE7', padding: 10, alignItems: 'center' },
   valideTxt: { fontSize: 12, color: '#993C1D', fontWeight: '500' },
   cumulBanner: {
-    backgroundColor: '#EEEDFE', padding: 8, paddingHorizontal: 14,
-    borderBottomWidth: 0.5, borderBottomColor: '#CECBF6'
+    backgroundColor: colors.primaryLight, padding: 8, paddingHorizontal: 14,
+    borderBottomWidth: 0.5, borderBottomColor: colors.primaryText,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
   },
-  cumulBannerTxt: { fontSize: 12, color: '#534AB7', fontWeight: '500' },
+  cumulBannerTxt: { fontSize: 12, color: colors.primary, fontWeight: '500', flex: 1 },
+  cumulRefreshBtn: { paddingHorizontal: 8, paddingVertical: 4 },
+  cumulRefreshTxt: { fontSize: 16 },
   chargementBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#f9f9f9', padding: 8, paddingHorizontal: 14
+    backgroundColor: colors.surfaceAlt, padding: 8, paddingHorizontal: 14
   },
-  chargementTxt: { fontSize: 12, color: '#888' },
+  chargementTxt: { fontSize: 12, color: colors.textMuted },
   uploadBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#534AB7', padding: 8, paddingHorizontal: 14
+    backgroundColor: colors.primary, padding: 8, paddingHorizontal: 14
   },
-  uploadTxt: { fontSize: 12, color: '#fff', fontWeight: '500' },
+  uploadTxt: { fontSize: 12, color: colors.surface, fontWeight: '500' },
   body: { flex: 1, padding: 16 },
   sectionTitre: {
-    fontSize: 12, fontWeight: '600', color: '#888', marginBottom: 6,
+    fontSize: 12, fontWeight: '600', color: colors.textMuted, marginBottom: 6,
     textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 8
   },
-  sectionSub: { fontSize: 12, color: '#aaa', marginBottom: 12 },
+  sectionSub: { fontSize: 12, color: colors.textPlaceholder, marginBottom: 12 },
   infoShiftsCard: {
-    backgroundColor: '#EEEDFE', borderRadius: 12, padding: 14,
-    marginBottom: 14, borderWidth: 0.5, borderColor: '#CECBF6'
+    backgroundColor: colors.primaryLight, borderRadius: 12, padding: 14,
+    marginBottom: 14, borderWidth: 0.5, borderColor: colors.primaryText
   },
-  infoShiftsTitre: { fontSize: 13, fontWeight: '600', color: '#534AB7', marginBottom: 6 },
-  infoShiftsTxt: { fontSize: 12, color: '#534AB7', lineHeight: 18 },
+  infoShiftsTitre: { fontSize: 13, fontWeight: '600', color: colors.primary, marginBottom: 6 },
+  infoShiftsTxt: { fontSize: 12, color: colors.primary, lineHeight: 18 },
   canalCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14,
-    marginBottom: 12, borderWidth: 0.5, borderColor: '#eee'
+    backgroundColor: colors.surface, borderRadius: 14, padding: 14,
+    marginBottom: 12, borderWidth: 0.5, borderColor: colors.border
   },
   canalHeader: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', marginBottom: 10
   },
-  canalTitre: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
+  canalTitre: { fontSize: 14, fontWeight: '600', color: colors.text },
   canalCoeff: {
-    fontSize: 12, color: '#888', backgroundColor: '#f5f5f5',
+    fontSize: 12, color: colors.textMuted, backgroundColor: colors.bg,
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8
   },
   inputRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', paddingVertical: 8,
-    borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5'
+    borderBottomWidth: 0.5, borderBottomColor: colors.bg
   },
-  inputLabel: { fontSize: 13, color: '#555', flex: 1 },
+  inputLabel: { fontSize: 13, color: colors.textSecondary, flex: 1 },
   inputField: {
-    width: 130, backgroundColor: '#f5f5f5', borderRadius: 8,
-    padding: 8, fontSize: 14, color: '#1a1a1a', textAlign: 'right'
+    width: 130, backgroundColor: colors.bg, borderRadius: 8,
+    padding: 8, fontSize: 14, color: colors.text, textAlign: 'right'
   },
   photoBlock: {
-    marginTop: 10, backgroundColor: '#f9f9f9',
-    borderRadius: 10, padding: 10, borderWidth: 0.5, borderColor: '#eee'
+    marginTop: 10, backgroundColor: colors.surfaceAlt,
+    borderRadius: 10, padding: 10, borderWidth: 0.5, borderColor: colors.border
   },
   photoBlockRequired: { backgroundColor: '#FAECE7', borderColor: '#F09595' },
   photoBlockHeader: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', marginBottom: 8
   },
-  photoBlockLabel: { fontSize: 12, color: '#555', fontWeight: '500' },
+  photoBlockLabel: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
   photoBadgeOk: { backgroundColor: '#EAF3DE', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   photoBadgeOkTxt: { fontSize: 10, color: '#3B6D11', fontWeight: '500' },
   photoBadgeReq: { backgroundColor: '#FAECE7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
@@ -1113,7 +829,7 @@ const styles = StyleSheet.create({
   photoBtn: { backgroundColor: '#EF9F27', borderRadius: 10, padding: 10, alignItems: 'center' },
   photoBtnTxt: { fontSize: 13, color: '#412402', fontWeight: '500' },
   recapShiftsCard: {
-    backgroundColor: '#FAEEDA', borderRadius: 14, padding: 14,
+    backgroundColor: colors.orangeLight, borderRadius: 14, padding: 14,
     marginBottom: 14, borderWidth: 0.5, borderColor: '#EF9F27'
   },
   recapRow: {
@@ -1129,39 +845,39 @@ const styles = StyleSheet.create({
   nextTxt: { fontSize: 15, fontWeight: '600', color: '#412402' },
   // ── Vente machine ──
   venteMachineCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14,
-    marginBottom: 14, borderWidth: 0.5, borderColor: '#eee'
+    backgroundColor: colors.surface, borderRadius: 14, padding: 14,
+    marginBottom: 14, borderWidth: 0.5, borderColor: colors.border
   },
   vmRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', paddingVertical: 10,
-    borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5'
+    borderBottomWidth: 0.5, borderBottomColor: colors.bg
   },
   vmRowLeft: { flex: 1 },
-  vmLabel: { fontSize: 13, color: '#555' },
-  vmValAuto: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
+  vmLabel: { fontSize: 13, color: colors.textSecondary },
+  vmValAuto: { fontSize: 14, fontWeight: '600', color: colors.text },
   vmInput: {
-    width: 140, backgroundColor: '#f5f5f5', borderRadius: 10,
-    padding: 10, fontSize: 15, color: '#1a1a1a', textAlign: 'right',
+    width: 140, backgroundColor: colors.bg, borderRadius: 10,
+    padding: 10, fontSize: 15, color: colors.text, textAlign: 'right',
     borderWidth: 1, borderColor: '#EF9F27'
   },
   // ── FC ──
   fcCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14,
-    marginBottom: 14, borderWidth: 0.5, borderColor: '#eee'
+    backgroundColor: colors.surface, borderRadius: 14, padding: 14,
+    marginBottom: 14, borderWidth: 0.5, borderColor: colors.border
   },
   fcRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', paddingVertical: 10,
-    borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5'
+    borderBottomWidth: 0.5, borderBottomColor: colors.bg
   },
   fcRowLeft: { flex: 1 },
-  fcLabel: { fontSize: 13, color: '#555' },
-  fcValAuto: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
+  fcLabel: { fontSize: 13, color: colors.textSecondary },
+  fcValAuto: { fontSize: 14, fontWeight: '600', color: colors.text },
   fcInput: {
-    width: 140, backgroundColor: '#f5f5f5', borderRadius: 10,
-    padding: 10, fontSize: 15, color: '#1a1a1a', textAlign: 'right',
-    borderWidth: 1, borderColor: '#534AB7'
+    width: 140, backgroundColor: colors.bg, borderRadius: 10,
+    padding: 10, fontSize: 15, color: colors.text, textAlign: 'right',
+    borderWidth: 1, borderColor: colors.primary
   },
   autoBadge: {
     backgroundColor: '#EAF3DE', paddingHorizontal: 6, paddingVertical: 2,
@@ -1173,17 +889,28 @@ const styles = StyleSheet.create({
     borderWidth: 1
   },
   ecartTxt: { fontSize: 13, fontWeight: '600' },
+  explicacionCard: {
+    backgroundColor: '#FAEEDA', borderRadius: 12, padding: 14,
+    marginTop: 10, borderWidth: 1, borderColor: '#EF9F27'
+  },
+  explicacionLabel: { fontSize: 13, fontWeight: '700', color: '#854F0B', marginBottom: 4 },
+  explicacionSub: { fontSize: 11, color: '#A06010', marginBottom: 8 },
+  explicacionInput: {
+    backgroundColor: '#fff', borderRadius: 10, padding: 10,
+    fontSize: 13, color: '#333', minHeight: 70, textAlignVertical: 'top',
+    borderWidth: 1, borderColor: '#EF9F27'
+  },
   // ── Bénéfice SC ──
   beneficeCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14,
-    marginBottom: 14, borderWidth: 0.5, borderColor: '#eee'
+    backgroundColor: colors.surface, borderRadius: 14, padding: 14,
+    marginBottom: 14, borderWidth: 0.5, borderColor: colors.border
   },
   beneficeRow: {
     flexDirection: 'row', justifyContent: 'space-between',
-    paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5'
+    paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: colors.bg
   },
-  beneficeLabel: { fontSize: 13, color: '#555' },
-  beneficeVal: { fontSize: 13, fontWeight: '500', color: '#1a1a1a' },
+  beneficeLabel: { fontSize: 13, color: colors.textSecondary },
+  beneficeVal: { fontSize: 13, fontWeight: '500', color: colors.text },
   photosStatutCard: { borderRadius: 12, padding: 14, marginBottom: 14, borderWidth: 1.5 },
   photosStatutTxt: { fontSize: 13, fontWeight: '600' },
   recapBtn: {
@@ -1196,82 +923,20 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', padding: 24
   },
   confirmBox: {
-    backgroundColor: '#fff', borderRadius: 18,
+    backgroundColor: colors.surface, borderRadius: 18,
     padding: 24, width: '100%', maxWidth: 380
   },
-  confirmTitre: { fontSize: 17, fontWeight: '700', color: '#1a1a1a', marginBottom: 12 },
-  confirmMsg: { fontSize: 14, color: '#555', lineHeight: 22, marginBottom: 20 },
+  confirmTitre: { fontSize: 17, fontWeight: '700', color: colors.text, marginBottom: 12 },
+  confirmMsg: { fontSize: 14, color: colors.textSecondary, lineHeight: 22, marginBottom: 20 },
   confirmBtns: { flexDirection: 'row', gap: 10 },
   confirmCancel: {
     flex: 1, padding: 14, borderRadius: 12,
-    backgroundColor: '#f5f5f5', alignItems: 'center'
+    backgroundColor: colors.bg, alignItems: 'center'
   },
-  confirmCancelTxt: { fontSize: 14, color: '#888' },
+  confirmCancelTxt: { fontSize: 14, color: colors.textMuted },
   confirmOk: {
     flex: 1, padding: 14, borderRadius: 12,
     backgroundColor: '#EF9F27', alignItems: 'center'
   },
   confirmOkTxt: { fontSize: 14, fontWeight: '600', color: '#412402' },
-  // ── Dépenses gérant caisse ──
-  bandHeader: {
-    backgroundColor: '#fff', borderRadius: 12, padding: 14,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 2, borderWidth: 0.5, borderColor: '#eee'
-  },
-  bandTitre: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
-  bandChevron: { fontSize: 12, color: '#888' },
-  bandCount: {
-    fontSize: 11, color: '#EF9F27', fontWeight: '600',
-    backgroundColor: '#FAEEDA', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10
-  },
-  bandContent: {
-    backgroundColor: '#fafafa', borderRadius: 12, padding: 12,
-    marginBottom: 6, borderWidth: 0.5, borderColor: '#eee', borderTopWidth: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0
-  },
-  bandVide: { fontSize: 12, color: '#bbb', textAlign: 'center', paddingVertical: 12 },
-  fourRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#eee'
-  },
-  fourNom: { fontSize: 13, color: '#1a1a1a', fontWeight: '500' },
-  fourMontant: { fontSize: 12, color: '#A32D2D', fontWeight: '600' },
-  fourDetails: { paddingTop: 10, paddingBottom: 6 },
-  fourCreditRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#EEEDFE', borderRadius: 10, padding: 10, marginBottom: 8
-  },
-  fourCreditLabel: { fontSize: 12, fontWeight: '600', color: '#534AB7' },
-  fourCreditVal: { fontSize: 14, fontWeight: '700', color: '#3C3489' },
-  fourCreditInput: {
-    width: 120, backgroundColor: '#fff', borderRadius: 8, padding: 8,
-    fontSize: 14, color: '#3C3489', textAlign: 'right',
-    borderWidth: 1, borderColor: '#534AB7', fontWeight: '600'
-  },
-  fourResteRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderRadius: 10, padding: 10, marginBottom: 8, borderWidth: 1
-  },
-  fourResteLabel: { fontSize: 12, fontWeight: '500' },
-  fourResteVal: { fontSize: 14, fontWeight: '700' },
-  depInput: {
-    backgroundColor: '#f5f5f5', borderRadius: 10, padding: 11,
-    fontSize: 14, color: '#1a1a1a', marginBottom: 8
-  },
-  ligneDepCard: {
-    backgroundColor: '#fff', borderRadius: 10, padding: 12,
-    marginBottom: 8, borderWidth: 0.5, borderColor: '#eee'
-  },
-  ligneDepNum: { fontSize: 12, fontWeight: '600', color: '#888' },
-  ajouterLigneBtn: {
-    backgroundColor: '#EF9F27', borderRadius: 10, padding: 12,
-    alignItems: 'center', marginTop: 6
-  },
-  ajouterLigneTxt: { fontSize: 13, fontWeight: '600', color: '#412402' },
-  totalDepGerantCard: {
-    backgroundColor: '#FAECE7', borderRadius: 12, padding: 14,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: 8, borderWidth: 1, borderColor: '#F09595'
-  },
-  totalDepGerantLabel: { fontSize: 13, color: '#993C1D', fontWeight: '500' },
-  totalDepGerantVal: { fontSize: 16, fontWeight: '700', color: '#A32D2D' },
-})
+}) }

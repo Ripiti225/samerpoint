@@ -1,11 +1,14 @@
+import * as DocumentPicker from 'expo-document-picker'
 import { router } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useTheme } from '../context/ThemeContext'
 import {
     ActivityIndicator,
     Alert,
     Image,
     Keyboard,
     KeyboardAvoidingView,
+    Linking,
     Modal,
     Platform,
     SafeAreaView, ScrollView,
@@ -17,11 +20,14 @@ import {
     View
 } from 'react-native'
 import { useApp } from '../context/AppContext'
+import { creerNotification } from '../lib/notificationsInterne'
 import { usePhoto } from '../lib/usePhoto'
 import { supabase } from '../lib/supabase'
 
 export default function DocumentsScreen() {
   const { roleActif, restaurantId, restaurantNom } = useApp()
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
   const { prendrePhoto: capturer, choisirPhoto: choisir } = usePhoto()
   const isRH = roleActif === 'rh'
   const isManager = roleActif === 'manager'
@@ -45,6 +51,8 @@ export default function DocumentsScreen() {
   })
   const [modalPreview, setModalPreview] = useState(false)
   const [docSelectionne, setDocSelectionne] = useState(null)
+  const [uploadingPdf, setUploadingPdf] = useState(false)
+  const [pdfName, setPdfName] = useState('')
 
   useEffect(() => {
     if (hasRestoFixe) {
@@ -112,6 +120,13 @@ export default function DocumentsScreen() {
           url: form.url,
           created_by: roleActif,
         })
+        creerNotification({
+          type: 'nouveau_document',
+          titre: '📁 Nouveau document',
+          message: `"${form.titre}" ajouté`,
+          restaurant_id: restoSelectionne.id,
+          cible_role: ['manager', 'directeur'],
+        }).catch(() => {})
       }
 
       setSaving(false)
@@ -138,6 +153,45 @@ export default function DocumentsScreen() {
   function resetForm() {
     setForm({ titre: '', description: '', type: 'photo', url: null, localUri: null })
     setDocEnEdition(null)
+    setPdfName('')
+  }
+
+  async function choisirPDF() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        copyToCacheDirectory: true,
+      })
+      if (result.canceled || !result.assets?.[0]) return
+
+      const asset = result.assets[0]
+      setUploadingPdf(true)
+
+      const path = `${restoSelectionne.id}/${Date.now()}_${asset.name || 'document.pdf'}`
+      const response = await fetch(asset.uri)
+      const blob = await response.blob()
+
+      const { error } = await supabase.storage
+        .from('documents-pdf')
+        .upload(path, blob, { contentType: 'application/pdf', upsert: true })
+
+      if (error) {
+        const msg = error.message?.includes('Bucket not found')
+          ? "Bucket introuvable.\n\nExécutez dans Supabase SQL Editor :\n\nINSERT INTO storage.buckets (id, name, public)\nVALUES ('documents-pdf', 'documents-pdf', true);"
+          : "Upload impossible : " + error.message
+        Alert.alert('Erreur upload PDF', msg)
+        setUploadingPdf(false)
+        return
+      }
+
+      const { data: urlData } = supabase.storage.from('documents-pdf').getPublicUrl(path)
+      setForm(p => ({ ...p, type: 'pdf', url: urlData.publicUrl }))
+      setPdfName(asset.name || 'document.pdf')
+      setUploadingPdf(false)
+    } catch (err) {
+      setUploadingPdf(false)
+      Alert.alert('Erreur', err.message)
+    }
   }
 
   function ouvrirEdition(doc) {
@@ -349,17 +403,28 @@ export default function DocumentsScreen() {
                 )}
 
                 {form.type === 'pdf' && (
-                  <View style={styles.pdfInfo}>
-                    <Text style={styles.pdfInfoTxt}>
-                      📄 Pour les PDFs, entrez l'URL du document ou utilisez une photo scannée
-                    </Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      placeholder="URL du PDF (optionnel)"
-                      value={form.url || ''}
-                      onChangeText={v => setForm(p => ({ ...p, url: v }))}
-                      placeholderTextColor="#bbb"
-                    />
+                  <View>
+                    <TouchableOpacity
+                      style={[styles.uploadBtn, { marginBottom: 10 }, uploadingPdf && { opacity: 0.6 }]}
+                      onPress={choisirPDF}
+                      disabled={uploadingPdf}
+                    >
+                      {uploadingPdf ? (
+                        <ActivityIndicator size="small" color="#534AB7" />
+                      ) : (
+                        <Text style={styles.uploadTxt}>📄 Choisir un fichier PDF</Text>
+                      )}
+                    </TouchableOpacity>
+                    {form.url ? (
+                      <View style={styles.pdfSelected}>
+                        <Text style={styles.pdfSelectedIcon}>✅</Text>
+                        <Text style={styles.pdfSelectedTxt} numberOfLines={1}>
+                          {pdfName || 'PDF uploadé'}
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.pdfHint}>Sélectionnez un PDF depuis votre appareil</Text>
+                    )}
                   </View>
                 )}
 
@@ -411,12 +476,22 @@ export default function DocumentsScreen() {
           {(!docSelectionne?.url || docSelectionne?.type !== 'photo') && (
             <View style={styles.previewEmpty}>
               <Text style={{ fontSize: 60 }}>📄</Text>
-              <Text style={{ color: '#fff', marginTop: 12, fontSize: 14 }}>
+              <Text style={{ color: '#fff', marginTop: 12, fontSize: 14, fontWeight: '600' }}>
                 {docSelectionne?.titre}
               </Text>
-              <Text style={{ color: '#888', marginTop: 6, fontSize: 12 }}>
-                {docSelectionne?.description}
-              </Text>
+              {docSelectionne?.description ? (
+                <Text style={{ color: '#888', marginTop: 6, fontSize: 12 }}>
+                  {docSelectionne.description}
+                </Text>
+              ) : null}
+              {docSelectionne?.url ? (
+                <TouchableOpacity
+                  style={styles.openPdfBtn}
+                  onPress={() => Linking.openURL(docSelectionne.url)}
+                >
+                  <Text style={styles.openPdfTxt}>🔗 Ouvrir le PDF</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           )}
         </SafeAreaView>
@@ -425,51 +500,51 @@ export default function DocumentsScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+function makeStyles(colors) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
-    backgroundColor: '#534AB7', padding: 16,
+    backgroundColor: colors.headerBg, padding: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'
   },
-  back: { fontSize: 16, color: '#CECBF6', fontWeight: '500' },
-  headerTitre: { fontSize: 16, fontWeight: '600', color: '#fff', textAlign: 'center' },
-  headerSub: { fontSize: 11, color: '#CECBF6', textAlign: 'center' },
-  restoBar: { backgroundColor: '#fff', maxHeight: 44, borderBottomWidth: 0.5, borderBottomColor: '#eee' },
+  back: { fontSize: 16, color: colors.primaryText, fontWeight: '500' },
+  headerTitre: { fontSize: 16, fontWeight: '600', color: colors.surface, textAlign: 'center' },
+  headerSub: { fontSize: 11, color: colors.primaryText, textAlign: 'center' },
+  restoBar: { backgroundColor: colors.surface, maxHeight: 44, borderBottomWidth: 0.5, borderBottomColor: '#eee' },
   restoBtn: { paddingHorizontal: 14, paddingVertical: 12 },
-  restoBtnActive: { borderBottomWidth: 2, borderBottomColor: '#534AB7' },
-  restoTxt: { fontSize: 12, color: '#888' },
-  restoTxtActive: { color: '#534AB7', fontWeight: '600' },
+  restoBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
+  restoTxt: { fontSize: 12, color: colors.textMuted },
+  restoTxtActive: { color: colors.primary, fontWeight: '600' },
   loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingTxt: { fontSize: 13, color: '#888', marginTop: 12 },
+  loadingTxt: { fontSize: 13, color: colors.textMuted, marginTop: 12 },
   body: { flex: 1, padding: 14 },
   addBtn: {
-    borderWidth: 1, borderStyle: 'dashed', borderColor: '#534AB7',
+    borderWidth: 1, borderStyle: 'dashed', borderColor: colors.primary,
     borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 14
   },
-  addTxt: { fontSize: 14, color: '#534AB7', fontWeight: '500' },
+  addTxt: { fontSize: 14, color: colors.primary, fontWeight: '500' },
   sectionTitre: {
-    fontSize: 11, fontWeight: '600', color: '#888',
+    fontSize: 11, fontWeight: '600', color: colors.textMuted,
     textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10
   },
   emptyBox: { alignItems: 'center', paddingVertical: 60 },
   emptyIcon: { fontSize: 50, marginBottom: 12 },
-  emptyTxt: { fontSize: 14, color: '#888', fontWeight: '500' },
-  emptySub: { fontSize: 12, color: '#bbb', marginTop: 6 },
+  emptyTxt: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
+  emptySub: { fontSize: 12, color: colors.textPlaceholder, marginTop: 6 },
   docCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 10,
-    borderWidth: 0.5, borderColor: '#eee',
+    backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10,
+    borderWidth: 0.5, borderColor: colors.border,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'
   },
   docLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   docThumb: { width: 56, height: 56, borderRadius: 10 },
   docIconBox: {
     width: 56, height: 56, borderRadius: 10,
-    backgroundColor: '#f5f5f5', alignItems: 'center', justifyContent: 'center'
+    backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center'
   },
   docIcon: { fontSize: 28 },
-  docTitre: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
-  docDesc: { fontSize: 11, color: '#888', marginTop: 2 },
-  docDate: { fontSize: 10, color: '#bbb', marginTop: 4 },
+  docTitre: { fontSize: 14, fontWeight: '600', color: colors.text },
+  docDesc: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  docDate: { fontSize: 10, color: colors.textPlaceholder, marginTop: 4 },
   docActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   docTypeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   docTypeTxt: { fontSize: 10, fontWeight: '500' },
@@ -477,40 +552,40 @@ const styles = StyleSheet.create({
   deleteBtn: { padding: 4 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modal: {
-    backgroundColor: '#fff', borderTopLeftRadius: 24,
+    backgroundColor: colors.surface, borderTopLeftRadius: 24,
     borderTopRightRadius: 24, padding: 24, maxHeight: '90%'
   },
-  modalTitre: { fontSize: 18, fontWeight: '600', color: '#1a1a1a', marginBottom: 20 },
+  modalTitre: { fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 20 },
   modalLabel: {
-    fontSize: 11, fontWeight: '600', color: '#888',
+    fontSize: 11, fontWeight: '600', color: colors.textMuted,
     letterSpacing: 0.5, marginBottom: 6, textTransform: 'uppercase'
   },
   modalInput: {
-    backgroundColor: '#f5f5f5', borderRadius: 12,
-    padding: 14, fontSize: 15, color: '#1a1a1a', marginBottom: 14
+    backgroundColor: colors.surfaceAlt, borderRadius: 12,
+    padding: 14, fontSize: 15, color: colors.text, marginBottom: 14
   },
   typeRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
   typeBtn: {
-    flex: 1, padding: 12, borderRadius: 12, backgroundColor: '#f5f5f5',
-    alignItems: 'center', borderWidth: 0.5, borderColor: '#eee'
+    flex: 1, padding: 12, borderRadius: 12, backgroundColor: colors.surfaceAlt,
+    alignItems: 'center', borderWidth: 0.5, borderColor: colors.border
   },
-  typeBtnActive: { backgroundColor: '#EEEDFE', borderColor: '#534AB7' },
-  typeTxt: { fontSize: 14, color: '#888' },
-  typeTxtActive: { color: '#534AB7', fontWeight: '600' },
+  typeBtnActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
+  typeTxt: { fontSize: 14, color: colors.textMuted },
+  typeTxtActive: { color: colors.primary, fontWeight: '600' },
   uploadRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
   uploadBtn: {
-    flex: 1, backgroundColor: '#f5f5f5', borderRadius: 12,
-    padding: 12, alignItems: 'center', borderWidth: 0.5, borderColor: '#eee'
+    flex: 1, backgroundColor: colors.surfaceAlt, borderRadius: 12,
+    padding: 12, alignItems: 'center', borderWidth: 0.5, borderColor: colors.border
   },
-  uploadTxt: { fontSize: 13, color: '#555' },
+  uploadTxt: { fontSize: 13, color: colors.textSecondary },
   previewImg: { width: '100%', height: 200, borderRadius: 12, marginBottom: 14 },
   pdfInfo: { backgroundColor: '#E6F1FB', borderRadius: 12, padding: 12, marginBottom: 14 },
   pdfInfoTxt: { fontSize: 12, color: '#185FA5', marginBottom: 8 },
   modalBtns: { flexDirection: 'row', gap: 10, marginTop: 6 },
-  modalCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#f5f5f5', alignItems: 'center' },
-  modalCancelTxt: { fontSize: 14, color: '#888' },
-  modalConfirm: { flex: 2, padding: 14, borderRadius: 12, backgroundColor: '#534AB7', alignItems: 'center' },
-  modalConfirmTxt: { fontSize: 14, fontWeight: '600', color: '#fff' },
+  modalCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.surfaceAlt, alignItems: 'center' },
+  modalCancelTxt: { fontSize: 14, color: colors.textMuted },
+  modalConfirm: { flex: 2, padding: 14, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center' },
+  modalConfirmTxt: { fontSize: 14, fontWeight: '600', color: colors.surface },
   previewHeader: {
     flexDirection: 'row', alignItems: 'center',
     padding: 16, backgroundColor: '#111'
@@ -519,4 +594,16 @@ const styles = StyleSheet.create({
   previewTitre: { fontSize: 15, fontWeight: '600', color: '#fff' },
   previewDesc: { fontSize: 11, color: '#888', marginTop: 2 },
   previewEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-})
+  openPdfBtn: {
+    marginTop: 24, backgroundColor: '#534AB7',
+    paddingHorizontal: 28, paddingVertical: 14, borderRadius: 28
+  },
+  openPdfTxt: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  pdfSelected: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#EAF3DE', borderRadius: 10, padding: 10, marginBottom: 10
+  },
+  pdfSelectedIcon: { fontSize: 16 },
+  pdfSelectedTxt: { flex: 1, fontSize: 13, color: '#3B6D11', fontWeight: '500' },
+  pdfHint: { fontSize: 12, color: colors.textMuted, textAlign: 'center', marginBottom: 10 },
+}) }

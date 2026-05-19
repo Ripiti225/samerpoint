@@ -1,5 +1,5 @@
 import { router } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,7 @@ import {
   View
 } from 'react-native'
 import { useApp } from '../context/AppContext'
+import { useTheme } from '../context/ThemeContext'
 import { saveDepenses } from '../lib/api'
 import { supabase } from '../lib/supabase'
 
@@ -22,6 +23,9 @@ export default function DepensesScreen() {
     depensesJour, setDepensesJour,
     roleActif, restaurantId, userNom,
   } = useApp()
+
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
 
   const isGerant = roleActif === 'gerant'
   const isManager = roleActif === 'manager'
@@ -84,6 +88,9 @@ export default function DepensesScreen() {
         }
       })
       setDepensesGerant(newLignes)
+      // Sync vers depensesJour seulement si depensesJour est vide (évite d'écraser des données fraîches)
+      const jourvide = Object.values(depensesJour).every(arr => arr.length === 0)
+      if (jourvide) setDepensesJour(newLignes)
     }
 
     setLoading(false)
@@ -128,14 +135,23 @@ export default function DepensesScreen() {
 
   // ─── Fonctions pour dépenses gérant ───────────────────────
   function ajouterLigneGerant(categorie) {
+    const newItem = { libelle: '', montant: '' }
     setDepensesGerant(prev => ({
       ...prev,
-      [categorie]: [...(prev[categorie] || []), { libelle: '', montant: '' }]
+      [categorie]: [...(prev[categorie] || []), newItem]
+    }))
+    setDepensesJour(prev => ({
+      ...prev,
+      [categorie]: [...(prev[categorie] || []), newItem]
     }))
   }
 
   function supprimerLigneGerant(categorie, index) {
     setDepensesGerant(prev => ({
+      ...prev,
+      [categorie]: (prev[categorie] || []).filter((_, i) => i !== index)
+    }))
+    setDepensesJour(prev => ({
       ...prev,
       [categorie]: (prev[categorie] || []).filter((_, i) => i !== index)
     }))
@@ -148,10 +164,22 @@ export default function DepensesScreen() {
         i === index ? { ...l, libelle: valeur } : l
       )
     }))
+    setDepensesJour(prev => ({
+      ...prev,
+      [categorie]: (prev[categorie] || []).map((l, i) =>
+        i === index ? { ...l, libelle: valeur } : l
+      )
+    }))
   }
 
   function setMontantGerant(categorie, index, valeur) {
     setDepensesGerant(prev => ({
+      ...prev,
+      [categorie]: (prev[categorie] || []).map((l, i) =>
+        i === index ? { ...l, montant: valeur } : l
+      )
+    }))
+    setDepensesJour(prev => ({
       ...prev,
       [categorie]: (prev[categorie] || []).map((l, i) =>
         i === index ? { ...l, montant: valeur } : l
@@ -462,8 +490,8 @@ export default function DepensesScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+function makeStyles(colors) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
     backgroundColor: '#EF9F27', padding: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'
@@ -476,52 +504,52 @@ const styles = StyleSheet.create({
   valideBanner: { backgroundColor: '#FAECE7', padding: 10, alignItems: 'center' },
   valideTxt: { fontSize: 12, color: '#993C1D', fontWeight: '500' },
   loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingTxt: { fontSize: 13, color: '#888', marginTop: 12 },
+  loadingTxt: { fontSize: 13, color: colors.textMuted, marginTop: 12 },
   body: { flex: 1, padding: 14 },
   sectionTitre: {
-    fontSize: 12, fontWeight: '600', color: '#888',
+    fontSize: 12, fontWeight: '600', color: colors.textMuted,
     textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 8
   },
   sectionSub: { fontSize: 12, color: '#aaa', marginBottom: 10 },
   cumulCard: {
-    backgroundColor: '#EEEDFE', borderRadius: 14, padding: 14,
-    marginBottom: 14, borderWidth: 0.5, borderColor: '#CECBF6'
+    backgroundColor: colors.primaryLight, borderRadius: 14, padding: 14,
+    marginBottom: 14, borderWidth: 0.5, borderColor: colors.primaryText
   },
-  cumulTitre: { fontSize: 14, fontWeight: '600', color: '#534AB7', marginBottom: 4 },
-  cumulSub: { fontSize: 11, color: '#888', marginBottom: 12, fontStyle: 'italic' },
+  cumulTitre: { fontSize: 14, fontWeight: '600', color: colors.primary, marginBottom: 4 },
+  cumulSub: { fontSize: 11, color: colors.textMuted, marginBottom: 12, fontStyle: 'italic' },
   cumulRow: {
     flexDirection: 'row', justifyContent: 'space-between',
-    paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: '#CECBF6'
+    paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: colors.primaryText
   },
-  cumulLabel: { fontSize: 13, color: '#534AB7' },
-  cumulVal: { fontSize: 13, fontWeight: '500', color: '#3C3489' },
+  cumulLabel: { fontSize: 13, color: colors.primary },
+  cumulVal: { fontSize: 13, fontWeight: '500', color: colors.primaryDark },
   cumulTotal: {
     flexDirection: 'row', justifyContent: 'space-between',
-    marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#534AB7'
+    marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.primary
   },
-  cumulTotalLabel: { fontSize: 14, fontWeight: '600', color: '#534AB7' },
-  cumulTotalVal: { fontSize: 15, fontWeight: '700', color: '#3C3489' },
+  cumulTotalLabel: { fontSize: 14, fontWeight: '600', color: colors.primary },
+  cumulTotalVal: { fontSize: 15, fontWeight: '700', color: colors.primaryDark },
   categorieCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14,
-    marginBottom: 10, borderWidth: 0.5, borderColor: '#eee'
+    backgroundColor: colors.surface, borderRadius: 14, padding: 14,
+    marginBottom: 10, borderWidth: 0.5, borderColor: colors.borderLight
   },
   categorieHeader: {
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginBottom: 10
   },
-  categorieTitre: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
+  categorieTitre: { fontSize: 14, fontWeight: '600', color: colors.text },
   categorieTotal: { fontSize: 13, fontWeight: '600', color: '#EF9F27' },
   ligneRow: {
     flexDirection: 'row', alignItems: 'center',
     gap: 8, marginBottom: 8
   },
   ligneLibelle: {
-    flex: 1, backgroundColor: '#f5f5f5', borderRadius: 8,
-    padding: 10, fontSize: 13, color: '#1a1a1a'
+    flex: 1, backgroundColor: colors.inputBg, borderRadius: 8,
+    padding: 10, fontSize: 13, color: colors.text
   },
   ligneMontant: {
-    width: 100, backgroundColor: '#f5f5f5', borderRadius: 8,
-    padding: 10, fontSize: 13, color: '#1a1a1a', textAlign: 'right'
+    width: 100, backgroundColor: colors.inputBg, borderRadius: 8,
+    padding: 10, fontSize: 13, color: colors.text, textAlign: 'right'
   },
   ligneDelete: {
     width: 28, height: 28, borderRadius: 14,
@@ -534,25 +562,25 @@ const styles = StyleSheet.create({
   },
   addLigneTxt: { fontSize: 13, color: '#EF9F27', fontWeight: '500' },
   totalCard: {
-    backgroundColor: '#FAEEDA', borderRadius: 14, padding: 14,
+    backgroundColor: colors.orangeLight, borderRadius: 14, padding: 14,
     flexDirection: 'row', justifyContent: 'space-between',
     alignItems: 'center', marginBottom: 14
   },
-  totalLabel: { fontSize: 14, fontWeight: '600', color: '#854F0B' },
+  totalLabel: { fontSize: 14, fontWeight: '600', color: colors.orangeDark },
   totalValue: { fontSize: 18, fontWeight: '600', color: '#412402' },
   totalGlobalCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14,
+    backgroundColor: colors.surface, borderRadius: 14, padding: 14,
     marginBottom: 14, borderWidth: 1, borderColor: '#EF9F27'
   },
   totalGlobalRow: {
     flexDirection: 'row', justifyContent: 'space-between',
-    paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5'
+    paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: colors.bg
   },
-  totalGlobalLabel: { fontSize: 13, color: '#888' },
-  totalGlobalVal: { fontSize: 13, fontWeight: '500', color: '#1a1a1a' },
+  totalGlobalLabel: { fontSize: 13, color: colors.textMuted },
+  totalGlobalVal: { fontSize: 13, fontWeight: '500', color: colors.text },
   saveBtn: {
     backgroundColor: '#EF9F27', borderRadius: 14,
     padding: 16, alignItems: 'center', marginBottom: 10
   },
   saveTxt: { fontSize: 15, fontWeight: '600', color: '#412402' },
-})
+}) }

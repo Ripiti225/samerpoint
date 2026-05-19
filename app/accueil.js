@@ -1,11 +1,22 @@
 import { router, useLocalSearchParams } from 'expo-router'
-import { useEffect } from 'react'
-import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { useEffect, useMemo } from 'react'
+import { FlatList, Modal, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native'
 import { useApp } from '../context/AppContext'
+import { useNotifications } from '../context/NotificationsContext'
+import { useTheme } from '../context/ThemeContext'
+import { enregistrerTokenDirecteur } from '../lib/notifications'
+import SignatureFooter from '../components/SignatureFooter'
 
 export default function AccueilScreen() {
   const { nom, role } = useLocalSearchParams()
-  const { pointValide, inventaireTermine, estBloque, roleActif, deconnecter } = useApp()
+  const {
+    pointValide, estBloque, roleActif, deconnecter,
+    userId,
+  } = useApp()
+
+  const { colors, isDark, toggleTheme } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
+  const { notifications, nonLues, panelVisible, ouvrirPanel, fermerPanel } = useNotifications()
 
   const roleEffectif = role || roleActif
 
@@ -17,7 +28,15 @@ export default function AccueilScreen() {
     }
   }, [roleEffectif])
 
+  // Directeur : enregistrer le token push dès la connexion (silencieux si déjà accordé)
+  useEffect(() => {
+    if (roleEffectif === 'directeur' && userId) {
+      enregistrerTokenDirecteur(userId)
+    }
+  }, [roleEffectif, userId])
+
   const isManager = roleEffectif === 'manager'
+  const isDirecteur = roleEffectif === 'directeur'
   const isGerant = roleEffectif === 'gerant'
   const isCaissier = roleEffectif === 'caissier'
   const isRH = roleEffectif === 'rh'
@@ -31,37 +50,39 @@ export default function AccueilScreen() {
     { icon: '🧑‍💼', titre: 'Ressources Humaines', sous: 'Présences & salaires', route: '/rh', bloque: false },
     { icon: '💳', titre: 'Charges du mois', sous: 'Saisir & voir bénéfice réel', route: '/charges', bloque: false },
     { icon: '📁', titre: 'Documents', sous: 'Documents administratifs', route: '/documents', bloque: false },
+    { icon: '💳', titre: 'Crédits fournisseurs', sous: 'Crédit, avances & paiements', route: '/credits-fournisseurs', bloque: false },
     { icon: '🔍', titre: 'Vérification', sous: 'Photos & points à vérifier', route: '/verification', bloque: false },
+    { icon: '📊', titre: 'Rapports hebdo', sous: 'Synthèse automatique semaine', route: '/rapports', bloque: false },
+    { icon: '👤', titre: 'Stats caissiers', sous: 'Performance par caissier', route: '/stats-caissiers', bloque: false },
+    { icon: '📋', titre: 'Journal activité', sous: 'Historique des actions', route: '/journal', bloque: false },
     { icon: '📲', titre: 'Contacts', sous: 'SMS & WhatsApp groupés', route: '/contacts', bloque: false },
     { icon: '⚙️', titre: 'Paramètres', sous: 'Configuration', route: '/parametres', bloque: false },
   ]
 
   const menuRH = [
     { icon: '🧑‍💼', titre: 'Ressources Humaines', sous: 'Présences & salaires', route: '/rh', bloque: false },
+    { icon: '👥', titre: 'Équipe globale', sous: 'Tous les travailleurs', route: '/equipe', bloque: false },
+    { icon: '📲', titre: 'Contacts', sous: 'Contacts équipe', route: '/contacts', bloque: false },
     { icon: '💳', titre: 'Charges du mois', sous: 'Saisir les charges', route: '/charges', bloque: false },
     { icon: '📁', titre: 'Documents', sous: 'Ajouter des documents', route: '/documents', bloque: false },
   ]
 
-  const menuGerantFinance = [
+  const menuGerant = [
     { icon: '💰', titre: 'Saisir les ventes', sous: 'Séquences + photos', route: '/ventes', bloque: estBloque(pointValide) },
     { icon: '📊', titre: 'Tableau de bord', sous: 'Résultats du jour', route: '/dashboard', bloque: false },
-    { icon: '🧾', titre: 'Fournisseurs', sous: 'Factures & paiements', route: '/fournisseurs', bloque: estBloque(pointValide) },
-    { icon: '📋', titre: 'Dépenses', sous: 'Marché, paie…', route: '/depenses', bloque: estBloque(pointValide) },
-  ]
-
-  const menuGerantOperations = [
-    { icon: '⏱️', titre: 'Point / Shift', sous: 'Voir les shifts du jour', route: '/point-shift', bloque: false },
-    { icon: '📦', titre: 'Inventaire', sous: 'Entrées & sorties', route: '/inventaire', bloque: estBloque(inventaireTermine) },
-    { icon: '👥', titre: 'Présences', sous: 'Statuts équipe', route: '/presences', bloque: estBloque(pointValide) },
-    { icon: '🛵', titre: 'Livraisons', sous: 'Yango, Glovo…', route: '/livraisons', bloque: false },
     { icon: '📁', titre: 'Documents', sous: 'Documents du restaurant', route: '/documents', bloque: false },
+    { icon: '🛵', titre: 'Livraisons', sous: 'Yango, Glovo…', route: '/livraisons', bloque: false },
+    { icon: '👤', titre: 'Espace Caissier', sous: 'Point, dépenses, présences, inventaire…', route: '/gerant-caissier', bloque: false },
+    { icon: '💸', titre: 'Déductions Gérant', sous: 'Fournisseurs, marché, divers', route: '/deductions-gerant', bloque: false },
+    { icon: '💳', titre: 'Crédits fournisseurs', sous: 'Crédit, avances & paiements', route: '/credits-fournisseurs', bloque: false },
+    { icon: '📲', titre: 'Contacts', sous: 'SMS & WhatsApp équipe', route: '/contacts', bloque: false },
   ]
 
   const menuCaissier = [
     { icon: '⏱️', titre: 'Point / Shift', sous: 'Faire mon point de shift', route: '/point-shift', bloque: false },
     { icon: '📋', titre: 'Dépenses', sous: 'Marché, paie…', route: '/depenses', bloque: estBloque(pointValide) },
     { icon: '🧾', titre: 'Fournisseurs', sous: 'Factures & paiements', route: '/fournisseurs', bloque: estBloque(pointValide) },
-    { icon: '📦', titre: 'Inventaire', sous: 'Entrées & sorties', route: '/inventaire', bloque: estBloque(inventaireTermine) },
+    { icon: '📦', titre: 'Inventaire', sous: 'Stock par shift', route: '/inventaire', bloque: false },
     { icon: '👥', titre: 'Présences', sous: 'Statuts équipe', route: '/presences', bloque: estBloque(pointValide) },
     { icon: '🛵', titre: 'Livraisons', sous: 'Yango, Glovo…', route: '/livraisons', bloque: false },
   ]
@@ -93,37 +114,39 @@ export default function AccueilScreen() {
   }
 
   function getHeaderColor() {
-    if (isManager) return '#534AB7'
+    if (isManager || isDirecteur) return '#534AB7'
     if (isRH) return '#185FA5'
     return '#EF9F27'
   }
 
   function getRoleLabel() {
     if (isManager) return '👑 Manager'
+    if (isDirecteur) return '🏢 Directeur'
     if (isRH) return '🧑‍💼 RH'
     if (isGerant) return '🔑 Gérant'
     return '💼 Caissier'
   }
 
   function getRoleBadgeBg() {
-    if (isManager) return '#3C3489'
+    if (isManager || isDirecteur) return '#3C3489'
     if (isRH) return '#0F4880'
     return '#BA7517'
   }
 
   function getRoleBadgeText() {
-    if (isManager) return '#CECBF6'
+    if (isManager || isDirecteur) return '#CECBF6'
     if (isRH) return '#B8D4F5'
     return '#FAEEDA'
   }
 
   function getHeaderTextColor() {
-    if (isManager || isRH) return '#fff'
+    if (isManager || isDirecteur || isRH) return '#fff'
     return '#412402'
   }
 
   function getSubtitle() {
     if (isManager) return 'Accès total — tous les restaurants'
+    if (isDirecteur) return 'Direction générale'
     if (isRH) return 'Ressources Humaines'
     if (isGerant) return 'Vue gérant'
     return 'Mon point du jour'
@@ -158,15 +181,27 @@ export default function AccueilScreen() {
             })}
           </Text>
         </View>
-        <View style={[styles.roleBadge, { backgroundColor: getRoleBadgeBg() }]}>
-          <Text style={[styles.roleText, { color: getRoleBadgeText() }]}>
-            {getRoleLabel()}
-          </Text>
+        <View style={{ alignItems: 'flex-end', gap: 8 }}>
+          {!isCaissier && (
+            <TouchableOpacity onPress={ouvrirPanel} style={styles.bellBtn}>
+              <Text style={styles.bellIcon}>🔔</Text>
+              {nonLues > 0 && (
+                <View style={styles.bellBadge}>
+                  <Text style={styles.bellBadgeTxt}>{nonLues > 9 ? '9+' : nonLues}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
+          <View style={[styles.roleBadge, { backgroundColor: getRoleBadgeBg() }]}>
+            <Text style={[styles.roleText, { color: getRoleBadgeText() }]}>
+              {getRoleLabel()}
+            </Text>
+          </View>
         </View>
       </View>
 
       {/* Bannières */}
-      {pointValide && !isManager && !isRH && (
+      {pointValide && !isManager && !isDirecteur && !isRH && (
         <View style={styles.valideBanner}>
           <Text style={styles.valideTxt}>✅ Point du jour validé — lecture seule</Text>
         </View>
@@ -175,6 +210,12 @@ export default function AccueilScreen() {
       {isManager && (
         <View style={styles.managerBanner}>
           <Text style={styles.managerTxt}>👑 Accès total — toutes modifications autorisées</Text>
+        </View>
+      )}
+
+      {isDirecteur && (
+        <View style={styles.managerBanner}>
+          <Text style={styles.managerTxt}>🏢 Direction générale — vue consolidée</Text>
         </View>
       )}
 
@@ -199,15 +240,28 @@ export default function AccueilScreen() {
         {/* ── Manager ── */}
         {isManager && renderMenu(menuManager, null)}
 
+        {/* ── Directeur : même vue que Manager ── */}
+        {isDirecteur && renderMenu(menuManager, null)}
+
         {/* ── RH ── */}
         {isRH && renderMenu(menuRH, null)}
 
         {/* ── Gérant ── */}
-        {isGerant && renderMenu(menuGerantFinance, 'Ventes & finance')}
-        {isGerant && renderMenu(menuGerantOperations, 'Opérations & administratif')}
+        {isGerant && renderMenu(menuGerant, null)}
 
         {/* ── Caissier ── */}
         {isCaissier && renderMenu(menuCaissier, 'Mon point du jour')}
+
+        {/* Mode sombre */}
+        <View style={styles.themeRow}>
+          <Text style={styles.themeLabel}>{isDark ? '🌙 Mode sombre' : '☀️ Mode clair'}</Text>
+          <Switch
+            value={isDark}
+            onValueChange={toggleTheme}
+            trackColor={{ false: '#ddd', true: colors.primary }}
+            thumbColor="#fff"
+          />
+        </View>
 
         {/* Déconnexion */}
         <TouchableOpacity
@@ -217,14 +271,56 @@ export default function AccueilScreen() {
           <Text style={styles.logoutText}>⏻ Se déconnecter</Text>
         </TouchableOpacity>
 
-        <View style={{ height: 30 }} />
+        <View style={{ height: 60 }} />
       </ScrollView>
+      <SignatureFooter />
+
+      {/* ── Panneau notifications ── */}
+      <Modal visible={panelVisible} transparent animationType="slide" onRequestClose={fermerPanel}>
+        <View style={styles.notifOverlay}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={fermerPanel} />
+          <View style={styles.notifPanel}>
+            <View style={styles.notifPanelHeader}>
+              <Text style={styles.notifPanelTitre}>🔔 Notifications</Text>
+              <TouchableOpacity onPress={fermerPanel}>
+                <Text style={styles.notifPanelClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            {notifications.length === 0 ? (
+              <View style={styles.notifEmpty}>
+                <Text style={styles.notifEmptyTxt}>Aucune notification</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={notifications}
+                keyExtractor={n => n.id}
+                contentContainerStyle={{ padding: 14, paddingBottom: 30 }}
+                renderItem={({ item: n }) => {
+                  const nonLue = !n.lu_par?.includes(userId)
+                  return (
+                    <View style={[styles.notifCard, nonLue && styles.notifCardNonLue]}>
+                      {nonLue && <View style={styles.notifDot} />}
+                      <Text style={styles.notifCardTitre}>{n.titre}</Text>
+                      <Text style={styles.notifCardMsg}>{n.message}</Text>
+                      <Text style={styles.notifCardDate}>
+                        {new Date(n.created_at).toLocaleDateString('fr-FR', {
+                          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                        })}
+                      </Text>
+                    </View>
+                  )
+                }}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+function makeStyles(colors) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
     padding: 20, paddingBottom: 24,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start'
@@ -240,31 +336,70 @@ const styles = StyleSheet.create({
   },
   valideTxt: { fontSize: 12, color: '#3B6D11', fontWeight: '500' },
   managerBanner: {
-    backgroundColor: '#EEEDFE', padding: 10, alignItems: 'center',
-    borderBottomWidth: 0.5, borderBottomColor: '#CECBF6'
+    backgroundColor: colors.primaryLight, padding: 10, alignItems: 'center',
+    borderBottomWidth: 0.5, borderBottomColor: colors.primaryText
   },
-  managerTxt: { fontSize: 12, color: '#3C3489', fontWeight: '500' },
+  managerTxt: { fontSize: 12, color: colors.primaryDark, fontWeight: '500' },
   body: { flex: 1, padding: 16 },
   section: { marginBottom: 16 },
   sectionTitre: {
-    fontSize: 11, fontWeight: '600', color: '#888',
+    fontSize: 11, fontWeight: '600', color: colors.textMuted,
     letterSpacing: 0.5, marginBottom: 10, textTransform: 'uppercase'
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   card: {
-    width: '47%', backgroundColor: '#fff', borderRadius: 14,
-    padding: 14, borderWidth: 0.5, borderColor: '#eee'
+    width: '47%', backgroundColor: colors.surface, borderRadius: 14,
+    padding: 14, borderWidth: 0.5, borderColor: colors.borderLight
   },
-  cardBloque: { backgroundColor: '#f9f9f9', borderColor: '#e0e0e0', opacity: 0.6 },
+  cardBloque: { backgroundColor: colors.surfaceAlt, borderColor: colors.border, opacity: 0.6 },
   cardIcon: { fontSize: 26, marginBottom: 8 },
-  cardTitre: { fontSize: 13, fontWeight: '600', color: '#1a1a1a' },
+  cardTitre: { fontSize: 13, fontWeight: '600', color: colors.text },
   cardTitreBloque: { color: '#aaa' },
-  cardSous: { fontSize: 11, color: '#888', marginTop: 3 },
+  cardSous: { fontSize: 11, color: colors.textMuted, marginTop: 3 },
   cardSousBloque: { color: '#ccc' },
-  logoutBtn: {
-    marginTop: 6, marginBottom: 10, padding: 14,
-    backgroundColor: '#fff', borderRadius: 12, alignItems: 'center',
-    borderWidth: 0.5, borderColor: '#eee'
+  themeRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: colors.surface, borderRadius: 12, padding: 14,
+    marginBottom: 8, borderWidth: 0.5, borderColor: colors.borderLight
   },
-  logoutText: { fontSize: 14, color: '#888' },
-})
+  themeLabel: { fontSize: 14, color: colors.text, fontWeight: '500' },
+  logoutBtn: {
+    marginTop: 0, marginBottom: 10, padding: 14,
+    backgroundColor: colors.surface, borderRadius: 12, alignItems: 'center',
+    borderWidth: 0.5, borderColor: colors.borderLight
+  },
+  logoutText: { fontSize: 14, color: colors.textMuted },
+  bellBtn: { position: 'relative', padding: 4 },
+  bellIcon: { fontSize: 22 },
+  bellBadge: {
+    position: 'absolute', top: 0, right: 0,
+    minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: '#E53535', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
+  },
+  bellBadgeTxt: { fontSize: 9, color: '#fff', fontWeight: '700' },
+  notifOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  notifPanel: {
+    backgroundColor: colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    maxHeight: '75%', minHeight: 200,
+  },
+  notifPanelHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    padding: 18, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight,
+  },
+  notifPanelTitre: { fontSize: 16, fontWeight: '700', color: colors.text },
+  notifPanelClose: { fontSize: 18, color: colors.textMuted, paddingHorizontal: 4 },
+  notifEmpty: { padding: 40, alignItems: 'center' },
+  notifEmptyTxt: { fontSize: 14, color: colors.textMuted },
+  notifCard: {
+    backgroundColor: colors.bg, borderRadius: 12, padding: 12,
+    marginBottom: 8, borderWidth: 0.5, borderColor: colors.borderLight, position: 'relative',
+  },
+  notifCardNonLue: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
+  notifDot: {
+    position: 'absolute', top: 12, right: 12,
+    width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary,
+  },
+  notifCardTitre: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 3 },
+  notifCardMsg: { fontSize: 12, color: colors.textSecondary, marginBottom: 4 },
+  notifCardDate: { fontSize: 10, color: colors.textMuted },
+}) }

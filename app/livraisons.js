@@ -1,6 +1,6 @@
 import * as Linking from 'expo-linking'
 import { router } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
     Alert,
     Keyboard,
@@ -16,9 +16,13 @@ import {
     View
 } from 'react-native'
 import { useApp } from '../context/AppContext'
+import { useTheme } from '../context/ThemeContext'
 import { saveCommandes } from '../lib/api'
 
 export default function LivraisonsScreen() {
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
+
   const partenaires = ['Yango', 'Glovo', 'OM', 'Wave', 'Djamo', 'Client']
   const [partenaire, setPartenaire] = useState('Yango')
   const [commandes, setCommandes] = useState({ Yango: [], Glovo: [], OM: [], Wave: [], Djamo: [], Client: [] })
@@ -207,62 +211,62 @@ export default function LivraisonsScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+function makeStyles(colors) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
   header: { backgroundColor: '#EF9F27', padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   back: { fontSize: 16, color: '#412402', fontWeight: '500' },
   headerTitre: { fontSize: 16, fontWeight: '600', color: '#412402', textAlign: 'center' },
   headerSub: { fontSize: 11, color: '#854F0B', textAlign: 'center' },
   totalBadge: { backgroundColor: '#BA7517', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   totalBadgeText: { fontSize: 11, color: '#FAEEDA', fontWeight: '500' },
-  tabs: { backgroundColor: '#fff', borderBottomWidth: 0.5, borderBottomColor: '#eee', maxHeight: 46 },
+  tabs: { backgroundColor: colors.surface, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight, maxHeight: 46 },
   tab: { paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 5 },
   tabActive: { borderBottomWidth: 2, borderBottomColor: '#EF9F27' },
-  tabText: { fontSize: 13, color: '#888' },
+  tabText: { fontSize: 13, color: colors.textMuted },
   tabTextActive: { color: '#EF9F27', fontWeight: '600' },
-  tabBadge: { backgroundColor: '#FAEEDA', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 10 },
+  tabBadge: { backgroundColor: colors.orangeLight, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 10 },
   tabBadgeText: { fontSize: 10, color: '#BA7517', fontWeight: '600' },
   body: { flex: 1, padding: 16 },
   emptyBox: { alignItems: 'center', paddingVertical: 40 },
-  emptyTxt: { fontSize: 14, color: '#888', fontWeight: '500' },
+  emptyTxt: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
   emptySub: { fontSize: 12, color: '#bbb', marginTop: 6 },
-  cmdCard: { backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 0.5, borderColor: '#eee' },
+  cmdCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 0.5, borderColor: colors.borderLight },
   cmdLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  cmdNum: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FAEEDA', alignItems: 'center', justifyContent: 'center' },
+  cmdNum: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.orangeLight, alignItems: 'center', justifyContent: 'center' },
   cmdNumText: { fontSize: 13, fontWeight: '600', color: '#BA7517' },
   cmdInfo: { flex: 1 },
-  cmdNumCde: { fontSize: 13, fontWeight: '600', color: '#1a1a1a', marginBottom: 3 },
+  cmdNumCde: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 3 },
   cmdContactRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 3 },
-  cmdContact: { fontSize: 12, color: '#888' },
+  cmdContact: { fontSize: 12, color: colors.textMuted },
   callBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#EAF3DE', alignItems: 'center', justifyContent: 'center' },
   callBtnTxt: { fontSize: 14 },
-  cmdPlat: { fontSize: 12, color: '#555' },
-  cmdBadge: { backgroundColor: '#FAEEDA', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+  cmdPlat: { fontSize: 12, color: colors.textSecondary },
+  cmdBadge: { backgroundColor: colors.orangeLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
   cmdBadgeTxt: { fontSize: 10, color: '#BA7517', fontWeight: '500' },
-  recapCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 0.5, borderColor: '#eee' },
-  recapTitre: { fontSize: 13, fontWeight: '600', color: '#1a1a1a', marginBottom: 10 },
-  recapRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: '#f0f0f0' },
-  recapLabel: { fontSize: 13, color: '#888' },
+  recapCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 0.5, borderColor: colors.borderLight },
+  recapTitre: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 10 },
+  recapRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
+  recapLabel: { fontSize: 13, color: colors.textMuted },
   recapValue: { fontSize: 13, color: '#ccc' },
-  recapValueActive: { color: '#1a1a1a', fontWeight: '500' },
+  recapValueActive: { color: colors.text, fontWeight: '500' },
   recapTotal: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 10, marginTop: 4 },
-  recapTotalLabel: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
+  recapTotalLabel: { fontSize: 14, fontWeight: '600', color: colors.text },
   recapTotalValue: { fontSize: 16, fontWeight: '600', color: '#EF9F27' },
   saveBtn: { backgroundColor: '#EF9F27', borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 80 },
   saveTxt: { fontSize: 15, fontWeight: '600', color: '#412402' },
   fab: { position: 'absolute', bottom: 30, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: '#EF9F27', alignItems: 'center', justifyContent: 'center' },
   fabTxt: { fontSize: 28, color: '#412402', fontWeight: '300', lineHeight: 32 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  modal: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
-  modalTitre: { fontSize: 18, fontWeight: '600', color: '#1a1a1a', marginBottom: 20 },
-  modalLabel: { fontSize: 12, fontWeight: '600', color: '#888', letterSpacing: 0.5, marginBottom: 6, textTransform: 'uppercase' },
-  modalInput: { backgroundColor: '#f5f5f5', borderRadius: 12, padding: 14, fontSize: 15, color: '#1a1a1a', marginBottom: 14 },
+  modal: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  modalTitre: { fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 20 },
+  modalLabel: { fontSize: 12, fontWeight: '600', color: colors.textMuted, letterSpacing: 0.5, marginBottom: 6, textTransform: 'uppercase' },
+  modalInput: { backgroundColor: colors.inputBg, borderRadius: 12, padding: 14, fontSize: 15, color: colors.text, marginBottom: 14 },
   contactRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 0 },
   callBtnModal: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#EAF3DE', alignItems: 'center', justifyContent: 'center' },
   callBtnModalTxt: { fontSize: 22 },
   modalBtns: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  modalCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#f5f5f5', alignItems: 'center' },
-  modalCancelText: { fontSize: 14, color: '#888' },
+  modalCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.inputBg, alignItems: 'center' },
+  modalCancelText: { fontSize: 14, color: colors.textMuted },
   modalConfirm: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#EF9F27', alignItems: 'center' },
   modalConfirmText: { fontSize: 14, fontWeight: '600', color: '#412402' },
-})
+}) }

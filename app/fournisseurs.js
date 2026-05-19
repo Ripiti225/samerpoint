@@ -1,9 +1,12 @@
 import { router } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
     ActivityIndicator,
     Alert,
     Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
     SafeAreaView, ScrollView,
     StyleSheet,
     Text,
@@ -12,61 +15,122 @@ import {
     View
 } from 'react-native'
 import { useApp } from '../context/AppContext'
-import { saveTransactionsFournisseurs } from '../lib/api'
+import { useTheme } from '../context/ThemeContext'
+import { saveOneTransactionFournisseur } from '../lib/api'
+import { CATEGORIES_INVENTAIRE } from '../lib/constants'
 import { usePhoto } from '../lib/usePhoto'
 import { supabase } from '../lib/supabase'
 
+// Produits sélectionnables pour les entrées inventaire lors d'une livraison fournisseur
+// Poulet : uniquement po1 (Poulets frais) — les formes sont gérées dans l'inventaire
+// Fromage : uniquement f10 (Total Fromage en g) — les produits individuels sont calculés auto
+const PRODUITS_LIVRAISON = CATEGORIES_INVENTAIRE.flatMap(cat =>
+  cat.produits
+    .filter(p => {
+      if (p.auto) return false                          // po7 (Pâte), b7 (Darina)
+      if (p.totalFrites) return false                   // fr3
+      if (p.totalPoulet) return false                   // po8
+      if (['po2','po3','po4','po5','po6'].includes(p.id)) return false  // formes poulet
+      if (p.fromage) return false                       // f2-f9 (fromage auto calculé)
+      return true
+    })
+    .map(p => ({ ...p, categorie: cat.nom }))
+)
+
 export default function FournisseursScreen() {
   const {
-    pointId, pointValide, fournisseursJour,
-    setFournisseursJour, estBloque, restaurantId
+    pointId, pointValide, fournisseursJour, dateJour,
+    setFournisseursJour, estBloque, restaurantId, userId, userNom,
+    postShiftReset, setPostShiftReset, roleActif,
   } = useApp()
   const { prendrePhoto: capturer, choisirPhoto: choisir } = usePhoto()
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
 
   const [fournisseurs, setFournisseurs] = useState([])
   const [creditsVeille, setCreditsVeille] = useState({})
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [savingId, setSavingId] = useState(null)
+  const [validatedIds, setValidatedIds] = useState(new Set())
+  const [fournisseurEnCours, setFournisseurEnCours] = useState(null)
+  const [showInventaireModal, setShowInventaireModal] = useState(false)
+  const [qtesEntree, setQtesEntree] = useState({})
+  const [savingInventaire, setSavingInventaire] = useState(false)
+  const [catLivraison, setCatLivraison] = useState(PRODUITS_LIVRAISON[0]?.categorie || '')
+  const today = new Date().toISOString().split('T')[0]
 
   useEffect(() => {
     if (restaurantId) chargerFournisseurs()
-  }, [restaurantId])
+  }, [restaurantId, pointId])
 
   async function chargerFournisseurs() {
     setLoading(true)
 
-    const { data: fourn } = await supabase
+    const fournQuery = supabase
       .from('fournisseurs')
-      .select('*')
+      .select('id, nom, actif, credit_actuel')
       .eq('restaurant_id', restaurantId)
       .eq('actif', true)
       .order('nom')
+
+    const transQuery = pointId
+      ? supabase.from('transactions_fournisseurs').select('*').eq('point_id', pointId)
+      : Promise.resolve({ data: [] })
+
+    const [{ data: fourn }, { data: trans }] = await Promise.all([fournQuery, transQuery])
+
     setFournisseurs(fourn || [])
 
-    // Charger le reste dû du point précédent comme crédit de la veille
-    if (pointId) {
-      const { data: pointsPrec } = await supabase
-        .from('points')
-        .select('id')
-        .eq('restaurant_id', restaurantId)
-        .neq('id', pointId)
-        .order('date', { ascending: false })
-        .limit(1)
+    const credits = {}
+    ;(fourn || []).forEach(f => {
+      credits[f.id] = f.credit_actuel ?? 0
+    })
 
-      if (pointsPrec && pointsPrec.length > 0) {
-        const { data: transPrec } = await supabase
-          .from('transactions_fournisseurs')
-          .select('fournisseur_id, reste')
-          .eq('point_id', pointsPrec[0].id)
+    // Après resetShift(), ne pas restaurer les anciennes données
+    if (postShiftReset) {
+      setPostShiftReset(false)
+      setCreditsVeille(credits)
+      setLoading(false)
+      return
+    }
 
-        const credits = {}
-        ;(transPrec || []).forEach(t => {
-          if (t.reste > 0) credits[t.fournisseur_id] = t.reste
+    if (trans && trans.length > 0) {
+      // Dédupliquer : préférer la saisie gérant
+      const priorite = { gerant: 3, caissier: 2 }
+      const dedup = {}
+      trans.forEach(t => {
+        const existing = dedup[t.fournisseur_id]
+        if (!existing || (priorite[t.saisi_par] || 1) >= (priorite[existing.saisi_par] || 1)) {
+          dedup[t.fournisseur_id] = t
+        }
+      })
+
+      // Toujours restaurer validatedIds pour que le bouton affiche "Validé" (TEST 1/2)
+      setValidatedIds(new Set(Object.keys(dedup)))
+
+      // Back-calculer le crédit d'origine (avant la transaction du jour) pour bloquer
+      // le double-comptage si l'utilisateur valide à nouveau
+      // reste = originalCredit + facture - paye  →  originalCredit = reste - facture + paye
+      Object.values(dedup).forEach(t => {
+        credits[t.fournisseur_id] = (t.reste || 0) - (t.facture || 0) + (t.paye || 0)
+      })
+
+      // Restaurer fournisseursJour uniquement sur rechargement de page (contexte vide)
+      if (Object.keys(fournisseursJour).length === 0) {
+        const restored = {}
+        Object.values(dedup).forEach(t => {
+          restored[t.fournisseur_id] = {
+            facture: String(t.facture ?? ''),
+            paye: String(t.paye ?? ''),
+            hasPhoto: !!t.photo_url,
+            photoUri: t.photo_url || null,
+          }
         })
-        setCreditsVeille(credits)
+        setFournisseursJour(restored)
       }
     }
 
+    setCreditsVeille(credits)
     setLoading(false)
   }
 
@@ -125,27 +189,87 @@ export default function FournisseursScreen() {
     }
   }
 
-  async function enregistrer() {
+  async function validerFournisseur(f) {
     if (!pointId) { Alert.alert('Erreur', 'Aucun point actif'); return }
+    const t = getTransaction(f.id)
+    if (parseFloat(t.facture) > 0 && !t.photoUri) {
+      Alert.alert('Photo manquante', `Ajoutez une photo de la facture pour "${f.nom}" avant de valider.`)
+      return
+    }
+    setSavingId(f.id)
+    const credit = creditVeille(f.id)
+    const saisiPar = roleActif === 'caissier' ? 'caissier' : 'gerant'
+    const ok = await saveOneTransactionFournisseur(pointId, f.id, t, credit, saisiPar, userNom)
+    if (ok) {
+      const nouveauReste = credit + (parseFloat(t.facture) || 0) - (parseFloat(t.paye) || 0)
+      await supabase.from('fournisseurs').update({ credit_actuel: nouveauReste }).eq('id', f.id)
+      const motifJour = `Journée du ${dateJour || today}:`
+      // Supprimer l'entrée existante du jour pour ce fournisseur avant d'insérer
+      supabase.from('historique_credit_fournisseurs')
+        .delete().eq('fournisseur_id', f.id).like('motif', `${motifJour}%`)
+        .then(() => {}).catch(() => {})
+      supabase.from('historique_credit_fournisseurs').insert({
+        fournisseur_id: f.id,
+        restaurant_id: restaurantId,
+        ancien_credit: credit,
+        nouveau_credit: nouveauReste,
+        motif: `${motifJour} facture ${Math.round(parseFloat(t.facture)||0).toLocaleString('fr-FR')}, payé ${Math.round(parseFloat(t.paye)||0).toLocaleString('fr-FR')}`,
+        modified_by: userId || null,
+      }).then(() => {}).catch(() => {})
+    }
+    setSavingId(null)
+    setValidatedIds(prev => new Set([...prev, f.id]))
+    setFournisseurEnCours(f)
+    setQtesEntree({})
+    setShowInventaireModal(true)
+  }
 
-    // Photo obligatoire uniquement si une facture est saisie
-    for (const f of fournisseurs) {
-      const t = getTransaction(f.id)
-      if (parseFloat(t.facture) > 0 && !t.photoUri) {
-        Alert.alert(
-          'Photo manquante',
-          `Ajoutez une photo de la facture pour "${f.nom}" avant d'enregistrer.`
-        )
-        return
+  async function enregistrerEntreeInventaire() {
+    const lignes = Object.entries(qtesEntree)
+      .filter(([, v]) => parseFloat(v) > 0)
+      .map(([produitId, qte]) => {
+        const produit = PRODUITS_LIVRAISON.find(p => p.id === produitId)
+        return {
+          point_id: pointId,
+          produit_id: produitId,
+          produit_nom: produit?.nom || produitId,
+          stock_initial: 0,
+          entrees: parseFloat(qte) || 0,
+          sorties: 0,
+          stock_final: 0,
+          ecart: 0,
+          prevision: 0,
+          shift_numero: 0,
+          shift_nom: 'Livraisons fournisseurs',
+          heure_debut: '00:00',
+          heure_fin: '23:59',
+          fournisseur_id: fournisseurEnCours?.id || null,
+          fournisseur_nom: fournisseurEnCours?.nom || null,
+          source: 'fournisseur',
+        }
+      })
+
+    if (lignes.length > 0) {
+      setSavingInventaire(true)
+      // Supprimer les entrées existantes pour ce fournisseur avant de réinsérer
+      if (fournisseurEnCours?.id) {
+        await supabase.from('inventaires')
+          .delete()
+          .eq('point_id', pointId)
+          .eq('shift_numero', 0)
+          .eq('fournisseur_id', fournisseurEnCours.id)
       }
+      await supabase.from('inventaires').insert(lignes)
+      setSavingInventaire(false)
     }
 
-    setSaving(true)
-    await saveTransactionsFournisseurs(pointId, fournisseursJour, creditsVeille)
-    setSaving(false)
-    Alert.alert('Succès', 'Fournisseurs enregistrés !')
-    if (router.canGoBack()) router.back()
-    else router.replace('/accueil')
+    setShowInventaireModal(false)
+    setFournisseurEnCours(null)
+  }
+
+  function fermerSansInventaire() {
+    setShowInventaireModal(false)
+    setFournisseurEnCours(null)
   }
 
   if (loading) {
@@ -198,31 +322,33 @@ export default function FournisseursScreen() {
           </View>
         ) : (
           <>
-            {['fournisseur', 'cotisation'].map(type => {
-              const liste = fournisseurs.filter(f => f.type === type)
+            {[
+              { label: '🔴 Fournisseurs', filtre: f => (creditsVeille[f.id] ?? 0) >= 0 },
+              { label: '🟢 Cotisations',  filtre: f => (creditsVeille[f.id] ?? 0) < 0 },
+            ].map(({ label, filtre }) => {
+              const liste = fournisseurs.filter(filtre)
               if (liste.length === 0) return null
               return (
-                <View key={type}>
-                  <Text style={styles.sectionTitre}>
-                    {type === 'cotisation' ? '💳 Cotisations' : '🧾 Fournisseurs'}
-                  </Text>
+                <View key={label}>
+                  <Text style={styles.sectionTitre}>{label}</Text>
                   {liste.map(f => {
                     const t = getTransaction(f.id)
                     const credit = creditVeille(f.id)
                     const reste = restedu(f.id)
                     const hasActivity = t.facture || t.paye
                     const hasDebt = reste > 0
+                    const isCotisation = credit < 0
 
                     return (
                       <View key={f.id} style={[
                         styles.fournCard,
                         hasDebt && styles.fournCardDue,
-                        !hasDebt && (hasActivity || credit > 0) && styles.fournCardOk,
+                        !hasDebt && (hasActivity || credit !== 0) && styles.fournCardOk,
                       ]}>
                         <View style={styles.fournHeader}>
-                          <View style={[styles.typeBadge, { backgroundColor: type === 'cotisation' ? '#E6F1FB' : '#FAEEDA' }]}>
-                            <Text style={[styles.typeTxt, { color: type === 'cotisation' ? '#185FA5' : '#854F0B' }]}>
-                              {type === 'cotisation' ? 'Cotis.' : 'Fourn.'}
+                          <View style={[styles.typeBadge, { backgroundColor: isCotisation ? '#E6F1FB' : '#FAEEDA' }]}>
+                            <Text style={[styles.typeTxt, { color: isCotisation ? '#185FA5' : '#854F0B' }]}>
+                              {isCotisation ? '🟢 Cotis.' : '🔴 Fourn.'}
                             </Text>
                           </View>
                           <Text style={styles.fournNom}>{f.nom}</Text>
@@ -231,14 +357,24 @@ export default function FournisseursScreen() {
                               <Text style={styles.creditBadgeTxt}>💳 {fmt(credit)}</Text>
                             </View>
                           )}
+                          {credit < 0 && (
+                            <View style={styles.prepayBadge}>
+                              <Text style={styles.prepayBadgeTxt}>✅ {fmt(Math.abs(credit))} avance</Text>
+                            </View>
+                          )}
                           {t.hasPhoto && <View style={styles.photoBadge}><Text style={styles.photoTxt}>📷</Text></View>}
                         </View>
 
-                        {/* Crédit reporté de la veille */}
                         {credit > 0 && (
                           <View style={styles.creditBanner}>
                             <Text style={styles.creditLabel}>Crédit reporté (veille)</Text>
                             <Text style={styles.creditVal}>{fmt(credit)}</Text>
+                          </View>
+                        )}
+                        {credit < 0 && (
+                          <View style={[styles.creditBanner, { backgroundColor: '#EAF3DE', borderColor: '#C0DD97' }]}>
+                            <Text style={[styles.creditLabel, { color: '#3B6D11' }]}>Avance payée (veille)</Text>
+                            <Text style={[styles.creditVal, { color: '#3B6D11' }]}>{fmt(Math.abs(credit))}</Text>
                           </View>
                         )}
 
@@ -317,10 +453,31 @@ export default function FournisseursScreen() {
                             {parseFloat(t.facture) > 0 && !t.photoUri && (
                               <Text style={styles.photoWarning}>⚠️ Photo de la facture obligatoire</Text>
                             )}
+
+                            {/* Bouton Valider individuel */}
+                            {(hasActivity || credit !== 0) && (
+                              <TouchableOpacity
+                                style={[
+                                  styles.validerBtn,
+                                  validatedIds.has(f.id) && styles.validerBtnDone,
+                                  savingId === f.id && { opacity: 0.6 },
+                                ]}
+                                onPress={() => validerFournisseur(f)}
+                                disabled={savingId === f.id}
+                              >
+                                <Text style={[styles.validerBtnTxt, validatedIds.has(f.id) && styles.validerBtnTxtDone]}>
+                                  {savingId === f.id
+                                    ? 'Enregistrement...'
+                                    : validatedIds.has(f.id)
+                                    ? '✅ Validé'
+                                    : '✅ Valider'}
+                                </Text>
+                              </TouchableOpacity>
+                            )}
                           </>
                         )}
 
-                        {estBloque(pointValide) && (hasActivity || credit > 0) && (
+                        {estBloque(pointValide) && (hasActivity || credit !== 0) && (
                           <View style={styles.inputsRow}>
                             <View style={styles.inputBox}>
                               <Text style={styles.inputLabel}>Facture</Text>
@@ -369,20 +526,93 @@ export default function FournisseursScreen() {
           </>
         )}
 
-        {!estBloque(pointValide) && fournisseurs.length > 0 && (
-          <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={enregistrer} disabled={saving}>
-            <Text style={styles.saveTxt}>{saving ? 'Enregistrement...' : '✅ Enregistrer les fournisseurs'}</Text>
-          </TouchableOpacity>
-        )}
+        {/* Boutons de validation individuels — affichés via les cartes fournisseurs */}
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* ── Modal : produits reçus à ajouter à l'inventaire ── */}
+      <Modal visible={showInventaireModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+          <View style={styles.invHeader}>
+            <Text style={styles.invTitre}>Produits reçus de {fournisseurEnCours?.nom || 'ce fournisseur'} ?</Text>
+            <Text style={styles.invSub}>Sélectionnez les produits livrés et entrez les quantités</Text>
+          </View>
+
+          {/* Onglets catégories */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.invCatBar}>
+            {[...new Set(PRODUITS_LIVRAISON.map(p => p.categorie))].map(cat => (
+              <TouchableOpacity
+                key={cat}
+                style={[styles.invCatBtn, catLivraison === cat && styles.invCatBtnActive]}
+                onPress={() => setCatLivraison(cat)}
+              >
+                <Text style={[styles.invCatTxt, catLivraison === cat && styles.invCatTxtActive]}>
+                  {cat}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          >
+            <ScrollView style={styles.invBody} keyboardShouldPersistTaps="handled">
+              {PRODUITS_LIVRAISON.filter(p => p.categorie === catLivraison).map(produit => (
+                <View key={produit.id} style={[
+                  styles.invProdRow,
+                  parseFloat(qtesEntree[produit.id]) > 0 && styles.invProdRowActive
+                ]}>
+                  <Text style={styles.invProdNom}>{produit.nom}</Text>
+                  <TextInput
+                    style={[
+                      styles.invQteInput,
+                      parseFloat(qtesEntree[produit.id]) > 0 && styles.invQteInputActive
+                    ]}
+                    placeholder="Qté"
+                    value={qtesEntree[produit.id] || ''}
+                    onChangeText={v => setQtesEntree(prev => ({ ...prev, [produit.id]: v }))}
+                    keyboardType="numeric"
+                    placeholderTextColor="#bbb"
+                  />
+                </View>
+              ))}
+              <View style={{ height: 20 }} />
+            </ScrollView>
+          </KeyboardAvoidingView>
+
+          {/* Résumé produits saisis */}
+          {Object.values(qtesEntree).some(v => parseFloat(v) > 0) && (
+            <View style={styles.invResume}>
+              <Text style={styles.invResumeTitre}>
+                {Object.values(qtesEntree).filter(v => parseFloat(v) > 0).length} produit(s) à enregistrer
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.invBtns}>
+            <TouchableOpacity style={styles.invBtnNon} onPress={fermerSansInventaire}>
+              <Text style={styles.invBtnNonTxt}>Non, terminer</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.invBtnOui, savingInventaire && { opacity: 0.6 }]}
+              onPress={enregistrerEntreeInventaire}
+              disabled={savingInventaire}
+            >
+              <Text style={styles.invBtnOuiTxt}>
+                {savingInventaire ? 'Enregistrement...' : '✅ Enregistrer'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+function makeStyles(colors) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
   header: { backgroundColor: '#EF9F27', padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   back: { fontSize: 16, color: '#412402', fontWeight: '500' },
   headerTitre: { fontSize: 16, fontWeight: '600', color: '#412402', textAlign: 'center' },
@@ -392,43 +622,70 @@ const styles = StyleSheet.create({
   valideBanner: { backgroundColor: '#FAECE7', padding: 10, alignItems: 'center' },
   valideTxt: { fontSize: 12, color: '#993C1D', fontWeight: '500' },
   loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingTxt: { fontSize: 13, color: '#888', marginTop: 12 },
+  loadingTxt: { fontSize: 13, color: colors.textMuted, marginTop: 12 },
   body: { flex: 1, padding: 14 },
   emptyBox: { alignItems: 'center', paddingVertical: 40 },
-  emptyTxt: { fontSize: 14, color: '#888', fontWeight: '500' },
-  emptySub: { fontSize: 12, color: '#bbb', marginTop: 6 },
-  sectionTitre: { fontSize: 12, fontWeight: '600', color: '#888', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  fournCard: { backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: '#eee' },
+  emptyTxt: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
+  emptySub: { fontSize: 12, color: colors.textPlaceholder, marginTop: 6 },
+  sectionTitre: { fontSize: 12, fontWeight: '600', color: colors.textMuted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  fournCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: colors.border },
   fournCardDue: { borderColor: '#F09595', backgroundColor: '#FCEBEB' },
   fournCardOk: { borderColor: '#C0DD97', backgroundColor: '#F4FAF0' },
   fournHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   typeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   typeTxt: { fontSize: 10, fontWeight: '500' },
-  fournNom: { fontSize: 14, fontWeight: '600', color: '#1a1a1a', flex: 1 },
+  fournNom: { fontSize: 14, fontWeight: '600', color: colors.text, flex: 1 },
   photoBadge: { backgroundColor: '#E6F1FB', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   photoTxt: { fontSize: 12 },
-  creditBadge: { backgroundColor: '#FFF3CD', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 0.5, borderColor: '#EF9F27' },
+  creditBadge: { backgroundColor: colors.warningLight, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 0.5, borderColor: '#EF9F27' },
   creditBadgeTxt: { fontSize: 10, color: '#854F0B', fontWeight: '600' },
-  creditBanner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFF3CD', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 10 },
-  creditLabel: { fontSize: 11, color: '#7A4F00', fontWeight: '500' },
+  prepayBadge: { backgroundColor: '#EAF3DE', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 0.5, borderColor: '#C0DD97' },
+  prepayBadgeTxt: { fontSize: 10, color: '#3B6D11', fontWeight: '600' },
+  creditBanner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.warningLight, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 10 },
+  creditLabel: { fontSize: 11, color: colors.warningDark, fontWeight: '500' },
   creditVal: { fontSize: 13, fontWeight: '700', color: '#A32D2D' },
   inputsRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   inputBox: { flex: 1, alignItems: 'center' },
-  inputLabel: { fontSize: 10, color: '#888', marginBottom: 4 },
-  input: { width: '100%', backgroundColor: '#f5f5f5', borderRadius: 8, padding: 8, fontSize: 13, textAlign: 'center', color: '#1a1a1a' },
+  inputLabel: { fontSize: 10, color: colors.textMuted, marginBottom: 4 },
+  input: { width: '100%', backgroundColor: colors.inputBg, borderRadius: 8, padding: 8, fontSize: 13, textAlign: 'center', color: colors.text },
   resteVal: { fontSize: 13, fontWeight: '600', marginTop: 8 },
-  readOnly: { fontSize: 13, fontWeight: '500', color: '#1a1a1a', marginTop: 8 },
+  readOnly: { fontSize: 13, fontWeight: '500', color: colors.text, marginTop: 8 },
   photoRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 4 },
-  photoBtn: { backgroundColor: '#f5f5f5', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+  photoBtn: { backgroundColor: colors.inputBg, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
   photoBtnRequired: { backgroundColor: '#FCEBEB', borderWidth: 1, borderColor: '#F09595' },
-  photoBtnTxt: { fontSize: 12, color: '#555' },
+  photoBtnTxt: { fontSize: 12, color: colors.textSecondary },
   photoThumb: { width: 40, height: 40, borderRadius: 8 },
   photoWarning: { fontSize: 11, color: '#A32D2D', marginTop: 6, textAlign: 'center', fontWeight: '500' },
-  recapCard: { backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 0.5, borderColor: '#eee' },
-  recapTitre: { fontSize: 13, fontWeight: '600', color: '#1a1a1a', marginBottom: 12 },
-  recapRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7, borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5' },
-  recapLabel: { fontSize: 13, color: '#888' },
-  recapVal: { fontSize: 13, fontWeight: '500', color: '#1a1a1a' },
+  recapCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 0.5, borderColor: colors.border },
+  recapTitre: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 12 },
+  recapRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7, borderBottomWidth: 0.5, borderBottomColor: colors.bg },
+  recapLabel: { fontSize: 13, color: colors.textMuted },
+  recapVal: { fontSize: 13, fontWeight: '500', color: colors.text },
   saveBtn: { backgroundColor: '#EF9F27', borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 10 },
   saveTxt: { fontSize: 15, fontWeight: '600', color: '#412402' },
-})
+  invHeader: { backgroundColor: '#EF9F27', padding: 16 },
+  invTitre: { fontSize: 16, fontWeight: '600', color: '#412402', textAlign: 'center' },
+  invSub: { fontSize: 11, color: '#854F0B', textAlign: 'center', marginTop: 4 },
+  invCatBar: { backgroundColor: colors.surface, maxHeight: 46, borderBottomWidth: 0.5, borderBottomColor: colors.border },
+  invCatBtn: { paddingHorizontal: 14, paddingVertical: 12 },
+  invCatBtnActive: { borderBottomWidth: 2, borderBottomColor: '#EF9F27' },
+  invCatTxt: { fontSize: 12, color: colors.textMuted },
+  invCatTxtActive: { color: '#EF9F27', fontWeight: '600' },
+  invBody: { flex: 1, padding: 12 },
+  invProdRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: 10, padding: 12, marginBottom: 6, borderWidth: 0.5, borderColor: colors.border },
+  invProdRowActive: { borderColor: '#EF9F27', backgroundColor: colors.orangeLight },
+  invProdNom: { fontSize: 13, color: colors.text, flex: 1 },
+  invQteInput: { width: 70, backgroundColor: colors.inputBg, borderRadius: 8, padding: 8, fontSize: 13, textAlign: 'center', color: colors.text },
+  invQteInputActive: { backgroundColor: '#EF9F27', color: '#412402', fontWeight: '600' },
+  invResume: { backgroundColor: '#EAF3DE', padding: 10, alignItems: 'center', borderTopWidth: 0.5, borderTopColor: '#C0DD97' },
+  invResumeTitre: { fontSize: 13, color: '#3B6D11', fontWeight: '600' },
+  invBtns: { flexDirection: 'row', gap: 10, padding: 16, paddingBottom: 24 },
+  invBtnNon: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.inputBg, alignItems: 'center' },
+  invBtnNonTxt: { fontSize: 14, color: colors.textMuted },
+  invBtnOui: { flex: 2, padding: 14, borderRadius: 12, backgroundColor: '#EF9F27', alignItems: 'center' },
+  invBtnOuiTxt: { fontSize: 14, fontWeight: '600', color: '#412402' },
+  validerBtn: { marginTop: 10, backgroundColor: '#EF9F27', borderRadius: 10, padding: 10, alignItems: 'center' },
+  validerBtnDone: { backgroundColor: '#EAF3DE' },
+  validerBtnTxt: { fontSize: 13, fontWeight: '600', color: '#412402' },
+  validerBtnTxtDone: { color: '#3B6D11' },
+}) }

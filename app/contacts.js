@@ -1,5 +1,7 @@
 import { router } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useApp } from '../context/AppContext'
+import { useTheme } from '../context/ThemeContext'
 import {
   ActivityIndicator,
   Alert,
@@ -21,9 +23,15 @@ import { supabase } from '../lib/supabase'
 const ONGLETS = ['Clients', 'Équipe', 'Fournisseurs']
 
 export default function ContactsScreen() {
+  const { colors } = useTheme()
+  const { roleActif, restaurantId } = useApp()
+  const styles = useMemo(() => makeStyles(colors), [colors])
+  const isGerant = roleActif === 'gerant'
+  const isRH = roleActif === 'rh'
+  const onglets = isRH ? ['Équipe'] : ONGLETS
   const [restaurants, setRestaurants] = useState([])
   const [restoSelectionne, setRestoSelectionne] = useState(null)
-  const [ongletActif, setOngletActif] = useState('Clients')
+  const [ongletActif, setOngletActif] = useState(isRH ? 'Équipe' : 'Clients')
   const [contacts, setContacts] = useState({ Clients: [], Équipe: [], Fournisseurs: [] })
   const [selectionnes, setSelectionnes] = useState({})
   const [loading, setLoading] = useState(false)
@@ -37,7 +45,12 @@ export default function ContactsScreen() {
   async function chargerRestaurants() {
     const { data } = await supabase.from('restaurants').select('*').order('nom')
     setRestaurants(data || [])
-    if (data && data.length > 0) setRestoSelectionne(data[0])
+    if (isGerant && restaurantId) {
+      const monResto = (data || []).find(r => r.id === restaurantId)
+      if (monResto) setRestoSelectionne(monResto)
+    } else if (data && data.length > 0) {
+      setRestoSelectionne(data[0])
+    }
   }
 
   async function chargerContacts() {
@@ -199,24 +212,26 @@ export default function ContactsScreen() {
         <View style={{ width: 60 }} />
       </View>
 
-      {/* Filtre restaurant */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.restoBar}>
-        {restaurants.map(r => (
-          <TouchableOpacity
-            key={r.id}
-            style={[styles.restoBtn, restoSelectionne?.id === r.id && styles.restoBtnActive]}
-            onPress={() => setRestoSelectionne(r)}
-          >
-            <Text style={[styles.restoTxt, restoSelectionne?.id === r.id && styles.restoTxtActive]}>
-              {r.nom}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      {/* Filtre restaurant — caché pour le gérant (1 seul restaurant) */}
+      {!isGerant && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.restoBar}>
+          {restaurants.map(r => (
+            <TouchableOpacity
+              key={r.id}
+              style={[styles.restoBtn, restoSelectionne?.id === r.id && styles.restoBtnActive]}
+              onPress={() => setRestoSelectionne(r)}
+            >
+              <Text style={[styles.restoTxt, restoSelectionne?.id === r.id && styles.restoTxtActive]}>
+                {r.nom}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
 
       {/* Onglets */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.ongletBar}>
-        {ONGLETS.map(o => {
+        {onglets.map(o => {
           const nb = contacts[o]?.length || 0
           return (
             <TouchableOpacity
@@ -413,95 +428,95 @@ export default function ContactsScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+function makeStyles(colors) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
-    backgroundColor: '#534AB7', padding: 16,
+    backgroundColor: colors.headerBg, padding: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'
   },
-  back: { fontSize: 16, color: '#CECBF6', fontWeight: '500' },
-  headerTitre: { fontSize: 16, fontWeight: '600', color: '#fff' },
-  restoBar: { backgroundColor: '#fff', maxHeight: 44, borderBottomWidth: 0.5, borderBottomColor: '#eee' },
+  back: { fontSize: 16, color: colors.primaryText, fontWeight: '500' },
+  headerTitre: { fontSize: 16, fontWeight: '600', color: colors.surface },
+  restoBar: { backgroundColor: colors.surface, maxHeight: 44, borderBottomWidth: 0.5, borderBottomColor: colors.border },
   restoBtn: { paddingHorizontal: 14, paddingVertical: 12 },
-  restoBtnActive: { borderBottomWidth: 2, borderBottomColor: '#534AB7' },
-  restoTxt: { fontSize: 12, color: '#888' },
-  restoTxtActive: { color: '#534AB7', fontWeight: '600' },
-  ongletBar: { backgroundColor: '#fff', maxHeight: 44, borderBottomWidth: 0.5, borderBottomColor: '#eee' },
+  restoBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
+  restoTxt: { fontSize: 12, color: colors.textMuted },
+  restoTxtActive: { color: colors.primary, fontWeight: '600' },
+  ongletBar: { backgroundColor: colors.surface, maxHeight: 44, borderBottomWidth: 0.5, borderBottomColor: colors.border },
   ongletBtn: { paddingHorizontal: 18, paddingVertical: 12 },
-  ongletBtnActive: { borderBottomWidth: 2, borderBottomColor: '#534AB7' },
-  ongletTxt: { fontSize: 13, color: '#888' },
-  ongletTxtActive: { color: '#534AB7', fontWeight: '600' },
+  ongletBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
+  ongletTxt: { fontSize: 13, color: colors.textMuted },
+  ongletTxtActive: { color: colors.primary, fontWeight: '600' },
   loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingTxt: { fontSize: 13, color: '#888', marginTop: 12 },
+  loadingTxt: { fontSize: 13, color: colors.textMuted, marginTop: 12 },
   selectBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#EEEDFE', paddingHorizontal: 16, paddingVertical: 8,
-    borderBottomWidth: 0.5, borderBottomColor: '#CECBF6'
+    backgroundColor: colors.primaryLight, paddingHorizontal: 16, paddingVertical: 8,
+    borderBottomWidth: 0.5, borderBottomColor: colors.primaryText
   },
-  selectInfo: { fontSize: 12, color: '#534AB7', fontWeight: '500' },
+  selectInfo: { fontSize: 12, color: colors.primary, fontWeight: '500' },
   selectBtns: { flexDirection: 'row', gap: 8 },
-  selectBtn: { backgroundColor: '#534AB7', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
-  selectBtnTxt: { fontSize: 11, color: '#fff', fontWeight: '500' },
+  selectBtn: { backgroundColor: colors.primary, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
+  selectBtnTxt: { fontSize: 11, color: colors.surface, fontWeight: '500' },
   body: { flex: 1, padding: 14 },
   emptyBox: { alignItems: 'center', paddingVertical: 60 },
   emptyIcon: { fontSize: 44, marginBottom: 12 },
-  emptyTxt: { fontSize: 14, color: '#888', fontWeight: '500' },
-  emptySub: { fontSize: 12, color: '#bbb', marginTop: 6, textAlign: 'center', paddingHorizontal: 20 },
+  emptyTxt: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
+  emptySub: { fontSize: 12, color: colors.textPlaceholder, marginTop: 6, textAlign: 'center', paddingHorizontal: 20 },
   contactCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14, marginBottom: 8,
+    backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 8,
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderWidth: 0.5, borderColor: '#eee'
+    borderWidth: 0.5, borderColor: colors.border
   },
-  contactCardSelected: { borderColor: '#534AB7', backgroundColor: '#F5F4FE' },
+  contactCardSelected: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
   checkbox: {
     width: 22, height: 22, borderRadius: 11, borderWidth: 1.5,
-    borderColor: '#ccc', alignItems: 'center', justifyContent: 'center'
+    borderColor: colors.inputBorder, alignItems: 'center', justifyContent: 'center'
   },
-  checkboxSelected: { backgroundColor: '#534AB7', borderColor: '#534AB7' },
-  checkmark: { fontSize: 13, color: '#fff', fontWeight: '700' },
+  checkboxSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+  checkmark: { fontSize: 13, color: colors.surface, fontWeight: '700' },
   contactAvatar: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: '#EF9F27', alignItems: 'center', justifyContent: 'center'
   },
   contactAvatarTxt: { fontSize: 13, fontWeight: '600', color: '#fff' },
   contactInfo: { flex: 1 },
-  contactNom: { fontSize: 13, fontWeight: '600', color: '#1a1a1a' },
-  contactDetail: { fontSize: 11, color: '#888', marginTop: 1 },
-  contactNum: { fontSize: 12, color: '#534AB7', marginTop: 2 },
+  contactNom: { fontSize: 13, fontWeight: '600', color: colors.text },
+  contactDetail: { fontSize: 11, color: colors.textMuted, marginTop: 1 },
+  contactNum: { fontSize: 12, color: colors.primary, marginTop: 2 },
   waBtn: { backgroundColor: '#25D366', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
   waBtnTxt: { fontSize: 11, fontWeight: '700', color: '#fff' },
   actionBar: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: '#fff', padding: 16, paddingBottom: 28,
+    backgroundColor: colors.surface, padding: 16, paddingBottom: 28,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderTopWidth: 1, borderTopColor: '#eee',
+    borderTopWidth: 1, borderTopColor: colors.border,
     shadowColor: '#000', shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 8,
   },
-  actionCount: { fontSize: 13, fontWeight: '600', color: '#534AB7' },
+  actionCount: { fontSize: 13, fontWeight: '600', color: colors.primary },
   actionBtns: { flexDirection: 'row', gap: 8 },
-  smsBtn: { backgroundColor: '#534AB7', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
-  smsBtnTxt: { fontSize: 13, fontWeight: '600', color: '#fff' },
+  smsBtn: { backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
+  smsBtnTxt: { fontSize: 13, fontWeight: '600', color: colors.surface },
   waActionBtn: { backgroundColor: '#25D366', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
   waActionBtnTxt: { fontSize: 13, fontWeight: '600', color: '#fff' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modal: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  modal: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
   modalHeader: { marginBottom: 20 },
-  modalTitre: { fontSize: 18, fontWeight: '700', color: '#1a1a1a' },
-  modalSub: { fontSize: 12, color: '#888', marginTop: 4 },
-  modalLabel: { fontSize: 11, fontWeight: '600', color: '#888', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 8 },
+  modalTitre: { fontSize: 18, fontWeight: '700', color: colors.text },
+  modalSub: { fontSize: 12, color: colors.textMuted, marginTop: 4 },
+  modalLabel: { fontSize: 11, fontWeight: '600', color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 8 },
   messageInput: {
-    backgroundColor: '#f5f5f5', borderRadius: 14, padding: 14,
-    fontSize: 14, color: '#1a1a1a', minHeight: 110, marginBottom: 6
+    backgroundColor: colors.surfaceAlt, borderRadius: 14, padding: 14,
+    fontSize: 14, color: colors.text, minHeight: 110, marginBottom: 6
   },
-  charCount: { fontSize: 10, color: '#bbb', textAlign: 'right', marginBottom: 12 },
+  charCount: { fontSize: 10, color: colors.textPlaceholder, textAlign: 'right', marginBottom: 12 },
   destRow: { maxHeight: 36, marginBottom: 16 },
-  destBadge: { backgroundColor: '#EEEDFE', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, marginRight: 6 },
-  destNum: { fontSize: 11, color: '#534AB7', fontWeight: '500', maxWidth: 100 },
+  destBadge: { backgroundColor: colors.primaryLight, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, marginRight: 6 },
+  destNum: { fontSize: 11, color: colors.primary, fontWeight: '500', maxWidth: 100 },
   modalBtns: { flexDirection: 'row', gap: 10 },
-  modalCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#f5f5f5', alignItems: 'center' },
-  modalCancelTxt: { fontSize: 14, color: '#888' },
-  modalConfirm: { flex: 2, padding: 14, borderRadius: 12, backgroundColor: '#534AB7', alignItems: 'center' },
+  modalCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.surfaceAlt, alignItems: 'center' },
+  modalCancelTxt: { fontSize: 14, color: colors.textMuted },
+  modalConfirm: { flex: 2, padding: 14, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center' },
   modalConfirmWA: { backgroundColor: '#25D366' },
-  modalConfirmTxt: { fontSize: 14, fontWeight: '600', color: '#fff' },
-})
+  modalConfirmTxt: { fontSize: 14, fontWeight: '600', color: colors.surface },
+}) }

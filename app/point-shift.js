@@ -1,5 +1,5 @@
 import { router } from 'expo-router'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
     ActivityIndicator,
     Alert,
@@ -14,6 +14,9 @@ import {
     View
 } from 'react-native'
 import { useApp } from '../context/AppContext'
+import { useTheme } from '../context/ThemeContext'
+import { savePointShiftData } from '../lib/api'
+import { creerNotification } from '../lib/notificationsInterne'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
 
@@ -35,7 +38,57 @@ function effacerDraft() {
 // ─── Composants stables hors du composant principal ───────────────────────────
 // Définis ici pour éviter le re-montage à chaque re-render (perte de focus clavier)
 
+const HEURES = Array.from({ length: 24 }, (_, i) => i)
+const MINUTES = Array.from({ length: 60 }, (_, i) => i)
+const ITEM_H = 48
+
+function ColonnePicker({ items, value, onChange }) {
+  const scrollRef = useRef(null)
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: value * ITEM_H, animated: false })
+    }, 80)
+    return () => clearTimeout(t)
+  }, []) // scroll initial uniquement — utiliser key= pour forcer le remontage
+
+  return (
+    <View style={{ height: ITEM_H * 3, overflow: 'hidden' }}>
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute', top: ITEM_H, left: 0, right: 0, height: ITEM_H,
+          borderTopWidth: 1.5, borderBottomWidth: 1.5, borderColor: '#EF9F27',
+          backgroundColor: '#FFF8ED', zIndex: 1,
+        }}
+      />
+      <ScrollView
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={ITEM_H}
+        decelerationRate="fast"
+        onMomentumScrollEnd={(e) => {
+          const idx = Math.round(e.nativeEvent.contentOffset.y / ITEM_H)
+          onChange(Math.max(0, Math.min(items.length - 1, idx)))
+        }}
+      >
+        <View style={{ height: ITEM_H }} />
+        {items.map((item, i) => (
+          <View key={i} style={{ height: ITEM_H, justifyContent: 'center', alignItems: 'center' }}>
+            <Text style={{ fontSize: 26, color: '#1a1a1a', fontWeight: '500' }}>
+              {String(item).padStart(2, '0')}
+            </Text>
+          </View>
+        ))}
+        <View style={{ height: ITEM_H }} />
+      </ScrollView>
+    </View>
+  )
+}
+
 function PhotoInput({ label, value, setter, dossier, obligatoire, onGererPhoto, uploading }) {
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
   return (
     <View style={[styles.photoBlock, obligatoire && !value && styles.photoBlockRequired]}>
       <View style={styles.photoHeader}>
@@ -74,6 +127,8 @@ function PhotoInput({ label, value, setter, dossier, obligatoire, onGererPhoto, 
 }
 
 function LigneSaisie({ label, value, setter, photoValue, photoSetter, dossier, onGererPhoto, uploading }) {
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
   const montant = parseFloat(value) || 0
   return (
     <View style={styles.ligneCard}>
@@ -104,6 +159,8 @@ function LigneSaisie({ label, value, setter, photoValue, photoSetter, dossier, o
 }
 
 function LigneSaisieSimple({ label, value, setter, note }) {
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
   return (
     <View style={styles.ligneCard}>
       <View style={styles.ligneHeader}>
@@ -127,31 +184,27 @@ function LigneSaisieSimple({ label, value, setter, note }) {
 
 export default function PointShiftScreen() {
   const {
-    pointId, restaurantId, roleActif,
+    pointId, setPointId, restaurantId, roleActif,
+    dateJour,
     depensesJour, fournisseursJour,
-    userId, userNom, resetShift,
+    userId, userNom, resetJour,
     totalDepenses, totalFournisseurs,
   } = useApp()
 
   const { prendrePhoto, choisirPhoto } = usePhoto()
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
 
   const isCaissier = roleActif === 'caissier'
   const isGerant = roleActif === 'gerant'
   const isManager = roleActif === 'manager'
+  const isDirecteur = roleActif === 'directeur'
+  const peutSupprimer = isManager || isDirecteur
 
   const _d = lireDraft()
   const [heureDebut, setHeureDebut] = useState(_d?.heureDebut || '')
   const [heureFin, setHeureFin] = useState(_d?.heureFin || '')
-  const [dateShift, setDateShift] = useState(() => {
-    const now = new Date()
-    const heure = now.getHours()
-    if (heure >= 0 && heure < 5) {
-      const hier = new Date(now)
-      hier.setDate(hier.getDate() - 1)
-      return hier.toISOString().split('T')[0]
-    }
-    return now.toISOString().split('T')[0]
-  })
+  const [dateShift, setDateShift] = useState(dateJour || new Date().toISOString().split('T')[0])
   const [kdo, setKdo] = useState(_d?.kdo || '')
   const [retour, setRetour] = useState(_d?.retour || '')
   const [yangoCse, setYangoCse] = useState(_d?.yangoCse || '')
@@ -169,6 +222,7 @@ export default function PointShiftScreen() {
   const [photoDjamo, setPhotoDjamo] = useState(_d?.photoDjamo || null)
   const [photoOm, setPhotoOm] = useState(_d?.photoOm || null)
 
+  const [inventaireCaissierOk, setInventaireCaissierOk] = useState(false)
   const [shiftsGerant, setShiftsGerant] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -177,13 +231,34 @@ export default function PointShiftScreen() {
   const [modalDate, setModalDate] = useState(false)
   const [photoModalVisible, setPhotoModalVisible] = useState(false)
   const [confirmShiftVisible, setConfirmShiftVisible] = useState(false)
+  const [timePickerVisible, setTimePickerVisible] = useState(false)
+  const [timePickerChamp, setTimePickerChamp] = useState('debut')
+  const [timePickerH, setTimePickerH] = useState(8)
+  const [timePickerM, setTimePickerM] = useState(0)
   const photoPickerRef = useRef({ setter: null, dossier: '' })
+  const [modeSelection, setModeSelection] = useState(false)
+  const [shiftsSelectionnes, setShiftsSelectionnes] = useState(new Set())
+  const [suppressionEnCours, setSuppressionEnCours] = useState(false)
+  const [confirmSupprShift, setConfirmSupprShift] = useState(null)
+  const [confirmSupprMultiple, setConfirmSupprMultiple] = useState(false)
 
   useEffect(() => {
-    if (isGerant || isManager) chargerShiftsGerant()
+    if (isGerant || isManager || isDirecteur) chargerShiftsGerant()
     else setLoading(false)
     verifierHeure()
+    if (isCaissier && pointId && userId) chargerStatutInventaire()
   }, [])
+
+  async function chargerStatutInventaire() {
+    const { data } = await supabase
+      .from('inventaires_shifts')
+      .select('id')
+      .eq('point_id', pointId)
+      .eq('caissier_id', userId)
+      .eq('valide', true)
+      .limit(1)
+    setInventaireCaissierOk(!!(data && data.length > 0))
+  }
 
   // Sauvegarder le brouillon dans localStorage (résout écran blanc après photo sur iOS)
   useEffect(() => {
@@ -201,6 +276,22 @@ export default function PointShiftScreen() {
   function verifierHeure() {
     const now = new Date()
     if (now.getHours() >= 0 && now.getHours() < 5) setModalDate(true)
+  }
+
+  function ouvrirTimePicker(champ) {
+    const val = champ === 'debut' ? heureDebut : heureFin
+    const [h, m] = val ? val.split(':').map(Number) : [champ === 'debut' ? 8 : 16, 0]
+    setTimePickerH(h)
+    setTimePickerM(m)
+    setTimePickerChamp(champ)
+    setTimePickerVisible(true)
+  }
+
+  function confirmerTimePicker() {
+    const str = `${String(timePickerH).padStart(2, '0')}:${String(timePickerM).padStart(2, '0')}`
+    if (timePickerChamp === 'debut') setHeureDebut(str)
+    else setHeureFin(str)
+    setTimePickerVisible(false)
   }
 
   async function chargerShiftsGerant() {
@@ -221,6 +312,103 @@ export default function PointShiftScreen() {
 
     setShiftsGerant(data || [])
     setLoading(false)
+  }
+
+  async function supprimerShift(shift) {
+    setSuppressionEnCours(true)
+    try {
+      const { data: point } = await supabase
+        .from('points')
+        .select('valide')
+        .eq('id', shift.point_id)
+        .maybeSingle()
+
+      if (point?.valide) {
+        Alert.alert('Suppression impossible', 'Ce shift appartient à un point déjà validé et ne peut pas être supprimé.')
+        setConfirmSupprShift(null)
+        return
+      }
+
+      if (shift.caissier_id) {
+        await supabase.from('presences').delete()
+          .eq('point_id', shift.point_id).eq('caissier_id', shift.caissier_id)
+      }
+      await supabase.from('depenses').delete()
+        .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
+      await supabase.from('transactions_fournisseurs').delete()
+        .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
+      await supabase.from('points_shifts').delete().eq('id', shift.id)
+
+      setConfirmSupprShift(null)
+      await chargerShiftsGerant()
+    } catch (err) {
+      Alert.alert('Erreur', err.message)
+    } finally {
+      setSuppressionEnCours(false)
+    }
+  }
+
+  async function supprimerShiftsMultiples() {
+    if (shiftsSelectionnes.size === 0) return
+    setSuppressionEnCours(true)
+    setConfirmSupprMultiple(false)
+
+    const selectedShifts = shiftsGerant.filter(s => shiftsSelectionnes.has(s.id))
+    const pointIds = [...new Set(selectedShifts.map(s => s.point_id))]
+    const shiftIds = selectedShifts.map(s => s.id)
+
+    try {
+      const { data: points } = await supabase
+        .from('points').select('id, valide').in('id', pointIds)
+      const pointsValides = points?.filter(p => p.valide).map(p => p.id) || []
+      if (pointsValides.length > 0) {
+        const nb = selectedShifts.filter(s => pointsValides.includes(s.point_id)).length
+        Alert.alert(
+          'Suppression impossible',
+          `${nb} shift(s) appartiennent à des points déjà validés et ne peuvent pas être supprimés.`
+        )
+        setSuppressionEnCours(false)
+        return
+      }
+
+      for (const shift of selectedShifts) {
+        if (shift.caissier_id) {
+          await supabase.from('presences').delete()
+            .eq('point_id', shift.point_id).eq('caissier_id', shift.caissier_id)
+        }
+      }
+      await supabase.from('depenses').delete()
+        .in('point_id', pointIds).eq('saisi_par', 'caissier')
+      await supabase.from('transactions_fournisseurs').delete()
+        .in('point_id', pointIds).eq('saisi_par', 'caissier')
+      await supabase.from('points_shifts').delete().in('id', shiftIds)
+
+      setModeSelection(false)
+      setShiftsSelectionnes(new Set())
+      await chargerShiftsGerant()
+    } catch (err) {
+      Alert.alert('Erreur', err.message)
+    } finally {
+      setSuppressionEnCours(false)
+    }
+  }
+
+  function toggleSelection(shiftId) {
+    setShiftsSelectionnes(prev => {
+      const next = new Set(prev)
+      if (next.has(shiftId)) next.delete(shiftId)
+      else next.add(shiftId)
+      return next
+    })
+  }
+
+  function toutSelectionner() {
+    setShiftsSelectionnes(new Set(shiftsGerant.map(s => s.id)))
+  }
+
+  function quitterModeSelection() {
+    setModeSelection(false)
+    setShiftsSelectionnes(new Set())
   }
 
   function venteShift() {
@@ -284,6 +472,17 @@ export default function PointShiftScreen() {
       Alert.alert('Erreur', 'Veuillez indiquer les heures de début et de fin du shift')
       return
     }
+    if (isCaissier && !inventaireCaissierOk) {
+      Alert.alert(
+        '🔒 Inventaire requis',
+        'Veuillez compléter et verrouiller votre inventaire avant de valider le shift.',
+        [
+          { text: 'Retour', style: 'cancel' },
+          { text: 'Vérifier', onPress: () => chargerStatutInventaire() },
+        ]
+      )
+      return
+    }
     const manquantes = verifierPhotosManquantes()
     if (manquantes.length > 0) {
       Alert.alert(
@@ -310,7 +509,7 @@ export default function PointShiftScreen() {
     }
 
     const vente = venteShift()
-    const { error } = await supabase.from('points_shifts').insert({
+    const shiftRecord = {
       point_id: shiftPointId,
       restaurant_id: restaurantId,
       date: dateShift,
@@ -338,19 +537,25 @@ export default function PointShiftScreen() {
       photo_om: photoOm,
       valide: true,
       valide_at: new Date().toISOString(),
-    })
+    }
 
-    if (error) {
-      Alert.alert('Erreur', error.message)
+    try {
+      await savePointShiftData(shiftRecord, depensesJour, fournisseursJour, userNom)
+      creerNotification({
+        type: 'shift_valide',
+        titre: '⏱️ Shift validé',
+        message: `${userNom || 'Caissier'} — ${dateShift}`,
+        restaurant_id: restaurantId,
+        cible_role: ['manager', 'directeur', 'gerant'],
+        created_by: userId,
+      }).catch(() => {})
+    } catch (err) {
+      Alert.alert('Erreur', err.message)
       setSaving(false)
       return
     }
 
-    // Supprimer les présences du caissier pour ce point
-    // (les dépenses et fournisseurs ont leur propre delete-reinsert)
-    await supabase.from('presences').delete().eq('point_id', shiftPointId)
-
-    resetShift()
+    resetJour()
     effacerDraft()
 
     setHeureDebut(''); setHeureFin('')
@@ -408,7 +613,7 @@ export default function PointShiftScreen() {
         <View style={{ width: 60 }} />
       </View>
 
-      {(isGerant || isManager) && (
+      {(isGerant || isManager || isDirecteur) && (
         <View style={styles.onglets}>
           <TouchableOpacity
             style={[styles.onglet, vue === 'monshift' && styles.ongletActive]}
@@ -440,7 +645,7 @@ export default function PointShiftScreen() {
       {/* ══════════════════════════════════════════
           CAISSIER / GÉRANT — Formulaire shift
       ══════════════════════════════════════════ */}
-      {(isCaissier || ((isGerant || isManager) && vue === 'monshift')) && (
+      {(isCaissier || ((isGerant || isManager || isDirecteur) && vue === 'monshift')) && (
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
           {new Date().getHours() >= 0 && new Date().getHours() < 5 && (
@@ -456,25 +661,19 @@ export default function PointShiftScreen() {
           <View style={styles.heuresCard}>
             <View style={styles.heureRow}>
               <Text style={styles.heureLabel}>Heure de début</Text>
-              <TextInput
-                style={styles.heureInput}
-                value={heureDebut}
-                onChangeText={setHeureDebut}
-                placeholder="08:00"
-                placeholderTextColor="#bbb"
-                keyboardType="numbers-and-punctuation"
-              />
+              <TouchableOpacity style={styles.heureBtn} onPress={() => ouvrirTimePicker('debut')}>
+                <Text style={[styles.heureBtnTxt, !heureDebut && styles.heureBtnPlaceholder]}>
+                  {heureDebut || '-- : --'}
+                </Text>
+              </TouchableOpacity>
             </View>
             <View style={[styles.heureRow, { borderBottomWidth: 0 }]}>
               <Text style={styles.heureLabel}>Heure de fin</Text>
-              <TextInput
-                style={styles.heureInput}
-                value={heureFin}
-                onChangeText={setHeureFin}
-                placeholder="16:00"
-                placeholderTextColor="#bbb"
-                keyboardType="numbers-and-punctuation"
-              />
+              <TouchableOpacity style={styles.heureBtn} onPress={() => ouvrirTimePicker('fin')}>
+                <Text style={[styles.heureBtnTxt, !heureFin && styles.heureBtnPlaceholder]}>
+                  {heureFin || '-- : --'}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -602,7 +801,7 @@ export default function PointShiftScreen() {
       {/* ══════════════════════════════════════════
           GÉRANT — Vue journalière cumul
       ══════════════════════════════════════════ */}
-      {(isGerant || isManager) && vue === 'liste' && (
+      {(isGerant || isManager || isDirecteur) && vue === 'liste' && (
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           {loading ? (
             <View style={styles.loadingBox}>
@@ -677,72 +876,176 @@ export default function PointShiftScreen() {
       )}
 
       {/* ══════════════════════════════════════════
-          GÉRANT — Détail par shift
+          GÉRANT / MANAGER / DIRECTEUR — Détail par shift
       ══════════════════════════════════════════ */}
-      {(isGerant || isManager) && vue === 'detail' && (
-        <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-          {loading ? (
-            <View style={styles.loadingBox}>
-              <ActivityIndicator size="large" color="#EF9F27" />
+      {(isGerant || isManager || isDirecteur) && vue === 'detail' && (
+        <View style={{ flex: 1 }}>
+          {/* Barre de sélection multiple — Manager et Directeur uniquement */}
+          {peutSupprimer && !loading && shiftsGerant.length > 0 && (
+            <View style={styles.selectionBar}>
+              {modeSelection ? (
+                <>
+                  <TouchableOpacity style={styles.selBtnTout} onPress={toutSelectionner}>
+                    <Text style={styles.selBtnToutTxt}>Tout sélectionner</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.selBtnAnnuler} onPress={quitterModeSelection}>
+                    <Text style={styles.selBtnAnnulerTxt}>Annuler</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity style={styles.selBtnActiver} onPress={() => setModeSelection(true)}>
+                  <Text style={styles.selBtnActiverTxt}>☑️ Sélectionner</Text>
+                </TouchableOpacity>
+              )}
             </View>
-          ) : shiftsGerant.length === 0 ? (
-            <View style={styles.emptyBox}>
-              <Text style={styles.emptyIcon}>📋</Text>
-              <Text style={styles.emptyTxt}>Aucun shift pour aujourd'hui</Text>
-            </View>
-          ) : (
-            shiftsGerant.map((shift, i) => (
-              <View key={shift.id} style={styles.shiftCard}>
-                <View style={styles.shiftHeader}>
-                  <View style={styles.shiftNumBox}>
-                    <Text style={styles.shiftNumTxt}>S{i + 1}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.shiftHeures}>
-                      ⏰ {shift.heure_debut} → {shift.heure_fin}
-                    </Text>
-                    {shift.caissier_nom && (
-                      <Text style={styles.shiftCaissier}>👤 {shift.caissier_nom}</Text>
-                    )}
-                    <Text style={styles.shiftDate}>{formatDate(shift.date)}</Text>
-                  </View>
-                  <View style={styles.shiftValideBadge}>
-                    <Text style={styles.shiftValideTxt}>🔒 Validé</Text>
-                  </View>
-                </View>
-                <View style={styles.shiftDetails}>
-                  {[
-                    { label: 'Dépenses + Salaires', val: shift.depenses },
-                    { label: 'Fournisseurs', val: shift.fournisseurs },
-                    { label: 'KDO', val: shift.kdo },
-                    { label: 'Retour', val: shift.retour },
-                    { label: 'Yango CSE', val: shift.yango_cse },
-                    { label: 'Glovo CSE', val: shift.glovo_cse },
-                    { label: 'Wave', val: shift.wave },
-                    { label: 'Djamo', val: shift.djamo },
-                    { label: 'Orange Money', val: shift.om },
-                    { label: 'Espèces', val: shift.espece },
-                  ].filter(r => r.val > 0).map((r, j) => (
-                    <View key={j} style={styles.shiftRow}>
-                      <Text style={styles.shiftLabel}>{r.label}</Text>
-                      <Text style={styles.shiftVal}>{fmt(r.val)}</Text>
-                    </View>
-                  ))}
-                  <View style={[styles.shiftRow, { borderBottomWidth: 0, marginTop: 8 }]}>
-                    <Text style={[styles.shiftLabel, { fontWeight: '700', color: '#1a1a1a', fontSize: 14 }]}>
-                      Vente shift
-                    </Text>
-                    <Text style={[styles.shiftVal, { fontWeight: '700', color: '#EF9F27', fontSize: 16 }]}>
-                      {fmt(shift.vente_shift)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            ))
           )}
-          <View style={{ height: 40 }} />
-        </ScrollView>
+
+          <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {loading ? (
+              <View style={styles.loadingBox}>
+                <ActivityIndicator size="large" color="#EF9F27" />
+              </View>
+            ) : shiftsGerant.length === 0 ? (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyIcon}>📋</Text>
+                <Text style={styles.emptyTxt}>Aucun shift pour aujourd'hui</Text>
+              </View>
+            ) : (
+              shiftsGerant.map((shift, i) => {
+                const selectionne = shiftsSelectionnes.has(shift.id)
+                return (
+                  <TouchableOpacity
+                    key={shift.id}
+                    style={[styles.shiftCard, modeSelection && selectionne && styles.shiftCardSelected]}
+                    onPress={modeSelection ? () => toggleSelection(shift.id) : undefined}
+                    activeOpacity={modeSelection ? 0.7 : 1}
+                  >
+                    <View style={styles.shiftHeader}>
+                      {modeSelection && (
+                        <View style={[styles.checkbox, selectionne && styles.checkboxSelected]}>
+                          {selectionne && <Text style={styles.checkboxCheck}>✓</Text>}
+                        </View>
+                      )}
+                      <View style={styles.shiftNumBox}>
+                        <Text style={styles.shiftNumTxt}>S{i + 1}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.shiftHeures}>
+                          ⏰ {shift.heure_debut} → {shift.heure_fin}
+                        </Text>
+                        {shift.caissier_nom && (
+                          <Text style={styles.shiftCaissier}>👤 {shift.caissier_nom}</Text>
+                        )}
+                        <Text style={styles.shiftDate}>{formatDate(shift.date)}</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                        <View style={styles.shiftValideBadge}>
+                          <Text style={styles.shiftValideTxt}>🔒 Validé</Text>
+                        </View>
+                        {peutSupprimer && !modeSelection && (
+                          <TouchableOpacity
+                            style={styles.supprimerBtn}
+                            onPress={() => setConfirmSupprShift(shift)}
+                          >
+                            <Text style={styles.supprimerBtnTxt}>🗑️ Supprimer</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                    <View style={styles.shiftDetails}>
+                      {[
+                        { label: 'Dépenses + Salaires', val: shift.depenses },
+                        { label: 'Fournisseurs', val: shift.fournisseurs },
+                        { label: 'KDO', val: shift.kdo },
+                        { label: 'Retour', val: shift.retour },
+                        { label: 'Yango CSE', val: shift.yango_cse },
+                        { label: 'Glovo CSE', val: shift.glovo_cse },
+                        { label: 'Wave', val: shift.wave },
+                        { label: 'Djamo', val: shift.djamo },
+                        { label: 'Orange Money', val: shift.om },
+                        { label: 'Espèces', val: shift.espece },
+                      ].filter(r => r.val > 0).map((r, j) => (
+                        <View key={j} style={styles.shiftRow}>
+                          <Text style={styles.shiftLabel}>{r.label}</Text>
+                          <Text style={styles.shiftVal}>{fmt(r.val)}</Text>
+                        </View>
+                      ))}
+                      <View style={[styles.shiftRow, { borderBottomWidth: 0, marginTop: 8 }]}>
+                        <Text style={[styles.shiftLabel, { fontWeight: '700', color: '#1a1a1a', fontSize: 14 }]}>
+                          Vente shift
+                        </Text>
+                        <Text style={[styles.shiftVal, { fontWeight: '700', color: '#EF9F27', fontSize: 16 }]}>
+                          {fmt(shift.vente_shift)}
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                )
+              })
+            )}
+            <View style={{ height: modeSelection && shiftsSelectionnes.size > 0 ? 100 : 40 }} />
+          </ScrollView>
+
+          {/* Barre de suppression en bas — mode sélection actif */}
+          {peutSupprimer && modeSelection && shiftsSelectionnes.size > 0 && (
+            <View style={styles.barreSuppressionBas}>
+              <TouchableOpacity
+                style={[styles.btnSupprimerSel, suppressionEnCours && { opacity: 0.6 }]}
+                onPress={() => setConfirmSupprMultiple(true)}
+                disabled={suppressionEnCours}
+              >
+                {suppressionEnCours ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.btnSupprimerSelTxt}>
+                    🗑️ Supprimer la sélection ({shiftsSelectionnes.size})
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       )}
+
+      {/* Modal sélecteur d'heure */}
+      <Modal visible={timePickerVisible} transparent animationType="slide">
+        <View style={styles.confirmOverlay}>
+          <View style={styles.timePickerBox}>
+            <Text style={styles.timePickerTitre}>
+              {timePickerChamp === 'debut' ? '⏱️ Heure de début' : '⏱️ Heure de fin'}
+            </Text>
+            <View style={styles.timePickerCols}>
+              <View style={styles.timePickerColWrap}>
+                <Text style={styles.timePickerColLabel}>Heure</Text>
+                <ColonnePicker
+                  key={`h-${timePickerVisible}-${timePickerChamp}`}
+                  items={HEURES}
+                  value={timePickerH}
+                  onChange={setTimePickerH}
+                />
+              </View>
+              <Text style={styles.timePickerSep}>:</Text>
+              <View style={styles.timePickerColWrap}>
+                <Text style={styles.timePickerColLabel}>Minute</Text>
+                <ColonnePicker
+                  key={`m-${timePickerVisible}-${timePickerChamp}`}
+                  items={MINUTES}
+                  value={timePickerM}
+                  onChange={setTimePickerM}
+                />
+              </View>
+            </View>
+            <View style={styles.confirmBtns}>
+              <TouchableOpacity style={styles.confirmCancel} onPress={() => setTimePickerVisible(false)}>
+                <Text style={styles.confirmCancelTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.confirmOk} onPress={confirmerTimePicker}>
+                <Text style={styles.confirmOkTxt}>✓ Confirmer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Modal choix source photo */}
       <Modal visible={photoModalVisible} transparent animationType="fade">
@@ -784,6 +1087,66 @@ export default function PointShiftScreen() {
         </View>
       </Modal>
 
+      {/* Modal confirmation suppression shift individuel */}
+      <Modal visible={!!confirmSupprShift} transparent animationType="fade">
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitre}>Supprimer ce shift ?</Text>
+            <Text style={styles.confirmMsg}>
+              {confirmSupprShift?.caissier_nom ? `👤 ${confirmSupprShift.caissier_nom}\n` : ''}
+              {confirmSupprShift ? `⏰ ${confirmSupprShift.heure_debut} → ${confirmSupprShift.heure_fin}\n\n` : ''}
+              Êtes-vous sûr de vouloir supprimer ce shift ? Cette action est irréversible.
+            </Text>
+            <View style={styles.confirmBtns}>
+              <TouchableOpacity
+                style={styles.confirmCancel}
+                onPress={() => setConfirmSupprShift(null)}
+                disabled={suppressionEnCours}
+              >
+                <Text style={styles.confirmCancelTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmOk, { backgroundColor: '#A32D2D' }, suppressionEnCours && { opacity: 0.6 }]}
+                onPress={() => supprimerShift(confirmSupprShift)}
+                disabled={suppressionEnCours}
+              >
+                {suppressionEnCours ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.confirmOkTxt}>🗑️ Confirmer la suppression</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal confirmation suppression multiple */}
+      <Modal visible={confirmSupprMultiple} transparent animationType="fade">
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitre}>Supprimer {shiftsSelectionnes.size} shift(s) ?</Text>
+            <Text style={styles.confirmMsg}>
+              Vous allez supprimer {shiftsSelectionnes.size} shift(s) et toutes leurs données liées (présences, dépenses, fournisseurs).{'\n\n'}Cette action est irréversible.
+            </Text>
+            <View style={styles.confirmBtns}>
+              <TouchableOpacity
+                style={styles.confirmCancel}
+                onPress={() => setConfirmSupprMultiple(false)}
+              >
+                <Text style={styles.confirmCancelTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmOk, { backgroundColor: '#A32D2D' }]}
+                onPress={supprimerShiftsMultiples}
+              >
+                <Text style={styles.confirmOkTxt}>🗑️ Supprimer tout</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Modal alerte minuit */}
       <Modal visible={modalDate} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -807,8 +1170,8 @@ export default function PointShiftScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+function makeStyles(colors) { return StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
   header: {
     backgroundColor: '#EF9F27', padding: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'
@@ -817,19 +1180,19 @@ const styles = StyleSheet.create({
   headerTitre: { fontSize: 16, fontWeight: '600', color: '#412402', textAlign: 'center' },
   headerSub: { fontSize: 11, color: '#854F0B', textAlign: 'center' },
   onglets: {
-    flexDirection: 'row', backgroundColor: '#fff',
-    borderBottomWidth: 0.5, borderBottomColor: '#eee'
+    flexDirection: 'row', backgroundColor: colors.surface,
+    borderBottomWidth: 0.5, borderBottomColor: colors.border
   },
   onglet: { flex: 1, paddingVertical: 12, alignItems: 'center' },
   ongletActive: { borderBottomWidth: 2, borderBottomColor: '#EF9F27' },
-  ongletTxt: { fontSize: 13, color: '#888' },
+  ongletTxt: { fontSize: 13, color: colors.textMuted },
   ongletTxtActive: { color: '#EF9F27', fontWeight: '600' },
   body: { flex: 1, padding: 14 },
   loadingBox: { alignItems: 'center', paddingVertical: 40 },
   emptyBox: { alignItems: 'center', paddingVertical: 40 },
   emptyIcon: { fontSize: 50, marginBottom: 12 },
-  emptyTxt: { fontSize: 14, color: '#888', fontWeight: '500' },
-  emptySub: { fontSize: 12, color: '#bbb', marginTop: 6, textAlign: 'center', paddingHorizontal: 20 },
+  emptyTxt: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
+  emptySub: { fontSize: 12, color: colors.textPlaceholder, marginTop: 6, textAlign: 'center', paddingHorizontal: 20 },
   totalJourCard: {
     backgroundColor: '#EF9F27', borderRadius: 14, padding: 16,
     marginBottom: 14, alignItems: 'center'
@@ -838,29 +1201,29 @@ const styles = StyleSheet.create({
   totalJourVal: { fontSize: 26, fontWeight: '700', color: '#412402', marginBottom: 4 },
   totalJourSub: { fontSize: 11, color: '#854F0B' },
   cumulCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14,
-    marginBottom: 14, borderWidth: 0.5, borderColor: '#eee'
+    backgroundColor: colors.surface, borderRadius: 14, padding: 14,
+    marginBottom: 14, borderWidth: 0.5, borderColor: colors.border
   },
-  cumulTitre: { fontSize: 13, fontWeight: '600', color: '#1a1a1a', marginBottom: 12 },
+  cumulTitre: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 12 },
   cumulRow: {
     flexDirection: 'row', justifyContent: 'space-between',
-    paddingVertical: 7, borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5'
+    paddingVertical: 7, borderBottomWidth: 0.5, borderBottomColor: colors.bg
   },
-  cumulLabel: { fontSize: 13, color: '#888' },
-  cumulVal: { fontSize: 13, fontWeight: '500', color: '#1a1a1a' },
+  cumulLabel: { fontSize: 13, color: colors.textMuted },
+  cumulVal: { fontSize: 13, fontWeight: '500', color: colors.text },
   infoGerantCard: {
     backgroundColor: '#E6F1FB', borderRadius: 12, padding: 12,
     marginBottom: 14, borderWidth: 0.5, borderColor: '#B8D4F5'
   },
   infoGerantTxt: { fontSize: 12, color: '#185FA5', lineHeight: 18 },
   sectionTitre: {
-    fontSize: 12, fontWeight: '600', color: '#888',
+    fontSize: 12, fontWeight: '600', color: colors.textMuted,
     textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 6
   },
-  sectionSub: { fontSize: 12, color: '#aaa', marginBottom: 10 },
+  sectionSub: { fontSize: 12, color: colors.textPlaceholder, marginBottom: 10 },
   shiftCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14,
-    marginBottom: 10, borderWidth: 0.5, borderColor: '#eee'
+    backgroundColor: colors.surface, borderRadius: 14, padding: 14,
+    marginBottom: 10, borderWidth: 0.5, borderColor: colors.border
   },
   shiftHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   shiftNumBox: {
@@ -868,74 +1231,84 @@ const styles = StyleSheet.create({
     backgroundColor: '#EF9F27', alignItems: 'center', justifyContent: 'center'
   },
   shiftNumTxt: { fontSize: 13, fontWeight: '600', color: '#412402' },
-  shiftHeures: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
-  shiftCaissier: { fontSize: 11, color: '#534AB7', marginTop: 2 },
-  shiftDate: { fontSize: 11, color: '#888', marginTop: 2 },
+  shiftHeures: { fontSize: 14, fontWeight: '600', color: colors.text },
+  shiftCaissier: { fontSize: 11, color: colors.primary, marginTop: 2 },
+  shiftDate: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
   shiftValideBadge: { backgroundColor: '#EAF3DE', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   shiftValideTxt: { fontSize: 11, color: '#3B6D11', fontWeight: '500' },
-  shiftDetails: { borderTopWidth: 0.5, borderTopColor: '#f5f5f5', paddingTop: 10 },
+  shiftDetails: { borderTopWidth: 0.5, borderTopColor: colors.bg, paddingTop: 10 },
   shiftRow: {
     flexDirection: 'row', justifyContent: 'space-between',
-    paddingVertical: 5, borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5'
+    paddingVertical: 5, borderBottomWidth: 0.5, borderBottomColor: colors.bg
   },
-  shiftLabel: { fontSize: 13, color: '#888' },
-  shiftVal: { fontSize: 13, fontWeight: '500', color: '#1a1a1a' },
+  shiftLabel: { fontSize: 13, color: colors.textMuted },
+  shiftVal: { fontSize: 13, fontWeight: '500', color: colors.text },
   alerteMinuit: {
-    backgroundColor: '#FAEEDA', borderRadius: 12, padding: 14,
+    backgroundColor: colors.orangeLight, borderRadius: 12, padding: 14,
     marginBottom: 14, borderWidth: 1, borderColor: '#EF9F27'
   },
   alerteMinuitTitre: { fontSize: 14, fontWeight: '600', color: '#854F0B', marginBottom: 6 },
   alerteMinuitTxt: { fontSize: 12, color: '#854F0B', lineHeight: 18 },
   heuresCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14,
-    marginBottom: 14, borderWidth: 0.5, borderColor: '#eee'
+    backgroundColor: colors.surface, borderRadius: 14, padding: 14,
+    marginBottom: 14, borderWidth: 0.5, borderColor: colors.border
   },
   heureRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5'
+    paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: colors.bg
   },
-  heureLabel: { fontSize: 13, color: '#555', fontWeight: '500' },
-  heureInput: {
-    width: 100, backgroundColor: '#f5f5f5', borderRadius: 8,
-    padding: 10, fontSize: 14, color: '#1a1a1a', textAlign: 'center'
+  heureLabel: { fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
+  heureBtn: {
+    backgroundColor: '#EF9F27', borderRadius: 10,
+    paddingHorizontal: 20, paddingVertical: 10, minWidth: 90, alignItems: 'center'
   },
+  heureBtnTxt: { fontSize: 18, fontWeight: '700', color: '#412402', letterSpacing: 1 },
+  heureBtnPlaceholder: { color: '#FAEEDA' },
+  timePickerBox: {
+    backgroundColor: colors.surface, borderRadius: 20, padding: 24, width: '100%', maxWidth: 360
+  },
+  timePickerTitre: { fontSize: 17, fontWeight: '700', color: colors.text, marginBottom: 20, textAlign: 'center' },
+  timePickerCols: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 24, gap: 8 },
+  timePickerColWrap: { alignItems: 'center', flex: 1 },
+  timePickerColLabel: { fontSize: 11, color: colors.textMuted, fontWeight: '600', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  timePickerSep: { fontSize: 32, fontWeight: '700', color: '#EF9F27', marginTop: 20 },
   autoCard: {
-    backgroundColor: '#EEEDFE', borderRadius: 14, padding: 14,
-    marginBottom: 14, borderWidth: 0.5, borderColor: '#CECBF6'
+    backgroundColor: colors.primaryLight, borderRadius: 14, padding: 14,
+    marginBottom: 14, borderWidth: 0.5, borderColor: colors.primaryText
   },
-  autoTitre: { fontSize: 13, fontWeight: '600', color: '#534AB7', marginBottom: 10 },
+  autoTitre: { fontSize: 13, fontWeight: '600', color: colors.primary, marginBottom: 10 },
   autoRow: {
     flexDirection: 'row', justifyContent: 'space-between',
-    paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: '#CECBF6'
+    paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: colors.primaryText
   },
-  autoLabel: { fontSize: 13, color: '#534AB7' },
-  autoVal: { fontSize: 13, fontWeight: '600', color: '#3C3489' },
+  autoLabel: { fontSize: 13, color: colors.primary },
+  autoVal: { fontSize: 13, fontWeight: '600', color: colors.primaryDark },
   ligneCard: {
-    backgroundColor: '#fff', borderRadius: 14, padding: 14,
-    marginBottom: 10, borderWidth: 0.5, borderColor: '#eee'
+    backgroundColor: colors.surface, borderRadius: 14, padding: 14,
+    marginBottom: 10, borderWidth: 0.5, borderColor: colors.border
   },
   ligneHeader: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', marginBottom: 10
   },
-  ligneLabel: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
+  ligneLabel: { fontSize: 14, fontWeight: '600', color: colors.text },
   ligneInput: {
-    backgroundColor: '#f5f5f5', borderRadius: 10,
-    padding: 12, fontSize: 16, color: '#1a1a1a', marginBottom: 8
+    backgroundColor: colors.inputBg, borderRadius: 10,
+    padding: 12, fontSize: 16, color: colors.text, marginBottom: 8
   },
-  ligneNote: { fontSize: 11, color: '#888', fontStyle: 'italic', marginTop: 4 },
+  ligneNote: { fontSize: 11, color: colors.textMuted, fontStyle: 'italic', marginTop: 4 },
   noPhotoBadge: { backgroundColor: '#EAF3DE', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   noPhotoBadgeTxt: { fontSize: 10, color: '#3B6D11', fontWeight: '500' },
   photoBlock: {
-    backgroundColor: '#f9f9f9', borderRadius: 10, padding: 10,
-    marginTop: 4, borderWidth: 0.5, borderColor: '#eee'
+    backgroundColor: colors.surfaceAlt, borderRadius: 10, padding: 10,
+    marginTop: 4, borderWidth: 0.5, borderColor: colors.border
   },
   photoBlockRequired: { backgroundColor: '#FAECE7', borderColor: '#F09595' },
   photoHeader: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', marginBottom: 8
   },
-  photoLabel: { fontSize: 12, color: '#555', fontWeight: '500' },
+  photoLabel: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
   photoBadgeOk: { backgroundColor: '#EAF3DE', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   photoBadgeOkTxt: { fontSize: 10, color: '#3B6D11', fontWeight: '500' },
   photoBadgeReq: { backgroundColor: '#FAECE7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
@@ -969,20 +1342,53 @@ const styles = StyleSheet.create({
   validerTxt: { fontSize: 15, fontWeight: '600', color: '#fff' },
   validerSub: { fontSize: 11, color: '#C0DD97', marginTop: 4 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
-  modal: { backgroundColor: '#fff', borderRadius: 20, padding: 24, margin: 20, alignItems: 'center' },
+  modal: { backgroundColor: colors.surface, borderRadius: 20, padding: 24, margin: 20, alignItems: 'center' },
   modalTitre: { fontSize: 18, fontWeight: '600', color: '#854F0B', marginBottom: 12 },
-  modalTxt: { fontSize: 13, color: '#555', textAlign: 'center', lineHeight: 20, marginBottom: 12 },
+  modalTxt: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', lineHeight: 20, marginBottom: 12 },
   modalDate: { fontSize: 20, fontWeight: '700', color: '#EF9F27', marginBottom: 10 },
-  modalTxtSub: { fontSize: 12, color: '#888', textAlign: 'center', lineHeight: 18, marginBottom: 20 },
+  modalTxtSub: { fontSize: 12, color: colors.textMuted, textAlign: 'center', lineHeight: 18, marginBottom: 20 },
   modalBtn: { backgroundColor: '#EF9F27', borderRadius: 12, paddingHorizontal: 24, paddingVertical: 12 },
   modalBtnTxt: { fontSize: 14, fontWeight: '600', color: '#412402' },
   confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  confirmBox: { backgroundColor: '#fff', borderRadius: 18, padding: 24, width: '100%', maxWidth: 380 },
-  confirmTitre: { fontSize: 17, fontWeight: '700', color: '#1a1a1a', marginBottom: 12 },
-  confirmMsg: { fontSize: 14, color: '#555', lineHeight: 22, marginBottom: 20 },
+  confirmBox: { backgroundColor: colors.surface, borderRadius: 18, padding: 24, width: '100%', maxWidth: 380 },
+  confirmTitre: { fontSize: 17, fontWeight: '700', color: colors.text, marginBottom: 12 },
+  confirmMsg: { fontSize: 14, color: colors.textSecondary, lineHeight: 22, marginBottom: 20 },
   confirmBtns: { flexDirection: 'row', gap: 10 },
-  confirmCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#f5f5f5', alignItems: 'center' },
-  confirmCancelTxt: { fontSize: 14, color: '#888' },
+  confirmCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.inputBg, alignItems: 'center' },
+  confirmCancelTxt: { fontSize: 14, color: colors.textMuted },
   confirmOk: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#EF9F27', alignItems: 'center' },
   confirmOkTxt: { fontSize: 14, fontWeight: '600', color: '#fff' },
-})
+  selectionBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8,
+    paddingHorizontal: 14, paddingVertical: 8,
+    backgroundColor: colors.surface, borderBottomWidth: 0.5, borderBottomColor: colors.border,
+  },
+  selBtnActiver: { backgroundColor: colors.inputBg, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  selBtnActiverTxt: { fontSize: 13, color: colors.text, fontWeight: '500' },
+  selBtnTout: { backgroundColor: '#E6F1FB', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  selBtnToutTxt: { fontSize: 13, color: '#185FA5', fontWeight: '500' },
+  selBtnAnnuler: { backgroundColor: colors.inputBg, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  selBtnAnnulerTxt: { fontSize: 13, color: colors.textMuted },
+  shiftCardSelected: { borderColor: '#EF9F27', borderWidth: 2, backgroundColor: '#FFF8ED' },
+  checkbox: {
+    width: 24, height: 24, borderRadius: 6, borderWidth: 2,
+    borderColor: colors.border, backgroundColor: colors.inputBg,
+    alignItems: 'center', justifyContent: 'center', marginRight: 4,
+  },
+  checkboxSelected: { backgroundColor: '#EF9F27', borderColor: '#EF9F27' },
+  checkboxCheck: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  supprimerBtn: {
+    backgroundColor: '#FAECE7', borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 5, borderWidth: 0.5, borderColor: '#F09595',
+  },
+  supprimerBtnTxt: { fontSize: 11, color: '#A32D2D', fontWeight: '500' },
+  barreSuppressionBas: {
+    padding: 12, paddingBottom: 20,
+    backgroundColor: colors.surface, borderTopWidth: 0.5, borderTopColor: colors.border,
+  },
+  btnSupprimerSel: {
+    backgroundColor: '#A32D2D', borderRadius: 14,
+    padding: 16, alignItems: 'center',
+  },
+  btnSupprimerSelTxt: { fontSize: 15, fontWeight: '600', color: '#fff' },
+}) }
