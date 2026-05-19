@@ -11,10 +11,14 @@ workflows:
       java: 17
     scripts:
       - name: Install dependencies
-        script: npm ci
+        script: |
+          rm -rf node_modules
+          npm ci
 
       - name: Expo Prebuild Android
-        script: npx expo prebuild --platform android --clean
+        script: |
+          rm -rf android
+          npx expo prebuild --platform android --clean
 
       - name: Patch MainActivity onUserLeaveHint
         script: python3 scripts/patch-android.py
