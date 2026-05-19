@@ -2,7 +2,7 @@
   "expo": {
     "name": "SAMER",
     "slug": "samtrackly",
-    "version": "1.0.0",
+    "version": "2.10",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -11,16 +11,26 @@
       "resizeMode": "contain",
       "backgroundColor": "#EF9F27"
     },
+    "scheme": "samtrackly",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.samer.app"
+      "bundleIdentifier": "com.samer.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#EF9F27"
       },
-      "package": "com.samer.app"
+      "package": "com.samer.app",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_EXTERNAL_STORAGE"
+      ]
     },
     "web": {},
     "plugins": [
@@ -31,7 +41,8 @@
           "photosPermission": "Samtrackly a besoin d'accéder à votre galerie pour les photos.",
           "cameraPermission": "Samtrackly a besoin d'accéder à votre caméra pour les photos."
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "router": {},
