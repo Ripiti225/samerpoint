@@ -6,11 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#EF9F27"
-    },
     "scheme": "samtrackly",
     "ios": {
       "supportsTablet": false,
@@ -36,6 +31,14 @@
     "web": {},
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#EF9F27"
+        }
+      ],
       [
         "expo-image-picker",
         {
