@@ -196,6 +196,8 @@ export default function DeductionsGerantScreen() {
         await supabase.from('transactions_fournisseurs').insert({
           point_id: pointId,
           fournisseur_id: fournId,
+          fournisseur_nom: fournisseursList.find(f => f.id === fournId)?.nom || null,
+          source: 'deduction_gerant',
           restaurant_id: restaurantId,
           facture,
           paye,

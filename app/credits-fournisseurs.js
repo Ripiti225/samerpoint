@@ -151,32 +151,21 @@ export default function CreditsFournisseursScreen() {
     setLoadingHisto(true)
     setShowHistorique(true)
     const { data } = await supabase
-      .from('historique_credit_fournisseurs')
-      .select('id, ancien_credit, nouveau_credit, facture, paye, photo_url, source, motif, modified_by, modified_at, point_id')
+      .from('transactions_fournisseurs')
+      .select('*')
       .eq('fournisseur_id', f.id)
-      .order('modified_at', { ascending: false })
-
-    // Déduplication : même date + même source → garder l'entrée avec les vraies données
-    const seen = new Map()
-    const deduped = []
-    for (const m of (data || [])) {
-      const dateMatch = (m.motif || '').match(/(\d{4}-\d{2}-\d{2})/)
-      const dateKey = dateMatch ? dateMatch[1] : (m.modified_at || '').split('T')[0]
-      const key = `${dateKey}_${m.source || 'manuel'}`
-      if (!seen.has(key)) {
-        seen.set(key, { entry: m, index: deduped.length })
-        deduped.push(m)
-      } else {
-        const prev = seen.get(key)
-        const newHasData = (m.facture > 0 || m.paye > 0 || m.point_id)
-        const oldHasData = (prev.entry.facture > 0 || prev.entry.paye > 0 || prev.entry.point_id)
-        if (newHasData && !oldHasData) {
-          deduped[prev.index] = m
-          seen.set(key, { entry: m, index: prev.index })
-        }
+      .order('created_at', { ascending: false })
+    const mouvements = data || []
+    setHistoMouvements(mouvements)
+    // Sync credit_actuel si désynchronisé avec la transaction la plus récente
+    if (mouvements.length > 0 && mouvements[0].reste != null) {
+      const resteReel = mouvements[0].reste
+      if (resteReel !== f.credit_actuel) {
+        await supabase.from('fournisseurs').update({ credit_actuel: resteReel }).eq('id', f.id)
+        setFournisseurs(prev => prev.map(item => item.id === f.id ? { ...item, credit_actuel: resteReel } : item))
+        setFournHisto(prev => prev ? { ...prev, credit_actuel: resteReel } : prev)
       }
     }
-    setHistoMouvements(deduped)
     setLoadingHisto(false)
   }
 
@@ -580,65 +569,43 @@ ${mouvements.map(m => {
                     Les modifications de crédit apparaîtront ici
                   </Text>
                 </View>
-              ) : histoMouvements.map((m, i) => {
-                // Extraire la date réelle depuis le motif (format YYYY-MM-DD dans le motif)
-                const dateMatch = (m.motif || '').match(/(\d{4}-\d{2}-\d{2})/)
-                const dateReelle = dateMatch ? fmtDate(dateMatch[1] + 'T00:00:00') : fmtDate(m.modified_at)
-                const facture = m.facture != null ? Number(m.facture) : 0
-                const paye = m.paye != null ? Number(m.paye) : 0
-                const solde = m.nouveau_credit || 0
-                // Pour les anciennes entrées sans facture/paye, déduire depuis le delta de crédit
-                let factureEff = facture
-                let payeEff = paye
-                if (facture === 0 && paye === 0 && m.ancien_credit != null && m.nouveau_credit != null) {
-                  const delta = (m.ancien_credit || 0) - (m.nouveau_credit || 0)
-                  if (delta > 0) payeEff = delta
-                  else if (delta < 0) factureEff = -delta
-                }
-                const sourceLabel = {
-                  caissier: 'Caissier',
-                  gerant: 'Gérant',
-                  deduction_gerant: 'Espace caissier gérant',
-                  gerant_caissier: 'Espace caissier gérant',
-                  manuel: 'Manuel',
-                }[m.source] || 'Manuel'
-                const sourceBg = {
-                  caissier: '#E6F1FB',
-                  gerant: '#EAF3DE',
-                  deduction_gerant: '#FAEEDA',
-                  gerant_caissier: '#FAEEDA',
-                  manuel: '#f0f0f0',
-                }[m.source] || '#f0f0f0'
-                const sourceTxt = {
-                  caissier: '#185FA5',
-                  gerant: '#3B6D11',
-                  deduction_gerant: '#854F0B',
-                  gerant_caissier: '#854F0B',
-                  manuel: '#888',
-                }[m.source] || '#888'
+              ) : histoMouvements.map((m) => {
+                const src = m.source || m.saisi_par || 'manuel'
+                const sourceInfo = {
+                  caissier: { icon: '💼', label: 'Caissier', bg: '#E6F1FB', txt: '#185FA5' },
+                  gerant: { icon: '📊', label: 'Saisir Ventes', bg: '#EAF3DE', txt: '#3B6D11' },
+                  gerant_caissier: { icon: '🔑', label: 'Gérant Caissier', bg: '#FAEEDA', txt: '#854F0B' },
+                  deduction_gerant: { icon: '📋', label: 'Déduction Gérant', bg: '#FAEEDA', txt: '#854F0B' },
+                  manuel: { icon: '✏️', label: 'Manuel', bg: '#f0f0f0', txt: '#888' },
+                }[src] || { icon: '✏️', label: src, bg: '#f0f0f0', txt: '#888' }
+                const facture = Number(m.facture) || 0
+                const paye = Number(m.paye) || 0
+                const solde = m.reste || 0
 
                 return (
                   <View key={m.id} style={styles.histoMvtCard}>
-                    {/* En-tête : date + badge source */}
                     <View style={styles.histoMvtHeader}>
-                      <Text style={styles.histoMvtDate}>📅 {dateReelle}</Text>
-                      <View style={[styles.histoMvtBadge, { backgroundColor: sourceBg }]}>
-                        <Text style={[styles.histoMvtBadgeTxt, { color: sourceTxt }]}>{sourceLabel}</Text>
+                      <Text style={styles.histoMvtDate}>📅 {fmtDate(m.created_at)}</Text>
+                      <View style={[styles.histoMvtBadge, { backgroundColor: sourceInfo.bg }]}>
+                        <Text style={[styles.histoMvtBadgeTxt, { color: sourceInfo.txt }]}>{sourceInfo.icon} {sourceInfo.label}</Text>
                       </View>
                     </View>
 
-                    {/* Ligne chiffres : Reçu | Payé | Reste dû */}
+                    {m.caissier_nom && (
+                      <Text style={{ fontSize: 11, color: colors.textMuted, marginBottom: 6 }}>👤 {m.caissier_nom}</Text>
+                    )}
+
                     <View style={styles.histoMvtChiffres}>
                       <View style={styles.histoMvtChiffreItem}>
                         <Text style={styles.histoMvtChiffreLabel}>📦 Reçu (facture)</Text>
                         <Text style={[styles.histoMvtChiffreVal, { color: colors.text }]}>
-                          {factureEff > 0 ? fmtShort(factureEff) : '—'}
+                          {facture > 0 ? fmtShort(facture) : '—'}
                         </Text>
                       </View>
                       <View style={[styles.histoMvtChiffreItem, styles.histoMvtChiffreSep]}>
                         <Text style={styles.histoMvtChiffreLabel}>💳 Payé</Text>
-                        <Text style={[styles.histoMvtChiffreVal, { color: payeEff > 0 ? '#3B6D11' : colors.textMuted }]}>
-                          {payeEff > 0 ? fmtShort(payeEff) : '—'}
+                        <Text style={[styles.histoMvtChiffreVal, { color: paye > 0 ? '#3B6D11' : colors.textMuted }]}>
+                          {paye > 0 ? fmtShort(paye) : '—'}
                         </Text>
                       </View>
                       <View style={[styles.histoMvtChiffreItem, styles.histoMvtChiffreSep]}>
@@ -649,7 +616,6 @@ ${mouvements.map(m => {
                       </View>
                     </View>
 
-                    {/* Photo facture */}
                     {m.photo_url && (
                       <TouchableOpacity style={styles.histoMvtPhoto} onPress={() => setModalPhotoUri(m.photo_url)}>
                         <Image source={{ uri: m.photo_url }} style={styles.histoMvtPhotoThumb} resizeMode="cover" />

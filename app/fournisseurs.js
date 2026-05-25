@@ -208,7 +208,7 @@ export default function FournisseursScreen() {
     setSavingId(f.id)
     const credit = creditVeille(f.id)
     const saisiPar = roleActif === 'caissier' ? 'caissier' : 'gerant'
-    const ok = await saveOneTransactionFournisseur(pointId, f.id, t, credit, saisiPar, userNom, restaurantId, userId)
+    const ok = await saveOneTransactionFournisseur(pointId, f.id, t, credit, saisiPar, userNom, restaurantId, userId, f.nom, saisiPar)
     if (ok) {
       const nouveauReste = credit + (parseFloat(t.facture) || 0) - (parseFloat(t.paye) || 0)
       await supabase.from('fournisseurs').update({ credit_actuel: nouveauReste }).eq('id', f.id)
