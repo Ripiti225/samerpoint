@@ -25,7 +25,19 @@ workflows:
 
       - name: Setup keystore
         script: |
-          echo $KEYSTORE_BASE64 | base64 --decode > release.keystore
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "Using saved keystore..."
+            echo $KEYSTORE_BASE64 | base64 --decode > release.keystore
+          else
+            echo "Generating new keystore and printing base64 for first-time setup..."
+            keytool -genkey -v -keystore release.keystore \
+              -alias samerapp -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Samer, OU=App, O=Samer, L=Abidjan, S=Abidjan, C=CI" \
+              -storepass samerapp123 -keypass samerapp123 -noprompt
+            echo "====== KEYSTORE_BASE64 (copie cette valeur dans Codemagic secrets) ======"
+            base64 release.keystore
+            echo "======================================================================"
+          fi
 
       - name: Build APK Release
         script: |
