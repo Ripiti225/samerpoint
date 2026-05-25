@@ -23,12 +23,9 @@ workflows:
       - name: Patch MainActivity onUserLeaveHint
         script: python3 scripts/patch-android.py
 
-      - name: Generate keystore
+      - name: Setup keystore
         script: |
-          keytool -genkey -v -keystore release.keystore \
-            -alias samerapp -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Samer, OU=App, O=Samer, L=Abidjan, S=Abidjan, C=CI" \
-            -storepass samerapp123 -keypass samerapp123 -noprompt
+          echo $KEYSTORE_BASE64 | base64 --decode > release.keystore
 
       - name: Build APK Release
         script: |
