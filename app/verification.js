@@ -2,21 +2,24 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet,
   SafeAreaView, ScrollView, ActivityIndicator,
-  Modal, Image, Alert, RefreshControl, Dimensions, FlatList,
+  Modal, Image, Alert, RefreshControl, Dimensions, FlatList, TextInput,
 } from 'react-native'
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { genererPdfPoint, genererPdfEcarts } from '../lib/generatePdf'
 import { CATEGORIES_INVENTAIRE } from '../lib/constants'
 import { useTheme } from '../context/ThemeContext'
+import { journaliser } from '../lib/journal'
+import { creerNotification } from '../lib/notificationsInterne'
 
 const { width: SW } = Dimensions.get('window')
 
 export default function VerificationScreen() {
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
-  const { userNom, roleActif } = useApp() ?? {}
+  const { userNom, roleActif, userId } = useApp() ?? {}
+  const { restaurant_id: paramRestoId, point_id: paramPointId } = useLocalSearchParams()
   const [restaurants, setRestaurants] = useState([])
   const [restoSelectionne, setRestoSelectionne] = useState(null)
   const [points, setPoints] = useState([])
@@ -35,6 +38,12 @@ export default function VerificationScreen() {
   const [detailInventaire, setDetailInventaire] = useState(null)
   const [loadingInventaire, setLoadingInventaire] = useState(false)
   const [generatingEcartsPdf, setGeneratingEcartsPdf] = useState(false)
+  // Déverrouillage / correction
+  const [modalCorrection, setModalCorrection] = useState(false)
+  const [sectionsSelectionnees, setSectionsSelectionnees] = useState([])
+  const [motifCorrection, setMotifCorrection] = useState('')
+  const [savingCorrection, setSavingCorrection] = useState(false)
+  const [errorCorrection, setErrorCorrection] = useState('')
   // Galerie photos zoom
   const [galeriePhotos, setGaleriePhotos] = useState([])
   const [galerieIndex, setGalerieIndex] = useState(0)
@@ -53,21 +62,32 @@ export default function VerificationScreen() {
     if (error) { setLoading(false); return }
     const restos = data || []
     setRestaurants(restos)
-    if (restos.length > 0) {
-      setRestoSelectionne(restos[0])
-      await chargerPointsResto(restos[0].id)
+
+    const restoInitial = paramRestoId
+      ? (restos.find(r => r.id === paramRestoId) || restos[0])
+      : restos[0]
+
+    if (restoInitial) {
+      setRestoSelectionne(restoInitial)
+      const pts = await chargerPointsResto(restoInitial.id)
+
+      if (paramPointId && pts) {
+        const point = pts.find(p => p.id === paramPointId)
+        if (point) ouvrirPoint(point)
+      }
     }
     setLoading(false)
   }
 
   async function chargerPointsResto(restoId) {
-    if (!restoId) return
+    if (!restoId) return []
     setLoading(true)
     const { data } = await supabase
       .from('points').select('*').eq('restaurant_id', restoId)
       .order('date', { ascending: false }).limit(50)
     setPoints(data || [])
     setLoading(false)
+    return data || []
   }
 
   async function onRefresh() {
@@ -96,6 +116,8 @@ export default function VerificationScreen() {
       { data: presences },
       { data: commandes },
       { data: inventaireRaw },
+      { data: historiquesFournisseurs },
+      { data: deverouillages },
     ] = await Promise.all([
       supabase.from('sequences').select('*').eq('point_id', point.id).order('numero'),
       supabase.from('depenses').select('*').eq('point_id', point.id),
@@ -104,6 +126,14 @@ export default function VerificationScreen() {
       supabase.from('presences').select('*').eq('point_id', point.id),
       supabase.from('commandes').select('partenaire, contact_client').eq('point_id', point.id),
       supabase.from('inventaires').select('*, fournisseurs(nom)').eq('point_id', point.id).order('shift_numero'),
+      supabase.from('historique_credit_fournisseurs')
+        .select('id, fournisseur_id, source, ancien_credit, nouveau_credit, facture, paye, photo_url, motif, modified_at, fournisseurs(nom)')
+        .eq('point_id', point.id)
+        .order('modified_at', { ascending: true }),
+      supabase.from('deverouillages_points')
+        .select('id, section, statut, motif, deverouille_at, corrige_at')
+        .eq('point_id', point.id)
+        .order('deverouille_at', { ascending: true }),
     ])
 
     // Contacts uniques par partenaire
@@ -141,6 +171,8 @@ export default function VerificationScreen() {
       invParFournisseur,
       contactsParPartenaire,
       invShifts: Object.values(invParShift).sort((a, b) => a.numero - b.numero),
+      historiquesFournisseurs: historiquesFournisseurs || [],
+      deverouillages: deverouillages || [],
     })
     setLoadingDetail(false)
   }
@@ -201,21 +233,69 @@ export default function VerificationScreen() {
     return m
   }
 
+  const TYPES_SHIFTS_MAP = {
+    matin: '🌅 Shift Matin', soir: '🌆 Shift Soir', nuit: '🌙 Shift Nuit', double: '🔄 Shift Double',
+  }
+
   async function ouvrirInventaire(point) {
     setPointSelectionne(point)
     setLoadingInventaire(true)
     setModalInventaire(true)
     setDetailInventaire(null)
-    const { data } = await supabase.from('inventaires').select('*').eq('point_id', point.id).order('shift_numero')
-    const shifts = {}
-    ;(data || []).forEach(ligne => {
-      const key = ligne.shift_numero
-      if (!shifts[key]) {
-        shifts[key] = { numero: key, nom: ligne.shift_nom, heure_debut: ligne.heure_debut, heure_fin: ligne.heure_fin, lignes: [] }
-      }
-      shifts[key].lignes.push(ligne)
+
+    const [
+      { data: invShiftsRaw },
+      { data: pointsShiftsRaw },
+      { data: ancienFormatRaw },
+    ] = await Promise.all([
+      supabase
+        .from('inventaires_shifts')
+        .select(`
+          id, caissier_id, type_shift, heure_debut, heure_fin, montant_a_deduire, valide, created_at,
+          inventaire_lignes(
+            produit_id, produit_nom, stock_initial, entrees, sorties,
+            stock_reel, ecart, nombre_explique, explication, montant_deduit
+          )
+        `)
+        .eq('point_id', point.id)
+        .order('created_at'),
+      supabase
+        .from('points_shifts')
+        .select('caissier_id, caissier_nom, heure_debut, heure_fin, type_shift')
+        .eq('point_id', point.id),
+      supabase
+        .from('inventaires')
+        .select('*')
+        .eq('point_id', point.id)
+        .order('shift_numero'),
+    ])
+
+    const caissierNomMap = {}
+    ;(pointsShiftsRaw || []).forEach(ps => {
+      if (ps.caissier_id && ps.caissier_nom) caissierNomMap[ps.caissier_id] = ps.caissier_nom
     })
-    setDetailInventaire(Object.values(shifts).sort((a, b) => a.numero - b.numero))
+
+    const shiftsNouveauFormat = (invShiftsRaw || []).map(invShift => ({
+      ...invShift,
+      caissierNom: caissierNomMap[invShift.caissier_id] || null,
+      shiftLabel: TYPES_SHIFTS_MAP[invShift.type_shift] || invShift.type_shift || 'Shift',
+      lignes: invShift.inventaire_lignes || [],
+    }))
+
+    const ancienMap = {}
+    ;(ancienFormatRaw || []).forEach(ligne => {
+      const key = ligne.shift_numero
+      if (!ancienMap[key]) {
+        ancienMap[key] = { numero: key, nom: ligne.shift_nom, heure_debut: ligne.heure_debut, heure_fin: ligne.heure_fin, lignes: [] }
+      }
+      ancienMap[key].lignes.push(ligne)
+    })
+
+    setDetailInventaire({
+      shiftsNouveauFormat,
+      shiftsAncienFormat: Object.values(ancienMap).sort((a, b) => a.numero - b.numero),
+      useNouveauFormat: shiftsNouveauFormat.length > 0,
+    })
     setLoadingInventaire(false)
   }
 
@@ -223,6 +303,64 @@ export default function VerificationScreen() {
     if (!uri) return
     setPhotoSelectionnee({ uri, label })
     setModalPhoto(true)
+  }
+
+  function toggleSection(section) {
+    setSectionsSelectionnees(prev =>
+      prev.includes(section) ? prev.filter(s => s !== section) : [...prev, section]
+    )
+  }
+
+  async function demanderCorrection() {
+    if (sectionsSelectionnees.length === 0) {
+      Alert.alert('Sections manquantes', 'Sélectionnez au moins une section à corriger.')
+      return
+    }
+    if (motifCorrection.trim().length < 10) {
+      Alert.alert('Motif trop court', 'Le motif doit contenir au moins 10 caractères.')
+      return
+    }
+    setErrorCorrection('')
+    setSavingCorrection(true)
+    try {
+      const rows = sectionsSelectionnees.map(section => ({
+        point_id: pointSelectionne.id,
+        restaurant_id: pointSelectionne.restaurant_id,
+        section,
+        statut: 'ouvert',
+        motif: motifCorrection.trim(),
+        deverouille_at: new Date().toISOString(),
+      }))
+      const { error } = await supabase.from('deverouillages_points').insert(rows)
+      if (error) {
+        setErrorCorrection(error.message)
+        return
+      }
+      journaliser('demande_correction_point', {
+        point_id: pointSelectionne.id,
+        sections: sectionsSelectionnees,
+        motif: motifCorrection.trim(),
+      }, { par: userNom || roleActif }).catch(() => {})
+
+      creerNotification({
+        type: 'correction_demandee',
+        titre: '⚠️ Correction demandée',
+        message: `Correction requise sur le point du ${formatDate(pointSelectionne.date)} — ${sectionsSelectionnees.join(', ')}. Motif : ${motifCorrection.trim()}`,
+        restaurant_id: pointSelectionne.restaurant_id,
+        cible_role: ['gerant'],
+        created_by: userId || null,
+        screen: 'recap-point',
+      }).catch(() => {})
+
+      setModalCorrection(false)
+      setSectionsSelectionnees([])
+      setMotifCorrection('')
+      setErrorCorrection('')
+    } catch (err) {
+      setErrorCorrection(err?.message || 'Erreur inattendue')
+    } finally {
+      setSavingCorrection(false)
+    }
   }
 
   function getPrixProduit(produitId) {
@@ -889,7 +1027,31 @@ export default function VerificationScreen() {
                   3. DÉDUCTIONS GÉRANT
               ══════════════════════════════════════ */}
               {(() => {
-                const fourGerant = detailPoint.fournisseurs.filter(f => f.saisi_par === 'gerant')
+                // transactions du point gérant (facture/paye validées via fournisseurs.js)
+                const txGerant = detailPoint.fournisseurs.filter(f => f.saisi_par === 'gerant')
+                // déductions caisse gérant : draft_gerant en priorité (source fiable avec vrais montants + photo)
+                const draftFourn = pointSelectionne?.draft_gerant?.fournisseurs || {}
+                const draftEntries = Object.entries(draftFourn)
+                  .filter(([_, d]) => (parseFloat(d?.paye) || 0) > 0 || (parseFloat(d?.montant_facture) || 0) > 0)
+                  .map(([id, d]) => {
+                    const creditV = parseFloat(d.credit_veille) || 0
+                    const fact = parseFloat(d.montant_facture) || 0
+                    const pay = parseFloat(d.paye) || 0
+                    return {
+                      fournisseur_id: id,
+                      fournisseurs: { nom: d.nom || 'Fournisseur' },
+                      facture: fact,
+                      paye: pay,
+                      reste: creditV + fact - pay,
+                      photo_url: d.photoUri || null,
+                      caissier_nom: 'Gérant',
+                    }
+                  })
+                // historique uniquement pour les fournisseurs absents du draft (cas rare)
+                const histoDeductionGerant = detailPoint.historiquesFournisseurs.filter(h => h.source === 'deduction_gerant')
+                const draftIds = new Set(draftEntries.map(e => e.fournisseur_id))
+                const histoExtra = histoDeductionGerant.filter(h => !draftIds.has(h.fournisseur_id))
+                const fourGerant = [...txGerant, ...draftEntries, ...histoExtra]
                 const depGerant = detailPoint.depenses.filter(d => d.saisi_par === 'gerant')
                 const totalFourGerant = fourGerant.reduce((s, f) => s + (f.paye || 0), 0)
                 const totalDepGerant = depGerant.reduce((s, d) => s + (d.montant || 0), 0)
@@ -906,26 +1068,35 @@ export default function VerificationScreen() {
                       </View>
                     ) : (
                       <View style={[styles.listCard, { marginBottom: 8 }]}>
-                        {fourGerant.map((f, i) => (
-                          <View key={i} style={[styles.listRow, i === fourGerant.length - 1 && { borderBottomWidth: 0 }]}>
-                            <View style={styles.listLeft}>
-                              <Text style={styles.listLabel}>{f.fournisseurs?.nom || 'Fournisseur'}</Text>
-                              {(f.facture || 0) > 0 && <Text style={styles.listSub}>Facture: {fmt(f.facture)}</Text>}
-                              {(f.reste || 0) > 0 && <Text style={[styles.listSub, { color: '#A32D2D' }]}>Reste: {fmt(f.reste)}</Text>}
-                            </View>
-                            <View style={styles.listRight}>
-                              <View style={{ alignItems: 'flex-end' }}>
-                                <Text style={[styles.listVal, { color: '#A32D2D' }]}>{fmt(f.paye || 0)}</Text>
-                                <Text style={styles.listAuteur}>{f.caissier_nom || 'Gérant'}</Text>
+                        {fourGerant.map((f, i) => {
+                          const reste = f.nouveau_credit ?? f.reste ?? 0
+                          return (
+                            <View key={i} style={[styles.listRow, i === fourGerant.length - 1 && { borderBottomWidth: 0 }]}>
+                              <View style={styles.listLeft}>
+                                <Text style={styles.listLabel}>{f.fournisseurs?.nom || 'Fournisseur'}</Text>
+                                <Text style={styles.listSub}>
+                                  Facture: {fmt(f.facture || 0)} — Payé: {fmt(f.paye || 0)}
+                                </Text>
+                                {reste > 0 && <Text style={[styles.listSub, { color: '#A32D2D' }]}>Reste dû: {fmt(reste)}</Text>}
                               </View>
-                              {f.photo_url && (
-                                <TouchableOpacity onPress={() => voirPhoto(f.photo_url, f.fournisseurs?.nom)}>
-                                  <Image source={{ uri: f.photo_url }} style={styles.miniThumb} resizeMode="cover" />
-                                </TouchableOpacity>
-                              )}
+                              <View style={styles.listRight}>
+                                <View style={{ alignItems: 'flex-end' }}>
+                                  <Text style={[styles.listVal, { color: (f.paye || 0) > 0 ? '#3B6D11' : colors.textMuted }]}>{fmt(f.paye || 0)}</Text>
+                                  <Text style={styles.listAuteur}>{f.caissier_nom || 'Gérant'}</Text>
+                                </View>
+                                {f.photo_url ? (
+                                  <TouchableOpacity onPress={() => voirPhoto(f.photo_url, f.fournisseurs?.nom)}>
+                                    <Image source={{ uri: f.photo_url }} style={styles.miniThumb} resizeMode="cover" />
+                                  </TouchableOpacity>
+                                ) : (
+                                  <View style={styles.photoAbsenteThumb}>
+                                    <Text style={styles.photoAbsenteThumbTxt}>📷</Text>
+                                  </View>
+                                )}
+                              </View>
                             </View>
-                          </View>
-                        ))}
+                          )
+                        })}
                         <View style={styles.listTotalRow}>
                           <Text style={styles.listTotalLabel}>Sous-total fournisseurs</Text>
                           <Text style={[styles.listTotalVal, { color: '#A32D2D' }]}>{fmt(totalFourGerant)}</Text>
@@ -977,6 +1148,7 @@ export default function VerificationScreen() {
                   4. FOURNISSEURS CAISSIERS
               ══════════════════════════════════════ */}
               {(() => {
+                // transactions_fournisseurs = source de vérité permanente pour les caissiers
                 const fourCaissier = detailPoint.fournisseurs.filter(f => f.saisi_par !== 'gerant')
                 return (
                   <View style={{ marginBottom: 14 }}>
@@ -987,37 +1159,44 @@ export default function VerificationScreen() {
                       </View>
                     ) : (
                       <View style={styles.listCard}>
-                        {fourCaissier.map((f, i) => (
-                          <View key={i} style={[styles.listRow, i === fourCaissier.length - 1 && { borderBottomWidth: 0 }]}>
-                            <View style={styles.listLeft}>
-                              <Text style={styles.listLabel}>{f.fournisseurs?.nom || 'Fournisseur'}</Text>
-                              <Text style={styles.listSub}>
-                                Facture: {fmt(f.facture || 0)} — Payé: {fmt(f.paye || 0)}
-                              </Text>
-                              {(f.reste || 0) > 0 && (
-                                <Text style={[styles.listSub, { color: '#A32D2D' }]}>Reste: {fmt(f.reste)}</Text>
-                              )}
-                              {detailPoint.invParFournisseur[f.fournisseur_id]?.length > 0 && (
-                                <Text style={[styles.listSub, { color: '#3B6D11', marginTop: 2 }]}>
-                                  📦 {detailPoint.invParFournisseur[f.fournisseur_id].map(l => `${l.produit_nom} — ${l.entrees}`).join(' / ')}
+                        {fourCaissier.map((f, i) => {
+                          const reste = f.nouveau_credit ?? f.reste ?? 0
+                          return (
+                            <View key={i} style={[styles.listRow, i === fourCaissier.length - 1 && { borderBottomWidth: 0 }]}>
+                              <View style={styles.listLeft}>
+                                <Text style={styles.listLabel}>{f.fournisseurs?.nom || 'Fournisseur'}</Text>
+                                <Text style={styles.listSub}>
+                                  Facture: {fmt(f.facture || 0)} — Payé: {fmt(f.paye || 0)}
                                 </Text>
-                              )}
-                            </View>
-                            <View style={styles.listRight}>
-                              <View style={{ alignItems: 'flex-end' }}>
-                                <Text style={[styles.listVal, { color: (f.reste || 0) > 0 ? '#A32D2D' : '#3B6D11' }]}>
-                                  {fmt(f.paye || 0)}
-                                </Text>
-                                <Text style={styles.listAuteur}>{f.caissier_nom || 'Caissier'}</Text>
+                                {reste > 0 && (
+                                  <Text style={[styles.listSub, { color: '#A32D2D' }]}>Reste: {fmt(reste)}</Text>
+                                )}
+                                {detailPoint.invParFournisseur[f.fournisseur_id]?.length > 0 && (
+                                  <Text style={[styles.listSub, { color: '#3B6D11', marginTop: 2 }]}>
+                                    📦 {detailPoint.invParFournisseur[f.fournisseur_id].map(l => `${l.produit_nom} — ${l.entrees}`).join(' / ')}
+                                  </Text>
+                                )}
                               </View>
-                              {f.photo_url && (
-                                <TouchableOpacity onPress={() => voirPhoto(f.photo_url, f.fournisseurs?.nom)}>
-                                  <Image source={{ uri: f.photo_url }} style={styles.miniThumb} resizeMode="cover" />
-                                </TouchableOpacity>
-                              )}
+                              <View style={styles.listRight}>
+                                <View style={{ alignItems: 'flex-end' }}>
+                                  <Text style={[styles.listVal, { color: reste > 0 ? '#A32D2D' : '#3B6D11' }]}>
+                                    {fmt(f.paye || 0)}
+                                  </Text>
+                                  <Text style={styles.listAuteur}>{f.caissier_nom || 'Caissier'}</Text>
+                                </View>
+                                {f.photo_url ? (
+                                  <TouchableOpacity onPress={() => voirPhoto(f.photo_url, f.fournisseurs?.nom)}>
+                                    <Image source={{ uri: f.photo_url }} style={styles.miniThumb} resizeMode="cover" />
+                                  </TouchableOpacity>
+                                ) : (
+                                  <View style={styles.photoAbsenteThumb}>
+                                    <Text style={styles.photoAbsenteThumbTxt}>📷</Text>
+                                  </View>
+                                )}
+                              </View>
                             </View>
-                          </View>
-                        ))}
+                          )
+                        })}
                         <View style={styles.listTotalRow}>
                           <Text style={styles.listTotalLabel}>Total payé</Text>
                           <Text style={styles.listTotalVal}>{fmt(fourCaissier.reduce((s, f) => s + (f.paye || 0), 0))}</Text>
@@ -1251,6 +1430,48 @@ export default function VerificationScreen() {
                 )}
               </View>
 
+              {/* ══════════════════════════════════════
+                  9. HISTORIQUE CORRECTIONS
+              ══════════════════════════════════════ */}
+              {detailPoint.deverouillages.length > 0 && (
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={styles.sectionTitre}>🔧 Historique des corrections</Text>
+                  <View style={styles.listCard}>
+                    {detailPoint.deverouillages.map((d, i) => {
+                      const SECTION_ICONS = { partenaires: '🛵', fournisseurs: '🧾', photos: '📷', inventaire: '📦' }
+                      const SECTION_LABELS = { partenaires: 'Partenaires', fournisseurs: 'Fournisseurs', photos: 'Photos', inventaire: 'Inventaire' }
+                      const estCorrige = d.statut === 'corrige'
+                      const estReferme = d.statut === 'referme'
+                      const badgeBg = estCorrige ? '#EAF3DE' : estReferme ? '#E6F1FB' : '#FAEEDA'
+                      const badgeTxt = estCorrige ? '#3B6D11' : estReferme ? '#185FA5' : '#854F0B'
+                      const badgeLabel = estCorrige ? '✅ Corrigé' : estReferme ? '🔒 Refermé' : '⏳ En attente'
+                      const fmtDt = (iso) => {
+                        if (!iso) return ''
+                        const dt = new Date(iso)
+                        return dt.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' ' + dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                      }
+                      return (
+                        <View key={d.id} style={[styles.listRow, i === detailPoint.deverouillages.length - 1 && { borderBottomWidth: 0 }]}>
+                          <View style={styles.listLeft}>
+                            <Text style={styles.listLabel}>
+                              {SECTION_ICONS[d.section] || '⚙️'} {SECTION_LABELS[d.section] || d.section}
+                            </Text>
+                            <Text style={[styles.listSub, { fontStyle: 'italic' }]} numberOfLines={2}>"{d.motif}"</Text>
+                            <Text style={styles.listSub}>Demandé le {fmtDt(d.deverouille_at)}</Text>
+                            {estCorrige && d.corrige_at && (
+                              <Text style={[styles.listSub, { color: '#3B6D11' }]}>Corrigé le {fmtDt(d.corrige_at)}</Text>
+                            )}
+                          </View>
+                          <View style={[styles.statutBadge, { backgroundColor: badgeBg, alignSelf: 'flex-start' }]}>
+                            <Text style={[styles.statutTxt, { color: badgeTxt }]}>{badgeLabel}</Text>
+                          </View>
+                        </View>
+                      )
+                    })}
+                  </View>
+                </View>
+              )}
+
               {/* Bouton vérifier */}
               {!pointSelectionne?.verifie && pointSelectionne?.valide && (
                 <TouchableOpacity
@@ -1285,6 +1506,17 @@ export default function VerificationScreen() {
                     ? <><ActivityIndicator color="#534AB7" size="small" /><Text style={[styles.pdfBtnTxt, { marginLeft: 8 }]}>Génération en cours...</Text></>
                     : <><Text style={styles.pdfBtnTxt}>📄 Télécharger le point en PDF</Text><Text style={styles.pdfBtnSub}>Toutes les sections et photos incluses</Text></>
                   }
+                </TouchableOpacity>
+              )}
+
+              {/* Bouton correction (manager / directeur uniquement) */}
+              {pointSelectionne?.valide && (roleActif === 'manager' || roleActif === 'directeur') && (
+                <TouchableOpacity
+                  style={styles.correctionBtn}
+                  onPress={() => { setSectionsSelectionnees([]); setMotifCorrection(''); setModalCorrection(true) }}
+                >
+                  <Text style={styles.correctionBtnTxt}>⚠️ Demander une correction</Text>
+                  <Text style={styles.correctionBtnSub}>Signaler une section à corriger sur ce point</Text>
                 </TouchableOpacity>
               )}
 
@@ -1425,119 +1657,409 @@ export default function VerificationScreen() {
               <ActivityIndicator size="large" color="#EF9F27" />
               <Text style={styles.loadingTxt}>Chargement de l'inventaire...</Text>
             </View>
-          ) : !detailInventaire || detailInventaire.length === 0 ? (
+          ) : !detailInventaire ? (
             <View style={styles.emptyBox}>
               <Text style={styles.emptyIcon}>📦</Text>
               <Text style={styles.emptyTxt}>Aucun inventaire enregistré</Text>
               <Text style={styles.emptySub}>L'inventaire de ce jour n'a pas encore été saisi</Text>
             </View>
-          ) : (
-            <ScrollView style={{ padding: 14 }} showsVerticalScrollIndicator={false}>
-              {detailInventaire.map((shift, si) => (
-                <View key={si} style={styles.invShiftCard}>
-                  <View style={styles.invShiftHeader}>
-                    <View style={styles.invShiftBadge}>
-                      <Text style={styles.invShiftBadgeTxt}>{shift.numero === 0 ? '🚚' : `S${shift.numero}`}</Text>
+          ) : (() => {
+            const { shiftsNouveauFormat, shiftsAncienFormat, useNouveauFormat } = detailInventaire
+            const peutVoirEcarts = roleActif === 'manager' || roleActif === 'directeur'
+
+            // ─── Calcul des lignes avec écart ───────────────────────
+            const toutesLignesEcart = []
+            let totalProduitsMesures = 0
+
+            if (useNouveauFormat) {
+              shiftsNouveauFormat.forEach(shift => {
+                const lignesMesurees = shift.lignes.filter(l => l.stock_reel != null)
+                totalProduitsMesures += lignesMesurees.length
+                lignesMesurees.forEach(l => {
+                  const ecart = l.ecart ?? 0
+                  if (Math.abs(ecart) > 0.01) {
+                    const nombreExplique = parseFloat(l.nombre_explique ?? 0)
+                    const diffInexpliquee = Math.max(0, Math.abs(ecart) - nombreExplique)
+                    const prix = getPrixProduit(l.produit_id)
+                    const montantDeduit = l.montant_deduit != null ? l.montant_deduit : diffInexpliquee * prix
+                    toutesLignesEcart.push({
+                      ...l, ecart, nombreExplique, diffInexpliquee, prix, montantDeduit,
+                      caissierNom: shift.caissierNom, shiftLabel: shift.shiftLabel,
+                      heureDebut: shift.heure_debut, heureFin: shift.heure_fin,
+                    })
+                  }
+                })
+              })
+            } else {
+              shiftsAncienFormat.filter(s => s.numero > 0).forEach(shift => {
+                shift.lignes.forEach(l => {
+                  const stockTheo = (l.stock_initial || 0) + (l.entrees || 0) - (l.sorties || 0)
+                  const ecartVal = l.ecart ?? (l.stock_final - stockTheo)
+                  totalProduitsMesures++
+                  if (Math.abs(ecartVal) > 0.01) {
+                    const nombreExplique = parseFloat(l.nombre_a_expliquer || 0)
+                    const diffInexpliquee = Math.max(0, Math.abs(ecartVal) - nombreExplique)
+                    const prix = getPrixProduit(l.produit_id)
+                    const montantDeduit = diffInexpliquee * prix
+                    toutesLignesEcart.push({
+                      produit_nom: l.produit_nom, produit_id: l.produit_id,
+                      stock_initial: l.stock_initial, entrees: l.entrees,
+                      sorties: l.sorties, stock_reel: l.stock_final,
+                      ecart: ecartVal, nombreExplique, explication: l.explication_ecart,
+                      diffInexpliquee, prix, montantDeduit,
+                      caissierNom: null, shiftLabel: shift.nom || `Shift ${shift.numero}`,
+                      heureDebut: shift.heure_debut, heureFin: shift.heure_fin,
+                    })
+                  }
+                })
+              })
+            }
+
+            const aucunInventaire = useNouveauFormat
+              ? shiftsNouveauFormat.every(s => s.lignes.length === 0)
+              : shiftsAncienFormat.filter(s => s.numero > 0).length === 0
+
+            if (aucunInventaire) return (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyIcon}>📦</Text>
+                <Text style={styles.emptyTxt}>Aucun inventaire enregistré</Text>
+                <Text style={styles.emptySub}>L'inventaire de ce jour n'a pas encore été saisi</Text>
+              </View>
+            )
+
+            const nbAvecEcart = toutesLignesEcart.length
+            const nbSansEcart = Math.max(0, totalProduitsMesures - nbAvecEcart)
+            const nbExpliques = toutesLignesEcart.filter(l => l.diffInexpliquee <= 0.01).length
+            const nbNonExpliques = nbAvecEcart - nbExpliques
+            const totalDeduit = toutesLignesEcart.reduce((s, l) => s + (l.montantDeduit || 0), 0)
+
+            return (
+              <ScrollView style={{ padding: 14 }} showsVerticalScrollIndicator={false}>
+
+                {/* ══ SECTION 1 : Résumé global ════════════════════════ */}
+                <Text style={styles.sectionTitre}>📊 Résumé global</Text>
+                <View style={styles.invResumeCard}>
+                  <View style={styles.invResumeRow}>
+                    <View style={[styles.invResumeBadge, { backgroundColor: '#EAF3DE' }]}>
+                      <Text style={[styles.invResumeBadgeNum, { color: '#3B6D11' }]}>{nbSansEcart}</Text>
+                      <Text style={[styles.invResumeBadgeLbl, { color: '#3B6D11' }]}>✅ Produits OK</Text>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.invShiftNom}>{shift.nom}</Text>
-                      {shift.numero !== 0 && (
-                        <Text style={styles.invShiftHeure}>{shift.heure_debut} → {shift.heure_fin}</Text>
-                      )}
+                    <View style={[styles.invResumeBadge, { backgroundColor: nbAvecEcart > 0 ? '#FAEEDA' : '#EAF3DE' }]}>
+                      <Text style={[styles.invResumeBadgeNum, { color: nbAvecEcart > 0 ? '#854F0B' : '#3B6D11' }]}>{nbAvecEcart}</Text>
+                      <Text style={[styles.invResumeBadgeLbl, { color: nbAvecEcart > 0 ? '#854F0B' : '#3B6D11' }]}>⚠️ Avec écart</Text>
                     </View>
-                    <Text style={styles.invShiftCount}>{shift.lignes.length} produit(s)</Text>
                   </View>
-                  {shift.lignes.map((ligne, li) => {
-                    const ecart = ligne.stock_final - (ligne.stock_initial + ligne.entrees - ligne.sorties)
-                    const hasEcart = Math.abs(ecart) > 0.01
-                    return (
-                      <View key={li} style={[styles.invLigneRow, hasEcart && styles.invLigneRowAlert]}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.invLigneNom, hasEcart && { color: '#A32D2D' }]}>{ligne.produit_nom}</Text>
-                          {shift.numero === 0 ? (
-                            <Text style={styles.invLigneSub}>Reçu : {ligne.entrees}</Text>
-                          ) : (
-                            <Text style={styles.invLigneSub}>
-                              Init: {ligne.stock_initial} | Sorties: {ligne.sorties} | Final: {ligne.stock_final}
+                  {nbAvecEcart > 0 && (
+                    <View style={[styles.invResumeRow, { marginTop: 8 }]}>
+                      <View style={[styles.invResumeBadge, { backgroundColor: '#E6F1FB' }]}>
+                        <Text style={[styles.invResumeBadgeNum, { color: '#185FA5' }]}>{nbExpliques}</Text>
+                        <Text style={[styles.invResumeBadgeLbl, { color: '#185FA5' }]}>📋 Expliqués</Text>
+                      </View>
+                      <View style={[styles.invResumeBadge, { backgroundColor: nbNonExpliques > 0 ? '#FCEBEB' : '#EAF3DE' }]}>
+                        <Text style={[styles.invResumeBadgeNum, { color: nbNonExpliques > 0 ? '#A32D2D' : '#3B6D11' }]}>{nbNonExpliques}</Text>
+                        <Text style={[styles.invResumeBadgeLbl, { color: nbNonExpliques > 0 ? '#A32D2D' : '#3B6D11' }]}>
+                          {nbNonExpliques > 0 ? '❌ Non expliqués' : '✅ Non expliqués'}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                  {peutVoirEcarts && (
+                    <View style={[styles.invResumeTotalBox, { backgroundColor: totalDeduit > 0 ? '#FCEBEB' : '#EAF3DE' }]}>
+                      <Text style={[styles.invResumeTotalLabel, { color: totalDeduit > 0 ? '#A32D2D' : '#3B6D11' }]}>
+                        💰 Montant total à déduire
+                      </Text>
+                      <Text style={[styles.invResumeTotalVal, { color: totalDeduit > 0 ? '#A32D2D' : '#3B6D11' }]}>
+                        {fmt(totalDeduit)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* ══ SECTION 2 : Produits avec écarts (manager/directeur) ══ */}
+                {peutVoirEcarts && nbAvecEcart > 0 && (
+                  <>
+                    <Text style={styles.sectionTitre}>⚠️ Produits avec écarts ({nbAvecEcart})</Text>
+                    {toutesLignesEcart.map((e, i) => {
+                      const stockTheo = (e.stock_initial || 0) + (e.entrees || 0) - (e.sorties || 0)
+                      const ecartExplique = e.diffInexpliquee <= 0.01
+                      return (
+                        <View key={i} style={[styles.invFicheCard, { borderColor: ecartExplique ? '#B8D4F5' : '#F09595' }]}>
+                          <View style={styles.invFicheHeader}>
+                            <Text style={styles.invFicheNom}>{e.produit_nom}</Text>
+                            <View style={[styles.invFicheStatut, { backgroundColor: ecartExplique ? '#E6F1FB' : '#FCEBEB' }]}>
+                              <Text style={[styles.invFicheStatutTxt, { color: ecartExplique ? '#185FA5' : '#A32D2D' }]}>
+                                {ecartExplique ? '✅ Expliqué' : '❌ Non expliqué'}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {[
+                            { label: 'Stock théorique', val: stockTheo % 1 !== 0 ? stockTheo.toFixed(2) : String(stockTheo) },
+                            { label: 'Stock réel constaté', val: e.stock_reel != null ? (e.stock_reel % 1 !== 0 ? e.stock_reel.toFixed(2) : String(e.stock_reel)) : '—' },
+                            { label: 'Écart', val: `${e.ecart >= 0 ? '+' : ''}${e.ecart.toFixed(2)}`, color: e.ecart < 0 ? '#A32D2D' : '#EF9F27', bold: true },
+                            { label: 'Nombre à expliquer', val: e.nombreExplique > 0 ? (e.nombreExplique % 1 !== 0 ? e.nombreExplique.toFixed(2) : String(e.nombreExplique)) : '—' },
+                          ].map((r, j) => (
+                            <View key={j} style={styles.ecartRow}>
+                              <Text style={styles.ecartLabel}>{r.label}</Text>
+                              <Text style={[styles.ecartVal, r.color && { color: r.color }, r.bold && { fontWeight: '700' }]}>{r.val}</Text>
+                            </View>
+                          ))}
+
+                          {!!e.explication && (
+                            <View style={styles.invFicheExplication}>
+                              <Text style={styles.invFicheExplicationLabel}>💬 Explication</Text>
+                              <Text style={styles.invFicheExplicationTxt}>"{e.explication}"</Text>
+                            </View>
+                          )}
+
+                          <View style={[styles.ecartRow, { borderTopWidth: 1, borderTopColor: '#f0f0f0', marginTop: 4, paddingTop: 8 }]}>
+                            <Text style={styles.ecartLabel}>Diff. inexpliquée</Text>
+                            <Text style={[styles.ecartVal, { color: e.diffInexpliquee > 0.01 ? '#A32D2D' : '#3B6D11', fontWeight: '700' }]}>
+                              {e.diffInexpliquee > 0.01 ? e.diffInexpliquee.toFixed(2) : '✅ 0'}
                             </Text>
+                          </View>
+                          <View style={styles.ecartRow}>
+                            <Text style={styles.ecartLabel}>Prix unitaire</Text>
+                            <Text style={styles.ecartVal}>{e.prix > 0 ? fmt(e.prix) : '—'}</Text>
+                          </View>
+                          <View style={[styles.ecartRow, { borderBottomWidth: 0, backgroundColor: e.montantDeduit > 0 ? '#FFF0F0' : '#F0FFF4', borderRadius: 6, paddingHorizontal: 8, marginTop: 2 }]}>
+                            <Text style={[styles.ecartLabel, { fontWeight: '700' }]}>Montant à déduire</Text>
+                            <Text style={[styles.ecartVal, { color: e.montantDeduit > 0 ? '#A32D2D' : '#3B6D11', fontWeight: '700', fontSize: 14 }]}>
+                              {e.montantDeduit > 0 ? fmt(e.montantDeduit) : '0 FCFA ✅'}
+                            </Text>
+                          </View>
+
+                          {(e.caissierNom || e.heureDebut) && (
+                            <View style={styles.invFicheCaissier}>
+                              {e.caissierNom && <Text style={styles.invFicheCaissierTxt}>👤 {e.caissierNom}</Text>}
+                              {e.heureDebut && (
+                                <Text style={styles.invFicheCaissierTxt}>⏰ {e.shiftLabel} · {e.heureDebut} → {e.heureFin}</Text>
+                              )}
+                            </View>
                           )}
                         </View>
-                        {shift.numero !== 0 && (
-                          <View style={[styles.invEcartBadge, { backgroundColor: hasEcart ? '#FCEBEB' : '#EAF3DE' }]}>
-                            <Text style={[styles.invEcartTxt, { color: hasEcart ? '#A32D2D' : '#3B6D11' }]}>
-                              {hasEcart ? (ecart >= 0 ? '+' : '') + ecart.toFixed(1) : '✅'}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    )
-                  })}
-                </View>
-              ))}
+                      )
+                    })}
+                  </>
+                )}
 
-              {/* Analyse des écarts */}
-              {(() => {
-                const shift1 = detailInventaire.find(s => s.numero === 1)
-                if (!shift1) return null
-                const lignesAvecEcart = shift1.lignes.filter(l => Math.abs(l.ecart ?? (l.stock_final - (l.stock_initial + l.entrees - l.sorties))) > 0.01)
-                if (lignesAvecEcart.length === 0) return null
-                const ecartsAvecCalc = lignesAvecEcart.map(l => {
-                  const ecartVal = l.ecart ?? (l.stock_final - (l.stock_initial + l.entrees - l.sorties))
-                  const prix = getPrixProduit(l.produit_id)
-                  const nombreExplique = parseFloat(l.nombre_a_expliquer || 0)
-                  const diffInexpliquee = Math.max(0, Math.abs(ecartVal) - nombreExplique)
-                  const montantDeduit = diffInexpliquee * prix
-                  return { ...l, ecart: ecartVal, prix, nombreExplique, diffInexpliquee, montantDeduit }
-                })
-                const totalDeduit = ecartsAvecCalc.reduce((s, e) => s + e.montantDeduit, 0)
-                return (
-                  <View style={styles.ecartSection}>
-                    <View style={styles.ecartSectionHeader}>
-                      <Text style={styles.ecartSectionTitre}>⚠️ Analyse des écarts</Text>
-                      <Text style={styles.ecartSectionSub}>{lignesAvecEcart.length} produit(s)</Text>
+                {/* ══ SECTION 3 : Bilan financier (manager/directeur) ══ */}
+                {peutVoirEcarts && (
+                  <>
+                    <Text style={styles.sectionTitre}>💰 Bilan financier</Text>
+                    <View style={styles.invBilanCard}>
+                      {toutesLignesEcart.filter(e => e.montantDeduit > 0).length === 0 ? (
+                        <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+                          <Text style={{ fontSize: 14, color: '#3B6D11', fontWeight: '600' }}>✅ Aucune déduction à effectuer</Text>
+                        </View>
+                      ) : (
+                        <>
+                          {toutesLignesEcart.filter(e => e.montantDeduit > 0).map((e, i) => (
+                            <View key={i} style={styles.invBilanRow}>
+                              <Text style={styles.invBilanProduit}>{e.produit_nom}</Text>
+                              <Text style={styles.invBilanMontant}>{fmt(e.montantDeduit)}</Text>
+                            </View>
+                          ))}
+                          <View style={styles.invBilanSep} />
+                          <View style={styles.invBilanTotalRow}>
+                            <Text style={styles.invBilanTotalLabel}>Total à déduire</Text>
+                            <Text style={styles.invBilanTotalVal}>{fmt(totalDeduit)}</Text>
+                          </View>
+                        </>
+                      )}
                     </View>
-                    {ecartsAvecCalc.map((e, i) => (
-                      <View key={i} style={styles.ecartCard}>
-                        <Text style={styles.ecartNom}>{e.produit_nom}</Text>
-                        {[
-                          { label: 'Écart réel', val: `${e.ecart > 0 ? '+' : ''}${e.ecart.toFixed(1)}`, color: e.ecart < 0 ? '#A32D2D' : '#EF9F27' },
-                          { label: 'Expliqué gérant', val: e.nombreExplique > 0 ? e.nombreExplique.toFixed(1) : '—' },
-                          { label: 'Diff. inexpliquée', val: e.diffInexpliquee > 0 ? e.diffInexpliquee.toFixed(1) : '✅ 0', color: e.diffInexpliquee > 0 ? '#A32D2D' : '#3B6D11' },
-                          { label: 'Montant à déduire', val: e.montantDeduit > 0 ? fmt(e.montantDeduit) : '—', color: e.montantDeduit > 0 ? '#A32D2D' : '#3B6D11', bold: true },
-                        ].map((r, j, arr) => (
-                          <View key={j} style={[styles.ecartRow, j === arr.length - 1 && { borderBottomWidth: 0 }]}>
-                            <Text style={[styles.ecartLabel, r.bold && { fontWeight: '600' }]}>{r.label}</Text>
-                            <Text style={[styles.ecartVal, r.color && { color: r.color }, r.bold && { fontWeight: '700' }]}>{r.val}</Text>
-                          </View>
-                        ))}
-                        {!!e.explication_ecart && (
-                          <View style={[styles.ecartRow, { alignItems: 'flex-start', borderBottomWidth: 0 }]}>
-                            <Text style={styles.ecartLabel}>Explication</Text>
-                            <Text style={[styles.ecartVal, { flex: 1, textAlign: 'right' }]}>{e.explication_ecart}</Text>
-                          </View>
-                        )}
+
+                    {totalDeduit > 0 && (
+                      <TouchableOpacity
+                        style={[styles.pdfBtn, generatingEcartsPdf && { opacity: 0.6 }]}
+                        onPress={() => telechargerPdfEcarts(toutesLignesEcart, totalDeduit)}
+                        disabled={generatingEcartsPdf}
+                      >
+                        {generatingEcartsPdf
+                          ? <><ActivityIndicator color="#534AB7" size="small" /><Text style={[styles.pdfBtnTxt, { marginLeft: 8 }]}>Génération en cours...</Text></>
+                          : <><Text style={styles.pdfBtnTxt}>📄 Exporter le bilan en PDF</Text><Text style={styles.pdfBtnSub}>Rapport complet : écarts, explications et montants</Text></>
+                        }
+                      </TouchableOpacity>
+                    )}
+                  </>
+                )}
+
+                {/* ══ Détail par shift ══════════════════════════════════ */}
+                <Text style={[styles.sectionTitre, { marginTop: 8 }]}>📦 Détail par shift</Text>
+                {useNouveauFormat ? (
+                  shiftsNouveauFormat.map((shift, si) => (
+                    <View key={si} style={styles.invShiftCard}>
+                      <View style={styles.invShiftHeader}>
+                        <View style={styles.invShiftBadge}>
+                          <Text style={styles.invShiftBadgeTxt}>S{si + 1}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.invShiftNom}>{shift.shiftLabel}</Text>
+                          {shift.heure_debut && <Text style={styles.invShiftHeure}>{shift.heure_debut} → {shift.heure_fin}</Text>}
+                          {shift.caissierNom && <Text style={[styles.invShiftHeure, { color: colors.primary }]}>👤 {shift.caissierNom}</Text>}
+                        </View>
+                        <Text style={styles.invShiftCount}>{shift.lignes.filter(l => l.stock_reel != null).length} produit(s)</Text>
                       </View>
-                    ))}
-                    <View style={styles.ecartTotal}>
-                      <Text style={styles.ecartTotalLabel}>Total à déduire</Text>
-                      <Text style={styles.ecartTotalVal}>{fmt(totalDeduit)}</Text>
+                      {shift.lignes.filter(l => l.stock_reel != null).map((ligne, li) => {
+                        const ecart = ligne.ecart ?? 0
+                        const hasEcart = Math.abs(ecart) > 0.01
+                        return (
+                          <View key={li} style={[styles.invLigneRow, hasEcart && styles.invLigneRowAlert]}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.invLigneNom, hasEcart && { color: '#A32D2D' }]}>{ligne.produit_nom}</Text>
+                              <Text style={styles.invLigneSub}>
+                                Init: {ligne.stock_initial ?? 0} | +{ligne.entrees ?? 0} | -{ligne.sorties ?? 0} | Réel: {ligne.stock_reel}
+                              </Text>
+                              {hasEcart && ligne.explication && (
+                                <Text style={[styles.invLigneSub, { color: '#185FA5' }]}>"{ligne.explication}"</Text>
+                              )}
+                            </View>
+                            <View style={[styles.invEcartBadge, { backgroundColor: hasEcart ? '#FCEBEB' : '#EAF3DE' }]}>
+                              <Text style={[styles.invEcartTxt, { color: hasEcart ? '#A32D2D' : '#3B6D11' }]}>
+                                {hasEcart
+                                  ? (peutVoirEcarts ? (ecart >= 0 ? '+' : '') + ecart.toFixed(1) : '⚠️')
+                                  : '✅'
+                                }
+                              </Text>
+                            </View>
+                          </View>
+                        )
+                      })}
                     </View>
-                    <TouchableOpacity
-                      style={[styles.pdfBtn, generatingEcartsPdf && { opacity: 0.6 }]}
-                      onPress={() => telechargerPdfEcarts(ecartsAvecCalc, totalDeduit)}
-                      disabled={generatingEcartsPdf}
-                    >
-                      {generatingEcartsPdf
-                        ? <><ActivityIndicator color="#534AB7" size="small" /><Text style={[styles.pdfBtnTxt, { marginLeft: 8 }]}>Génération en cours...</Text></>
-                        : <><Text style={styles.pdfBtnTxt}>📄 Exporter les écarts en PDF</Text><Text style={styles.pdfBtnSub}>Rapport détaillé</Text></>
-                      }
-                    </TouchableOpacity>
+                  ))
+                ) : (
+                  shiftsAncienFormat.filter(s => s.numero > 0).map((shift, si) => (
+                    <View key={si} style={styles.invShiftCard}>
+                      <View style={styles.invShiftHeader}>
+                        <View style={styles.invShiftBadge}>
+                          <Text style={styles.invShiftBadgeTxt}>{`S${shift.numero}`}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.invShiftNom}>{shift.nom || `Shift ${shift.numero}`}</Text>
+                          {shift.heure_debut && <Text style={styles.invShiftHeure}>{shift.heure_debut} → {shift.heure_fin}</Text>}
+                        </View>
+                        <Text style={styles.invShiftCount}>{shift.lignes.length} produit(s)</Text>
+                      </View>
+                      {shift.lignes.map((ligne, li) => {
+                        const stockTheo = (ligne.stock_initial || 0) + (ligne.entrees || 0) - (ligne.sorties || 0)
+                        const ecart = ligne.ecart ?? (ligne.stock_final - stockTheo)
+                        const hasEcart = Math.abs(ecart) > 0.01
+                        return (
+                          <View key={li} style={[styles.invLigneRow, hasEcart && styles.invLigneRowAlert]}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={[styles.invLigneNom, hasEcart && { color: '#A32D2D' }]}>{ligne.produit_nom}</Text>
+                              <Text style={styles.invLigneSub}>
+                                Init: {ligne.stock_initial} | Sorties: {ligne.sorties} | Final: {ligne.stock_final}
+                              </Text>
+                              {hasEcart && ligne.explication_ecart && (
+                                <Text style={[styles.invLigneSub, { color: '#185FA5' }]}>"{ligne.explication_ecart}"</Text>
+                              )}
+                            </View>
+                            <View style={[styles.invEcartBadge, { backgroundColor: hasEcart ? '#FCEBEB' : '#EAF3DE' }]}>
+                              <Text style={[styles.invEcartTxt, { color: hasEcart ? '#A32D2D' : '#3B6D11' }]}>
+                                {hasEcart
+                                  ? (peutVoirEcarts ? (ecart >= 0 ? '+' : '') + ecart.toFixed(1) : '⚠️')
+                                  : '✅'
+                                }
+                              </Text>
+                            </View>
+                          </View>
+                        )
+                      })}
+                    </View>
+                  ))
+                )}
+
+                <View style={{ height: 40 }} />
+              </ScrollView>
+            )
+          })()}
+        </SafeAreaView>
+      </Modal>
+
+      {/* ══════════════════════════════════════════
+          MODAL DEMANDE DE CORRECTION
+      ══════════════════════════════════════════ */}
+      <Modal visible={modalCorrection} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
+          <View style={[styles.modalHeader, { backgroundColor: '#854F0B' }]}>
+            <TouchableOpacity onPress={() => setModalCorrection(false)}>
+              <Text style={[styles.modalClose, { color: '#FAEEDA' }]}>✕ Annuler</Text>
+            </TouchableOpacity>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={[styles.modalTitre, { color: '#fff' }]}>Demande de correction</Text>
+              <Text style={[styles.modalSub, { color: '#FAEEDA' }]}>{formatDate(pointSelectionne?.date)}</Text>
+            </View>
+            <View style={{ width: 70 }} />
+          </View>
+
+          <ScrollView style={{ padding: 16 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+            {/* Sections */}
+            <Text style={styles.correctionLabel}>Sections à corriger</Text>
+            <Text style={[styles.correctionHint, { marginBottom: 10 }]}>Sélectionnez une ou plusieurs sections</Text>
+            {[
+              { key: 'partenaires', label: '🛵 Partenaires', desc: 'Yango, Glovo, Wave, OM, Djamo' },
+              { key: 'fournisseurs', label: '🧾 Fournisseurs', desc: 'Transactions fournisseurs, déductions gérant' },
+              { key: 'photos', label: '📷 Photos', desc: 'Photos justificatives manquantes ou incorrectes' },
+              { key: 'inventaire', label: '📦 Inventaire', desc: 'Stocks, entrées/sorties, écarts' },
+            ].map(s => {
+              const actif = sectionsSelectionnees.includes(s.key)
+              return (
+                <TouchableOpacity
+                  key={s.key}
+                  style={[styles.correctionSectionRow, actif && styles.correctionSectionRowActive]}
+                  onPress={() => toggleSection(s.key)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.correctionCheckbox, actif && styles.correctionCheckboxActive]}>
+                    {actif && <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>✓</Text>}
                   </View>
-                )
-              })()}
-              <View style={{ height: 40 }} />
-            </ScrollView>
-          )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.correctionSectionLabel, actif && { color: '#854F0B' }]}>{s.label}</Text>
+                    <Text style={styles.correctionSectionDesc}>{s.desc}</Text>
+                  </View>
+                </TouchableOpacity>
+              )
+            })}
+
+            {/* Motif */}
+            <Text style={[styles.correctionLabel, { marginTop: 20 }]}>Motif de la correction *</Text>
+            <Text style={[styles.correctionHint, { marginBottom: 8 }]}>Minimum 10 caractères — soyez précis</Text>
+            <TextInput
+              style={styles.correctionMotifInput}
+              value={motifCorrection}
+              onChangeText={setMotifCorrection}
+              placeholder="Ex : Montant Yango incorrect, photo Wave manquante..."
+              placeholderTextColor="#bbb"
+              multiline
+              numberOfLines={4}
+              maxLength={500}
+            />
+            <Text style={styles.correctionCharCount}>{motifCorrection.length}/500</Text>
+
+            {/* Erreur inline */}
+            {!!errorCorrection && (
+              <View style={{ backgroundColor: '#FCEBEB', borderRadius: 10, padding: 12, marginTop: 14, borderWidth: 1, borderColor: '#F09595' }}>
+                <Text style={{ fontSize: 13, color: '#A32D2D', fontWeight: '600' }}>❌ Erreur</Text>
+                <Text style={{ fontSize: 12, color: '#A32D2D', marginTop: 4 }}>{errorCorrection}</Text>
+              </View>
+            )}
+
+            {/* Bouton confirmer */}
+            <TouchableOpacity
+              style={[styles.correctionConfirmBtn, savingCorrection && { opacity: 0.6 }]}
+              onPress={demanderCorrection}
+              disabled={savingCorrection}
+            >
+              {savingCorrection
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.correctionConfirmTxt}>⚠️ Envoyer la demande</Text>
+              }
+            </TouchableOpacity>
+
+            <View style={{ height: 40 }} />
+          </ScrollView>
         </SafeAreaView>
       </Modal>
 
@@ -1676,6 +2198,8 @@ function makeStyles(colors) { return StyleSheet.create({
   photoMontant: { fontSize: 8, color: colors.textMuted, textAlign: 'center', marginTop: 2 },
   photoTapTxt: { fontSize: 8, color: colors.primary, textAlign: 'center', marginTop: 1 },
   miniThumb: { width: 40, height: 40, borderRadius: 6 },
+  photoAbsenteThumb: { width: 40, height: 40, borderRadius: 6, backgroundColor: '#f0f0f0', alignItems: 'center', justifyContent: 'center' },
+  photoAbsenteThumbTxt: { fontSize: 18, color: '#ccc' },
   // ─── Galerie Zoom ───
   galerieOverlay: { flex: 1, backgroundColor: 'black' },
   galerieTopBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
@@ -1709,7 +2233,52 @@ function makeStyles(colors) { return StyleSheet.create({
   pdfBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10, marginTop: 4, borderWidth: 1.5, borderColor: colors.primary, flexWrap: 'wrap', gap: 4 },
   pdfBtnTxt: { fontSize: 14, fontWeight: '600', color: colors.primary },
   pdfBtnSub: { fontSize: 11, color: colors.textMuted, width: '100%', textAlign: 'center', marginTop: 2 },
-  // ─── Écarts inventaire ───
+  // ─── Correction ───
+  correctionBtn: { borderRadius: 14, padding: 14, alignItems: 'center', marginBottom: 10, marginTop: 4, borderWidth: 1.5, borderColor: '#854F0B', backgroundColor: '#FAEEDA' },
+  correctionBtnTxt: { fontSize: 14, fontWeight: '600', color: '#854F0B' },
+  correctionBtnSub: { fontSize: 11, color: '#854F0B', marginTop: 3, opacity: 0.7 },
+  correctionLabel: { fontSize: 13, fontWeight: '700', color: '#444', marginBottom: 4 },
+  correctionHint: { fontSize: 11, color: '#888' },
+  correctionSectionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
+  correctionSectionRowActive: { borderColor: '#854F0B', backgroundColor: '#FFF8F0' },
+  correctionCheckbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#ccc', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9f9f9' },
+  correctionCheckboxActive: { borderColor: '#854F0B', backgroundColor: '#854F0B' },
+  correctionSectionLabel: { fontSize: 14, fontWeight: '600', color: colors.text },
+  correctionSectionDesc: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  correctionMotifInput: { backgroundColor: colors.surface, borderRadius: 12, padding: 14, fontSize: 14, color: colors.text, borderWidth: 1, borderColor: colors.border, minHeight: 100, textAlignVertical: 'top' },
+  correctionCharCount: { fontSize: 10, color: '#bbb', textAlign: 'right', marginTop: 4, marginBottom: 6 },
+  correctionConfirmBtn: { backgroundColor: '#854F0B', borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 16 },
+  correctionConfirmTxt: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  // ─── Inventaire Résumé global ───
+  invResumeCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 0.5, borderColor: colors.border },
+  invResumeRow: { flexDirection: 'row', gap: 10 },
+  invResumeBadge: { flex: 1, borderRadius: 12, padding: 12, alignItems: 'center' },
+  invResumeBadgeNum: { fontSize: 24, fontWeight: '700', marginBottom: 2 },
+  invResumeBadgeLbl: { fontSize: 11, fontWeight: '500', textAlign: 'center' },
+  invResumeTotalBox: { borderRadius: 10, padding: 12, marginTop: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  invResumeTotalLabel: { fontSize: 13, fontWeight: '600' },
+  invResumeTotalVal: { fontSize: 16, fontWeight: '800' },
+  // ─── Fiche produit avec écart ───
+  invFicheCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1 },
+  invFicheHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingBottom: 8, borderBottomWidth: 0.5, borderBottomColor: '#f0f0f0' },
+  invFicheNom: { fontSize: 14, fontWeight: '700', color: colors.text, flex: 1, marginRight: 8 },
+  invFicheStatut: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  invFicheStatutTxt: { fontSize: 11, fontWeight: '600' },
+  invFicheExplication: { backgroundColor: '#F5F9FF', borderRadius: 8, padding: 10, marginVertical: 8, borderLeftWidth: 3, borderLeftColor: '#185FA5' },
+  invFicheExplicationLabel: { fontSize: 11, fontWeight: '600', color: '#185FA5', marginBottom: 4 },
+  invFicheExplicationTxt: { fontSize: 12, color: '#444', fontStyle: 'italic', lineHeight: 18 },
+  invFicheCaissier: { marginTop: 10, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: '#f0f0f0', gap: 4 },
+  invFicheCaissierTxt: { fontSize: 11, color: colors.textMuted },
+  // ─── Bilan financier ───
+  invBilanCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: colors.border },
+  invBilanRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5' },
+  invBilanProduit: { fontSize: 13, color: colors.text, flex: 1, marginRight: 8 },
+  invBilanMontant: { fontSize: 13, fontWeight: '600', color: '#A32D2D' },
+  invBilanSep: { height: 1, backgroundColor: '#ddd', marginVertical: 8 },
+  invBilanTotalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 4 },
+  invBilanTotalLabel: { fontSize: 14, fontWeight: '700', color: '#A32D2D' },
+  invBilanTotalVal: { fontSize: 20, fontWeight: '800', color: '#A32D2D' },
+  // ─── Écarts inventaire (legacy) ───
   ecartSection: { backgroundColor: '#FFF8F8', borderRadius: 14, padding: 14, marginTop: 8, marginBottom: 4, borderWidth: 1, borderColor: '#F09595' },
   ecartSectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   ecartSectionTitre: { fontSize: 14, fontWeight: '700', color: '#A32D2D' },

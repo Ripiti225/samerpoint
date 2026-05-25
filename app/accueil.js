@@ -1,22 +1,28 @@
 import { router, useLocalSearchParams } from 'expo-router'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { FlatList, Modal, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native'
 import { useApp } from '../context/AppContext'
 import { useNotifications } from '../context/NotificationsContext'
 import { useTheme } from '../context/ThemeContext'
 import { enregistrerTokenDirecteur } from '../lib/notifications'
 import SignatureFooter from '../components/SignatureFooter'
+import { supabase } from '../lib/supabase'
 
 export default function AccueilScreen() {
   const { nom, role } = useLocalSearchParams()
   const {
     pointValide, estBloque, roleActif, deconnecter,
-    userId,
+    userId, restaurantId,
   } = useApp()
+  const [nbCorrections, setNbCorrections] = useState(0)
 
   const { colors, isDark, toggleTheme } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
-  const { notifications, nonLues, panelVisible, ouvrirPanel, fermerPanel } = useNotifications()
+  const {
+    notifications, nonLues, panelVisible,
+    ouvrirPanel, fermerPanel,
+    supprimerUne, supprimerTout, naviguerDepuisNotif,
+  } = useNotifications()
 
   const roleEffectif = role || roleActif
 
@@ -34,6 +40,18 @@ export default function AccueilScreen() {
       enregistrerTokenDirecteur(userId)
     }
   }, [roleEffectif, userId])
+
+  // Gérant : charger les corrections en attente
+  useEffect(() => {
+    if (roleEffectif === 'gerant' && restaurantId) {
+      supabase
+        .from('deverouillages_points')
+        .select('id', { count: 'exact', head: true })
+        .eq('restaurant_id', restaurantId)
+        .eq('statut', 'ouvert')
+        .then(({ count }) => setNbCorrections(count || 0))
+    }
+  }, [roleEffectif, restaurantId])
 
   const isManager = roleEffectif === 'manager'
   const isDirecteur = roleEffectif === 'directeur'
@@ -207,6 +225,15 @@ export default function AccueilScreen() {
         </View>
       )}
 
+      {isGerant && nbCorrections > 0 && (
+        <TouchableOpacity style={styles.correctionBanner} onPress={() => router.push('/correction-point')}>
+          <Text style={styles.correctionBannerTxt}>
+            ⚠️ {nbCorrections} correction(s) demandée(s) par le manager
+          </Text>
+          <Text style={styles.correctionBannerSub}>Appuyer pour voir et corriger ›</Text>
+        </TouchableOpacity>
+      )}
+
       {isManager && (
         <View style={styles.managerBanner}>
           <Text style={styles.managerTxt}>👑 Accès total — toutes modifications autorisées</Text>
@@ -282,9 +309,16 @@ export default function AccueilScreen() {
           <View style={styles.notifPanel}>
             <View style={styles.notifPanelHeader}>
               <Text style={styles.notifPanelTitre}>🔔 Notifications</Text>
-              <TouchableOpacity onPress={fermerPanel}>
-                <Text style={styles.notifPanelClose}>✕</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                {notifications.length > 0 && (
+                  <TouchableOpacity onPress={supprimerTout}>
+                    <Text style={styles.notifEffacer}>Tout effacer</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={fermerPanel}>
+                  <Text style={styles.notifPanelClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
             </View>
             {notifications.length === 0 ? (
               <View style={styles.notifEmpty}>
@@ -297,17 +331,34 @@ export default function AccueilScreen() {
                 contentContainerStyle={{ padding: 14, paddingBottom: 30 }}
                 renderItem={({ item: n }) => {
                   const nonLue = !n.lu_par?.includes(userId)
+                  const aUneLigne = !!(n.screen || (n.type && ['point_valide','shift_valide','correction_demandee','nouveau_document','nouveau_travailleur'].includes(n.type)))
                   return (
-                    <View style={[styles.notifCard, nonLue && styles.notifCardNonLue]}>
+                    <TouchableOpacity
+                      activeOpacity={aUneLigne ? 0.75 : 1}
+                      onPress={aUneLigne ? () => naviguerDepuisNotif(n) : undefined}
+                      style={[styles.notifCard, nonLue && styles.notifCardNonLue]}
+                    >
                       {nonLue && <View style={styles.notifDot} />}
+                      <TouchableOpacity
+                        style={styles.notifDeleteBtn}
+                        onPress={() => supprimerUne(n.id)}
+                        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                      >
+                        <Text style={styles.notifDeleteTxt}>✕</Text>
+                      </TouchableOpacity>
                       <Text style={styles.notifCardTitre}>{n.titre}</Text>
                       <Text style={styles.notifCardMsg}>{n.message}</Text>
-                      <Text style={styles.notifCardDate}>
-                        {new Date(n.created_at).toLocaleDateString('fr-FR', {
-                          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-                        })}
-                      </Text>
-                    </View>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                        <Text style={styles.notifCardDate}>
+                          {new Date(n.created_at).toLocaleDateString('fr-FR', {
+                            day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                          })}
+                        </Text>
+                        {aUneLigne && (
+                          <Text style={styles.notifVoir}>Voir ›</Text>
+                        )}
+                      </View>
+                    </TouchableOpacity>
                   )
                 }}
               />
@@ -335,6 +386,12 @@ function makeStyles(colors) { return StyleSheet.create({
     borderBottomWidth: 0.5, borderBottomColor: '#C0DD97'
   },
   valideTxt: { fontSize: 12, color: '#3B6D11', fontWeight: '500' },
+  correctionBanner: {
+    backgroundColor: '#FAEEDA', padding: 12, alignItems: 'center',
+    borderBottomWidth: 1, borderBottomColor: '#EF9F27',
+  },
+  correctionBannerTxt: { fontSize: 13, color: '#854F0B', fontWeight: '700' },
+  correctionBannerSub: { fontSize: 11, color: '#854F0B', marginTop: 3 },
   managerBanner: {
     backgroundColor: colors.primaryLight, padding: 10, alignItems: 'center',
     borderBottomWidth: 0.5, borderBottomColor: colors.primaryText
@@ -399,7 +456,11 @@ function makeStyles(colors) { return StyleSheet.create({
     position: 'absolute', top: 12, right: 12,
     width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary,
   },
-  notifCardTitre: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 3 },
-  notifCardMsg: { fontSize: 12, color: colors.textSecondary, marginBottom: 4 },
+  notifEffacer: { fontSize: 12, color: '#E53535', fontWeight: '600' },
+  notifCardTitre: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 3, paddingRight: 22 },
+  notifCardMsg: { fontSize: 12, color: colors.textSecondary, marginBottom: 4, paddingRight: 8 },
   notifCardDate: { fontSize: 10, color: colors.textMuted },
+  notifDeleteBtn: { position: 'absolute', top: 10, right: 10, padding: 2 },
+  notifDeleteTxt: { fontSize: 12, color: colors.textMuted },
+  notifVoir: { fontSize: 11, color: colors.primary, fontWeight: '600' },
 }) }

@@ -1,3 +1,4 @@
+import * as Notifications from 'expo-notifications'
 import { router, Stack, useSegments } from 'expo-router'
 import { useEffect, useRef } from 'react'
 import { Platform } from 'react-native'
@@ -124,6 +125,19 @@ function SessionGuard() {
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    if (Platform.OS === 'web') return
+    const sub = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data ?? {}
+      const screen = data.screen as string | undefined
+      if (screen) {
+        const { screen: _, ...params } = data as Record<string, unknown>
+        router.push({ pathname: `/${screen}` as any, params: params as any })
+      }
+    })
+    return () => sub.remove()
+  }, [])
+
   return (
     <ThemeProvider>
     <AppProvider>

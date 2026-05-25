@@ -105,20 +105,29 @@ export default function FournisseursScreen() {
         }
       })
 
-      // Toujours restaurer validatedIds pour que le bouton affiche "Validé" (TEST 1/2)
-      setValidatedIds(new Set(Object.keys(dedup)))
+      // Filtrer selon le rôle courant : ne jamais mélanger les transactions caissier
+      // dans le contexte du gérant, ni l'inverse — chaque shift est indépendant
+      const estCaissier = roleActif === 'caissier'
+      const transactionsPropres = Object.values(dedup).filter(t =>
+        estCaissier ? t.saisi_par === 'caissier' : t.saisi_par === 'gerant'
+      )
 
-      // Back-calculer le crédit d'origine (avant la transaction du jour) pour bloquer
-      // le double-comptage si l'utilisateur valide à nouveau
+      // Marquer "Validé" uniquement pour les transactions du rôle courant
+      setValidatedIds(new Set(transactionsPropres.map(t => t.fournisseur_id)))
+
+      // Back-calculer le crédit d'origine uniquement pour les transactions du rôle courant
+      // pour bloquer le double-comptage si l'utilisateur valide à nouveau
       // reste = originalCredit + facture - paye  →  originalCredit = reste - facture + paye
-      Object.values(dedup).forEach(t => {
+      transactionsPropres.forEach(t => {
         credits[t.fournisseur_id] = (t.reste || 0) - (t.facture || 0) + (t.paye || 0)
       })
 
       // Restaurer fournisseursJour uniquement sur rechargement de page (contexte vide)
-      if (Object.keys(fournisseursJour).length === 0) {
+      // et uniquement avec les transactions du rôle courant — jamais les transactions
+      // d'un autre caissier dont le shift est déjà validé et clôturé
+      if (Object.keys(fournisseursJour).length === 0 && transactionsPropres.length > 0) {
         const restored = {}
-        Object.values(dedup).forEach(t => {
+        transactionsPropres.forEach(t => {
           restored[t.fournisseur_id] = {
             facture: String(t.facture ?? ''),
             paye: String(t.paye ?? ''),
@@ -199,23 +208,47 @@ export default function FournisseursScreen() {
     setSavingId(f.id)
     const credit = creditVeille(f.id)
     const saisiPar = roleActif === 'caissier' ? 'caissier' : 'gerant'
-    const ok = await saveOneTransactionFournisseur(pointId, f.id, t, credit, saisiPar, userNom)
+    const ok = await saveOneTransactionFournisseur(pointId, f.id, t, credit, saisiPar, userNom, restaurantId, userId)
     if (ok) {
       const nouveauReste = credit + (parseFloat(t.facture) || 0) - (parseFloat(t.paye) || 0)
       await supabase.from('fournisseurs').update({ credit_actuel: nouveauReste }).eq('id', f.id)
-      const motifJour = `Journée du ${dateJour || today}:`
-      // Supprimer l'entrée existante du jour pour ce fournisseur avant d'insérer
-      supabase.from('historique_credit_fournisseurs')
-        .delete().eq('fournisseur_id', f.id).like('motif', `${motifJour}%`)
-        .then(() => {}).catch(() => {})
-      supabase.from('historique_credit_fournisseurs').insert({
+      // Motif spécifique par rôle pour permettre la déduplication lors de la validation du shift caissier
+      const motifPrefix = saisiPar === 'caissier'
+        ? `caissier|${today}|`
+        : `Journée du ${dateJour || today}: `
+      const motifTexte = `${motifPrefix}facture ${Math.round(parseFloat(t.facture)||0).toLocaleString('fr-FR')} FCFA, payé ${Math.round(parseFloat(t.paye)||0).toLocaleString('fr-FR')} FCFA`
+      // Séquencer delete puis insert pour éviter la race condition (fire-and-forget causait la perte de l'entrée)
+      await supabase.from('historique_credit_fournisseurs')
+        .delete()
+        .eq('fournisseur_id', f.id)
+        .eq('restaurant_id', restaurantId)
+        .like('motif', `${motifPrefix}%`)
+      await supabase.from('historique_credit_fournisseurs').insert({
         fournisseur_id: f.id,
         restaurant_id: restaurantId,
+        point_id: pointId,
+        source: saisiPar,
         ancien_credit: credit,
         nouveau_credit: nouveauReste,
-        motif: `${motifJour} facture ${Math.round(parseFloat(t.facture)||0).toLocaleString('fr-FR')}, payé ${Math.round(parseFloat(t.paye)||0).toLocaleString('fr-FR')}`,
+        facture: parseFloat(t.facture) || 0,
+        paye: parseFloat(t.paye) || 0,
+        photo_url: t.photoUri || null,
+        motif: motifTexte,
         modified_by: userId || null,
-      }).then(() => {}).catch(() => {})
+      })
+      // Mettre à jour le crédit affiché immédiatement depuis Supabase
+      const { data: updatedFourn } = await supabase
+        .from('fournisseurs').select('credit_actuel').eq('id', f.id).maybeSingle()
+      if (updatedFourn) {
+        setFournisseurs(prev => prev.map(item =>
+          item.id === f.id ? { ...item, credit_actuel: updatedFourn.credit_actuel } : item
+        ))
+        setCreditsVeille(prev => ({ ...prev, [f.id]: updatedFourn.credit_actuel }))
+        setFournisseursJour(prev => ({
+          ...prev,
+          [f.id]: { facture: '', paye: '', hasPhoto: prev[f.id]?.hasPhoto || false, photoUri: prev[f.id]?.photoUri || null },
+        }))
+      }
     }
     setSavingId(null)
     setValidatedIds(prev => new Set([...prev, f.id]))

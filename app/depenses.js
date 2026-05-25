@@ -378,7 +378,7 @@ export default function DepensesScreen() {
                 </Text>
                 <View style={styles.cumulRow}>
                   <Text style={styles.cumulLabel}>Dépenses caissiers</Text>
-                  <Text style={styles.cumulVal}>{fmt(cumulShifts.depenses)}</Text>
+                  <Text style={styles.cumulVal}>{fmt((cumulShifts.depenses || 0) - (cumulShifts.fournisseurs || 0))}</Text>
                 </View>
                 <View style={[styles.cumulRow, { borderBottomWidth: 0 }]}>
                   <Text style={styles.cumulLabel}>Fournisseurs caissiers</Text>
@@ -387,7 +387,7 @@ export default function DepensesScreen() {
                 <View style={styles.cumulTotal}>
                   <Text style={styles.cumulTotalLabel}>Total caissiers</Text>
                   <Text style={styles.cumulTotalVal}>
-                    {fmt((cumulShifts.depenses || 0) + (cumulShifts.fournisseurs || 0))}
+                    {fmt(cumulShifts.depenses || 0)}
                   </Text>
                 </View>
               </View>

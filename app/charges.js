@@ -78,7 +78,7 @@ export default function ChargesScreen() {
       const fin = `${moisSelectionne}-${String(dernierJour).padStart(2, '0')}`
       const { data: points } = await supabase
         .from('points')
-        .select('id, yango_tab, glovo_tab')
+        .select('id, yango_tab, glovo_tab, depenses_gerant_caisse_total')
         .eq('restaurant_id', restoSelectionne.id)
         .eq('valide', true)
         .gte('date', debut)
@@ -102,8 +102,9 @@ export default function ChargesScreen() {
 
         const yangoTab = parseFloat(point.yango_tab) || 0
         const glovoTab = parseFloat(point.glovo_tab) || 0
+        const depGerant = parseFloat(point.depenses_gerant_caisse_total) || 0
         totalBSC += (yangoTab * 0.77) + (glovoTab * 0.705)
-          + (s.om * 0.99) + (s.wave * 0.99) + (s.djamo * 0.99) + s.espece
+          + (s.om * 0.99) + (s.wave * 0.99) + (s.djamo * 0.99) + (s.espece - depGerant)
       }
       setBscMois(totalBSC)
     }
@@ -118,7 +119,7 @@ export default function ChargesScreen() {
     const fin = `${moisSelectionne}-${String(new Date(ry, rm, 0).getDate()).padStart(2, '0')}`
     const { data: points } = await supabase
       .from('points')
-      .select('id, yango_tab, glovo_tab')
+      .select('id, yango_tab, glovo_tab, depenses_gerant_caisse_total')
       .eq('restaurant_id', restoSelectionne.id)
       .eq('valide', true)
       .gte('date', debut)
@@ -139,8 +140,9 @@ export default function ChargesScreen() {
 
       const yangoTab = parseFloat(point.yango_tab) || 0
       const glovoTab = parseFloat(point.glovo_tab) || 0
+      const depGerant = parseFloat(point.depenses_gerant_caisse_total) || 0
       const bsc = (yangoTab * 0.77) + (glovoTab * 0.705)
-        + (s.om * 0.99) + (s.wave * 0.99) + (s.djamo * 0.99) + s.espece
+        + (s.om * 0.99) + (s.wave * 0.99) + (s.djamo * 0.99) + (s.espece - depGerant)
 
       await supabase.from('points').update({ benefice_sc: bsc }).eq('id', point.id)
     }

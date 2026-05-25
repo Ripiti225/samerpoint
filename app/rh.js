@@ -266,6 +266,7 @@ export default function RHScreen() {
         message: `${formTravailleur.nom} ajouté à ${restoSelectionne.nom}`,
         restaurant_id: restoSelectionne.id,
         cible_role: ['manager', 'directeur'],
+        screen: 'rh',
       }).catch(() => {})
     }
 

@@ -21,7 +21,7 @@ import { usePhoto } from '../lib/usePhoto'
 
 export default function DeductionsGerantScreen() {
   const {
-    restaurantId, pointId, userId, dateJour,
+    restaurantId, pointId, userId, userNom, dateJour,
     depensesGerantCaisse, setDepensesGerantCaisse,
     fournisseursGerantCaisse, setFournisseursGerantCaisse,
     paiesGerantCaisse, setPaiesGerantCaisse,
@@ -70,6 +70,7 @@ export default function DeductionsGerantScreen() {
       })
 
       // Factures caissier du jour (shift validé ou en cours)
+      // gerant_caissier est déjà dans credit_actuel (mis à jour par sauvegarder)
       if (pointId) {
         const { data: txCaissier } = await supabase
           .from('transactions_fournisseurs')
@@ -141,11 +142,12 @@ export default function DeductionsGerantScreen() {
           : (fournisseursList.find(f => f.id === fournId)?.credit_veille ?? 0)
         const nouveauCredit = creditVeille + facture - paye
 
-        // Vérifier si une entrée existe déjà pour ce fournisseur aujourd'hui
+        // Vérifier si une entrée existe déjà pour ce fournisseur aujourd'hui (filtré par restaurant)
         const { data: existant } = await supabase
           .from('historique_credit_fournisseurs')
           .select('id')
           .eq('fournisseur_id', fournId)
+          .eq('restaurant_id', restaurantId)
           .like('motif', `${motifPrefix}%`)
           .limit(1)
 
@@ -165,18 +167,49 @@ export default function DeductionsGerantScreen() {
           if (!confirme) continue
           // Supprimer l'ancienne entrée avant d'insérer la nouvelle
           await supabase.from('historique_credit_fournisseurs')
-            .delete().eq('fournisseur_id', fournId).like('motif', `${motifPrefix}%`)
+            .delete()
+            .eq('fournisseur_id', fournId)
+            .eq('restaurant_id', restaurantId)
+            .like('motif', `${motifPrefix}%`)
         }
 
         await supabase.from('fournisseurs').update({ credit_actuel: nouveauCredit }).eq('id', fournId)
         await supabase.from('historique_credit_fournisseurs').insert({
           fournisseur_id: fournId,
           restaurant_id: restaurantId,
+          point_id: pointId,
+          source: 'deduction_gerant',
           ancien_credit: creditVeille,
           nouveau_credit: nouveauCredit,
+          facture,
+          paye,
+          photo_url: data?.photoUri || null,
           motif: `${motifPrefix}facture ${facture} FCFA, payé ${paye} FCFA`,
           modified_by: userId || null,
         })
+        // Enregistrer dans transactions_fournisseurs (source de vérité crédit veille)
+        await supabase.from('transactions_fournisseurs')
+          .delete()
+          .eq('point_id', pointId)
+          .eq('fournisseur_id', fournId)
+          .eq('saisi_par', 'gerant_caissier')
+        await supabase.from('transactions_fournisseurs').insert({
+          point_id: pointId,
+          fournisseur_id: fournId,
+          restaurant_id: restaurantId,
+          facture,
+          paye,
+          reste: nouveauCredit,
+          saisi_par: 'gerant_caissier',
+          caissier_nom: userNom || null,
+          modified_by: userId || null,
+        })
+        // Synchroniser fournisseurs_restaurants si la table a un credit_actuel
+        supabase.from('fournisseurs_restaurants')
+          .update({ credit_actuel: nouveauCredit })
+          .eq('fournisseur_id', fournId)
+          .eq('restaurant_id', restaurantId)
+          .catch(() => {})
       }
 
       // Rafraîchir l'affichage des crédits après sauvegarde

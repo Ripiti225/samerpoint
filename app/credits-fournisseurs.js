@@ -14,7 +14,7 @@ import { router } from 'expo-router'
 import * as Sharing from 'expo-sharing'
 import { useEffect, useMemo, useState } from 'react'
 import {
-  ActivityIndicator, Alert, Modal, Platform,
+  ActivityIndicator, Alert, Image, Modal, Platform,
   SafeAreaView, ScrollView, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native'
@@ -60,6 +60,7 @@ export default function CreditsFournisseursScreen() {
   const [fournHisto, setFournHisto] = useState(null)
   const [histoMouvements, setHistoMouvements] = useState([])
   const [loadingHisto, setLoadingHisto] = useState(false)
+  const [modalPhotoUri, setModalPhotoUri] = useState(null)
 
   const today = new Date().toISOString().split('T')[0]
   const [formCredit, setFormCredit] = useState({ montant: '', motif: '' })
@@ -151,10 +152,31 @@ export default function CreditsFournisseursScreen() {
     setShowHistorique(true)
     const { data } = await supabase
       .from('historique_credit_fournisseurs')
-      .select('id, ancien_credit, nouveau_credit, motif, modified_by, modified_at')
+      .select('id, ancien_credit, nouveau_credit, facture, paye, photo_url, source, motif, modified_by, modified_at, point_id')
       .eq('fournisseur_id', f.id)
       .order('modified_at', { ascending: false })
-    setHistoMouvements(data || [])
+
+    // Déduplication : même date + même source → garder l'entrée avec les vraies données
+    const seen = new Map()
+    const deduped = []
+    for (const m of (data || [])) {
+      const dateMatch = (m.motif || '').match(/(\d{4}-\d{2}-\d{2})/)
+      const dateKey = dateMatch ? dateMatch[1] : (m.modified_at || '').split('T')[0]
+      const key = `${dateKey}_${m.source || 'manuel'}`
+      if (!seen.has(key)) {
+        seen.set(key, { entry: m, index: deduped.length })
+        deduped.push(m)
+      } else {
+        const prev = seen.get(key)
+        const newHasData = (m.facture > 0 || m.paye > 0 || m.point_id)
+        const oldHasData = (prev.entry.facture > 0 || prev.entry.paye > 0 || prev.entry.point_id)
+        if (newHasData && !oldHasData) {
+          deduped[prev.index] = m
+          seen.set(key, { entry: m, index: prev.index })
+        }
+      }
+    }
+    setHistoMouvements(deduped)
     setLoadingHisto(false)
   }
 
@@ -558,33 +580,85 @@ ${mouvements.map(m => {
                     Les modifications de crédit apparaîtront ici
                   </Text>
                 </View>
-              ) : (
-                <View style={styles.histoCard}>
-                  <View style={styles.histoTableHead}>
-                    <Text style={[styles.histoTH, { flex: 1.3 }]}>Date</Text>
-                    <Text style={[styles.histoTH, { flex: 1.2, textAlign: 'right' }]}>Montant</Text>
-                    <Text style={[styles.histoTH, { flex: 1.2, textAlign: 'right' }]}>Solde</Text>
-                    <Text style={[styles.histoTH, { flex: 1.8 }]}>Motif</Text>
-                  </View>
-                  {histoMouvements.map((m, i) => {
-                    const delta = (m.nouveau_credit || 0) - (m.ancien_credit || 0)
-                    return (
-                      <View key={m.id} style={[styles.histoRow, i === histoMouvements.length - 1 && { borderBottomWidth: 0 }]}>
-                        <Text style={[styles.histoTD, { flex: 1.3 }]}>{fmtDate(m.modified_at)}</Text>
-                        <Text style={[styles.histoTD, { flex: 1.2, textAlign: 'right', fontWeight: '700', color: delta > 0 ? '#A32D2D' : '#3B6D11' }]}>
-                          {delta > 0 ? '+' : ''}{fmtShort(delta)}
-                        </Text>
-                        <Text style={[styles.histoTD, { flex: 1.2, textAlign: 'right', fontWeight: '600', color: (m.nouveau_credit || 0) >= 0 ? '#A32D2D' : '#3B6D11' }]}>
-                          {fmtShort(m.nouveau_credit || 0)}
-                        </Text>
-                        <Text style={[styles.histoTD, { flex: 1.8, color: colors.textMuted, fontSize: 11 }]} numberOfLines={2}>
-                          {m.motif || '—'}
+              ) : histoMouvements.map((m, i) => {
+                // Extraire la date réelle depuis le motif (format YYYY-MM-DD dans le motif)
+                const dateMatch = (m.motif || '').match(/(\d{4}-\d{2}-\d{2})/)
+                const dateReelle = dateMatch ? fmtDate(dateMatch[1] + 'T00:00:00') : fmtDate(m.modified_at)
+                const facture = m.facture != null ? Number(m.facture) : 0
+                const paye = m.paye != null ? Number(m.paye) : 0
+                const solde = m.nouveau_credit || 0
+                // Pour les anciennes entrées sans facture/paye, déduire depuis le delta de crédit
+                let factureEff = facture
+                let payeEff = paye
+                if (facture === 0 && paye === 0 && m.ancien_credit != null && m.nouveau_credit != null) {
+                  const delta = (m.ancien_credit || 0) - (m.nouveau_credit || 0)
+                  if (delta > 0) payeEff = delta
+                  else if (delta < 0) factureEff = -delta
+                }
+                const sourceLabel = {
+                  caissier: 'Caissier',
+                  gerant: 'Gérant',
+                  deduction_gerant: 'Espace caissier gérant',
+                  gerant_caissier: 'Espace caissier gérant',
+                  manuel: 'Manuel',
+                }[m.source] || 'Manuel'
+                const sourceBg = {
+                  caissier: '#E6F1FB',
+                  gerant: '#EAF3DE',
+                  deduction_gerant: '#FAEEDA',
+                  gerant_caissier: '#FAEEDA',
+                  manuel: '#f0f0f0',
+                }[m.source] || '#f0f0f0'
+                const sourceTxt = {
+                  caissier: '#185FA5',
+                  gerant: '#3B6D11',
+                  deduction_gerant: '#854F0B',
+                  gerant_caissier: '#854F0B',
+                  manuel: '#888',
+                }[m.source] || '#888'
+
+                return (
+                  <View key={m.id} style={styles.histoMvtCard}>
+                    {/* En-tête : date + badge source */}
+                    <View style={styles.histoMvtHeader}>
+                      <Text style={styles.histoMvtDate}>📅 {dateReelle}</Text>
+                      <View style={[styles.histoMvtBadge, { backgroundColor: sourceBg }]}>
+                        <Text style={[styles.histoMvtBadgeTxt, { color: sourceTxt }]}>{sourceLabel}</Text>
+                      </View>
+                    </View>
+
+                    {/* Ligne chiffres : Reçu | Payé | Reste dû */}
+                    <View style={styles.histoMvtChiffres}>
+                      <View style={styles.histoMvtChiffreItem}>
+                        <Text style={styles.histoMvtChiffreLabel}>📦 Reçu (facture)</Text>
+                        <Text style={[styles.histoMvtChiffreVal, { color: colors.text }]}>
+                          {factureEff > 0 ? fmtShort(factureEff) : '—'}
                         </Text>
                       </View>
-                    )
-                  })}
-                </View>
-              )}
+                      <View style={[styles.histoMvtChiffreItem, styles.histoMvtChiffreSep]}>
+                        <Text style={styles.histoMvtChiffreLabel}>💳 Payé</Text>
+                        <Text style={[styles.histoMvtChiffreVal, { color: payeEff > 0 ? '#3B6D11' : colors.textMuted }]}>
+                          {payeEff > 0 ? fmtShort(payeEff) : '—'}
+                        </Text>
+                      </View>
+                      <View style={[styles.histoMvtChiffreItem, styles.histoMvtChiffreSep]}>
+                        <Text style={styles.histoMvtChiffreLabel}>⚠️ Reste dû</Text>
+                        <Text style={[styles.histoMvtChiffreVal, { color: solde > 0 ? '#A32D2D' : '#3B6D11', fontWeight: '700' }]}>
+                          {fmtShort(solde)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Photo facture */}
+                    {m.photo_url && (
+                      <TouchableOpacity style={styles.histoMvtPhoto} onPress={() => setModalPhotoUri(m.photo_url)}>
+                        <Image source={{ uri: m.photo_url }} style={styles.histoMvtPhotoThumb} resizeMode="cover" />
+                        <Text style={styles.histoMvtPhotoTxt}>📷 Voir la facture</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )
+              })}
               <View style={{ height: 40 }} />
             </ScrollView>
           )}
@@ -800,6 +874,33 @@ ${mouvements.map(m => {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* ── Modal photo facture ── */}
+      <Modal visible={!!modalPhotoUri} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity
+            style={{ position: 'absolute', top: 50, right: 20, zIndex: 10 }}
+            onPress={() => setModalPhotoUri(null)}
+            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+          >
+            <Text style={{ fontSize: 30, color: '#fff', fontWeight: '300' }}>✕</Text>
+          </TouchableOpacity>
+          {modalPhotoUri && (
+            <Image
+              source={{ uri: modalPhotoUri }}
+              style={{ width: '92%', height: '70%' }}
+              resizeMode="contain"
+            />
+          )}
+          <TouchableOpacity
+            style={{ marginTop: 20, backgroundColor: '#534AB7', borderRadius: 12, paddingHorizontal: 32, paddingVertical: 12 }}
+            onPress={() => setModalPhotoUri(null)}
+          >
+            <Text style={{ fontSize: 14, fontWeight: '600', color: '#fff' }}>Fermer</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   )
 }
@@ -893,4 +994,17 @@ function makeStyles(colors) { return StyleSheet.create({
   filterTxt: { fontSize: 12, color: colors.textMuted },
   filterTxtActive: { color: '#EF9F27', fontWeight: '600' },
   exportSection: { fontSize: 11, fontWeight: '600', color: colors.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  histoMvtCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: colors.border },
+  histoMvtHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  histoMvtDate: { fontSize: 13, fontWeight: '600', color: colors.text },
+  histoMvtBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  histoMvtBadgeTxt: { fontSize: 10, fontWeight: '600' },
+  histoMvtChiffres: { flexDirection: 'row', borderTopWidth: 0.5, borderTopColor: colors.border, paddingTop: 10 },
+  histoMvtChiffreItem: { flex: 1, alignItems: 'center' },
+  histoMvtChiffreSep: { borderLeftWidth: 0.5, borderLeftColor: colors.border },
+  histoMvtChiffreLabel: { fontSize: 10, color: colors.textMuted, marginBottom: 4, textAlign: 'center' },
+  histoMvtChiffreVal: { fontSize: 14, fontWeight: '600', textAlign: 'center' },
+  histoMvtPhoto: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: colors.border },
+  histoMvtPhotoThumb: { width: 48, height: 48, borderRadius: 8 },
+  histoMvtPhotoTxt: { fontSize: 12, color: colors.primary, fontWeight: '500' },
 }) }

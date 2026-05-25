@@ -1,7 +1,11 @@
 import * as Haptics from 'expo-haptics'
+import { router } from 'expo-router'
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { chargerNotifications, marquerToutLu } from '../lib/notificationsInterne'
+import {
+  chargerNotifications, marquerToutLu,
+  supprimerNotification, supprimerToutesNotifications,
+} from '../lib/notificationsInterne'
 import { useApp } from './AppContext'
 
 const NotificationsContext = createContext({
@@ -10,7 +14,19 @@ const NotificationsContext = createContext({
   panelVisible: false,
   ouvrirPanel: () => {},
   fermerPanel: () => {},
+  marquerUneCommeLue: () => {},
+  supprimerUne: () => {},
+  supprimerTout: () => {},
+  naviguerDepuisNotif: () => {},
 })
+
+const ROUTE_MAP = {
+  point_valide: 'verification',
+  shift_valide: 'verification',
+  correction_demandee: 'recap-point',
+  nouveau_document: 'documents',
+  nouveau_travailleur: 'rh',
+}
 
 export function NotificationsProvider({ children }) {
   const { userId, roleActif, restaurantId } = useApp() ?? {}
@@ -70,8 +86,49 @@ export function NotificationsProvider({ children }) {
     setPanelVisible(false)
   }
 
+  async function marquerUneCommeLue(notifId) {
+    if (!userId) return
+    await marquerToutLu([notifId], userId)
+    setNotifications(prev =>
+      prev.map(n =>
+        n.id === notifId
+          ? { ...n, lu_par: n.lu_par?.includes(userId) ? n.lu_par : [...(n.lu_par || []), userId] }
+          : n
+      )
+    )
+  }
+
+  async function supprimerUne(notifId) {
+    setNotifications(prev => prev.filter(n => n.id !== notifId))
+    await supprimerNotification(notifId)
+  }
+
+  async function supprimerTout() {
+    const ids = notifications.map(n => n.id)
+    setNotifications([])
+    await supprimerToutesNotifications(ids)
+  }
+
+  function naviguerDepuisNotif(notif) {
+    const screen = notif.screen || ROUTE_MAP[notif.type]
+    if (!screen) return
+    fermerPanel()
+    marquerUneCommeLue(notif.id).catch(() => {})
+    const params = notif.params
+      ? { ...notif.params }
+      : notif.restaurant_id
+        ? { restaurant_id: notif.restaurant_id }
+        : {}
+    router.push({ pathname: `/${screen}`, params })
+  }
+
   return (
-    <NotificationsContext.Provider value={{ notifications, nonLues, panelVisible, ouvrirPanel, fermerPanel }}>
+    <NotificationsContext.Provider value={{
+      notifications, nonLues, panelVisible,
+      ouvrirPanel, fermerPanel,
+      marquerUneCommeLue, supprimerUne, supprimerTout,
+      naviguerDepuisNotif,
+    }}>
       {children}
     </NotificationsContext.Provider>
   )

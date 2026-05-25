@@ -388,13 +388,15 @@ export default function RecapPointScreen() {
     if (ok) {
       setPointValide(true)
       // Notifier les directeurs en arrière-plan — ne bloque jamais la validation
-      envoyerNotifValidation(dateJour).catch(() => {})
+      envoyerNotifValidation(dateJour, restaurantId, pointId).catch(() => {})
       creerNotification({
         type: 'point_valide',
         titre: '✅ Point validé',
         message: `${restaurantNom} — ${dateJour}`,
         restaurant_id: restaurantId,
         cible_role: ['manager', 'directeur'],
+        screen: 'verification',
+        params: { restaurant_id: restaurantId, point_id: pointId },
       }).catch(() => {})
       // Vérifier si le rapport hebdo peut être généré (arrière-plan)
       verifierEtGenererRapportHebdo(dateJour).catch(() => {})

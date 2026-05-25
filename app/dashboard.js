@@ -31,7 +31,7 @@ export default function DashboardScreen() {
   const {
     totalDepenses, totalPaie, totalFournisseurs,
     depensesJour, ventesJour, totalVentes,
-    resteEspeces, fc, beneficeSC,
+    resteEspeces, fc, beneficeSC, totalDepensesGerantCaisse,
     restaurantId, restaurantNom, pointId,
     roleActif,
   } = useApp()
@@ -45,6 +45,7 @@ export default function DashboardScreen() {
   const [periodeKey, setPeriodeKey] = useState('today')
   const [points, setPoints] = useState([])
   const [loading, setLoading] = useState(false)
+  const [nbCorrections, setNbCorrections] = useState(0)
   const [modalCalendrier, setModalCalendrier] = useState(false)
   const [dateDebut, setDateDebut] = useState('')
   const [dateFin, setDateFin] = useState('')
@@ -57,6 +58,17 @@ export default function DashboardScreen() {
   useEffect(() => {
     if (periodeKey !== 'today' && periodeKey !== 'custom') chargerPoints()
   }, [periodeKey, restaurantId])
+
+  useEffect(() => {
+    if (isGerant && restaurantId) {
+      supabase
+        .from('deverouillages_points')
+        .select('id', { count: 'exact', head: true })
+        .eq('restaurant_id', restaurantId)
+        .eq('statut', 'ouvert')
+        .then(({ count }) => setNbCorrections(count || 0))
+    }
+  }, [isGerant, restaurantId])
 
   useEffect(() => {
     if (periodeKey === 'today' && pointId) chargerCumulShifts()
@@ -207,15 +219,14 @@ export default function DashboardScreen() {
 
   function beneficeToday() {
     if (cumulShifts) {
-      // BSC = (YangoTab×0.77) + (GlovoTab×0.705) + (OM×0.99) + (Wave×0.99) + (Djamo×0.99) + Reste
       const yangoTab = parseFloat(ventesJour.yangoTab) || 0
       const glovoTab = parseFloat(ventesJour.glovoTab) || 0
       const om = cumulShifts.om
       const wave = cumulShifts.wave
       const djamo = cumulShifts.djamo
-      const reste = ventesToday() - depensesToday() - cumulShifts.yangoCse - cumulShifts.glovoCse
-        - wave - om - djamo - cumulShifts.kdo - cumulShifts.retour
-      return (yangoTab * 0.77) + (glovoTab * 0.705) + (om * 0.99) + (wave * 0.99) + (djamo * 0.99) + reste
+      const depGerant = totalDepensesGerantCaisse()
+      return (yangoTab * 0.77) + (glovoTab * 0.705)
+        + (om * 0.99) + (wave * 0.99) + (djamo * 0.99) + (cumulShifts.espece - depGerant)
     }
     return beneficeSC()
   }
@@ -292,6 +303,14 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
+
+      {/* Bannière corrections */}
+      {isGerant && nbCorrections > 0 && (
+        <TouchableOpacity style={styles.correctionBanner} onPress={() => router.push('/correction-point')}>
+          <Text style={styles.correctionBannerTxt}>⚠️ {nbCorrections} correction(s) demandée(s) par le manager</Text>
+          <Text style={styles.correctionBannerSub}>Appuyer pour corriger ›</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Bannière shifts */}
       {isToday && cumulShifts && (
@@ -703,6 +722,12 @@ function makeStyles(colors) { return StyleSheet.create({
   periodeBtnActive: { borderBottomWidth: 2, borderBottomColor: '#EF9F27' },
   periodeTxt: { fontSize: 13, color: colors.textMuted },
   periodeTxtActive: { color: '#EF9F27', fontWeight: '600' },
+  correctionBanner: {
+    backgroundColor: '#FAEEDA', padding: 10, paddingHorizontal: 16,
+    borderBottomWidth: 1, borderBottomColor: '#EF9F27', alignItems: 'center',
+  },
+  correctionBannerTxt: { fontSize: 13, color: '#854F0B', fontWeight: '700' },
+  correctionBannerSub: { fontSize: 11, color: '#854F0B', marginTop: 2 },
   shiftsBanner: {
     backgroundColor: colors.primaryLight, padding: 8, paddingHorizontal: 14,
     borderBottomWidth: 0.5, borderBottomColor: colors.primaryText
