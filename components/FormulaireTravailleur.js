@@ -3,6 +3,21 @@ import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'reac
 
 const POSTES = ['Gérant', 'Sous-gérant', 'Caissier/re', 'Serveur/se', 'Comptoiriste', 'Cuisinier', 'Chef cuisinier', 'Pizzaïo', 'Barman']
 
+function normaliserPoste(poste) {
+  if (!poste) return ''
+  const p = poste.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  if (p.includes('sous') && p.includes('gerant')) return 'Sous-gérant'
+  if (p.includes('gerant')) return 'Gérant'
+  if (p.includes('caissier') || p.includes('caissiere')) return 'Caissier/re'
+  if (p.includes('serveur') || p.includes('serveuse')) return 'Serveur/se'
+  if (p.includes('comptoir')) return 'Comptoiriste'
+  if (p.includes('chef') && p.includes('cuisinier')) return 'Chef cuisinier'
+  if (p.includes('cuisinier')) return 'Cuisinier'
+  if (p.includes('pizza')) return 'Pizzaïo'
+  if (p.includes('bar')) return 'Barman'
+  return poste
+}
+
 export default function FormulaireTravailleur({ form, setForm, colors, nomEditable = true }) {
   const [showPostes, setShowPostes] = useState(false)
   const label = {
@@ -48,7 +63,7 @@ export default function FormulaireTravailleur({ form, setForm, colors, nomEditab
         onPress={() => setShowPostes(true)}
       >
         <Text style={{ fontSize: 15, color: form.poste ? colors.text : '#bbb' }}>
-          {form.poste || 'Sélectionner un poste...'}
+          {normaliserPoste(form.poste) || 'Sélectionner un poste...'}
         </Text>
         <Text style={{ color: colors.textMuted }}>▾</Text>
       </TouchableOpacity>
@@ -63,10 +78,10 @@ export default function FormulaireTravailleur({ form, setForm, colors, nomEditab
               {POSTES.map((p, i) => (
                 <TouchableOpacity
                   key={p}
-                  style={{ padding: 16, borderBottomWidth: i < POSTES.length - 1 ? 0.5 : 0, borderBottomColor: colors.border, backgroundColor: form.poste === p ? '#EBF3FF' : 'transparent' }}
+                  style={{ padding: 16, borderBottomWidth: i < POSTES.length - 1 ? 0.5 : 0, borderBottomColor: colors.border, backgroundColor: normaliserPoste(form.poste) === p ? '#EBF3FF' : 'transparent' }}
                   onPress={() => { setForm(prev => ({ ...prev, poste: p })); setShowPostes(false) }}
                 >
-                  <Text style={{ fontSize: 15, color: form.poste === p ? '#185FA5' : colors.text, fontWeight: form.poste === p ? '600' : '400' }}>
+                  <Text style={{ fontSize: 15, color: normaliserPoste(form.poste) === p ? '#185FA5' : colors.text, fontWeight: normaliserPoste(form.poste) === p ? '600' : '400' }}>
                     {p}
                   </Text>
                 </TouchableOpacity>
