@@ -1,6 +1,10 @@
-import { Text, TextInput, TouchableOpacity, View } from 'react-native'
+import { useState } from 'react'
+import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
+
+const POSTES = ['Gérant', 'Sous-gérant', 'Caissier/re', 'Serveur/se', 'Comptoiriste', 'Cuisinier', 'Chef cuisinier', 'Pizzaïo', 'Barman']
 
 export default function FormulaireTravailleur({ form, setForm, colors, nomEditable = true }) {
+  const [showPostes, setShowPostes] = useState(false)
   const label = {
     fontSize: 11, fontWeight: '600', color: colors.textMuted,
     letterSpacing: 0.5, marginBottom: 6, textTransform: 'uppercase',
@@ -39,19 +43,38 @@ export default function FormulaireTravailleur({ form, setForm, colors, nomEditab
       />
 
       <Text style={label}>Poste *</Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-        {['Gérant', 'Sous-gérant', 'Caissier/re', 'Serveur/se', 'Comptoiriste', 'Cuisinier', 'Chef cuisinier', 'Pizzaïo', 'Barman'].map(p => (
-          <TouchableOpacity
-            key={p}
-            style={[choix, { flex: 0, paddingHorizontal: 14 }, form.poste === p && choixActive]}
-            onPress={() => setForm(prev => ({ ...prev, poste: p }))}
-          >
-            <Text style={{ fontSize: 13, color: form.poste === p ? '#fff' : colors.textMuted, fontWeight: form.poste === p ? '600' : '400' }}>
-              {p}
+      <TouchableOpacity
+        style={[input, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}
+        onPress={() => setShowPostes(true)}
+      >
+        <Text style={{ fontSize: 15, color: form.poste ? colors.text : '#bbb' }}>
+          {form.poste || 'Sélectionner un poste...'}
+        </Text>
+        <Text style={{ color: colors.textMuted }}>▾</Text>
+      </TouchableOpacity>
+
+      <Modal visible={showPostes} transparent animationType="fade">
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 }} activeOpacity={1} onPress={() => setShowPostes(false)}>
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor: colors.surface, borderRadius: 16, overflow: 'hidden' }}>
+            <Text style={{ padding: 16, fontSize: 14, fontWeight: '700', color: colors.textMuted, borderBottomWidth: 0.5, borderBottomColor: colors.border }}>
+              Sélectionner un poste
             </Text>
+            <ScrollView>
+              {POSTES.map((p, i) => (
+                <TouchableOpacity
+                  key={p}
+                  style={{ padding: 16, borderBottomWidth: i < POSTES.length - 1 ? 0.5 : 0, borderBottomColor: colors.border, backgroundColor: form.poste === p ? '#EBF3FF' : 'transparent' }}
+                  onPress={() => { setForm(prev => ({ ...prev, poste: p })); setShowPostes(false) }}
+                >
+                  <Text style={{ fontSize: 15, color: form.poste === p ? '#185FA5' : colors.text, fontWeight: form.poste === p ? '600' : '400' }}>
+                    {p}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </TouchableOpacity>
-        ))}
-      </View>
+        </TouchableOpacity>
+      </Modal>
 
       <Text style={label}>Type de contrat</Text>
       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
