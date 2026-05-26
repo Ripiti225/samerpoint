@@ -39,13 +39,19 @@ export default function FormulaireTravailleur({ form, setForm, colors, nomEditab
       />
 
       <Text style={label}>Poste *</Text>
-      <TextInput
-        style={input}
-        placeholder="Ex: Caissier, Cuisine, Service..."
-        value={form.poste || ''}
-        onChangeText={v => setForm(p => ({ ...p, poste: v }))}
-        placeholderTextColor="#bbb"
-      />
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+        {['Gérant', 'Sous-gérant', 'Caissier/re', 'Serveur/se', 'Comptoiriste', 'Cuisinier', 'Chef cuisinier', 'Pizzaïo', 'Barman'].map(p => (
+          <TouchableOpacity
+            key={p}
+            style={[choix, { flex: 0, paddingHorizontal: 14 }, form.poste === p && choixActive]}
+            onPress={() => setForm(prev => ({ ...prev, poste: p }))}
+          >
+            <Text style={{ fontSize: 13, color: form.poste === p ? '#fff' : colors.textMuted, fontWeight: form.poste === p ? '600' : '400' }}>
+              {p}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
       <Text style={label}>Type de contrat</Text>
       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
