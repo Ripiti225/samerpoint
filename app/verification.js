@@ -1047,11 +1047,15 @@ export default function VerificationScreen() {
                       caissier_nom: 'Gérant',
                     }
                   })
-                // historique uniquement pour les fournisseurs absents du draft (cas rare)
-                const histoDeductionGerant = detailPoint.historiquesFournisseurs.filter(h => h.source === 'deduction_gerant')
+                // IDs de tous les fournisseurs déjà dans transactions_fournisseurs (gérant + caissier)
+                const allTxIds = new Set(detailPoint.fournisseurs.map(f => f.fournisseur_id))
                 const draftIds = new Set(draftEntries.map(e => e.fournisseur_id))
-                const histoExtra = histoDeductionGerant.filter(h => !draftIds.has(h.fournisseur_id))
-                const fourGerant = [...txGerant, ...draftEntries, ...histoExtra]
+                // histoExtra = dernier recours : uniquement si absent du draft ET absent des transactions (évite les doublons inter-sections)
+                const histoDeductionGerant = detailPoint.historiquesFournisseurs.filter(h => h.source === 'deduction_gerant')
+                const histoExtra = histoDeductionGerant.filter(h => !draftIds.has(h.fournisseur_id) && !allTxIds.has(h.fournisseur_id))
+                // txGerant filtré : on exclut les fournisseurs déjà dans le draft
+                const txGerantFiltered = txGerant.filter(f => !draftIds.has(f.fournisseur_id))
+                const fourGerant = [...txGerantFiltered, ...draftEntries, ...histoExtra]
                 const depGerant = detailPoint.depenses.filter(d => d.saisi_par === 'gerant')
                 const totalFourGerant = fourGerant.reduce((s, f) => s + (f.paye || 0), 0)
                 const totalDepGerant = depGerant.reduce((s, d) => s + (d.montant || 0), 0)

@@ -69,6 +69,7 @@ export default function AccueilScreen() {
     { icon: '💳', titre: 'Charges du mois', sous: 'Saisir & voir bénéfice réel', route: '/charges', bloque: false },
     { icon: '📁', titre: 'Documents', sous: 'Documents administratifs', route: '/documents', bloque: false },
     { icon: '💳', titre: 'Crédits fournisseurs', sous: 'Crédit, avances & paiements', route: '/credits-fournisseurs', bloque: false },
+    { icon: '⚖️', titre: 'Litiges', sous: 'Écarts, avis & réclamations', route: '/litiges', bloque: false },
     { icon: '🔍', titre: 'Vérification', sous: 'Photos & points à vérifier', route: '/verification', bloque: false },
     { icon: '📊', titre: 'Rapports hebdo', sous: 'Synthèse automatique semaine', route: '/rapports', bloque: false },
     { icon: '👤', titre: 'Stats caissiers', sous: 'Performance par caissier', route: '/stats-caissiers', bloque: false },

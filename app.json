@@ -2,7 +2,7 @@
   "expo": {
     "name": "SAMER",
     "slug": "samtrackly",
-    "version": "2.20",
+    "version": "2.30",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
