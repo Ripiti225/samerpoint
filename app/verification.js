@@ -54,6 +54,13 @@ export default function VerificationScreen() {
     if (viewableItems[0]) setGalerieIndex(viewableItems[0].index)
   }, [])
 
+  // Garde de rôle : seuls manager et directeur ont accès
+  useEffect(() => {
+    if (roleActif && roleActif !== 'manager' && roleActif !== 'directeur') {
+      router.replace('/accueil')
+    }
+  }, [roleActif])
+
   useEffect(() => { chargerRestaurants() }, [])
 
   async function chargerRestaurants() {
