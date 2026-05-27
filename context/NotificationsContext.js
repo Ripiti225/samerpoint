@@ -22,7 +22,7 @@ const NotificationsContext = createContext({
 
 const ROUTE_MAP = {
   point_valide: 'verification',
-  shift_valide: 'verification',
+  shift_valide: 'gerant-caissier',
   correction_demandee: 'recap-point',
   nouveau_document: 'documents',
   nouveau_travailleur: 'rh',

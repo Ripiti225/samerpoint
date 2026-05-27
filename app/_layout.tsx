@@ -21,6 +21,25 @@ function SessionGuard() {
   } = useApp()
   const segments = useSegments()
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const roleRef = useRef(roleActif)
+  roleRef.current = roleActif
+
+  // Listener push — ici on a accès au rôle pour filtrer la navigation
+  useEffect(() => {
+    if (Platform.OS === 'web') return
+    const sub = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data ?? {}
+      const screen = data.screen as string | undefined
+      if (!screen) return
+      const role = roleRef.current
+      // Vérification de rôle avant navigation
+      if (screen === 'gerant-caissier' && role !== 'gerant') return
+      if (screen === 'verification' && role !== 'manager' && role !== 'directeur') return
+      const { screen: _, ...params } = data as Record<string, unknown>
+      router.push({ pathname: `/${screen}` as any, params: params as any })
+    })
+    return () => sub.remove()
+  }, [])
 
   // Mémoriser la route actuelle pour y revenir après rechargement iOS
   useEffect(() => {
@@ -125,18 +144,6 @@ function SessionGuard() {
 }
 
 export default function RootLayout() {
-  useEffect(() => {
-    if (Platform.OS === 'web') return
-    const sub = Notifications.addNotificationResponseReceivedListener(response => {
-      const data = response.notification.request.content.data ?? {}
-      const screen = data.screen as string | undefined
-      if (screen) {
-        const { screen: _, ...params } = data as Record<string, unknown>
-        router.push({ pathname: `/${screen}` as any, params: params as any })
-      }
-    })
-    return () => sub.remove()
-  }, [])
 
   return (
     <ThemeProvider>

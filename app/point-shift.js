@@ -593,11 +593,11 @@ export default function PointShiftScreen() {
       creerNotification({
         type: 'shift_valide',
         titre: '⏱️ Shift validé',
-        message: `${userNom || 'Caissier'} — ${dateShift}`,
+        message: `${userNom || 'Caissier'} — ${heureDebut}→${heureFin}`,
         restaurant_id: restaurantId,
-        cible_role: ['manager', 'directeur', 'gerant'],
+        cible_role: ['gerant'],
         created_by: userId,
-        screen: 'verification',
+        screen: 'gerant-caissier',
         params: { restaurant_id: restaurantId, point_id: shiftPointId },
       }).catch(() => {})
     } catch (err) {
