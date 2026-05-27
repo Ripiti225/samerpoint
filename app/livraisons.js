@@ -17,7 +17,9 @@ import {
 } from 'react-native'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
-import { saveCommandes } from '../lib/api'
+import { getCommandes, saveCommandes } from '../lib/api'
+
+const VIDE = { Yango: [], Glovo: [], OM: [], Wave: [], Djamo: [], Client: [] }
 
 export default function LivraisonsScreen() {
   const { colors } = useTheme()
@@ -25,14 +27,35 @@ export default function LivraisonsScreen() {
 
   const partenaires = ['Yango', 'Glovo', 'OM', 'Wave', 'Djamo', 'Client']
   const [partenaire, setPartenaire] = useState('Yango')
-  const [commandes, setCommandes] = useState({ Yango: [], Glovo: [], OM: [], Wave: [], Djamo: [], Client: [] })
+  const [commandes, setCommandes] = useState(VIDE)
   const [modalVisible, setModalVisible] = useState(false)
   const [form, setForm] = useState({ numero: '', contact: '', plat: '' })
-  const { livraisonsJour, setLivraisonsJour, pointId } = useApp()
+  const { livraisonsJour, setLivraisonsJour, pointId, userId } = useApp()
 
+  // Chargement : contexte en priorité, sinon Supabase
   useEffect(() => {
     if (livraisonsJour && Object.values(livraisonsJour).some(arr => arr.length > 0)) {
       setCommandes(livraisonsJour)
+    } else if (pointId) {
+      getCommandes(pointId, userId).then(data => {
+        if (!data?.length) return
+        const grouped = { ...VIDE }
+        data.forEach(cmd => {
+          const p = cmd.partenaire
+          if (grouped[p]) {
+            grouped[p].push({
+              id: cmd.id || Date.now(),
+              numero: cmd.numero_commande || '',
+              contact: cmd.contact_client || '',
+              plat: cmd.plat || '',
+            })
+          }
+        })
+        if (Object.values(grouped).some(arr => arr.length > 0)) {
+          setCommandes(grouped)
+          setLivraisonsJour(grouped)
+        }
+      }).catch(() => {})
     }
   }, [])
 
@@ -41,15 +64,23 @@ export default function LivraisonsScreen() {
     Linking.openURL(`tel:${numero.replace(/\s/g, '')}`)
   }
 
+  // Sauvegarde immédiate après chaque modification
+  function sauvegarder(nouvellesCommandes) {
+    setLivraisonsJour(nouvellesCommandes)
+    if (pointId) saveCommandes(pointId, nouvellesCommandes, userId).catch(() => {})
+  }
+
   function ajouterCommande() {
     if (!form.numero && !form.contact && !form.plat) {
       Alert.alert('Attention', 'Remplissez au moins un champ')
       return
     }
-    setCommandes(prev => ({
-      ...prev,
-      [partenaire]: [...(prev[partenaire] || []), { ...form, id: Date.now() }]
-    }))
+    const nouvelles = {
+      ...commandes,
+      [partenaire]: [...(commandes[partenaire] || []), { ...form, id: Date.now() }],
+    }
+    setCommandes(nouvelles)
+    sauvegarder(nouvelles)
     setForm({ numero: '', contact: '', plat: '' })
     setModalVisible(false)
   }
@@ -58,8 +89,10 @@ export default function LivraisonsScreen() {
     Alert.alert('Supprimer', 'Supprimer cette commande ?', [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Supprimer', style: 'destructive', onPress: () => {
-        setCommandes(prev => ({ ...prev, [partenaire]: prev[partenaire].filter(c => c.id !== id) }))
-      }}
+        const nouvelles = { ...commandes, [partenaire]: commandes[partenaire].filter(c => c.id !== id) }
+        setCommandes(nouvelles)
+        sauvegarder(nouvelles)
+      }},
     ])
   }
 
@@ -67,17 +100,9 @@ export default function LivraisonsScreen() {
     return Object.values(commandes).reduce((sum, arr) => sum + arr.length, 0)
   }
 
-  async function enregistrer() {
-    Alert.alert('Confirmer', `Enregistrer ${totalCommandes()} commandes ?`, [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Confirmer', onPress: async () => {
-        setLivraisonsJour(commandes)
-        if (pointId) await saveCommandes(pointId, commandes)
-        Alert.alert('Succès', 'Livraisons enregistrées !')
-        if (router.canGoBack()) router.back()
-        else router.replace('/accueil')
-      }}
-    ])
+  function retour() {
+    if (router.canGoBack()) router.back()
+    else router.replace('/accueil')
   }
 
   const commandesPartenaire = commandes[partenaire] || []
@@ -85,11 +110,7 @@ export default function LivraisonsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => {
-          setLivraisonsJour(commandes)
-          if (router.canGoBack()) router.back()
-          else router.replace('/accueil')
-        }}>
+        <TouchableOpacity onPress={retour}>
           <Text style={styles.back}>‹ Retour</Text>
         </TouchableOpacity>
         <View>
@@ -161,8 +182,8 @@ export default function LivraisonsScreen() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.saveBtn} onPress={enregistrer}>
-          <Text style={styles.saveTxt}>Enregistrer les livraisons</Text>
+        <TouchableOpacity style={styles.saveBtn} onPress={retour}>
+          <Text style={styles.saveTxt}>Terminer</Text>
         </TouchableOpacity>
       </ScrollView>
 

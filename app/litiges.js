@@ -32,6 +32,7 @@ const ONGLETS = [
   { key: 'avis', label: 'Avis clients' },
   { key: 'yango', label: 'Yango' },
   { key: 'glovo', label: 'Glovo' },
+  { key: 'contact', label: 'Contacts' },
 ]
 
 const TYPES_AVIS = [
@@ -143,6 +144,9 @@ export default function LitigesScreen() {
   const [showFormGlovo, setShowFormGlovo] = useState(false)
   const [formGlovo, setFormGlovo] = useState({ type: 'tape_moins', montant: '', notes: '', numero_commande: '', date_saisie: TODAY, id: null })
 
+  // ── Volet 6 — Écart Contact ──────────────────────────────────
+  const [ecartContacts, setEcartContacts] = useState([])
+
   const plage = useMemo(
     () => getPlage(periodeKey, dateUnique, dateDebut, dateFin),
     [periodeKey, dateUnique, dateDebut, dateFin]
@@ -174,7 +178,7 @@ export default function LitigesScreen() {
   async function chargerTout() {
     if (!restoSelectionne) return
     setLoading(true)
-    await Promise.all([chargerEcarts(), chargerInventaire(), chargerAvis(), chargerYango(), chargerGlovo()])
+    await Promise.all([chargerEcarts(), chargerInventaire(), chargerAvis(), chargerYango(), chargerGlovo(), chargerEcartContacts()])
     setLoading(false)
   }
 
@@ -282,6 +286,63 @@ export default function LitigesScreen() {
       .gte('date', debut).lte('date', fin)
       .order('date', { ascending: false })
     setLitigesGlovo(data || [])
+  }
+
+  async function chargerEcartContacts() {
+    const { debut, fin } = plage
+
+    const { data: points } = await supabase
+      .from('points').select('id, date')
+      .eq('restaurant_id', restoSelectionne.id)
+      .gte('date', debut).lte('date', fin)
+      .order('date', { ascending: false })
+
+    if (!points?.length) { setEcartContacts([]); return }
+
+    const pointIds = points.map(p => p.id)
+    const dateByPoint = {}
+    points.forEach(p => { dateByPoint[p.id] = p.date })
+
+    const { data: shifts } = await supabase
+      .from('points_shifts').select('id, point_id, caissier_nom, caissier_id, heure_debut, heure_fin')
+      .in('point_id', pointIds)
+      .order('created_at', { ascending: true })
+
+    if (!shifts?.length) { setEcartContacts([]); return }
+
+    const { data: cmds } = await supabase
+      .from('commandes').select('id, point_id, caissier_id, contact_client')
+      .in('point_id', pointIds)
+
+    // Grouper par point_id + caissier_id
+    const statsByKey = {}
+    ;(cmds || []).forEach(c => {
+      const key = `${c.point_id}__${c.caissier_id}`
+      if (!statsByKey[key]) statsByKey[key] = { total: 0, avecContact: 0 }
+      statsByKey[key].total++
+      if (c.contact_client && c.contact_client.trim() !== '') statsByKey[key].avecContact++
+    })
+
+    setEcartContacts(shifts.map(s => {
+      const key = `${s.point_id}__${s.caissier_id}`
+      const stats = statsByKey[key] || { total: 0, avecContact: 0 }
+      const nbCommandes = stats.total
+      const nbContacts = stats.avecContact
+      const ecart = nbCommandes - nbContacts
+      const taux = nbCommandes > 0 ? Math.round((ecart / nbCommandes) * 1000) / 10 : 0
+      const litige = taux > 20 ? ecart * 500 : 0
+      return {
+        caissierNom: s.caissier_nom || '—',
+        heureDebut: s.heure_debut || '',
+        heureFin: s.heure_fin || '',
+        date: dateByPoint[s.point_id] || '',
+        nbCommandes,
+        nbContacts,
+        ecart,
+        taux,
+        litige,
+      }
+    }))
   }
 
   // ── Mode global : toutes données par restaurant ─────────────
@@ -613,7 +674,8 @@ export default function LitigesScreen() {
   const totalAvis = avisClients.reduce((s, x) => s + (x.montant || 0), 0)
   const totalYango = litigesYango.reduce((s, x) => s + (x.montant || 0), 0)
   const totalGlovo = litigesGlovo.reduce((s, x) => s + (x.montant || 0), 0)
-  const totalGlobal = totalEcart + totalInventaire + totalAvis + totalYango + totalGlovo
+  const totalContact = ecartContacts.reduce((s, x) => s + x.litige, 0)
+  const totalGlobal = totalEcart + totalInventaire + totalAvis + totalYango + totalGlovo + totalContact
 
   // ── Sauvegarde ───────────────────────────────────────────────
   async function sauvegarderAvis() {
@@ -984,6 +1046,63 @@ export default function LitigesScreen() {
     )
   }
 
+  function renderEcartContacts() {
+    const multiJour = periodeKey !== '1jour'
+    const avecLitige = ecartContacts.filter(x => x.litige > 0)
+    return (
+      <View style={styles.section}>
+        {totalContact > 0 && (
+          <View style={styles.totalBanner}>
+            <Text style={styles.totalBannerLabel}>Total litige contacts</Text>
+            <Text style={[styles.totalBannerValue, { color: '#C62828' }]}>{fmt(totalContact)}</Text>
+          </View>
+        )}
+        {ecartContacts.length === 0 ? (
+          <View style={styles.emptyBox}><Text style={styles.emptyTxt}>Aucun shift trouvé sur cette période</Text></View>
+        ) : (
+          ecartContacts.map((item, idx) => {
+            const parfait = item.taux === 0
+            const tolere = item.taux > 0 && item.taux <= 20
+            const litige = item.taux > 20
+            return (
+              <View key={idx} style={[styles.ligneCard, litige && { borderColor: '#C62828', borderWidth: 1 }]}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  {multiJour && item.date ? (
+                    <Text style={styles.ligneSous}>📅 {item.date}</Text>
+                  ) : null}
+                  <Text style={[styles.ligneNom, { color: colors.text }]}>
+                    👤 {item.caissierNom}{item.heureDebut ? ` — ${item.heureDebut}→${item.heureFin}` : ''}
+                  </Text>
+                  <Text style={styles.ligneSous}>
+                    Commandes : {item.nbCommandes}  ·  Contacts : {item.nbContacts}  ·  Écart : {item.ecart}  ·  Taux : {item.taux}%
+                  </Text>
+                  {parfait && <Text style={{ fontSize: 12, color: '#2E7D32', fontWeight: '600' }}>✅ Parfait</Text>}
+                  {tolere && <Text style={{ fontSize: 12, color: '#F57F17', fontWeight: '600' }}>✅ Toléré</Text>}
+                  {litige && (
+                    <Text style={{ fontSize: 12, color: '#C62828', fontWeight: '600' }}>
+                      ⚠️ Litige : {item.ecart} × 500 = {fmtShort(item.litige)}
+                    </Text>
+                  )}
+                </View>
+                {litige && (
+                  <Text style={[styles.montantTxt, { color: '#C62828' }]}>{fmtShort(item.litige)}</Text>
+                )}
+              </View>
+            )
+          })
+        )}
+        {ecartContacts.length > 0 && (
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.borderLight }}>
+            <Text style={{ fontSize: 13, color: colors.textMuted, fontWeight: '600' }}>Total litige contacts</Text>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: totalContact > 0 ? '#C62828' : '#2E7D32' }}>
+              {totalContact > 0 ? fmtShort(totalContact) : '0 FCFA ✅'}
+            </Text>
+          </View>
+        )}
+      </View>
+    )
+  }
+
   // ── Label plage affichée ─────────────────────────────────────
   function plageLabel() {
     if (periodeKey === '1jour') return dateUnique
@@ -1090,6 +1209,7 @@ export default function LitigesScreen() {
           {onglet === 'avis' && renderAvis()}
           {onglet === 'yango' && renderYango()}
           {onglet === 'glovo' && renderGlovo()}
+          {onglet === 'contact' && renderEcartContacts()}
         </ScrollView>
       )}
 
