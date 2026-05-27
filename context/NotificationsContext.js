@@ -110,7 +110,16 @@ export function NotificationsProvider({ children }) {
   }
 
   function naviguerDepuisNotif(notif) {
-    const screen = notif.screen || ROUTE_MAP[notif.type]
+    // Calculer l'écran selon le type + rôle courant (ignore notif.screen stocké en DB
+    // qui peut être obsolète si le rôle ou la règle a changé)
+    let screen
+    if (notif.type === 'shift_valide') {
+      screen = roleActif === 'gerant' ? 'gerant-caissier' : null
+    } else if (notif.type === 'point_valide') {
+      screen = (roleActif === 'manager' || roleActif === 'directeur') ? 'verification' : null
+    } else {
+      screen = notif.screen || ROUTE_MAP[notif.type]
+    }
     if (!screen) return
     fermerPanel()
     marquerUneCommeLue(notif.id).catch(() => {})
