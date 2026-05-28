@@ -34,12 +34,32 @@ function sauvegarderSession(data) {
   } catch {}
 }
 
-function effacerSession() {
+// Sauvegarde uniquement les données opérationnelles (sans identité).
+// Appelé au logout pour que les données du shift survivent à la déconnexion.
+function sauvegarderDonneesOperationnelles(data) {
   if (Platform.OS !== 'web') return
   try {
-    localStorage.removeItem(SESSION_KEY)
+    localStorage.setItem(SESSION_KEY, JSON.stringify({
+      pointId:                  data.pointId,
+      dateJour:                 data.dateJour,
+      pointValide:              data.pointValide,
+      inventaireTermine:        data.inventaireTermine,
+      lastRoute:                data.lastRoute,
+      livraisonsJour:           data.livraisonsJour,
+      depensesJour:             data.depensesJour,
+      fournisseursJour:         data.fournisseursJour,
+      presencesJour:            data.presencesJour,
+      paiesJour:                data.paiesJour,
+      inventaireJour:           data.inventaireJour,
+      ventesJour:               data.ventesJour,
+      depensesGerantCaisse:     data.depensesGerantCaisse,
+      fournisseursGerantCaisse: data.fournisseursGerantCaisse,
+      paiesGerantCaisse:        data.paiesGerantCaisse,
+      logged_in_at: _sessionLoggedInAt || Date.now(),
+    }))
   } catch {}
 }
+
 
 export function AppProvider({ children }) {
   const session = lireSession()
@@ -238,16 +258,16 @@ export function AppProvider({ children }) {
     })
   }
 
-  // ─── Déconnexion — efface uniquement la session, PAS les données du jour ───
+  // ─── Déconnexion — conserve les données opérationnelles, efface l'identité ──
+  // Les données du jour (livraisonsJour, dépenses, etc.) survivent au logout
+  // et sont restaurées au re-login, jusqu'à la validation du shift (resetJour).
   function deconnecter() {
-    effacerSession()
+    sauvegarderDonneesOperationnelles(sessionRef.current)
     setRoleActif(null)
     setRestaurantId(null)
     setRestaurantNom(null)
     setUserId(null)
     setUserNom(null)
-    // NE PAS appeler resetJour() ici
-    // Les données du jour persistent jusqu'à la validation du shift
   }
 
   // ─── Flag éphémère : indique que resetShift vient d'être appelé ──────────

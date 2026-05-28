@@ -32,7 +32,9 @@ export default function LivraisonsScreen() {
   const [form, setForm] = useState({ numero: '', contact: '', plat: '' })
   const { livraisonsJour, setLivraisonsJour, pointId, userId } = useApp()
 
-  // Chargement : contexte en priorité, sinon Supabase
+  // Chargement : contexte en priorité, sinon Supabase.
+  // Dépend de pointId et userId pour se ré-exécuter au re-login
+  // (cas où le contexte a été vidé mais les données sont encore en base).
   useEffect(() => {
     if (livraisonsJour && Object.values(livraisonsJour).some(arr => arr.length > 0)) {
       setCommandes(livraisonsJour)
@@ -57,7 +59,7 @@ export default function LivraisonsScreen() {
         }
       }).catch(() => {})
     }
-  }, [])
+  }, [pointId, userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function appeler(numero) {
     if (!numero) return
