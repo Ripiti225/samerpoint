@@ -30,6 +30,7 @@ const LITIGES_CATS = [
   { key: 'avis',       label: '👁 Avis clients' },
   { key: 'yango',      label: '🛵 Yango' },
   { key: 'glovo',      label: '🟡 Glovo' },
+  { key: 'contact',    label: '📱 Contacts' },
 ]
 
 export default function ChargesScreen() {
@@ -54,7 +55,7 @@ export default function ChargesScreen() {
   const [bscMois, setBscMois] = useState(0)
   const [pointsValideCount, setPointsValideCount] = useState(0)
   const [recalculating, setRecalculating] = useState(false)
-  const [litigesCharges, setLitigesCharges] = useState({ ecart: 0, inventaire: 0, avis: 0, yango: 0, glovo: 0 })
+  const [litigesCharges, setLitigesCharges] = useState({ ecart: 0, inventaire: 0, avis: 0, yango: 0, glovo: 0, contact: 0 })
 
   useEffect(() => { chargerRestaurants() }, [])
   useEffect(() => {
@@ -157,7 +158,31 @@ export default function ChargesScreen() {
     const yango = (yangoD || []).reduce((s, x) => s + (x.montant || 0), 0)
     const glovo = (glovoD || []).reduce((s, x) => s + (x.montant || 0), 0)
 
-    setLitigesCharges({ ecart, inventaire, avis, yango, glovo })
+    // Contacts : écart entre nb commandes (points) et contacts pris (commandes)
+    let contact = 0
+    const { data: ptsCmds } = await supabase
+      .from('points').select('id, yango_nb_commandes, glovo_nb_commandes')
+      .eq('restaurant_id', restoSelectionne.id).gte('date', debut).lte('date', fin)
+    if (ptsCmds?.length) {
+      const ptIds = ptsCmds.map(p => p.id)
+      const { data: cmdsContact } = await supabase
+        .from('commandes').select('point_id, contact_client').in('point_id', ptIds)
+      const contactsByPt = {}
+      ;(cmdsContact || []).forEach(c => {
+        if (c.contact_client && c.contact_client.trim() !== '') {
+          contactsByPt[c.point_id] = (contactsByPt[c.point_id] || 0) + 1
+        }
+      })
+      ptsCmds.forEach(p => {
+        const nbCmds = (p.yango_nb_commandes || 0) + (p.glovo_nb_commandes || 0)
+        const nbContacts = contactsByPt[p.id] || 0
+        const ecartPt = nbCmds - nbContacts
+        const taux = nbCmds > 0 ? ecartPt / nbCmds : 0
+        if (taux > 0.2) contact += ecartPt * 500
+      })
+    }
+
+    setLitigesCharges({ ecart, inventaire, avis, yango, glovo, contact })
   }
 
   async function recalculerBSC() {
@@ -205,8 +230,8 @@ export default function ChargesScreen() {
   }
 
   function totalLitiges() {
-    const { ecart, inventaire, avis, yango, glovo } = litigesCharges
-    return ecart + inventaire + avis + yango + glovo
+    const { ecart, inventaire, avis, yango, glovo, contact } = litigesCharges
+    return ecart + inventaire + avis + yango + glovo + contact
   }
 
   function beneficeReel() {

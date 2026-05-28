@@ -143,11 +143,9 @@ export default function VerificationScreen() {
         .order('deverouille_at', { ascending: true }),
     ])
 
-    // Contacts uniques par partenaire + total commandes du point
+    // Contacts uniques par partenaire
     const contactsParPartenaire = {}
-    let totalCommandes = 0
     ;(commandes || []).forEach(c => {
-      totalCommandes++
       if (c.contact_client && c.partenaire) {
         contactsParPartenaire[c.partenaire] = (contactsParPartenaire[c.partenaire] || 0) + 1
       }
@@ -179,7 +177,6 @@ export default function VerificationScreen() {
       presences: presences || [],
       invParFournisseur,
       contactsParPartenaire,
-      totalCommandes,
       invShifts: Object.values(invParShift).sort((a, b) => a.numero - b.numero),
       historiquesFournisseurs: historiquesFournisseurs || [],
       deverouillages: deverouillages || [],
@@ -806,8 +803,8 @@ export default function VerificationScreen() {
                 const omTotal = detailPoint.shifts.reduce((s, sh) => s + (sh.om || 0), 0) || (p?.om || 0)
                 const djamoTotal = detailPoint.shifts.reduce((s, sh) => s + (sh.djamo || 0), 0) || (p?.djamo || 0)
                 const especeShifts = detailPoint.shifts.reduce((s, sh) => s + (sh.espece || 0), 0)
-                const yangoContacts = p?.yango_contacts || detailPoint.contactsParPartenaire?.['Yango'] || 0
-                const glovoContacts = p?.glovo_contacts || detailPoint.contactsParPartenaire?.['Glovo'] || 0
+                const yangoContacts = detailPoint.contactsParPartenaire?.['Yango'] || 0
+                const glovoContacts = detailPoint.contactsParPartenaire?.['Glovo'] || 0
                 const hasYango = yangoCseTotal > 0 || yangoTab > 0
                 const hasGlovo = glovoCseTotal > 0 || glovoTab > 0
                 const hasAutres = waveTotal > 0 || omTotal > 0 || djamoTotal > 0 || especeShifts > 0
@@ -866,16 +863,16 @@ export default function VerificationScreen() {
                         )}
 
                         {(p?.yango_nb_commandes || 0) > 0 && (
-                          <View style={styles.canalRow}>
-                            <Text style={styles.canalLabel}>Nombre de commandes</Text>
-                            <Text style={styles.canalVal}>{p.yango_nb_commandes} cmd</Text>
-                          </View>
-                        )}
-                        {yangoContacts > 0 && (
-                          <View style={styles.canalRow}>
-                            <Text style={styles.canalLabel}>Contacts pris</Text>
-                            <Text style={styles.canalVal}>{yangoContacts} contacts</Text>
-                          </View>
+                          <>
+                            <View style={styles.canalRow}>
+                              <Text style={styles.canalLabel}>Nombre de commandes</Text>
+                              <Text style={styles.canalVal}>{p.yango_nb_commandes} cmd</Text>
+                            </View>
+                            <View style={styles.canalRow}>
+                              <Text style={styles.canalLabel}>Contacts pris</Text>
+                              <Text style={styles.canalVal}>{yangoContacts} contacts</Text>
+                            </View>
+                          </>
                         )}
                       </View>
                     )}
@@ -922,16 +919,16 @@ export default function VerificationScreen() {
                         )}
 
                         {(p?.glovo_nb_commandes || 0) > 0 && (
-                          <View style={styles.canalRow}>
-                            <Text style={styles.canalLabel}>Nombre de commandes</Text>
-                            <Text style={styles.canalVal}>{p.glovo_nb_commandes} cmd</Text>
-                          </View>
-                        )}
-                        {glovoContacts > 0 && (
-                          <View style={styles.canalRow}>
-                            <Text style={styles.canalLabel}>Contacts pris</Text>
-                            <Text style={styles.canalVal}>{glovoContacts} contacts</Text>
-                          </View>
+                          <>
+                            <View style={styles.canalRow}>
+                              <Text style={styles.canalLabel}>Nombre de commandes</Text>
+                              <Text style={styles.canalVal}>{p.glovo_nb_commandes} cmd</Text>
+                            </View>
+                            <View style={styles.canalRow}>
+                              <Text style={styles.canalLabel}>Contacts pris</Text>
+                              <Text style={styles.canalVal}>{glovoContacts} contacts</Text>
+                            </View>
+                          </>
                         )}
                       </View>
                     )}
@@ -1413,23 +1410,6 @@ export default function VerificationScreen() {
                       </View>
                     )
                   })}
-                  {/* Résumé contacts du jour */}
-                  {(() => {
-                    const totalAvecContact = Object.values(detailPoint.contactsParPartenaire || {}).reduce((s, n) => s + n, 0)
-                    const totalCmds = detailPoint.totalCommandes || 0
-                    if (totalCmds === 0 && totalAvecContact === 0) return null
-                    const taux = totalCmds > 0 ? Math.round((totalAvecContact / totalCmds) * 100) : 0
-                    const couleur = taux >= 80 ? '#2E7D32' : taux >= 50 ? '#F57F17' : '#C62828'
-                    return (
-                      <View style={{ backgroundColor: colors.surface, borderRadius: 10, padding: 12, borderWidth: 0.5, borderColor: colors.borderLight, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <View>
-                          <Text style={{ fontSize: 12, color: colors.textMuted, fontWeight: '600' }}>📱 Contacts du jour</Text>
-                          <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>{totalAvecContact} contact(s) sur {totalCmds} commande(s)</Text>
-                        </View>
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: couleur }}>{taux}%</Text>
-                      </View>
-                    )
-                  })()}
                 </View>
               )}
 

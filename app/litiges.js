@@ -292,7 +292,8 @@ export default function LitigesScreen() {
     const { debut, fin } = plage
 
     const { data: points } = await supabase
-      .from('points').select('id, date')
+      .from('points')
+      .select('id, date, yango_nb_commandes, glovo_nb_commandes')
       .eq('restaurant_id', restoSelectionne.id)
       .gte('date', debut).lte('date', fin)
       .order('date', { ascending: false })
@@ -307,16 +308,16 @@ export default function LitigesScreen() {
       .in('point_id', pointIds)
       .order('created_at', { ascending: true })
 
-    // Commandes groupées par point_id uniquement (caissier_id absent des anciennes données)
+    // Contacts pris (commandes avec contact_client renseigné)
     const { data: cmds } = await supabase
       .from('commandes').select('point_id, contact_client')
       .in('point_id', pointIds)
 
-    const statsByPoint = {}
+    const contactsByPoint = {}
     ;(cmds || []).forEach(c => {
-      if (!statsByPoint[c.point_id]) statsByPoint[c.point_id] = { total: 0, avecContact: 0 }
-      statsByPoint[c.point_id].total++
-      if (c.contact_client && c.contact_client.trim() !== '') statsByPoint[c.point_id].avecContact++
+      if (c.contact_client && c.contact_client.trim() !== '') {
+        contactsByPoint[c.point_id] = (contactsByPoint[c.point_id] || 0) + 1
+      }
     })
 
     // Shifts groupés par point
@@ -326,11 +327,9 @@ export default function LitigesScreen() {
       shiftsByPoint[s.point_id].push(s)
     })
 
-    // Une ligne par point (jour) — pas de double-comptage
     setEcartContacts(points.map(p => {
-      const stats = statsByPoint[p.id] || { total: 0, avecContact: 0 }
-      const nbCommandes = stats.total
-      const nbContacts = stats.avecContact
+      const nbCommandes = (p.yango_nb_commandes || 0) + (p.glovo_nb_commandes || 0)
+      const nbContacts = contactsByPoint[p.id] || 0
       const ecart = nbCommandes - nbContacts
       const taux = nbCommandes > 0 ? Math.round((ecart / nbCommandes) * 1000) / 10 : 0
       const litige = taux > 20 ? ecart * 500 : 0
