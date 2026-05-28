@@ -300,49 +300,46 @@ export default function LitigesScreen() {
     if (!points?.length) { setEcartContacts([]); return }
 
     const pointIds = points.map(p => p.id)
-    const dateByPoint = {}
-    points.forEach(p => { dateByPoint[p.id] = p.date })
 
+    // Shifts pour avoir les noms caissiers
     const { data: shifts } = await supabase
-      .from('points_shifts').select('id, point_id, caissier_nom, caissier_id, heure_debut, heure_fin')
+      .from('points_shifts').select('point_id, caissier_nom, heure_debut, heure_fin')
       .in('point_id', pointIds)
       .order('created_at', { ascending: true })
 
-    if (!shifts?.length) { setEcartContacts([]); return }
-
+    // Commandes groupées par point_id uniquement (caissier_id absent des anciennes données)
     const { data: cmds } = await supabase
-      .from('commandes').select('id, point_id, caissier_id, contact_client')
+      .from('commandes').select('point_id, contact_client')
       .in('point_id', pointIds)
 
-    // Grouper par point_id + caissier_id
-    const statsByKey = {}
+    const statsByPoint = {}
     ;(cmds || []).forEach(c => {
-      const key = `${c.point_id}__${c.caissier_id}`
-      if (!statsByKey[key]) statsByKey[key] = { total: 0, avecContact: 0 }
-      statsByKey[key].total++
-      if (c.contact_client && c.contact_client.trim() !== '') statsByKey[key].avecContact++
+      if (!statsByPoint[c.point_id]) statsByPoint[c.point_id] = { total: 0, avecContact: 0 }
+      statsByPoint[c.point_id].total++
+      if (c.contact_client && c.contact_client.trim() !== '') statsByPoint[c.point_id].avecContact++
     })
 
-    setEcartContacts(shifts.map(s => {
-      const key = `${s.point_id}__${s.caissier_id}`
-      const stats = statsByKey[key] || { total: 0, avecContact: 0 }
+    // Shifts groupés par point
+    const shiftsByPoint = {}
+    ;(shifts || []).forEach(s => {
+      if (!shiftsByPoint[s.point_id]) shiftsByPoint[s.point_id] = []
+      shiftsByPoint[s.point_id].push(s)
+    })
+
+    // Une ligne par point (jour) — pas de double-comptage
+    setEcartContacts(points.map(p => {
+      const stats = statsByPoint[p.id] || { total: 0, avecContact: 0 }
       const nbCommandes = stats.total
       const nbContacts = stats.avecContact
       const ecart = nbCommandes - nbContacts
       const taux = nbCommandes > 0 ? Math.round((ecart / nbCommandes) * 1000) / 10 : 0
       const litige = taux > 20 ? ecart * 500 : 0
-      return {
-        caissierNom: s.caissier_nom || '—',
-        heureDebut: s.heure_debut || '',
-        heureFin: s.heure_fin || '',
-        date: dateByPoint[s.point_id] || '',
-        nbCommandes,
-        nbContacts,
-        ecart,
-        taux,
-        litige,
-      }
-    }))
+      const shiftsJour = shiftsByPoint[p.id] || []
+      const caissiers = shiftsJour.map(s =>
+        `${s.caissier_nom || '—'}${s.heure_debut ? ` (${s.heure_debut}→${s.heure_fin})` : ''}`
+      ).join(' · ')
+      return { date: p.date, caissiers, nbCommandes, nbContacts, ecart, taux, litige }
+    }).filter(r => r.nbCommandes > 0 || r.caissiers))
   }
 
   // ── Mode global : toutes données par restaurant ─────────────
@@ -1048,7 +1045,6 @@ export default function LitigesScreen() {
 
   function renderEcartContacts() {
     const multiJour = periodeKey !== '1jour'
-    const avecLitige = ecartContacts.filter(x => x.litige > 0)
     return (
       <View style={styles.section}>
         {totalContact > 0 && (
@@ -1058,33 +1054,29 @@ export default function LitigesScreen() {
           </View>
         )}
         {ecartContacts.length === 0 ? (
-          <View style={styles.emptyBox}><Text style={styles.emptyTxt}>Aucun shift trouvé sur cette période</Text></View>
+          <View style={styles.emptyBox}><Text style={styles.emptyTxt}>Aucune donnée sur cette période</Text></View>
         ) : (
           ecartContacts.map((item, idx) => {
             const parfait = item.taux === 0
             const tolere = item.taux > 0 && item.taux <= 20
-            const litige = item.taux > 20
+            const aLitige = item.taux > 20
             return (
-              <View key={idx} style={[styles.ligneCard, litige && { borderColor: '#C62828', borderWidth: 1 }]}>
+              <View key={idx} style={[styles.ligneCard, aLitige && { borderColor: '#C62828', borderWidth: 1 }]}>
                 <View style={{ flex: 1, gap: 4 }}>
-                  {multiJour && item.date ? (
-                    <Text style={styles.ligneSous}>📅 {item.date}</Text>
-                  ) : null}
-                  <Text style={[styles.ligneNom, { color: colors.text }]}>
-                    👤 {item.caissierNom}{item.heureDebut ? ` — ${item.heureDebut}→${item.heureFin}` : ''}
-                  </Text>
+                  <Text style={[styles.ligneNom, { color: colors.text }]}>📅 {item.date}</Text>
+                  {item.caissiers ? <Text style={styles.ligneSous}>👤 {item.caissiers}</Text> : null}
                   <Text style={styles.ligneSous}>
-                    Commandes : {item.nbCommandes}  ·  Contacts : {item.nbContacts}  ·  Écart : {item.ecart}  ·  Taux : {item.taux}%
+                    Cmds : {item.nbCommandes}  ·  Contacts : {item.nbContacts}  ·  Écart : {item.ecart}  ·  {item.taux}%
                   </Text>
                   {parfait && <Text style={{ fontSize: 12, color: '#2E7D32', fontWeight: '600' }}>✅ Parfait</Text>}
                   {tolere && <Text style={{ fontSize: 12, color: '#F57F17', fontWeight: '600' }}>✅ Toléré</Text>}
-                  {litige && (
+                  {aLitige && (
                     <Text style={{ fontSize: 12, color: '#C62828', fontWeight: '600' }}>
-                      ⚠️ Litige : {item.ecart} × 500 = {fmtShort(item.litige)}
+                      ⚠️ {item.ecart} × 500 = {fmtShort(item.litige)}
                     </Text>
                   )}
                 </View>
-                {litige && (
+                {aLitige && (
                   <Text style={[styles.montantTxt, { color: '#C62828' }]}>{fmtShort(item.litige)}</Text>
                 )}
               </View>

@@ -143,21 +143,14 @@ export default function VerificationScreen() {
         .order('deverouille_at', { ascending: true }),
     ])
 
-    // Contacts uniques par partenaire
+    // Contacts uniques par partenaire + total commandes du point
     const contactsParPartenaire = {}
+    let totalCommandes = 0
     ;(commandes || []).forEach(c => {
+      totalCommandes++
       if (c.contact_client && c.partenaire) {
         contactsParPartenaire[c.partenaire] = (contactsParPartenaire[c.partenaire] || 0) + 1
       }
-    })
-
-    // Contacts pris et total commandes par caissier
-    const contactsParCaissier = {}
-    ;(commandes || []).forEach(c => {
-      if (!c.caissier_id) return
-      if (!contactsParCaissier[c.caissier_id]) contactsParCaissier[c.caissier_id] = { total: 0, avecContact: 0 }
-      contactsParCaissier[c.caissier_id].total++
-      if (c.contact_client && c.contact_client.trim() !== '') contactsParCaissier[c.caissier_id].avecContact++
     })
 
     // Inventaire groupé par shift
@@ -186,7 +179,7 @@ export default function VerificationScreen() {
       presences: presences || [],
       invParFournisseur,
       contactsParPartenaire,
-      contactsParCaissier,
+      totalCommandes,
       invShifts: Object.values(invParShift).sort((a, b) => a.numero - b.numero),
       historiquesFournisseurs: historiquesFournisseurs || [],
       deverouillages: deverouillages || [],
@@ -1400,19 +1393,6 @@ export default function VerificationScreen() {
                               <Text style={styles.shiftVal}>{fmt(r.val)}</Text>
                             </View>
                           ))}
-                          {(() => {
-                            const stats = detailPoint.contactsParCaissier?.[shift.caissier_id]
-                            if (!stats || stats.total === 0) return null
-                            const taux = Math.round((stats.avecContact / stats.total) * 100)
-                            return (
-                              <View style={[styles.shiftRow, { marginTop: 4, borderTopWidth: 0.5, borderTopColor: colors.borderLight, paddingTop: 6 }]}>
-                                <Text style={styles.shiftLabel}>📱 Contacts pris</Text>
-                                <Text style={[styles.shiftVal, { color: taux >= 80 ? '#2E7D32' : taux >= 50 ? '#F57F17' : '#C62828' }]}>
-                                  {stats.avecContact}/{stats.total}
-                                </Text>
-                              </View>
-                            )
-                          })()}
                         </View>
                         {photosShift.length > 0 && (
                           <>
@@ -1433,6 +1413,23 @@ export default function VerificationScreen() {
                       </View>
                     )
                   })}
+                  {/* Résumé contacts du jour */}
+                  {(() => {
+                    const totalAvecContact = Object.values(detailPoint.contactsParPartenaire || {}).reduce((s, n) => s + n, 0)
+                    const totalCmds = detailPoint.totalCommandes || 0
+                    if (totalCmds === 0 && totalAvecContact === 0) return null
+                    const taux = totalCmds > 0 ? Math.round((totalAvecContact / totalCmds) * 100) : 0
+                    const couleur = taux >= 80 ? '#2E7D32' : taux >= 50 ? '#F57F17' : '#C62828'
+                    return (
+                      <View style={{ backgroundColor: colors.surface, borderRadius: 10, padding: 12, borderWidth: 0.5, borderColor: colors.borderLight, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <View>
+                          <Text style={{ fontSize: 12, color: colors.textMuted, fontWeight: '600' }}>📱 Contacts du jour</Text>
+                          <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>{totalAvecContact} contact(s) sur {totalCmds} commande(s)</Text>
+                        </View>
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: couleur }}>{taux}%</Text>
+                      </View>
+                    )
+                  })()}
                 </View>
               )}
 
