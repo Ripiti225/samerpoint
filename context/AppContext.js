@@ -45,6 +45,7 @@ function sauvegarderDonneesOperationnelles(data) {
       pointValide:              data.pointValide,
       inventaireTermine:        data.inventaireTermine,
       lastRoute:                data.lastRoute,
+      userId:                   data.userId,
       livraisonsJour:           data.livraisonsJour,
       depensesJour:             data.depensesJour,
       fournisseursJour:         data.fournisseursJour,
