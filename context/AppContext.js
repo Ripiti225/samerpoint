@@ -259,16 +259,15 @@ export function AppProvider({ children }) {
     })
   }
 
-  // ─── Déconnexion — conserve les données opérationnelles, efface l'identité ──
-  // Les données du jour (livraisonsJour, dépenses, etc.) survivent au logout
-  // et sont restaurées au re-login, jusqu'à la validation du shift (resetJour).
+  // ─── Déconnexion — conserve les données opérationnelles, efface le rôle ─────
+  // userId/userNom sont INTENTIONNELLEMENT conservés pour que login.js puisse
+  // détecter "même utilisateur" (memeUtilisateur) et ne pas appeler resetJour().
+  // C'est roleActif=null qui signale le logout et déclenche la redirection.
   function deconnecter() {
     sauvegarderDonneesOperationnelles(sessionRef.current)
     setRoleActif(null)
     setRestaurantId(null)
     setRestaurantNom(null)
-    setUserId(null)
-    setUserNom(null)
   }
 
   // ─── Flag éphémère : indique que resetShift vient d'être appelé ──────────
