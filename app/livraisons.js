@@ -30,6 +30,8 @@ export default function LivraisonsScreen() {
   const [commandes, setCommandes] = useState(VIDE)
   const [modalVisible, setModalVisible] = useState(false)
   const [form, setForm] = useState({ numero: '', contact: '', plat: '' })
+  const [saving, setSaving] = useState(false)
+  const [sauvegardé, setSauvegardé] = useState(false)
   const { livraisonsJour, setLivraisonsJour, pointId, userId } = useApp()
 
   // Chargement : contexte en priorité, sinon Supabase.
@@ -66,10 +68,31 @@ export default function LivraisonsScreen() {
     Linking.openURL(`tel:${numero.replace(/\s/g, '')}`)
   }
 
-  // Sauvegarde immédiate après chaque modification
+  // Sauvegarde immédiate silencieuse après chaque ajout/suppression
   function sauvegarder(nouvellesCommandes) {
     setLivraisonsJour(nouvellesCommandes)
     if (pointId) saveCommandes(pointId, nouvellesCommandes, userId).catch(() => {})
+  }
+
+  // Sauvegarde explicite avec retour visuel — déclenchée par le bouton Sauvegarder
+  async function sauvegarderEtQuitter() {
+    setSaving(true)
+    setLivraisonsJour(commandes)
+    if (pointId) {
+      try {
+        await saveCommandes(pointId, commandes, userId)
+      } catch {
+        setSaving(false)
+        Alert.alert('Erreur', 'La sauvegarde a échoué. Réessayez.')
+        return
+      }
+    }
+    setSaving(false)
+    setSauvegardé(true)
+    setTimeout(() => {
+      if (router.canGoBack()) router.back()
+      else router.replace('/accueil')
+    }, 600)
   }
 
   function ajouterCommande() {
@@ -102,17 +125,15 @@ export default function LivraisonsScreen() {
     return Object.values(commandes).reduce((sum, arr) => sum + arr.length, 0)
   }
 
-  function retour() {
-    if (router.canGoBack()) router.back()
-    else router.replace('/accueil')
-  }
-
   const commandesPartenaire = commandes[partenaire] || []
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={retour}>
+        <TouchableOpacity onPress={() => {
+          if (router.canGoBack()) router.back()
+          else router.replace('/accueil')
+        }}>
           <Text style={styles.back}>‹ Retour</Text>
         </TouchableOpacity>
         <View>
@@ -184,8 +205,14 @@ export default function LivraisonsScreen() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.saveBtn} onPress={retour}>
-          <Text style={styles.saveTxt}>Terminer</Text>
+        <TouchableOpacity
+          style={[styles.saveBtn, (saving || sauvegardé) && styles.saveBtnActive]}
+          onPress={sauvegarderEtQuitter}
+          disabled={saving || sauvegardé}
+        >
+          <Text style={styles.saveTxt}>
+            {saving ? 'Sauvegarde...' : sauvegardé ? '✅ Sauvegardé' : '💾 Sauvegarder'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -276,6 +303,7 @@ function makeStyles(colors) { return StyleSheet.create({
   recapTotalLabel: { fontSize: 14, fontWeight: '600', color: colors.text },
   recapTotalValue: { fontSize: 16, fontWeight: '600', color: '#EF9F27' },
   saveBtn: { backgroundColor: '#EF9F27', borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 80 },
+  saveBtnActive: { backgroundColor: '#3B6D11' },
   saveTxt: { fontSize: 15, fontWeight: '600', color: '#412402' },
   fab: { position: 'absolute', bottom: 30, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: '#EF9F27', alignItems: 'center', justifyContent: 'center' },
   fabTxt: { fontSize: 28, color: '#412402', fontWeight: '300', lineHeight: 32 },
