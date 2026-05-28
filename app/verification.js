@@ -131,7 +131,7 @@ export default function VerificationScreen() {
       supabase.from('transactions_fournisseurs').select('*, fournisseurs(nom)').eq('point_id', point.id),
       supabase.from('points_shifts').select('*').eq('point_id', point.id).order('created_at'),
       supabase.from('presences').select('*').eq('point_id', point.id),
-      supabase.from('commandes').select('partenaire, contact_client').eq('point_id', point.id),
+      supabase.from('commandes').select('partenaire, contact_client, caissier_id').eq('point_id', point.id),
       supabase.from('inventaires').select('*, fournisseurs(nom)').eq('point_id', point.id).order('shift_numero'),
       supabase.from('historique_credit_fournisseurs')
         .select('id, fournisseur_id, source, ancien_credit, nouveau_credit, facture, paye, photo_url, motif, modified_at, fournisseurs(nom)')
@@ -149,6 +149,15 @@ export default function VerificationScreen() {
       if (c.contact_client && c.partenaire) {
         contactsParPartenaire[c.partenaire] = (contactsParPartenaire[c.partenaire] || 0) + 1
       }
+    })
+
+    // Contacts pris et total commandes par caissier
+    const contactsParCaissier = {}
+    ;(commandes || []).forEach(c => {
+      if (!c.caissier_id) return
+      if (!contactsParCaissier[c.caissier_id]) contactsParCaissier[c.caissier_id] = { total: 0, avecContact: 0 }
+      contactsParCaissier[c.caissier_id].total++
+      if (c.contact_client && c.contact_client.trim() !== '') contactsParCaissier[c.caissier_id].avecContact++
     })
 
     // Inventaire groupé par shift
@@ -177,6 +186,7 @@ export default function VerificationScreen() {
       presences: presences || [],
       invParFournisseur,
       contactsParPartenaire,
+      contactsParCaissier,
       invShifts: Object.values(invParShift).sort((a, b) => a.numero - b.numero),
       historiquesFournisseurs: historiquesFournisseurs || [],
       deverouillages: deverouillages || [],
@@ -1390,6 +1400,19 @@ export default function VerificationScreen() {
                               <Text style={styles.shiftVal}>{fmt(r.val)}</Text>
                             </View>
                           ))}
+                          {(() => {
+                            const stats = detailPoint.contactsParCaissier?.[shift.caissier_id]
+                            if (!stats || stats.total === 0) return null
+                            const taux = Math.round((stats.avecContact / stats.total) * 100)
+                            return (
+                              <View style={[styles.shiftRow, { marginTop: 4, borderTopWidth: 0.5, borderTopColor: colors.borderLight, paddingTop: 6 }]}>
+                                <Text style={styles.shiftLabel}>📱 Contacts pris</Text>
+                                <Text style={[styles.shiftVal, { color: taux >= 80 ? '#2E7D32' : taux >= 50 ? '#F57F17' : '#C62828' }]}>
+                                  {stats.avecContact}/{stats.total}
+                                </Text>
+                              </View>
+                            )
+                          })()}
                         </View>
                         {photosShift.length > 0 && (
                           <>
