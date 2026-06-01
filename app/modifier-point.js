@@ -34,6 +34,7 @@ export default function ModifierPointScreen() {
   const [depenses, setDepenses] = useState([])
   const [presences, setPresences] = useState([])
   const [transactions, setTransactions] = useState([])
+  const [transactionsRaw, setTransactionsRaw] = useState([])
   const [shifts, setShifts] = useState([])
   // Fournisseurs du restaurant pour ajout
   const [fournisseursList, setFournisseursList] = useState([])
@@ -150,6 +151,7 @@ export default function ModifierPointScreen() {
         return acc
       }, {})
     )
+    setTransactionsRaw(trans || [])
     setTransactions(transDedup)
 
     // Charger liste fournisseurs du restaurant
@@ -168,7 +170,7 @@ export default function ModifierPointScreen() {
     recalcTimerRef.current = setTimeout(() => setRecalcMsg(null), 4500)
   }
 
-  function calculerVenteShift(s) {
+  function calculerVenteShift(s, paies = 0) {
     return (parseFloat(s.espece) || 0)
       + (parseFloat(s.wave) || 0)
       + (parseFloat(s.om) || 0)
@@ -179,6 +181,13 @@ export default function ModifierPointScreen() {
       + (parseFloat(s.retour) || 0)
       + (parseFloat(s.depenses) || 0)
       + (parseFloat(s.fournisseurs) || 0)
+      + paies
+  }
+
+  function paiesShift(shift) {
+    return presences
+      .filter(p => shift.caissier_id ? p.caissier_id === shift.caissier_id : p.caissier_nom === shift.caissier_nom)
+      .reduce((sum, p) => sum + (p.paye || 0), 0)
   }
 
   async function recalculerVenteTotalePoint(pointId) {
@@ -207,7 +216,7 @@ export default function ModifierPointScreen() {
     setShiftDetails(prev => ({ ...prev, [shift.id]: { depenses: [], fournisseurs: [], loading: true } }))
     const [{ data: deps }, { data: fourns }] = await Promise.all([
       supabase.from('depenses').select('*').eq('point_id', point.id).eq('caissier_nom', shift.caissier_nom).eq('saisi_par', 'caissier'),
-      supabase.from('transactions_fournisseurs').select('*, fournisseurs(nom)').eq('point_id', point.id).eq('saisi_par', 'caissier'),
+      supabase.from('transactions_fournisseurs').select('*, fournisseurs(nom)').eq('point_id', point.id).eq('saisi_par', 'caissier').or(`caissier_nom.eq.${shift.caissier_nom},caissier_nom.is.null`),
     ])
     setShiftDetails(prev => ({ ...prev, [shift.id]: { depenses: deps || [], fournisseurs: fourns || [], loading: false } }))
   }
@@ -400,8 +409,6 @@ export default function ModifierPointScreen() {
       const details = shiftDetails[shift.id]
       const detailsLoaded = details && !details.loading
 
-      // Si les détails sont chargés : sauvegarder les lignes éditées + utiliser la somme réelle
-      // Si pas chargés : utiliser 0 (cohérent avec le preview — évite les valeurs stale)
       const newDepDenorm = detailsLoaded
         ? details.depenses.reduce((s, d) => s + (d.montant || 0), 0)
         : 0
@@ -425,10 +432,12 @@ export default function ModifierPointScreen() {
             facture: t.facture, paye: t.paye, reste: (t.facture || 0) - (t.paye || 0),
           }).eq('id', t.id)
         }
-        setTransactions(prev => prev.map(t => {
+        const updater = t => {
           const ed = details.fournisseurs.find(tt => tt.id === t.id)
           return ed ? { ...t, facture: ed.facture, paye: ed.paye, reste: (ed.facture || 0) - (ed.paye || 0) } : t
-        }))
+        }
+        setTransactions(prev => prev.map(updater))
+        setTransactionsRaw(prev => prev.map(updater))
       }
 
       const updated = {
@@ -446,7 +455,7 @@ export default function ModifierPointScreen() {
         fournisseurs: newFournDenorm,
       }
 
-      const nouvelleVente = calculerVenteShift(updated)
+      const nouvelleVente = calculerVenteShift(updated, paiesShift(shift))
       updated.vente_shift = nouvelleVente
 
       const { error } = await supabase.from('points_shifts').update(updated).eq('id', shift.id)
@@ -617,6 +626,47 @@ export default function ModifierPointScreen() {
                   </View>
                 </View>
 
+                {(() => {
+                  const shiftFourn = transactionsRaw.filter(t =>
+                    t.saisi_par === 'caissier' &&
+                    (t.caissier_nom === s.caissier_nom || t.caissier_nom == null) &&
+                    (t.paye || 0) > 0
+                  )
+                  const shiftPres = s.caissier_id
+                    ? presences.filter(p => p.caissier_id === s.caissier_id)
+                    : []
+                  if (shiftFourn.length === 0 && shiftPres.length === 0) return null
+                  return (
+                    <View style={styles.shiftSubSection}>
+                      {shiftFourn.length > 0 && (
+                        <>
+                          <Text style={styles.shiftSubTitre}>Fournisseurs</Text>
+                          {shiftFourn.map((t, ti) => (
+                            <View key={t.id || ti} style={styles.shiftSubRow}>
+                              <Text style={styles.shiftSubLabel}>{t.fournisseurs?.nom || 'Fournisseur'}</Text>
+                              <Text style={styles.shiftSubVal}>{fmt(t.paye)}</Text>
+                            </View>
+                          ))}
+                        </>
+                      )}
+                      {shiftPres.length > 0 && (
+                        <>
+                          <Text style={styles.shiftSubTitre}>Présences</Text>
+                          {shiftPres.map((p, pi) => (
+                            <View key={p.id || pi} style={styles.shiftSubRow}>
+                              <Text style={styles.shiftSubLabel}>
+                                {p.travailleur_nom}{' — '}
+                                <Text style={{ color: p.statut === 'present' ? '#3B6D11' : '#A32D2D' }}>{p.statut}</Text>
+                              </Text>
+                              {(p.paye || 0) > 0 && <Text style={styles.shiftSubVal}>{fmt(p.paye)}</Text>}
+                            </View>
+                          ))}
+                        </>
+                      )}
+                    </View>
+                  )
+                })()}
+
                 {isEditing && (() => {
                   const detLoaded = shiftDetails[s.id] && !shiftDetails[s.id].loading
                   const venteCalculee = calculerVenteShift({
@@ -630,7 +680,7 @@ export default function ModifierPointScreen() {
                     retour: parseFloat(edit.retour) || 0,
                     depenses: detLoaded ? shiftDetails[s.id].depenses.reduce((sum, d) => sum + (d.montant || 0), 0) : 0,
                     fournisseurs: detLoaded ? shiftDetails[s.id].fournisseurs.reduce((sum, t) => sum + (t.paye || 0), 0) : 0,
-                  })
+                  }, paiesShift(s))
                   const setField = (field, v) => setShiftEdits(prev => ({ ...prev, [s.id]: { ...prev[s.id], [field]: v } }))
                   return (
                     <View style={styles.shiftEditPanel}>
@@ -2019,6 +2069,11 @@ function makeStyles(colors) { return StyleSheet.create({
   shiftVenteCalc: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, backgroundColor: '#FFF8ED', borderRadius: 10, padding: 10 },
   shiftVenteCalcLabel: { fontSize: 13, fontWeight: '600', color: '#854F0B' },
   shiftVenteCalcVal: { fontSize: 15, fontWeight: '700', color: '#EF9F27' },
+  shiftSubSection: { marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: '#eee' },
+  shiftSubTitre: { fontSize: 10, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4, marginTop: 6 },
+  shiftSubRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 3 },
+  shiftSubLabel: { flex: 1, fontSize: 12, color: colors.textSecondary },
+  shiftSubVal: { fontSize: 12, fontWeight: '500', color: colors.text },
   recalcToast: {
     position: 'absolute', bottom: 80, left: 16, right: 16,
     backgroundColor: '#1C3A1A', borderRadius: 14, padding: 14,

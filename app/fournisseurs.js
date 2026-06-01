@@ -4,9 +4,6 @@ import {
     ActivityIndicator,
     Alert,
     Image,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
     SafeAreaView, ScrollView,
     StyleSheet,
     Text,
@@ -17,25 +14,8 @@ import {
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { saveOneTransactionFournisseur } from '../lib/api'
-import { CATEGORIES_INVENTAIRE } from '../lib/constants'
 import { usePhoto } from '../lib/usePhoto'
 import { supabase } from '../lib/supabase'
-
-// Produits sélectionnables pour les entrées inventaire lors d'une livraison fournisseur
-// Poulet : uniquement po1 (Poulets frais) — les formes sont gérées dans l'inventaire
-// Fromage : uniquement f10 (Total Fromage en g) — les produits individuels sont calculés auto
-const PRODUITS_LIVRAISON = CATEGORIES_INVENTAIRE.flatMap(cat =>
-  cat.produits
-    .filter(p => {
-      if (p.auto) return false                          // po7 (Pâte), b7 (Darina)
-      if (p.totalFrites) return false                   // fr3
-      if (p.totalPoulet) return false                   // po8
-      if (['po2','po3','po4','po5','po6'].includes(p.id)) return false  // formes poulet
-      if (p.fromage) return false                       // f2-f9 (fromage auto calculé)
-      return true
-    })
-    .map(p => ({ ...p, categorie: cat.nom }))
-)
 
 export default function FournisseursScreen() {
   const {
@@ -52,11 +32,6 @@ export default function FournisseursScreen() {
   const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState(null)
   const [validatedIds, setValidatedIds] = useState(new Set())
-  const [fournisseurEnCours, setFournisseurEnCours] = useState(null)
-  const [showInventaireModal, setShowInventaireModal] = useState(false)
-  const [qtesEntree, setQtesEntree] = useState({})
-  const [savingInventaire, setSavingInventaire] = useState(false)
-  const [catLivraison, setCatLivraison] = useState(PRODUITS_LIVRAISON[0]?.categorie || '')
   const today = new Date().toISOString().split('T')[0]
 
   useEffect(() => {
@@ -252,57 +227,6 @@ export default function FournisseursScreen() {
     }
     setSavingId(null)
     setValidatedIds(prev => new Set([...prev, f.id]))
-    setFournisseurEnCours(f)
-    setQtesEntree({})
-    setShowInventaireModal(true)
-  }
-
-  async function enregistrerEntreeInventaire() {
-    const lignes = Object.entries(qtesEntree)
-      .filter(([, v]) => parseFloat(v) > 0)
-      .map(([produitId, qte]) => {
-        const produit = PRODUITS_LIVRAISON.find(p => p.id === produitId)
-        return {
-          point_id: pointId,
-          produit_id: produitId,
-          produit_nom: produit?.nom || produitId,
-          stock_initial: 0,
-          entrees: parseFloat(qte) || 0,
-          sorties: 0,
-          stock_final: 0,
-          ecart: 0,
-          prevision: 0,
-          shift_numero: 0,
-          shift_nom: 'Livraisons fournisseurs',
-          heure_debut: '00:00',
-          heure_fin: '23:59',
-          fournisseur_id: fournisseurEnCours?.id || null,
-          fournisseur_nom: fournisseurEnCours?.nom || null,
-          source: 'fournisseur',
-        }
-      })
-
-    if (lignes.length > 0) {
-      setSavingInventaire(true)
-      // Supprimer les entrées existantes pour ce fournisseur avant de réinsérer
-      if (fournisseurEnCours?.id) {
-        await supabase.from('inventaires')
-          .delete()
-          .eq('point_id', pointId)
-          .eq('shift_numero', 0)
-          .eq('fournisseur_id', fournisseurEnCours.id)
-      }
-      await supabase.from('inventaires').insert(lignes)
-      setSavingInventaire(false)
-    }
-
-    setShowInventaireModal(false)
-    setFournisseurEnCours(null)
-  }
-
-  function fermerSansInventaire() {
-    setShowInventaireModal(false)
-    setFournisseurEnCours(null)
   }
 
   if (loading) {
@@ -429,7 +353,7 @@ export default function FournisseursScreen() {
                               </View>
                               <View style={styles.inputBox}>
                                 <Text style={styles.inputLabel}>
-                                  {credit > 0 && !t.facture ? 'Payer crédit' : 'Payé'}
+                                  Payé
                                 </Text>
                                 <TextInput
                                   style={[styles.input, { backgroundColor: '#FAEEDA' }]}
@@ -564,82 +488,6 @@ export default function FournisseursScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* ── Modal : produits reçus à ajouter à l'inventaire ── */}
-      <Modal visible={showInventaireModal} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-          <View style={styles.invHeader}>
-            <Text style={styles.invTitre}>Produits reçus de {fournisseurEnCours?.nom || 'ce fournisseur'} ?</Text>
-            <Text style={styles.invSub}>Sélectionnez les produits livrés et entrez les quantités</Text>
-          </View>
-
-          {/* Onglets catégories */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.invCatBar}>
-            {[...new Set(PRODUITS_LIVRAISON.map(p => p.categorie))].map(cat => (
-              <TouchableOpacity
-                key={cat}
-                style={[styles.invCatBtn, catLivraison === cat && styles.invCatBtnActive]}
-                onPress={() => setCatLivraison(cat)}
-              >
-                <Text style={[styles.invCatTxt, catLivraison === cat && styles.invCatTxtActive]}>
-                  {cat}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          >
-            <ScrollView style={styles.invBody} keyboardShouldPersistTaps="handled">
-              {PRODUITS_LIVRAISON.filter(p => p.categorie === catLivraison).map(produit => (
-                <View key={produit.id} style={[
-                  styles.invProdRow,
-                  parseFloat(qtesEntree[produit.id]) > 0 && styles.invProdRowActive
-                ]}>
-                  <Text style={styles.invProdNom}>{produit.nom}</Text>
-                  <TextInput
-                    style={[
-                      styles.invQteInput,
-                      parseFloat(qtesEntree[produit.id]) > 0 && styles.invQteInputActive
-                    ]}
-                    placeholder="Qté"
-                    value={qtesEntree[produit.id] || ''}
-                    onChangeText={v => setQtesEntree(prev => ({ ...prev, [produit.id]: v }))}
-                    keyboardType="numeric"
-                    placeholderTextColor="#bbb"
-                  />
-                </View>
-              ))}
-              <View style={{ height: 20 }} />
-            </ScrollView>
-          </KeyboardAvoidingView>
-
-          {/* Résumé produits saisis */}
-          {Object.values(qtesEntree).some(v => parseFloat(v) > 0) && (
-            <View style={styles.invResume}>
-              <Text style={styles.invResumeTitre}>
-                {Object.values(qtesEntree).filter(v => parseFloat(v) > 0).length} produit(s) à enregistrer
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.invBtns}>
-            <TouchableOpacity style={styles.invBtnNon} onPress={fermerSansInventaire}>
-              <Text style={styles.invBtnNonTxt}>Non, terminer</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.invBtnOui, savingInventaire && { opacity: 0.6 }]}
-              onPress={enregistrerEntreeInventaire}
-              disabled={savingInventaire}
-            >
-              <Text style={styles.invBtnOuiTxt}>
-                {savingInventaire ? 'Enregistrement...' : '✅ Enregistrer'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </Modal>
     </SafeAreaView>
   )
 }
@@ -696,27 +544,6 @@ function makeStyles(colors) { return StyleSheet.create({
   recapVal: { fontSize: 13, fontWeight: '500', color: colors.text },
   saveBtn: { backgroundColor: '#EF9F27', borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 10 },
   saveTxt: { fontSize: 15, fontWeight: '600', color: '#412402' },
-  invHeader: { backgroundColor: '#EF9F27', padding: 16 },
-  invTitre: { fontSize: 16, fontWeight: '600', color: '#412402', textAlign: 'center' },
-  invSub: { fontSize: 11, color: '#854F0B', textAlign: 'center', marginTop: 4 },
-  invCatBar: { backgroundColor: colors.surface, maxHeight: 46, borderBottomWidth: 0.5, borderBottomColor: colors.border },
-  invCatBtn: { paddingHorizontal: 14, paddingVertical: 12 },
-  invCatBtnActive: { borderBottomWidth: 2, borderBottomColor: '#EF9F27' },
-  invCatTxt: { fontSize: 12, color: colors.textMuted },
-  invCatTxtActive: { color: '#EF9F27', fontWeight: '600' },
-  invBody: { flex: 1, padding: 12 },
-  invProdRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: 10, padding: 12, marginBottom: 6, borderWidth: 0.5, borderColor: colors.border },
-  invProdRowActive: { borderColor: '#EF9F27', backgroundColor: colors.orangeLight },
-  invProdNom: { fontSize: 13, color: colors.text, flex: 1 },
-  invQteInput: { width: 70, backgroundColor: colors.inputBg, borderRadius: 8, padding: 8, fontSize: 13, textAlign: 'center', color: colors.text },
-  invQteInputActive: { backgroundColor: '#EF9F27', color: '#412402', fontWeight: '600' },
-  invResume: { backgroundColor: '#EAF3DE', padding: 10, alignItems: 'center', borderTopWidth: 0.5, borderTopColor: '#C0DD97' },
-  invResumeTitre: { fontSize: 13, color: '#3B6D11', fontWeight: '600' },
-  invBtns: { flexDirection: 'row', gap: 10, padding: 16, paddingBottom: 24 },
-  invBtnNon: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.inputBg, alignItems: 'center' },
-  invBtnNonTxt: { fontSize: 14, color: colors.textMuted },
-  invBtnOui: { flex: 2, padding: 14, borderRadius: 12, backgroundColor: '#EF9F27', alignItems: 'center' },
-  invBtnOuiTxt: { fontSize: 14, fontWeight: '600', color: '#412402' },
   validerBtn: { marginTop: 10, backgroundColor: '#EF9F27', borderRadius: 10, padding: 10, alignItems: 'center' },
   validerBtnDone: { backgroundColor: '#EAF3DE' },
   validerBtnTxt: { fontSize: 13, fontWeight: '600', color: '#412402' },

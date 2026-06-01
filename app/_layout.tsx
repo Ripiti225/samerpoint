@@ -12,7 +12,7 @@ const PUBLIC_ROUTES = ['login', 'index', '(tabs)', '']
 
 function SessionGuard() {
   const {
-    roleActif,
+    roleActif, lastRoute,
     setRoleActif, setRestaurantId, setRestaurantNom,
     setUserId, setUserNom, setPointId, setDateJour, setPointValide,
     setLastRoute,
@@ -61,18 +61,20 @@ function SessionGuard() {
     if (!PUBLIC_ROUTES.includes(currentRoute)) return  // Déjà sur le bon écran
 
     // On a une session MAIS on est sur login/index/root → iOS a rechargé la page
+    // Utiliser lastRoute depuis le contexte React : il est déjà null si login.js l'a
+    // remis à zéro dans le même batch, ce qui empêche la redirection parasite.
+    const target = lastRoute
+
+    // Pas de lastRoute = première connexion normale ou caissier re-login, laisser le flux habituel
+    if (!target) return
+
     try {
-      const raw = localStorage.getItem('samerpoint_session')
-        || sessionStorage.getItem('samerpoint_session')
-      const session = raw ? JSON.parse(raw) : null
-      const target = session?.lastRoute
-
-      // Pas de lastRoute = première connexion normale, laisser le flux habituel
-      if (!target) return
-
       if (!PUBLIC_ROUTES.includes(target) && target !== 'accueil') {
         router.replace(`/${target}` as any)
       } else {
+        const raw = localStorage.getItem('samerpoint_session')
+          || sessionStorage.getItem('samerpoint_session')
+        const session = raw ? JSON.parse(raw) : null
         router.replace({
           pathname: '/accueil',
           params: { nom: session?.userNom || '', role: roleActif }
@@ -81,7 +83,7 @@ function SessionGuard() {
     } catch {
       // Silencieux — le flux normal prend le relais
     }
-  }, [roleActif, segments])
+  }, [roleActif, segments, lastRoute])
 
   useEffect(() => {
     if (Platform.OS !== 'web') return

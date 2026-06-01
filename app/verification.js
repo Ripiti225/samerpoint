@@ -1251,7 +1251,89 @@ export default function VerificationScreen() {
               })()}
 
               {/* ══════════════════════════════════════
-                  5. PRÉSENCES & PAIES
+                  5. ENTRÉES DU JOUR
+              ══════════════════════════════════════ */}
+              {(() => {
+                // Entrées depuis nouveau format inventaires_shifts
+                const entreesMap = {}
+                detailPoint.invShifts.forEach(shift => {
+                  ;(shift.lignes || []).forEach(l => {
+                    if ((l.entrees || 0) > 0) {
+                      entreesMap[l.produit_nom] = (entreesMap[l.produit_nom] || 0) + l.entrees
+                    }
+                  })
+                })
+                const entreesStock = Object.entries(entreesMap)
+                  .map(([nom, qte]) => ({ nom, qte }))
+                  .sort((a, b) => a.nom.localeCompare(b.nom))
+
+                // Fournisseurs avec facture > 0
+                const fournFacture = detailPoint.fournisseurs.filter(f => (f.facture || 0) > 0)
+                // Fournisseurs avec entrées inventaire liées (ancien format)
+                const fournEntrees = Object.entries(detailPoint.invParFournisseur)
+
+                if (entreesStock.length === 0 && fournFacture.length === 0 && fournEntrees.length === 0) return null
+
+                return (
+                  <View style={{ marginBottom: 14 }}>
+                    <Text style={styles.sectionTitre}>📥 Entrées du jour</Text>
+
+                    {/* Fournisseurs avec entrées inventaire liées (ancien format) */}
+                    {fournEntrees.map(([fournId, lignes]) => {
+                      const tx = detailPoint.fournisseurs.find(f => f.fournisseur_id === fournId)
+                      const nom = lignes[0]?.fournisseurs?.nom || tx?.fournisseurs?.nom || 'Fournisseur'
+                      return (
+                        <View key={fournId} style={styles.entreeFournCard}>
+                          <View style={styles.entreeFournHeader}>
+                            <Text style={styles.entreeFournNom}>🏭 {nom}</Text>
+                            {tx && (tx.facture || 0) > 0 && (
+                              <Text style={styles.entreeFournFacture}>📄 {fmt(tx.facture)}</Text>
+                            )}
+                          </View>
+                          {lignes.map((l, i) => (
+                            <View key={i} style={styles.entreeProdRow}>
+                              <Text style={styles.entreeProdNom}>{l.produit_nom}</Text>
+                              <Text style={styles.entreeProdQte}>+{l.entrees}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )
+                    })}
+
+                    {/* Fournisseurs avec facture mais sans entrées inventaire liées */}
+                    {fournFacture
+                      .filter(f => !detailPoint.invParFournisseur[f.fournisseur_id])
+                      .map((f, i) => (
+                        <View key={f.id || i} style={styles.entreeFournCard}>
+                          <View style={styles.entreeFournHeader}>
+                            <Text style={styles.entreeFournNom}>🏭 {f.fournisseurs?.nom || 'Fournisseur'}</Text>
+                            <Text style={styles.entreeFournFacture}>📄 {fmt(f.facture)}</Text>
+                          </View>
+                          <Text style={[styles.entreeProdNom, { color: colors.textMuted, fontStyle: 'italic' }]}>
+                            Entrées à compléter dans l'inventaire
+                          </Text>
+                        </View>
+                      ))
+                    }
+
+                    {/* Entrées depuis inventaires_shifts (nouveau format) */}
+                    {entreesStock.length > 0 && (
+                      <View style={styles.entreeFournCard}>
+                        <Text style={[styles.entreeFournNom, { marginBottom: 8 }]}>📦 Entrées de stock (inventaire)</Text>
+                        {entreesStock.map((e, i) => (
+                          <View key={i} style={styles.entreeProdRow}>
+                            <Text style={styles.entreeProdNom}>{e.nom}</Text>
+                            <Text style={styles.entreeProdQte}>+{e.qte}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                )
+              })()}
+
+              {/* ══════════════════════════════════════
+                  6. PRÉSENCES & PAIES
               ══════════════════════════════════════ */}
               <View style={{ marginBottom: 14 }}>
                 <Text style={styles.sectionTitre}>👥 Présences & Paies ({detailPoint.presences.length})</Text>
@@ -1306,8 +1388,10 @@ export default function VerificationScreen() {
                       <Text style={styles.invShiftNom}>{shift.nom || (shift.numero === 0 ? 'Livraisons fournisseurs' : `Shift ${shift.numero}`)}</Text>
                     </View>
                     {shift.lignes.map((ligne, li) => {
-                      const ecart = ligne.stock_final - (ligne.stock_initial + ligne.entrees - ligne.sorties)
-                      const hasEcart = shift.numero !== 0 && Math.abs(ecart) > 0.01
+                      const ecart = ligne.stock_final == null
+                        ? null
+                        : ligne.stock_final - (ligne.stock_initial + ligne.entrees - ligne.sorties)
+                      const hasEcart = shift.numero !== 0 && ecart != null && Math.abs(ecart) > 0.01
                       const source = ligne.fournisseur_id
                         ? `📦 Via fournisseur : ${ligne.fournisseurs?.nom || '—'}`
                         : (ligne.entrees > 0 ? '📥 Entrée directe' : null)
@@ -1319,20 +1403,31 @@ export default function VerificationScreen() {
                               source && <Text style={styles.invLigneSub}>{source} — Qté: {ligne.entrees}</Text>
                             ) : (
                               <Text style={styles.invLigneSub}>
-                                Init: {ligne.stock_initial} | +{ligne.entrees} | -{ligne.sorties} | Final: {ligne.stock_final}
+                                Init: {ligne.stock_initial} | +{ligne.entrees} | -{ligne.sorties} | Final: {ligne.stock_final ?? '—'}
                               </Text>
                             )}
-                            {hasEcart && ligne.explication_ecart && (
-                              <Text style={[styles.invLigneSub, { color: '#A32D2D' }]}>
-                                Explication : {ligne.explication_ecart}
+                            {shift.numero !== 0 && (ligne.nombre_a_expliquer || 0) > 0 && (
+                              <Text style={styles.invLigneSub}>
+                                Écart: {ecart != null ? (ecart >= 0 ? '+' : '') + ecart.toFixed(1) : '—'} | Expliqué: {ligne.nombre_a_expliquer}
                               </Text>
                             )}
+                            {ligne.explication_ecart ? (
+                              <Text style={[styles.invLigneSub, { color: '#A32D2D', fontWeight: '700' }]}>
+                                📝 {ligne.explication_ecart}
+                              </Text>
+                            ) : hasEcart ? (
+                              <Text style={[styles.invLigneSub, { color: '#A32D2D' }]}>⚠️ Aucune explication</Text>
+                            ) : null}
                           </View>
                           {shift.numero !== 0 && (
-                            <View style={[styles.invEcartBadge, { backgroundColor: hasEcart ? '#FCEBEB' : '#EAF3DE' }]}>
-                              {hasEcart
-                                ? <Text style={[styles.invEcartTxt, { color: '#A32D2D' }]}>⚠️ Écart</Text>
-                                : <Text style={[styles.invEcartTxt, { color: '#3B6D11' }]}>✅</Text>
+                            <View style={[styles.invEcartBadge, {
+                              backgroundColor: ecart == null ? '#f5f5f5' : hasEcart ? '#FCEBEB' : '#EAF3DE',
+                            }]}>
+                              {ecart == null
+                                ? <Text style={[styles.invEcartTxt, { color: '#888' }]}>—</Text>
+                                : hasEcart
+                                  ? <Text style={[styles.invEcartTxt, { color: '#A32D2D' }]}>{ecart >= 0 ? '+' : ''}{ecart.toFixed(1)}</Text>
+                                  : <Text style={[styles.invEcartTxt, { color: '#3B6D11' }]}>✅</Text>
                               }
                             </View>
                           )}
@@ -2231,6 +2326,13 @@ function makeStyles(colors) { return StyleSheet.create({
   // ─── Sections vides ───
   emptySection: { backgroundColor: '#f9f9f9', borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 4 },
   emptySectionTxt: { fontSize: 13, color: colors.textMuted },
+  entreeFournCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 0.5, borderColor: colors.border },
+  entreeFournHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  entreeFournNom: { fontSize: 13, fontWeight: '600', color: colors.text, flex: 1 },
+  entreeFournFacture: { fontSize: 12, color: '#3B6D11', fontWeight: '500' },
+  entreeProdRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4, borderTopWidth: 0.5, borderTopColor: '#f5f5f5' },
+  entreeProdNom: { fontSize: 12, color: colors.textSecondary, flex: 1 },
+  entreeProdQte: { fontSize: 12, fontWeight: '700', color: '#3B6D11' },
   // ─── Onglets ───
   ongletBar: { flexDirection: 'row', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   ongletBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },

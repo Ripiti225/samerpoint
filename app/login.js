@@ -54,7 +54,7 @@ export default function LoginScreen() {
   }, [bloqueJusquaResto, bloqueJusquaUser])
 
   const {
-    setRoleActif, resetJour,
+    setRoleActif, resetJour, setLastRoute,
     setRestaurantId, setRestaurantNom,
     setUserId, setUserNom,
     userId: userIdEnSession,
@@ -194,6 +194,11 @@ export default function LoginScreen() {
     const memeUtilisateur = userIdEnSession === selected.id
     if (!memeUtilisateur) {
       resetJour()
+    } else if (selected.role === 'caissier') {
+      // resetJour() n'est pas appelé (même utilisateur) mais le caissier doit
+      // toujours passer par selectionner-journee. On remet lastRoute à null pour
+      // que SessionGuard ne le redirige pas vers l'ancien écran dans le même batch.
+      setLastRoute(null)
     }
 
     setRoleActif(selected.role)
