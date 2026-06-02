@@ -33,6 +33,7 @@ const ONGLETS = [
   { key: 'yango', label: 'Yango' },
   { key: 'glovo', label: 'Glovo' },
   { key: 'contact', label: 'Contacts' },
+  { key: 'point_pas_fait', label: 'Point pas fait' },
 ]
 
 const TYPES_AVIS = [
@@ -147,6 +148,14 @@ export default function LitigesScreen() {
   // ── Volet 6 — Écart Contact ──────────────────────────────────
   const [ecartContacts, setEcartContacts] = useState([])
 
+  // ── Volet 7 — Point pas fait ─────────────────────────────────
+  const [litigesPointPasFait, setLitigesPointPasFait] = useState([])
+  const [showFormPPF, setShowFormPPF] = useState(false)
+  const [formPPF, setFormPPF] = useState({ responsable_id: null, responsable_nom: '', montant: '', notes: '', date_saisie: TODAY, id: null })
+
+  // ── Utilisateurs du restaurant (pour picker responsable) ─────
+  const [utilisateurs, setUtilisateurs] = useState([])
+
   const plage = useMemo(
     () => getPlage(periodeKey, dateUnique, dateDebut, dateFin),
     [periodeKey, dateUnique, dateDebut, dateFin]
@@ -165,7 +174,15 @@ export default function LitigesScreen() {
     if (data?.length) {
       setRestoSelectionne(data[0])
       chargerDatesAvec(data[0].id)
+      chargerUtilisateurs(data[0].id)
     }
+  }
+
+  async function chargerUtilisateurs(restoId) {
+    const { data } = await supabase
+      .from('utilisateurs').select('id, nom, role')
+      .eq('restaurant_id', restoId).eq('actif', true).order('nom')
+    setUtilisateurs(data || [])
   }
 
   async function chargerDatesAvec(restoId) {
@@ -178,7 +195,7 @@ export default function LitigesScreen() {
   async function chargerTout() {
     if (!restoSelectionne) return
     setLoading(true)
-    await Promise.all([chargerEcarts(), chargerInventaire(), chargerAvis(), chargerYango(), chargerGlovo(), chargerEcartContacts()])
+    await Promise.all([chargerEcarts(), chargerInventaire(), chargerAvis(), chargerYango(), chargerGlovo(), chargerEcartContacts(), chargerPointPasFait()])
     setLoading(false)
   }
 
@@ -288,6 +305,16 @@ export default function LitigesScreen() {
     setLitigesGlovo(data || [])
   }
 
+  async function chargerPointPasFait() {
+    const { debut, fin } = plage
+    const { data } = await supabase
+      .from('litiges_point_pas_fait').select('*')
+      .eq('restaurant_id', restoSelectionne.id)
+      .gte('date', debut).lte('date', fin)
+      .order('date', { ascending: false })
+    setLitigesPointPasFait(data || [])
+  }
+
   async function chargerEcartContacts() {
     const { debut, fin } = plage
 
@@ -310,15 +337,30 @@ export default function LitigesScreen() {
 
     // Contacts pris (commandes avec contact_client renseigné)
     const { data: cmds } = await supabase
-      .from('commandes').select('point_id, contact_client')
+      .from('commandes').select('point_id, contact_client, caissier_id')
       .in('point_id', pointIds)
 
     const contactsByPoint = {}
+    const contactsByPointCaissier = {} // { point_id: { caissier_id: count } }
     ;(cmds || []).forEach(c => {
       if (c.contact_client && c.contact_client.trim() !== '') {
         contactsByPoint[c.point_id] = (contactsByPoint[c.point_id] || 0) + 1
+        if (c.caissier_id) {
+          if (!contactsByPointCaissier[c.point_id]) contactsByPointCaissier[c.point_id] = {}
+          contactsByPointCaissier[c.point_id][c.caissier_id] = (contactsByPointCaissier[c.point_id][c.caissier_id] || 0) + 1
+        }
       }
     })
+
+    // Noms des caissiers pour l'affichage contacts par caissier
+    const allCaissierIds = [...new Set(
+      Object.values(contactsByPointCaissier).flatMap(m => Object.keys(m))
+    )]
+    const { data: caissierUsers } = allCaissierIds.length
+      ? await supabase.from('utilisateurs').select('id, nom').in('id', allCaissierIds)
+      : { data: [] }
+    const nomCaissier = {}
+    ;(caissierUsers || []).forEach(u => { nomCaissier[u.id] = u.nom })
 
     // Shifts groupés par point
     const shiftsByPoint = {}
@@ -337,7 +379,11 @@ export default function LitigesScreen() {
       const caissiers = shiftsJour.map(s =>
         `${s.caissier_nom || '—'}${s.heure_debut ? ` (${s.heure_debut}→${s.heure_fin})` : ''}`
       ).join(' · ')
-      return { date: p.date, caissiers, nbCommandes, nbContacts, ecart, taux, litige }
+      const contactsParCaissier = Object.entries(contactsByPointCaissier[p.id] || {}).map(([cid, nb]) => ({
+        nom: nomCaissier[cid] || 'Caissier',
+        nb,
+      })).sort((a, b) => b.nb - a.nb)
+      return { date: p.date, caissiers, nbCommandes, nbContacts, ecart, taux, litige, contactsParCaissier }
     }).filter(r => r.nbCommandes > 0 || r.caissiers))
   }
 
@@ -671,7 +717,8 @@ export default function LitigesScreen() {
   const totalYango = litigesYango.reduce((s, x) => s + (x.montant || 0), 0)
   const totalGlovo = litigesGlovo.reduce((s, x) => s + (x.montant || 0), 0)
   const totalContact = ecartContacts.reduce((s, x) => s + x.litige, 0)
-  const totalGlobal = totalEcart + totalInventaire + totalAvis + totalYango + totalGlovo + totalContact
+  const totalPointPasFait = litigesPointPasFait.reduce((s, x) => s + (x.montant || 0), 0)
+  const totalGlobal = totalEcart + totalInventaire + totalAvis + totalYango + totalGlovo + totalContact + totalPointPasFait
 
   // ── Sauvegarde ───────────────────────────────────────────────
   async function sauvegarderAvis() {
@@ -685,6 +732,8 @@ export default function LitigesScreen() {
         notes: formAvis.notes || null,
         numero_commande: formAvis.numero_commande || null,
         date: dateToSave,
+        responsable_id: formAvis.responsable_id || null,
+        responsable_nom: formAvis.responsable_nom || null,
       }).eq('id', formAvis.id)
     } else {
       await supabase.from('litiges_avis_clients').insert({
@@ -694,6 +743,8 @@ export default function LitigesScreen() {
         notes: formAvis.notes || null,
         numero_commande: formAvis.numero_commande || null,
         created_by: userNom || userId,
+        responsable_id: formAvis.responsable_id || null,
+        responsable_nom: formAvis.responsable_nom || null,
       })
     }
     setSaving(false)
@@ -712,6 +763,8 @@ export default function LitigesScreen() {
         notes: formYango.notes || null,
         numero_commande: formYango.numero_commande || null,
         date: dateToSave,
+        responsable_id: formYango.responsable_id || null,
+        responsable_nom: formYango.responsable_nom || null,
       }).eq('id', formYango.id)
     } else {
       await supabase.from('litiges_yango').insert({
@@ -721,6 +774,8 @@ export default function LitigesScreen() {
         notes: formYango.notes || null,
         numero_commande: formYango.numero_commande || null,
         created_by: userNom || userId,
+        responsable_id: formYango.responsable_id || null,
+        responsable_nom: formYango.responsable_nom || null,
       })
     }
     setSaving(false)
@@ -739,6 +794,8 @@ export default function LitigesScreen() {
         notes: formGlovo.notes || null,
         numero_commande: formGlovo.numero_commande || null,
         date: dateToSave,
+        responsable_id: formGlovo.responsable_id || null,
+        responsable_nom: formGlovo.responsable_nom || null,
       }).eq('id', formGlovo.id)
     } else {
       await supabase.from('litiges_glovo').insert({
@@ -748,11 +805,42 @@ export default function LitigesScreen() {
         notes: formGlovo.notes || null,
         numero_commande: formGlovo.numero_commande || null,
         created_by: userNom || userId,
+        responsable_id: formGlovo.responsable_id || null,
+        responsable_nom: formGlovo.responsable_nom || null,
       })
     }
     setSaving(false)
     setShowFormGlovo(false)
     chargerGlovo()
+  }
+
+  async function sauvegarderPointPasFait() {
+    const montant = parseFloat(formPPF.montant) || 0
+    if (!restoSelectionne) return
+    setSaving(true)
+    const dateToSave = formPPF.date_saisie || TODAY
+    if (formPPF.id) {
+      await supabase.from('litiges_point_pas_fait').update({
+        montant,
+        notes: formPPF.notes || null,
+        date: dateToSave,
+        responsable_id: formPPF.responsable_id || null,
+        responsable_nom: formPPF.responsable_nom || null,
+      }).eq('id', formPPF.id)
+    } else {
+      await supabase.from('litiges_point_pas_fait').insert({
+        restaurant_id: restoSelectionne.id,
+        date: dateToSave,
+        montant,
+        notes: formPPF.notes || null,
+        created_by: userNom || userId,
+        responsable_id: formPPF.responsable_id || null,
+        responsable_nom: formPPF.responsable_nom || null,
+      })
+    }
+    setSaving(false)
+    setShowFormPPF(false)
+    chargerPointPasFait()
   }
 
   async function supprimerItem() {
@@ -764,35 +852,107 @@ export default function LitigesScreen() {
     setConfirmSuppr(null)
     if (table === 'litiges_avis_clients') chargerAvis()
     else if (table === 'litiges_yango') chargerYango()
-    else chargerGlovo()
+    else if (table === 'litiges_glovo') chargerGlovo()
+    else chargerPointPasFait()
   }
 
   // ── Helpers UI ───────────────────────────────────────────────
   const multiJour = periodeKey !== '1jour'
 
   function ouvrirAddAvis() {
-    setFormAvis({ type: 'mauvais', notes: '', numero_commande: '', date_saisie: formDateDefaut(periodeKey, dateUnique), id: null })
+    setFormAvis({ type: 'mauvais', notes: '', numero_commande: '', date_saisie: formDateDefaut(periodeKey, dateUnique), responsable_id: null, responsable_nom: '', id: null })
     setShowFormAvis(true)
   }
   function ouvrirEditAvis(a) {
-    setFormAvis({ type: a.type, notes: a.notes || '', numero_commande: a.numero_commande || '', date_saisie: a.date || TODAY, id: a.id })
+    setFormAvis({ type: a.type, notes: a.notes || '', numero_commande: a.numero_commande || '', date_saisie: a.date || TODAY, responsable_id: a.responsable_id || null, responsable_nom: a.responsable_nom || '', id: a.id })
     setShowFormAvis(true)
   }
   function ouvrirAddYango() {
-    setFormYango({ type: 'tape_moins', montant: '', notes: '', numero_commande: '', date_saisie: formDateDefaut(periodeKey, dateUnique), id: null })
+    setFormYango({ type: 'tape_moins', montant: '', notes: '', numero_commande: '', date_saisie: formDateDefaut(periodeKey, dateUnique), responsable_id: null, responsable_nom: '', id: null })
     setShowFormYango(true)
   }
   function ouvrirEditYango(y) {
-    setFormYango({ type: y.type, montant: y.montant?.toString() || '', notes: y.notes || '', numero_commande: y.numero_commande || '', date_saisie: y.date || TODAY, id: y.id })
+    setFormYango({ type: y.type, montant: y.montant?.toString() || '', notes: y.notes || '', numero_commande: y.numero_commande || '', date_saisie: y.date || TODAY, responsable_id: y.responsable_id || null, responsable_nom: y.responsable_nom || '', id: y.id })
     setShowFormYango(true)
   }
   function ouvrirAddGlovo() {
-    setFormGlovo({ type: 'tape_moins', montant: '', notes: '', numero_commande: '', date_saisie: formDateDefaut(periodeKey, dateUnique), id: null })
+    setFormGlovo({ type: 'tape_moins', montant: '', notes: '', numero_commande: '', date_saisie: formDateDefaut(periodeKey, dateUnique), responsable_id: null, responsable_nom: '', id: null })
     setShowFormGlovo(true)
   }
   function ouvrirEditGlovo(g) {
-    setFormGlovo({ type: g.type, montant: g.montant?.toString() || '', notes: g.notes || '', numero_commande: g.numero_commande || '', date_saisie: g.date || TODAY, id: g.id })
+    setFormGlovo({ type: g.type, montant: g.montant?.toString() || '', notes: g.notes || '', numero_commande: g.numero_commande || '', date_saisie: g.date || TODAY, responsable_id: g.responsable_id || null, responsable_nom: g.responsable_nom || '', id: g.id })
     setShowFormGlovo(true)
+  }
+  function ouvrirAddPPF() {
+    setFormPPF({ responsable_id: null, responsable_nom: '', montant: '', notes: '', date_saisie: formDateDefaut(periodeKey, dateUnique), id: null })
+    setShowFormPPF(true)
+  }
+  function ouvrirEditPPF(p) {
+    setFormPPF({ responsable_id: p.responsable_id || null, responsable_nom: p.responsable_nom || '', montant: p.montant?.toString() || '', notes: p.notes || '', date_saisie: p.date || TODAY, id: p.id })
+    setShowFormPPF(true)
+  }
+
+  // ── Picker responsable ───────────────────────────────────────
+  function ResponsablePicker({ value, onChange }) {
+    return (
+      <View>
+        <Text style={styles.formLabel}>Responsable</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <TouchableOpacity
+              style={[styles.responsableChip, !value && styles.responsableChipActive]}
+              onPress={() => onChange(null, '')}
+            >
+              <Text style={[styles.responsableChipTxt, !value && styles.responsableChipTxtActive]}>— Aucun</Text>
+            </TouchableOpacity>
+            {utilisateurs.map(u => (
+              <TouchableOpacity
+                key={u.id}
+                style={[styles.responsableChip, value === u.id && styles.responsableChipActive]}
+                onPress={() => onChange(u.id, u.nom)}
+              >
+                <Text style={[styles.responsableChipTxt, value === u.id && styles.responsableChipTxtActive]}>{u.nom}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+      </View>
+    )
+  }
+
+  function renderPointPasFait() {
+    return (
+      <View style={styles.section}>
+        {litigesPointPasFait.length > 0 && (
+          <View style={styles.totalBanner}>
+            <Text style={styles.totalBannerLabel}>Total point pas fait</Text>
+            <Text style={[styles.totalBannerValue, { color: '#C62828' }]}>{fmt(totalPointPasFait)}</Text>
+          </View>
+        )}
+        {litigesPointPasFait.map(p => (
+          <View key={p.id} style={[styles.ligneCard, { borderColor: '#C6282844', borderWidth: 1 }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.ligneNom, { color: '#C62828' }]}>⚠️ Point pas fait</Text>
+              {p.responsable_nom ? <Text style={styles.ligneSous}>👤 {p.responsable_nom}</Text> : null}
+              {multiJour && p.date ? <Text style={styles.ligneSous}>📅 {p.date}</Text> : null}
+              {p.notes ? <Text style={styles.ligneSous}>{p.notes}</Text> : null}
+              {p.created_by ? <Text style={styles.ligneCreer}>par {p.created_by}</Text> : null}
+            </View>
+            <View style={{ alignItems: 'flex-end', gap: 6 }}>
+              <Text style={[styles.montantTxt, { color: '#C62828' }]}>{fmtShort(p.montant)}</Text>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity onPress={() => ouvrirEditPPF(p)}><Text style={styles.btnAction}>✏️</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => setConfirmSuppr({ table: 'litiges_point_pas_fait', id: p.id })}><Text style={styles.btnAction}>🗑️</Text></TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        ))}
+        {!litigesPointPasFait.length && <View style={styles.emptyBox}><Text style={styles.emptyTxt}>Aucun point pas fait enregistré</Text></View>}
+        <TouchableOpacity style={styles.btnAjout} onPress={ouvrirAddPPF}>
+          <Text style={styles.btnAjoutTxt}>+ Ajouter un point pas fait</Text>
+        </TouchableOpacity>
+      </View>
+    )
   }
 
   // ── Render volets ────────────────────────────────────────────
@@ -933,6 +1093,7 @@ export default function LitigesScreen() {
             <View key={a.id} style={styles.ligneCard}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.ligneNom, { color: type?.couleur || colors.text }]}>{type?.label || a.type}</Text>
+                {a.responsable_nom ? <Text style={styles.ligneSous}>👤 {a.responsable_nom}</Text> : null}
                 {a.numero_commande ? <Text style={styles.ligneCmd}>🔖 Cmd #{a.numero_commande}</Text> : null}
                 {multiJour && a.date ? <Text style={styles.ligneSous}>📅 {a.date}</Text> : null}
                 {a.notes ? <Text style={styles.ligneSous}>{a.notes}</Text> : null}
@@ -975,6 +1136,7 @@ export default function LitigesScreen() {
             <View key={y.id} style={styles.ligneCard}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.ligneNom, { color: type?.couleur || colors.text }]}>{type?.label || y.type}</Text>
+                {y.responsable_nom ? <Text style={styles.ligneSous}>👤 {y.responsable_nom}</Text> : null}
                 {y.numero_commande ? <Text style={styles.ligneCmd}>🔖 Cmd #{y.numero_commande}</Text> : null}
                 {multiJour && y.date ? <Text style={styles.ligneSous}>📅 {y.date}</Text> : null}
                 {y.notes ? <Text style={styles.ligneSous}>{y.notes}</Text> : null}
@@ -1017,6 +1179,7 @@ export default function LitigesScreen() {
             <View key={g.id} style={styles.ligneCard}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.ligneNom, { color: type?.couleur || colors.text }]}>{type?.label || g.type}</Text>
+                {g.responsable_nom ? <Text style={styles.ligneSous}>👤 {g.responsable_nom}</Text> : null}
                 {g.numero_commande ? <Text style={styles.ligneCmd}>🔖 Cmd #{g.numero_commande}</Text> : null}
                 {multiJour && g.date ? <Text style={styles.ligneSous}>📅 {g.date}</Text> : null}
                 {g.notes ? <Text style={styles.ligneSous}>{g.notes}</Text> : null}
@@ -1067,6 +1230,15 @@ export default function LitigesScreen() {
                   <Text style={styles.ligneSous}>
                     Cmds : {item.nbCommandes}  ·  Contacts : {item.nbContacts}  ·  Écart : {item.ecart}  ·  {item.taux}%
                   </Text>
+                  {item.contactsParCaissier?.length > 0 && (
+                    <View style={{ marginTop: 4, gap: 2 }}>
+                      {item.contactsParCaissier.map((c, ci) => (
+                        <Text key={ci} style={[styles.ligneSous, { color: '#185FA5' }]}>
+                          📞 {c.nom} : {c.nb} contact{c.nb > 1 ? 's' : ''}
+                        </Text>
+                      ))}
+                    </View>
+                  )}
                   {parfait && <Text style={{ fontSize: 12, color: '#2E7D32', fontWeight: '600' }}>✅ Parfait</Text>}
                   {tolere && <Text style={{ fontSize: 12, color: '#F57F17', fontWeight: '600' }}>✅ Toléré</Text>}
                   {aLitige && (
@@ -1201,6 +1373,7 @@ export default function LitigesScreen() {
           {onglet === 'yango' && renderYango()}
           {onglet === 'glovo' && renderGlovo()}
           {onglet === 'contact' && renderEcartContacts()}
+          {onglet === 'point_pas_fait' && renderPointPasFait()}
         </ScrollView>
       )}
 
@@ -1220,7 +1393,7 @@ export default function LitigesScreen() {
               {restaurants.map(r => (
                 <TouchableOpacity key={r.id}
                   style={[styles.pickerLigne, !modeGlobal && restoSelectionne?.id === r.id && styles.pickerLigneActive]}
-                  onPress={() => { setModeGlobal(false); setRestoSelectionne(r); chargerDatesAvec(r.id); setShowRestoPicker(false) }}
+                  onPress={() => { setModeGlobal(false); setRestoSelectionne(r); chargerDatesAvec(r.id); chargerUtilisateurs(r.id); setShowRestoPicker(false) }}
                 >
                   <Text style={[styles.pickerLigneTxt, !modeGlobal && restoSelectionne?.id === r.id && { color: '#185FA5', fontWeight: '600' }]}>{r.nom}</Text>
                 </TouchableOpacity>
@@ -1303,6 +1476,11 @@ export default function LitigesScreen() {
               onChangeText={v => setFormAvis(p => ({ ...p, date_saisie: v }))}
               placeholder="AAAA-MM-JJ" placeholderTextColor="#bbb" />
 
+            <ResponsablePicker
+              value={formAvis.responsable_id}
+              onChange={(id, nom) => setFormAvis(p => ({ ...p, responsable_id: id, responsable_nom: nom }))}
+            />
+
             <Text style={styles.formLabel}>Notes (optionnel)</Text>
             <TextInput style={[styles.formInput, { height: 56 }]} value={formAvis.notes}
               onChangeText={v => setFormAvis(p => ({ ...p, notes: v }))}
@@ -1352,6 +1530,11 @@ export default function LitigesScreen() {
             <TextInput style={styles.formInput} value={formYango.date_saisie}
               onChangeText={v => setFormYango(p => ({ ...p, date_saisie: v }))}
               placeholder="AAAA-MM-JJ" placeholderTextColor="#bbb" />
+
+            <ResponsablePicker
+              value={formYango.responsable_id}
+              onChange={(id, nom) => setFormYango(p => ({ ...p, responsable_id: id, responsable_nom: nom }))}
+            />
 
             <Text style={styles.formLabel}>Notes (optionnel)</Text>
             <TextInput style={styles.formInput} value={formYango.notes}
@@ -1405,6 +1588,11 @@ export default function LitigesScreen() {
               onChangeText={v => setFormGlovo(p => ({ ...p, date_saisie: v }))}
               placeholder="AAAA-MM-JJ" placeholderTextColor="#bbb" />
 
+            <ResponsablePicker
+              value={formGlovo.responsable_id}
+              onChange={(id, nom) => setFormGlovo(p => ({ ...p, responsable_id: id, responsable_nom: nom }))}
+            />
+
             <Text style={styles.formLabel}>Notes (optionnel)</Text>
             <TextInput style={styles.formInput} value={formGlovo.notes}
               onChangeText={v => setFormGlovo(p => ({ ...p, notes: v }))}
@@ -1415,6 +1603,44 @@ export default function LitigesScreen() {
                 <Text style={styles.btnAnnulerTxt}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.btnValider} onPress={sauvegarderGlovo} disabled={saving}>
+                <Text style={styles.btnValiderTxt}>{saving ? '...' : 'Enregistrer'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </Modal>
+
+      {/* ── Modal Point pas fait ── */}
+      <Modal visible={showFormPPF} transparent animationType="slide">
+        <ScrollView contentContainerStyle={styles.overlay} keyboardShouldPersistTaps="handled">
+          <View style={styles.formModal}>
+            <Text style={styles.formTitre}>{formPPF.id ? 'Modifier' : 'Ajouter'} — Point pas fait</Text>
+
+            <ResponsablePicker
+              value={formPPF.responsable_id}
+              onChange={(id, nom) => setFormPPF(p => ({ ...p, responsable_id: id, responsable_nom: nom }))}
+            />
+
+            <Text style={styles.formLabel}>Montant (FCFA)</Text>
+            <TextInput style={styles.formInput} value={formPPF.montant}
+              onChangeText={v => setFormPPF(p => ({ ...p, montant: v }))}
+              placeholder="Ex: 5000" placeholderTextColor="#bbb" keyboardType="numeric" />
+
+            <Text style={styles.formLabel}>Date</Text>
+            <TextInput style={styles.formInput} value={formPPF.date_saisie}
+              onChangeText={v => setFormPPF(p => ({ ...p, date_saisie: v }))}
+              placeholder="AAAA-MM-JJ" placeholderTextColor="#bbb" />
+
+            <Text style={styles.formLabel}>Notes (optionnel)</Text>
+            <TextInput style={[styles.formInput, { height: 56 }]} value={formPPF.notes}
+              onChangeText={v => setFormPPF(p => ({ ...p, notes: v }))}
+              placeholder="Contexte..." placeholderTextColor="#bbb" multiline />
+
+            <View style={styles.formBtns}>
+              <TouchableOpacity style={styles.btnAnnuler} onPress={() => setShowFormPPF(false)}>
+                <Text style={styles.btnAnnulerTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.btnValider, { backgroundColor: '#C62828' }]} onPress={sauvegarderPointPasFait} disabled={saving}>
                 <Text style={styles.btnValiderTxt}>{saving ? '...' : 'Enregistrer'}</Text>
               </TouchableOpacity>
             </View>
@@ -1601,6 +1827,14 @@ function makeStyles(colors) { return StyleSheet.create({
   btnAnnulerTxt: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
   btnValider: { flex: 1, padding: 13, borderRadius: 10, backgroundColor: '#185FA5', alignItems: 'center' },
   btnValiderTxt: { fontSize: 14, color: '#fff', fontWeight: '600' },
+
+  responsableChip: {
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
+    backgroundColor: colors.bg, borderWidth: 0.5, borderColor: colors.border,
+  },
+  responsableChipActive: { backgroundColor: '#534AB7', borderColor: '#534AB7' },
+  responsableChipTxt: { fontSize: 13, color: colors.textMuted, fontWeight: '500' },
+  responsableChipTxtActive: { color: '#fff', fontWeight: '600' },
 
   btnPdf: {
     backgroundColor: '#534AB7', borderRadius: 12, padding: 14,
