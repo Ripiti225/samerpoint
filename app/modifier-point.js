@@ -217,7 +217,7 @@ export default function ModifierPointScreen() {
     setShiftDetails(prev => ({ ...prev, [shift.id]: { depenses: [], fournisseurs: [], loading: true } }))
     const [{ data: deps }, { data: fourns }] = await Promise.all([
       supabase.from('depenses').select('*').eq('point_id', point.id).eq('caissier_nom', shift.caissier_nom).eq('saisi_par', 'caissier'),
-      supabase.from('transactions_fournisseurs').select('*, fournisseurs(nom)').eq('point_id', point.id).eq('saisi_par', 'caissier').or(`caissier_nom.eq."${(shift.caissier_nom || '').replace(/"/g, '""')}",caissier_nom.is.null`),
+      supabase.from('transactions_fournisseurs').select('*, fournisseurs(nom)').eq('point_id', point.id).eq('saisi_par', 'caissier').eq('caissier_nom', shift.caissier_nom),
     ])
     setShiftDetails(prev => ({ ...prev, [shift.id]: { depenses: deps || [], fournisseurs: fourns || [], loading: false } }))
   }
