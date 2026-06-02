@@ -264,6 +264,16 @@ export function AppProvider({ children }) {
   // détecter "même utilisateur" (memeUtilisateur) et ne pas appeler resetJour().
   // C'est roleActif=null qui signale le logout et déclenche la redirection.
   function deconnecter() {
+    // Forcer sessionRef à jour avec les valeurs courantes avant de sauvegarder,
+    // au cas où un setState asynchrone récent n'aurait pas encore déclenché un rendu.
+    sessionRef.current = {
+      ...sessionRef.current,
+      roleActif, restaurantId, restaurantNom, userId, userNom,
+      pointId, dateJour, pointValide, inventaireTermine, lastRoute,
+      fournisseursJour, depensesJour, presencesJour,
+      livraisonsJour, ventesJour, paiesJour, inventaireJour,
+      depensesGerantCaisse, fournisseursGerantCaisse, paiesGerantCaisse,
+    }
     sauvegarderDonneesOperationnelles(sessionRef.current)
     setRoleActif(null)
     setRestaurantId(null)
