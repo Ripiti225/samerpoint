@@ -325,6 +325,7 @@ export default function ModifierPointScreen() {
       const { total } = await rechargerShiftsEtTotal(point.id)
       journaliser('suppression_shift', {
         caissier: shift.caissier_nom, vente_avant: venteAvant, vente_apres: total,
+        point_valide: !!point?.valide,
       }, { pointId: point.id }).catch(() => {})
       afficherToast(`✅ Shift supprimé — Point total recalculé : ${fmt(total)}`)
     } catch (err) {
@@ -845,6 +846,7 @@ export default function ModifierPointScreen() {
   }
 
   async function confirmerSauvegarder() {
+    if (!confirmSauvegarder) return
     const { naviguer } = confirmSauvegarder
     setConfirmSauvegarder(null)
     setLoading(true)
