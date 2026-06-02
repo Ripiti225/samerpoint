@@ -194,10 +194,11 @@ export default function LoginScreen() {
     const memeUtilisateur = userIdEnSession === selected.id
     if (!memeUtilisateur) {
       resetJour()
-    } else if (selected.role === 'caissier') {
-      // resetJour() n'est pas appelé (même utilisateur) mais le caissier doit
-      // toujours passer par selectionner-journee. On remet lastRoute à null pour
-      // que SessionGuard ne le redirige pas vers l'ancien écran dans le même batch.
+    } else if (selected.role === 'caissier' || selected.role === 'gerant') {
+      // resetJour() n'est pas appelé (même utilisateur) mais caissier et gérant
+      // doivent toujours passer par leur écran de sélection (selectionner-journee /
+      // choix-date). On remet lastRoute à null pour que SessionGuard ne les redirige
+      // pas vers l'ancien écran dans le même batch.
       setLastRoute(null)
     }
 
