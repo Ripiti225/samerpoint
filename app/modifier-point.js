@@ -58,6 +58,7 @@ export default function ModifierPointScreen() {
   // Suppression dépenses / transactions
   const [confirmSupprDep, setConfirmSupprDep] = useState(null)
   const [confirmSupprTrans, setConfirmSupprTrans] = useState(null)
+  const [confirmSauvegarder, setConfirmSauvegarder] = useState(null) // { naviguer: bool }
   // Toast recalcul
   const [recalcMsg, setRecalcMsg] = useState(null)
   const recalcTimerRef = useRef(null)
@@ -216,7 +217,7 @@ export default function ModifierPointScreen() {
     setShiftDetails(prev => ({ ...prev, [shift.id]: { depenses: [], fournisseurs: [], loading: true } }))
     const [{ data: deps }, { data: fourns }] = await Promise.all([
       supabase.from('depenses').select('*').eq('point_id', point.id).eq('caissier_nom', shift.caissier_nom).eq('saisi_par', 'caissier'),
-      supabase.from('transactions_fournisseurs').select('*, fournisseurs(nom)').eq('point_id', point.id).eq('saisi_par', 'caissier').or(`caissier_nom.eq.${shift.caissier_nom},caissier_nom.is.null`),
+      supabase.from('transactions_fournisseurs').select('*, fournisseurs(nom)').eq('point_id', point.id).eq('saisi_par', 'caissier').or(`caissier_nom.eq."${shift.caissier_nom}",caissier_nom.is.null`),
     ])
     setShiftDetails(prev => ({ ...prev, [shift.id]: { depenses: deps || [], fournisseurs: fourns || [], loading: false } }))
   }
@@ -301,11 +302,6 @@ export default function ModifierPointScreen() {
   }
 
   async function supprimerShift(shift) {
-    if (point?.valide) {
-      Alert.alert('Suppression impossible', 'Ce point est déjà validé.')
-      setConfirmSupprShift(null)
-      return
-    }
     setSuppressionEnCours(true)
     try {
       const venteAvant = point ? (parseFloat(form.vente_total) || 0) : 0
@@ -339,11 +335,6 @@ export default function ModifierPointScreen() {
   }
 
   async function supprimerShiftsMultiples() {
-    if (point?.valide) {
-      Alert.alert('Suppression impossible', 'Ce point est déjà validé.')
-      setConfirmSupprMultiple(false)
-      return
-    }
     setSuppressionEnCours(true)
     setConfirmSupprMultiple(false)
     const selectedShifts = shifts.filter(s => shiftsSelectionnes.has(s.id))
@@ -550,11 +541,11 @@ export default function ModifierPointScreen() {
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {pointValide && (
           <View style={styles.warningBanner}>
-            <Text style={styles.warningTxt}>🔒 Point validé — suppression désactivée · ✏️ Modification autorisée</Text>
+            <Text style={styles.warningTxt}>🔒 Point validé — ✏️ Modification et suppression autorisées</Text>
           </View>
         )}
 
-        {!pointValide && shifts.length > 0 && (
+        {shifts.length > 0 && (
           <View style={styles.selectionBar}>
             {modeSelShifts ? (
               <>
@@ -849,47 +840,42 @@ export default function ModifierPointScreen() {
     return `${parseInt(d)} ${mois[parseInt(m) - 1]} ${y}`
   }
 
-  async function sauvegarder({ naviguer = true } = {}) {
-    Alert.alert(
-      'Confirmer la modification',
-      `Ventes : ${fmt(val(form.vente_total))}\nDépenses : ${fmt(val(form.depense_total))}\nBénéfice SC : ${fmt(beneficeSC())}\n\nModifier ce point ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Confirmer', onPress: async () => {
-          setLoading(true)
-          const { data: updated, error } = await supabase.from('points').update({
-            vente_total: val(form.vente_total),
-            depense_total: val(form.depense_total),
-            kdo: val(form.kdo),
-            retour: val(form.retour),
-            yango_cse: val(form.yango_cse),
-            yango_tab: val(form.yango_tab),
-            glovo_cse: val(form.glovo_cse),
-            glovo_tab: val(form.glovo_tab),
-            wave: val(form.wave),
-            om: val(form.om),
-            djamo: val(form.djamo),
-            fc_veille: val(form.fc_veille),
-            fond_recu: val(form.fond_recu),
-            reste_especes: resteEspeces(),
-            reste_fc: fc(),
-            benefice_sc: beneficeSC(),
-          }).eq('id', point.id).select('id')
-          setLoading(false)
-          if (error) {
-            Alert.alert('Erreur', error.message)
-          } else if (!updated?.length) {
-            Alert.alert('Erreur', 'Modification refusée (droits insuffisants ou point introuvable).')
-          } else {
-            Alert.alert('✅ Sauvegardé', 'Ventes enregistrées avec succès !')
-            if (naviguer) {
-              if (router.canGoBack()) router.back()
-              else router.replace('/accueil')
-            }
-          }
-        }}
-      ]
-    )
+  function sauvegarder({ naviguer = true } = {}) {
+    setConfirmSauvegarder({ naviguer })
+  }
+
+  async function confirmerSauvegarder() {
+    const { naviguer } = confirmSauvegarder
+    setConfirmSauvegarder(null)
+    setLoading(true)
+    const { error } = await supabase.from('points').update({
+      vente_total: val(form.vente_total),
+      depense_total: val(form.depense_total),
+      kdo: val(form.kdo),
+      retour: val(form.retour),
+      yango_cse: val(form.yango_cse),
+      yango_tab: val(form.yango_tab),
+      glovo_cse: val(form.glovo_cse),
+      glovo_tab: val(form.glovo_tab),
+      wave: val(form.wave),
+      om: val(form.om),
+      djamo: val(form.djamo),
+      fc_veille: val(form.fc_veille),
+      fond_recu: val(form.fond_recu),
+      reste_especes: resteEspeces(),
+      reste_fc: fc(),
+      benefice_sc: beneficeSC(),
+    }).eq('id', point.id)
+    setLoading(false)
+    if (error) {
+      Alert.alert('Erreur', error.message)
+    } else {
+      afficherToast('✅ Ventes enregistrées avec succès !')
+      if (naviguer) {
+        if (router.canGoBack()) router.back()
+        else router.replace('/accueil')
+      }
+    }
   }
 
   function InputLigne({ label, champ }) {
@@ -1961,6 +1947,32 @@ export default function ModifierPointScreen() {
               <TouchableOpacity style={[styles.confirmOk, loading && { opacity: 0.6 }]}
                 onPress={() => supprimerTransaction(confirmSupprTrans)} disabled={loading}>
                 {loading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.confirmOkTxt}>🗑️ Confirmer</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal confirmation sauvegarde ventes */}
+      <Modal visible={!!confirmSauvegarder} transparent animationType="fade">
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitre}>Confirmer la modification</Text>
+            <Text style={styles.confirmMsg}>
+              Ventes : {fmt(val(form.vente_total))}{'\n'}
+              Dépenses : {fmt(val(form.depense_total))}{'\n'}
+              Bénéfice SC : {fmt(beneficeSC())}{'\n\n'}
+              Modifier ce point ?
+            </Text>
+            <View style={styles.confirmBtns}>
+              <TouchableOpacity style={styles.confirmCancel} onPress={() => setConfirmSauvegarder(null)}>
+                <Text style={styles.confirmCancelTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmOk, { backgroundColor: '#534AB7' }]}
+                onPress={confirmerSauvegarder}
+              >
+                <Text style={styles.confirmOkTxt}>💾 Confirmer</Text>
               </TouchableOpacity>
             </View>
           </View>
