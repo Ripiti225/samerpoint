@@ -123,6 +123,7 @@ export default function LitigesScreen() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirmSuppr, setConfirmSuppr] = useState(null)
+  const [saveError, setSaveError] = useState(null)
 
   // ── Volet 1 — écarts ────────────────────────────────────────
   const [ecartsListe, setEcartsListe] = useState([])
@@ -751,7 +752,8 @@ export default function LitigesScreen() {
       err = error
     }
     setSaving(false)
-    if (err) { Alert.alert('Erreur', err.message); return }
+    if (err) { console.error('❌ avis:', err); setSaveError(err.message || JSON.stringify(err)); return }
+    setSaveError(null)
     setShowFormAvis(false)
     chargerAvis()
   }
@@ -786,7 +788,8 @@ export default function LitigesScreen() {
       err = error
     }
     setSaving(false)
-    if (err) { Alert.alert('Erreur', err.message); return }
+    if (err) { console.error('❌ yango:', err); setSaveError(err.message || JSON.stringify(err)); return }
+    setSaveError(null)
     setShowFormYango(false)
     chargerYango()
   }
@@ -821,7 +824,8 @@ export default function LitigesScreen() {
       err = error
     }
     setSaving(false)
-    if (err) { Alert.alert('Erreur', err.message); return }
+    if (err) { console.error('❌ glovo:', err); setSaveError(err.message || JSON.stringify(err)); return }
+    setSaveError(null)
     setShowFormGlovo(false)
     chargerGlovo()
   }
@@ -1503,8 +1507,9 @@ export default function LitigesScreen() {
               onChangeText={v => setFormAvis(p => ({ ...p, notes: v }))}
               placeholder="Détails du litige..." placeholderTextColor="#bbb" multiline />
 
+            {saveError && <Text style={{ color: '#C62828', fontSize: 12, marginBottom: 8, textAlign: 'center' }}>⚠️ {saveError}</Text>}
             <View style={styles.formBtns}>
-              <TouchableOpacity style={styles.btnAnnuler} onPress={() => setShowFormAvis(false)}>
+              <TouchableOpacity style={styles.btnAnnuler} onPress={() => { setShowFormAvis(false); setSaveError(null) }}>
                 <Text style={styles.btnAnnulerTxt}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.btnValider} onPress={sauvegarderAvis} disabled={saving}>
@@ -1555,8 +1560,9 @@ export default function LitigesScreen() {
               onChangeText={v => setFormYango(p => ({ ...p, notes: v }))}
               placeholder="Détails..." placeholderTextColor="#bbb" />
 
+            {saveError && <Text style={{ color: '#C62828', fontSize: 12, marginBottom: 8, textAlign: 'center' }}>⚠️ {saveError}</Text>}
             <View style={styles.formBtns}>
-              <TouchableOpacity style={styles.btnAnnuler} onPress={() => setShowFormYango(false)}>
+              <TouchableOpacity style={styles.btnAnnuler} onPress={() => { setShowFormYango(false); setSaveError(null) }}>
                 <Text style={styles.btnAnnulerTxt}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.btnValider} onPress={sauvegarderYango} disabled={saving}>
@@ -1609,8 +1615,9 @@ export default function LitigesScreen() {
               onChangeText={v => setFormGlovo(p => ({ ...p, notes: v }))}
               placeholder="Détails..." placeholderTextColor="#bbb" />
 
+            {saveError && <Text style={{ color: '#C62828', fontSize: 12, marginBottom: 8, textAlign: 'center' }}>⚠️ {saveError}</Text>}
             <View style={styles.formBtns}>
-              <TouchableOpacity style={styles.btnAnnuler} onPress={() => setShowFormGlovo(false)}>
+              <TouchableOpacity style={styles.btnAnnuler} onPress={() => { setShowFormGlovo(false); setSaveError(null) }}>
                 <Text style={styles.btnAnnulerTxt}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.btnValider} onPress={sauvegarderGlovo} disabled={saving}>
