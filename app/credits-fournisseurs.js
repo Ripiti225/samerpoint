@@ -597,7 +597,13 @@ ${mouvements.map(m => {
 
                     <View style={styles.histoMvtChiffres}>
                       <View style={styles.histoMvtChiffreItem}>
-                        <Text style={styles.histoMvtChiffreLabel}>📦 Reçu (facture)</Text>
+                        <Text style={styles.histoMvtChiffreLabel}>🔄 Crédit</Text>
+                        <Text style={[styles.histoMvtChiffreVal, { color: (m.credit || 0) > 0 ? '#A32D2D' : colors.textMuted }]}>
+                          {(m.credit || 0) > 0 ? fmtShort(m.credit) : '—'}
+                        </Text>
+                      </View>
+                      <View style={[styles.histoMvtChiffreItem, styles.histoMvtChiffreSep]}>
+                        <Text style={styles.histoMvtChiffreLabel}>📦 Facture</Text>
                         <Text style={[styles.histoMvtChiffreVal, { color: colors.text }]}>
                           {facture > 0 ? fmtShort(facture) : '—'}
                         </Text>
