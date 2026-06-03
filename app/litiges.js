@@ -726,8 +726,9 @@ export default function LitigesScreen() {
     setSaving(true)
     const montant = formAvis.type === 'bon' ? -500 : 1000
     const dateToSave = formAvis.date_saisie || TODAY
+    let err
     if (formAvis.id) {
-      await supabase.from('litiges_avis_clients').update({
+      const { error } = await supabase.from('litiges_avis_clients').update({
         type: formAvis.type, montant,
         notes: formAvis.notes || null,
         numero_commande: formAvis.numero_commande || null,
@@ -735,8 +736,9 @@ export default function LitigesScreen() {
         responsable_id: formAvis.responsable_id || null,
         responsable_nom: formAvis.responsable_nom || null,
       }).eq('id', formAvis.id)
+      err = error
     } else {
-      await supabase.from('litiges_avis_clients').insert({
+      const { error } = await supabase.from('litiges_avis_clients').insert({
         restaurant_id: restoSelectionne.id,
         date: dateToSave,
         type: formAvis.type, montant,
@@ -746,8 +748,10 @@ export default function LitigesScreen() {
         responsable_id: formAvis.responsable_id || null,
         responsable_nom: formAvis.responsable_nom || null,
       })
+      err = error
     }
     setSaving(false)
+    if (err) { Alert.alert('Erreur', err.message); return }
     setShowFormAvis(false)
     chargerAvis()
   }
@@ -757,8 +761,9 @@ export default function LitigesScreen() {
     if (!montant || !restoSelectionne) return
     setSaving(true)
     const dateToSave = formYango.date_saisie || TODAY
+    let err
     if (formYango.id) {
-      await supabase.from('litiges_yango').update({
+      const { error } = await supabase.from('litiges_yango').update({
         type: formYango.type, montant,
         notes: formYango.notes || null,
         numero_commande: formYango.numero_commande || null,
@@ -766,8 +771,9 @@ export default function LitigesScreen() {
         responsable_id: formYango.responsable_id || null,
         responsable_nom: formYango.responsable_nom || null,
       }).eq('id', formYango.id)
+      err = error
     } else {
-      await supabase.from('litiges_yango').insert({
+      const { error } = await supabase.from('litiges_yango').insert({
         restaurant_id: restoSelectionne.id,
         date: dateToSave,
         type: formYango.type, montant,
@@ -777,8 +783,10 @@ export default function LitigesScreen() {
         responsable_id: formYango.responsable_id || null,
         responsable_nom: formYango.responsable_nom || null,
       })
+      err = error
     }
     setSaving(false)
+    if (err) { Alert.alert('Erreur', err.message); return }
     setShowFormYango(false)
     chargerYango()
   }
@@ -788,8 +796,9 @@ export default function LitigesScreen() {
     if (!montant || !restoSelectionne) return
     setSaving(true)
     const dateToSave = formGlovo.date_saisie || TODAY
+    let err
     if (formGlovo.id) {
-      await supabase.from('litiges_glovo').update({
+      const { error } = await supabase.from('litiges_glovo').update({
         type: formGlovo.type, montant,
         notes: formGlovo.notes || null,
         numero_commande: formGlovo.numero_commande || null,
@@ -797,8 +806,9 @@ export default function LitigesScreen() {
         responsable_id: formGlovo.responsable_id || null,
         responsable_nom: formGlovo.responsable_nom || null,
       }).eq('id', formGlovo.id)
+      err = error
     } else {
-      await supabase.from('litiges_glovo').insert({
+      const { error } = await supabase.from('litiges_glovo').insert({
         restaurant_id: restoSelectionne.id,
         date: dateToSave,
         type: formGlovo.type, montant,
@@ -808,8 +818,10 @@ export default function LitigesScreen() {
         responsable_id: formGlovo.responsable_id || null,
         responsable_nom: formGlovo.responsable_nom || null,
       })
+      err = error
     }
     setSaving(false)
+    if (err) { Alert.alert('Erreur', err.message); return }
     setShowFormGlovo(false)
     chargerGlovo()
   }
@@ -819,16 +831,18 @@ export default function LitigesScreen() {
     if (!restoSelectionne) return
     setSaving(true)
     const dateToSave = formPPF.date_saisie || TODAY
+    let err
     if (formPPF.id) {
-      await supabase.from('litiges_point_pas_fait').update({
+      const { error } = await supabase.from('litiges_point_pas_fait').update({
         montant,
         notes: formPPF.notes || null,
         date: dateToSave,
         responsable_id: formPPF.responsable_id || null,
         responsable_nom: formPPF.responsable_nom || null,
       }).eq('id', formPPF.id)
+      err = error
     } else {
-      await supabase.from('litiges_point_pas_fait').insert({
+      const { error } = await supabase.from('litiges_point_pas_fait').insert({
         restaurant_id: restoSelectionne.id,
         date: dateToSave,
         montant,
@@ -837,8 +851,10 @@ export default function LitigesScreen() {
         responsable_id: formPPF.responsable_id || null,
         responsable_nom: formPPF.responsable_nom || null,
       })
+      err = error
     }
     setSaving(false)
+    if (err) { Alert.alert('Erreur', err.message); return }
     setShowFormPPF(false)
     chargerPointPasFait()
   }
