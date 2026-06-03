@@ -302,6 +302,7 @@ export default function LoginScreen() {
           style={styles.logoImage}
           resizeMode="contain"
         />
+        <Text style={styles.appVersion}>v2.50</Text>
         <Text style={styles.appSub}>Gestion de restaurant</Text>
         <Text style={styles.question}>Choisissez votre restaurant</Text>
         {loadingRestos ? (
@@ -519,6 +520,7 @@ function makeStyles(colors) {
     container: { flex: 1, backgroundColor: colors.surface, alignItems: 'center', paddingTop: 20 },
     logoImage: { width: 200, height: 120, marginBottom: 4 },
     logoImageSm: { width: 140, height: 80, marginBottom: 8 },
+    appVersion: { fontSize: 11, color: colors.textMuted, marginBottom: 4, letterSpacing: 0.5 },
     appSub: { fontSize: 13, color: colors.textMuted, marginBottom: 28 },
     question: { fontSize: 14, color: colors.textSecondary, marginBottom: 12 },
     list: { width: '100%', paddingHorizontal: 20 },
