@@ -752,7 +752,7 @@ export default function LitigesScreen() {
       err = error
     }
     setSaving(false)
-    if (err) { console.error('❌ avis:', err); setSaveError(err.message || JSON.stringify(err)); return }
+    if (err) { setSaveError(err.message); return }
     setSaveError(null)
     setShowFormAvis(false)
     chargerAvis()
@@ -788,7 +788,7 @@ export default function LitigesScreen() {
       err = error
     }
     setSaving(false)
-    if (err) { console.error('❌ yango:', err); setSaveError(err.message || JSON.stringify(err)); return }
+    if (err) { setSaveError(err.message); return }
     setSaveError(null)
     setShowFormYango(false)
     chargerYango()
@@ -824,7 +824,7 @@ export default function LitigesScreen() {
       err = error
     }
     setSaving(false)
-    if (err) { console.error('❌ glovo:', err); setSaveError(err.message || JSON.stringify(err)); return }
+    if (err) { setSaveError(err.message); return }
     setSaveError(null)
     setShowFormGlovo(false)
     chargerGlovo()
