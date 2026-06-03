@@ -876,6 +876,7 @@ export default function LitigesScreen() {
   const multiJour = periodeKey !== '1jour'
 
   function ouvrirAddAvis() {
+    setSaving(false)
     setFormAvis({ type: 'mauvais', notes: '', numero_commande: '', date_saisie: formDateDefaut(periodeKey, dateUnique), responsable_id: null, responsable_nom: '', id: null })
     setShowFormAvis(true)
   }
@@ -884,6 +885,7 @@ export default function LitigesScreen() {
     setShowFormAvis(true)
   }
   function ouvrirAddYango() {
+    setSaving(false)
     setFormYango({ type: 'tape_moins', montant: '', notes: '', numero_commande: '', date_saisie: formDateDefaut(periodeKey, dateUnique), responsable_id: null, responsable_nom: '', id: null })
     setShowFormYango(true)
   }
@@ -892,6 +894,7 @@ export default function LitigesScreen() {
     setShowFormYango(true)
   }
   function ouvrirAddGlovo() {
+    setSaving(false)
     setFormGlovo({ type: 'tape_moins', montant: '', notes: '', numero_commande: '', date_saisie: formDateDefaut(periodeKey, dateUnique), responsable_id: null, responsable_nom: '', id: null })
     setShowFormGlovo(true)
   }
@@ -900,6 +903,7 @@ export default function LitigesScreen() {
     setShowFormGlovo(true)
   }
   function ouvrirAddPPF() {
+    setSaving(false)
     setFormPPF({ responsable_id: null, responsable_nom: '', montant: '', notes: '', date_saisie: formDateDefaut(periodeKey, dateUnique), id: null })
     setShowFormPPF(true)
   }
@@ -908,8 +912,8 @@ export default function LitigesScreen() {
     setShowFormPPF(true)
   }
 
-  // ── Picker responsable ───────────────────────────────────────
-  function ResponsablePicker({ value, onChange }) {
+  // ── Picker responsable (inline JSX, pas un composant React) ────
+  function renderResponsablePicker(value, onChange) {
     return (
       <View>
         <Text style={styles.formLabel}>Responsable</Text>
@@ -1492,10 +1496,7 @@ export default function LitigesScreen() {
               onChangeText={v => setFormAvis(p => ({ ...p, date_saisie: v }))}
               placeholder="AAAA-MM-JJ" placeholderTextColor="#bbb" />
 
-            <ResponsablePicker
-              value={formAvis.responsable_id}
-              onChange={(id, nom) => setFormAvis(p => ({ ...p, responsable_id: id, responsable_nom: nom }))}
-            />
+            {renderResponsablePicker(formAvis.responsable_id, (id, nom) => setFormAvis(p => ({ ...p, responsable_id: id, responsable_nom: nom })))}
 
             <Text style={styles.formLabel}>Notes (optionnel)</Text>
             <TextInput style={[styles.formInput, { height: 56 }]} value={formAvis.notes}
@@ -1547,10 +1548,7 @@ export default function LitigesScreen() {
               onChangeText={v => setFormYango(p => ({ ...p, date_saisie: v }))}
               placeholder="AAAA-MM-JJ" placeholderTextColor="#bbb" />
 
-            <ResponsablePicker
-              value={formYango.responsable_id}
-              onChange={(id, nom) => setFormYango(p => ({ ...p, responsable_id: id, responsable_nom: nom }))}
-            />
+            {renderResponsablePicker(formYango.responsable_id, (id, nom) => setFormYango(p => ({ ...p, responsable_id: id, responsable_nom: nom })))}
 
             <Text style={styles.formLabel}>Notes (optionnel)</Text>
             <TextInput style={styles.formInput} value={formYango.notes}
@@ -1604,10 +1602,7 @@ export default function LitigesScreen() {
               onChangeText={v => setFormGlovo(p => ({ ...p, date_saisie: v }))}
               placeholder="AAAA-MM-JJ" placeholderTextColor="#bbb" />
 
-            <ResponsablePicker
-              value={formGlovo.responsable_id}
-              onChange={(id, nom) => setFormGlovo(p => ({ ...p, responsable_id: id, responsable_nom: nom }))}
-            />
+            {renderResponsablePicker(formGlovo.responsable_id, (id, nom) => setFormGlovo(p => ({ ...p, responsable_id: id, responsable_nom: nom })))}
 
             <Text style={styles.formLabel}>Notes (optionnel)</Text>
             <TextInput style={styles.formInput} value={formGlovo.notes}
@@ -1632,10 +1627,7 @@ export default function LitigesScreen() {
           <View style={styles.formModal}>
             <Text style={styles.formTitre}>{formPPF.id ? 'Modifier' : 'Ajouter'} — Point pas fait</Text>
 
-            <ResponsablePicker
-              value={formPPF.responsable_id}
-              onChange={(id, nom) => setFormPPF(p => ({ ...p, responsable_id: id, responsable_nom: nom }))}
-            />
+            {renderResponsablePicker(formPPF.responsable_id, (id, nom) => setFormPPF(p => ({ ...p, responsable_id: id, responsable_nom: nom })))}
 
             <Text style={styles.formLabel}>Montant (FCFA)</Text>
             <TextInput style={styles.formInput} value={formPPF.montant}
