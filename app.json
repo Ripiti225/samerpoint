@@ -20,7 +20,7 @@
         "backgroundColor": "#EF9F27"
       },
       "package": "com.samer.app",
-      "versionCode": 10,
+      "versionCode": 13,
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",

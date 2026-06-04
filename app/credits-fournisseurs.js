@@ -117,15 +117,6 @@ export default function CreditsFournisseursScreen() {
     const nouveauCredit = ancienCredit + delta
     setSaving(true)
     try {
-      await supabase.from('historique_credit_fournisseurs').insert({
-        fournisseur_id: selectedFourn.id,
-        restaurant_id: selectedFourn.restaurant_id,
-        ancien_credit: ancienCredit,
-        nouveau_credit: nouveauCredit,
-        motif: formCredit.motif || null,
-        modified_by: userId || null,
-      }).then(() => {}, () => {})
-
       const { data: updated, error } = await supabase.from('fournisseurs')
         .update({ credit_actuel: nouveauCredit }).eq('id', selectedFourn.id).select('id')
       if (error) throw error
@@ -150,22 +141,16 @@ export default function CreditsFournisseursScreen() {
     setHistoMouvements([])
     setLoadingHisto(true)
     setShowHistorique(true)
-    const { data } = await supabase
+
+    const { data: transactions } = await supabase
       .from('transactions_fournisseurs')
       .select('*')
       .eq('fournisseur_id', f.id)
       .order('created_at', { ascending: false })
-    const mouvements = data || []
-    setHistoMouvements(mouvements)
+
+    setHistoMouvements(transactions || [])
+
     // Sync credit_actuel si désynchronisé avec la transaction la plus récente
-    if (mouvements.length > 0 && mouvements[0].reste != null) {
-      const resteReel = mouvements[0].reste
-      if (resteReel !== f.credit_actuel) {
-        await supabase.from('fournisseurs').update({ credit_actuel: resteReel }).eq('id', f.id)
-        setFournisseurs(prev => prev.map(item => item.id === f.id ? { ...item, credit_actuel: resteReel } : item))
-        setFournHisto(prev => prev ? { ...prev, credit_actuel: resteReel } : prev)
-      }
-    }
     setLoadingHisto(false)
   }
 
@@ -569,21 +554,23 @@ ${mouvements.map(m => {
                     Les modifications de crédit apparaîtront ici
                   </Text>
                 </View>
-              ) : histoMouvements.map((m) => {
+              ) : histoMouvements.map((m, idx) => {
+                // ─ Transaction normale (fournisseur.js / point-shift) ─
                 const src = m.source || m.saisi_par || 'manuel'
                 const sourceInfo = {
                   caissier: { icon: '💼', label: 'Caissier', bg: '#E6F1FB', txt: '#185FA5' },
                   gerant: { icon: '📊', label: 'Saisir Ventes', bg: '#EAF3DE', txt: '#3B6D11' },
                   gerant_caissier: { icon: '🔑', label: 'Gérant Caissier', bg: '#FAEEDA', txt: '#854F0B' },
                   deduction_gerant: { icon: '📋', label: 'Déduction Gérant', bg: '#FAEEDA', txt: '#854F0B' },
-                  manuel: { icon: '✏️', label: 'Manuel', bg: '#f0f0f0', txt: '#888' },
                 }[src] || { icon: '✏️', label: src, bg: '#f0f0f0', txt: '#888' }
                 const facture = Number(m.facture) || 0
                 const paye = Number(m.paye) || 0
-                const solde = m.reste || 0
+                const solde = Number(m.reste) || 0
+                // Crédit reporté de la veille = reste - facture + paye
+                const creditVeille = solde - facture + paye
 
                 return (
-                  <View key={m.id} style={styles.histoMvtCard}>
+                  <View key={`t-${m.id || idx}`} style={styles.histoMvtCard}>
                     <View style={styles.histoMvtHeader}>
                       <Text style={styles.histoMvtDate}>📅 {fmtDate(m.created_at)}</Text>
                       <View style={[styles.histoMvtBadge, { backgroundColor: sourceInfo.bg }]}>
@@ -598,8 +585,8 @@ ${mouvements.map(m => {
                     <View style={styles.histoMvtChiffres}>
                       <View style={styles.histoMvtChiffreItem}>
                         <Text style={styles.histoMvtChiffreLabel}>🔄 Crédit</Text>
-                        <Text style={[styles.histoMvtChiffreVal, { color: (m.credit || 0) > 0 ? '#A32D2D' : colors.textMuted }]}>
-                          {(m.credit || 0) > 0 ? fmtShort(m.credit) : '—'}
+                        <Text style={[styles.histoMvtChiffreVal, { color: creditVeille > 0 ? '#A32D2D' : creditVeille < 0 ? '#3B6D11' : colors.textMuted }]}>
+                          {creditVeille !== 0 ? fmtShort(creditVeille) : '—'}
                         </Text>
                       </View>
                       <View style={[styles.histoMvtChiffreItem, styles.histoMvtChiffreSep]}>

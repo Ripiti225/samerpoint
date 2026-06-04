@@ -406,7 +406,7 @@ export default function LitigesScreen() {
           .from('points_shifts').select('point_id, vente_shift').in('point_id', ids)
         const byPoint = {}
         ;(shifts || []).forEach(s => { byPoint[s.point_id] = (byPoint[s.point_id] || 0) + (s.vente_shift || 0) })
-        pointsData.forEach(p => { ecartTotal += (p.vente_machine || 0) - (byPoint[p.id] || 0) })
+        pointsData.forEach(p => { ecartTotal += Math.max(0, (p.vente_machine || 0) - (byPoint[p.id] || 0)) })
       }
 
       // Inventaire + détail
@@ -712,7 +712,7 @@ export default function LitigesScreen() {
   }
 
   // ── KPI totaux ──────────────────────────────────────────────
-  const totalEcart = ecartsListe.reduce((s, j) => s + j.ecart, 0)
+  const totalEcart = ecartsListe.reduce((s, j) => s + Math.max(0, j.ecart), 0)
   const totalInventaire = inventaireShifts.reduce((s, x) => s + (x.montant_a_deduire || 0), 0)
   const totalAvis = avisClients.reduce((s, x) => s + (x.montant || 0), 0)
   const totalYango = litigesYango.reduce((s, x) => s + (x.montant || 0), 0)

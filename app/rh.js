@@ -57,6 +57,7 @@ export default function RHScreen() {
   const [onglet, setOnglet] = useState('Dashboard')
   const [periodeKey, setPeriodeKey] = useState('month')
   const [presences, setPresences] = useState([])
+  const [paiesGerantDB, setPaiesGerantDB] = useState([])
   const [travailleurs, setTravailleurs] = useState([])
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -94,6 +95,11 @@ export default function RHScreen() {
   const [motifArchive, setMotifArchive] = useState('Démission')
   const [motifArchiveCustom, setMotifArchiveCustom] = useState('')
   const [savingArchive, setSavingArchive] = useState(false)
+
+  // Transfert travailleur
+  const [modalTransfert, setModalTransfert] = useState(false)
+  const [restoTransfertId, setRestoTransfertId] = useState(null)
+  const [savingTransfert, setSavingTransfert] = useState(false)
 
   // Congés & Permissions
   const [conges, setConges] = useState([])
@@ -180,6 +186,14 @@ export default function RHScreen() {
       .from('presences').select('*').in('point_id', pointIds)
 
     setPresences((presData || []).map(p => ({ ...p, date: pointDates[p.point_id] || '' })))
+
+    const { data: paiesGerantData } = await supabase
+      .from('depenses')
+      .select('libelle, montant, point_id')
+      .in('point_id', pointIds)
+      .eq('categorie', 'Paie')
+      .eq('saisi_par', 'gerant')
+    setPaiesGerantDB(paiesGerantData || [])
 
     const { data: travData } = await supabase
       .from('travailleurs').select('*')
@@ -325,6 +339,21 @@ export default function RHScreen() {
     setMotifArchiveCustom('')
     chargerDonnees()
     Alert.alert('Archivé', `${travailleurAction.nom} a été archivé.`)
+  }
+
+  async function transfererTravailleur() {
+    if (!travailleurSelectionne || !restoTransfertId) return
+    setSavingTransfert(true)
+    await supabase.from('travailleurs')
+      .update({ restaurant_id: restoTransfertId })
+      .eq('id', travailleurSelectionne.id)
+    setSavingTransfert(false)
+    setModalTransfert(false)
+    setRestoTransfertId(null)
+    setModalTravailleur(false)
+    chargerDonnees()
+    const restoNom = restaurants.find(r => r.id === restoTransfertId)?.nom || ''
+    Alert.alert('Transféré', `${travailleurSelectionne.nom} a été transféré vers ${restoNom}.`)
   }
 
   async function reactiverTravailleur(trav) {
@@ -584,10 +613,14 @@ export default function RHScreen() {
 
   function statsGlobales() {
     const s = statsParTravailleur()
+    const totalPayePresences = s.reduce((sum, t) => sum + t.totalPaye, 0)
+    const totalPayeGerant = paiesGerantDB.reduce((sum, d) => sum + (parseFloat(d.montant) || 0), 0)
     return {
       totalPresences: s.reduce((sum, t) => sum + t.present, 0),
       totalAbsences: s.reduce((sum, t) => sum + t.absent, 0),
-      totalPaye: s.reduce((sum, t) => sum + t.totalPaye, 0),
+      totalPaye: totalPayePresences + totalPayeGerant,
+      totalPayePresences,
+      totalPayeGerant,
       nbJours: [...new Set(presences.map(p => p.date))].length,
       nbTravailleurs: travailleurs.length,
     }
@@ -674,6 +707,16 @@ export default function RHScreen() {
           <Text style={styles.salaireTitre}>💰 Total salaires versés</Text>
           <Text style={styles.salaireValeur}>{fmt(globales.totalPaye)}</Text>
           <Text style={styles.salaireSub}>{titrePeriode()} — {restoSelectionne?.nom}</Text>
+          {globales.totalPayeGerant > 0 && (
+            <View style={{ marginTop: 10, gap: 4 }}>
+              <Text style={[styles.salaireSub, { color: '#B8D4F5' }]}>
+                Présences : {fmt(globales.totalPayePresences)}
+              </Text>
+              <Text style={[styles.salaireSub, { color: '#B8D4F5' }]}>
+                Gérant caisse : {fmt(globales.totalPayeGerant)}
+              </Text>
+            </View>
+          )}
         </View>
 
         <Text style={styles.sectionTitre}>Taux de présence par travailleur</Text>
@@ -905,7 +948,16 @@ export default function RHScreen() {
   // ─── SALAIRES ──────────────────────────────────────────────
   function renderSalaires() {
     const statsTriees = [...stats].sort((a, b) => b.totalPaye - a.totalPaye)
-    const totalGlobal = statsTriees.reduce((sum, t) => sum + t.totalPaye, 0)
+    const totalPresences = statsTriees.reduce((sum, t) => sum + t.totalPaye, 0)
+    const totalGerant = paiesGerantDB.reduce((sum, d) => sum + (parseFloat(d.montant) || 0), 0)
+    const totalGlobal = totalPresences + totalGerant
+
+    const paiesGerantGrouped = {}
+    paiesGerantDB.forEach(d => {
+      const key = d.libelle || 'Paie gérant'
+      paiesGerantGrouped[key] = (paiesGerantGrouped[key] || 0) + (parseFloat(d.montant) || 0)
+    })
+    const paiesGerantLignes = Object.entries(paiesGerantGrouped).sort((a, b) => b[1] - a[1])
 
     return (
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -913,51 +965,113 @@ export default function RHScreen() {
           <Text style={styles.salaireTitre}>💰 Total masse salariale</Text>
           <Text style={styles.salaireValeur}>{fmt(totalGlobal)}</Text>
           <Text style={styles.salaireSub}>{titrePeriode()}</Text>
+          {totalGerant > 0 && (
+            <View style={{ marginTop: 10, gap: 4 }}>
+              <Text style={[styles.salaireSub, { color: '#B8D4F5' }]}>
+                Présences : {fmt(totalPresences)}
+              </Text>
+              <Text style={[styles.salaireSub, { color: '#B8D4F5' }]}>
+                Gérant caisse : {fmt(totalGerant)}
+              </Text>
+            </View>
+          )}
         </View>
 
-        {statsTriees.length === 0 ? (
+        {statsTriees.length === 0 && paiesGerantLignes.length === 0 ? (
           <View style={styles.emptyBox}>
             <Text style={styles.emptyIcon}>💰</Text>
             <Text style={styles.emptyTxt}>Aucune donnée sur cette période</Text>
           </View>
         ) : (
-          <View style={styles.salaireListCard}>
-            {statsTriees.map((t, i) => {
-              const pct = totalGlobal > 0 ? (t.totalPaye / totalGlobal * 100) : 0
-              return (
-                <TouchableOpacity
-                  key={i}
-                  style={[styles.salaireRow, i === statsTriees.length - 1 && { borderBottomWidth: 0 }]}
-                  onPress={() => ouvrirDetailTravailleur(
-                    travailleurs.find(tr => tr.id === t.id) || { id: t.id, nom: t.nom, poste: t.poste }
-                  )}
-                >
-                  <View style={styles.salaireLeft}>
-                    <View style={styles.avatar}>
-                      <Text style={styles.avatarTxt}>
-                        {t.nom.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.salaireNom}>{t.nom}</Text>
-                      <Text style={styles.salairePoste}>{t.poste || ''} — {t.present}j travaillé(s)</Text>
-                      <View style={styles.salaireBarre}>
-                        <View style={[styles.salaireBarreFill, { width: `${pct}%` }]} />
+          <>
+            {statsTriees.length > 0 && (
+              <>
+                <Text style={styles.sectionTitre}>Paies présences</Text>
+                <View style={styles.salaireListCard}>
+                  {statsTriees.map((t, i) => {
+                    const pct = totalGlobal > 0 ? (t.totalPaye / totalGlobal * 100) : 0
+                    return (
+                      <TouchableOpacity
+                        key={i}
+                        style={[styles.salaireRow, i === statsTriees.length - 1 && { borderBottomWidth: 0 }]}
+                        onPress={() => ouvrirDetailTravailleur(
+                          travailleurs.find(tr => tr.id === t.id) || { id: t.id, nom: t.nom, poste: t.poste }
+                        )}
+                      >
+                        <View style={styles.salaireLeft}>
+                          <View style={styles.avatar}>
+                            <Text style={styles.avatarTxt}>
+                              {t.nom.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.salaireNom}>{t.nom}</Text>
+                            <Text style={styles.salairePoste}>{t.poste || ''} — {t.present}j travaillé(s)</Text>
+                            <View style={styles.salaireBarre}>
+                              <View style={[styles.salaireBarreFill, { width: `${pct}%` }]} />
+                            </View>
+                          </View>
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={styles.salaireValeurRow}>{fmt(t.totalPaye)}</Text>
+                          <Text style={styles.salairePct}>{pct.toFixed(1)}%</Text>
+                        </View>
+                      </TouchableOpacity>
+                    )
+                  })}
+                  <View style={styles.salaireTotalRow}>
+                    <Text style={styles.salaireTotalLabel}>Sous-total</Text>
+                    <Text style={styles.salaireTotalVal}>{fmt(totalPresences)}</Text>
+                  </View>
+                </View>
+              </>
+            )}
+
+            {paiesGerantLignes.length > 0 && (
+              <>
+                <Text style={styles.sectionTitre}>Paies gérant caisse</Text>
+                <View style={styles.salaireListCard}>
+                  {paiesGerantLignes.map(([nom, montant], i) => {
+                    const pct = totalGlobal > 0 ? (montant / totalGlobal * 100) : 0
+                    return (
+                      <View
+                        key={i}
+                        style={[styles.salaireRow, i === paiesGerantLignes.length - 1 && { borderBottomWidth: 0 }]}
+                      >
+                        <View style={styles.salaireLeft}>
+                          <View style={styles.avatar}>
+                            <Text style={styles.avatarTxt}>
+                              {nom.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.salaireNom}>{nom}</Text>
+                            <Text style={styles.salairePoste}>Payé via gérant caisse</Text>
+                            <View style={styles.salaireBarre}>
+                              <View style={[styles.salaireBarreFill, { width: `${pct}%`, backgroundColor: '#EF9F27' }]} />
+                            </View>
+                          </View>
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={styles.salaireValeurRow}>{fmt(montant)}</Text>
+                          <Text style={styles.salairePct}>{pct.toFixed(1)}%</Text>
+                        </View>
                       </View>
-                    </View>
+                    )
+                  })}
+                  <View style={styles.salaireTotalRow}>
+                    <Text style={styles.salaireTotalLabel}>Sous-total</Text>
+                    <Text style={styles.salaireTotalVal}>{fmt(totalGerant)}</Text>
                   </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={styles.salaireValeurRow}>{fmt(t.totalPaye)}</Text>
-                    <Text style={styles.salairePct}>{pct.toFixed(1)}%</Text>
-                  </View>
-                </TouchableOpacity>
-              )
-            })}
-            <View style={styles.salaireTotalRow}>
-              <Text style={styles.salaireTotalLabel}>Total</Text>
-              <Text style={styles.salaireTotalVal}>{fmt(totalGlobal)}</Text>
+                </View>
+              </>
+            )}
+
+            <View style={[styles.salaireTotalRow, { marginTop: 12, backgroundColor: colors.surface, borderRadius: 12, padding: 14 }]}>
+              <Text style={[styles.salaireTotalLabel, { fontSize: 15 }]}>Total général</Text>
+              <Text style={[styles.salaireTotalVal, { fontSize: 18 }]}>{fmt(totalGlobal)}</Text>
             </View>
-          </View>
+          </>
         )}
         <View style={{ height: 30 }} />
       </ScrollView>
@@ -1439,10 +1553,89 @@ export default function RHScreen() {
                   ))}
                 </View>
               )}
+              <View style={styles.transfertArchiveRow}>
+                <TouchableOpacity
+                  style={styles.transfertBtn}
+                  onPress={() => {
+                    setRestoTransfertId(null)
+                    setModalTransfert(true)
+                  }}
+                >
+                  <Text style={styles.transfertBtnTxt}>🔄 Transférer</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.archiverBtn}
+                  onPress={() => {
+                    setTravailleurAction(travailleurSelectionne)
+                    setMotifArchive('Démission')
+                    setMotifArchiveCustom('')
+                    setModalArchiveAction(true)
+                  }}
+                >
+                  <Text style={styles.archiverBtnTxt}>📦 Archiver</Text>
+                </TouchableOpacity>
+              </View>
+
               <View style={{ height: 40 }} />
             </ScrollView>
           )}
         </SafeAreaView>
+      </Modal>
+    )
+  }
+
+  // ─── MODAL TRANSFERT ────────────────────────────────────────
+  function renderModalTransfert() {
+    if (!travailleurSelectionne) return null
+    const autresRestos = restaurants.filter(r => r.id !== restoSelectionne?.id)
+    return (
+      <Modal visible={modalTransfert} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitre}>Transférer {travailleurSelectionne.nom}</Text>
+              <TouchableOpacity onPress={() => setModalTransfert(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalLabel}>Choisir le restaurant destination</Text>
+            {autresRestos.map(r => (
+              <TouchableOpacity
+                key={r.id}
+                style={[
+                  styles.restoChoixBtn,
+                  restoTransfertId === r.id && styles.restoChoixBtnActive,
+                ]}
+                onPress={() => setRestoTransfertId(r.id)}
+              >
+                <Text style={[
+                  styles.restoChoixTxt,
+                  restoTransfertId === r.id && styles.restoChoixTxtActive,
+                ]}>
+                  {r.nom}
+                </Text>
+                {restoTransfertId === r.id && (
+                  <Text style={{ color: '#fff', fontSize: 16 }}>✓</Text>
+                )}
+              </TouchableOpacity>
+            ))}
+            <View style={[styles.modalBtns, { marginTop: 20 }]}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setModalTransfert(false)}>
+                <Text style={styles.modalCancelTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirm, (!restoTransfertId || savingTransfert) && { opacity: 0.5 }]}
+                onPress={transfererTravailleur}
+                disabled={!restoTransfertId || savingTransfert}
+              >
+                <Text style={styles.modalConfirmTxt}>
+                  {savingTransfert ? 'Transfert...' : 'Confirmer'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ height: 20 }} />
+          </View>
+        </View>
       </Modal>
     )
   }
@@ -1731,6 +1924,7 @@ export default function RHScreen() {
       )}
 
       {renderModalDetailTravailleur()}
+      {renderModalTransfert()}
       {renderModalFormTravailleur()}
       {renderModalCalendrier()}
       {renderModalConge()}
@@ -1986,6 +2180,15 @@ function makeStyles(colors) { return StyleSheet.create({
   motifTxtActive: { color: '#fff', fontWeight: '600' },
   supprimerModalBtn: { padding: 14, borderRadius: 12, backgroundColor: '#FAECE7', alignItems: 'center' },
   supprimerModalTxt: { fontSize: 14, fontWeight: '600', color: '#993C1D' },
+  transfertArchiveRow: { flexDirection: 'row', gap: 10, marginTop: 20, marginBottom: 4 },
+  transfertBtn: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#E6F1FB', alignItems: 'center' },
+  transfertBtnTxt: { fontSize: 14, fontWeight: '600', color: '#185FA5' },
+  archiverBtn: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#FAEEDA', alignItems: 'center' },
+  archiverBtnTxt: { fontSize: 14, fontWeight: '600', color: '#854F0B' },
+  restoChoixBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderRadius: 12, backgroundColor: colors.bg, borderWidth: 0.5, borderColor: colors.border, marginBottom: 8 },
+  restoChoixBtnActive: { backgroundColor: '#185FA5', borderColor: '#185FA5' },
+  restoChoixTxt: { fontSize: 14, color: colors.text, fontWeight: '500' },
+  restoChoixTxtActive: { color: '#fff', fontWeight: '600' },
   photoProfilBox: { alignItems: 'center', marginBottom: 16 },
   photoProfilPreview: { width: 70, height: 70, borderRadius: 35, marginBottom: 8 },
   photoProfilVide: { width: 70, height: 70, borderRadius: 35, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', marginBottom: 8, borderWidth: 0.5, borderColor: colors.border },
