@@ -60,6 +60,7 @@ import { useTheme } from '../context/ThemeContext'
 import { journaliser } from '../lib/journal'
 import { TYPES_DEMANDE } from '../lib/constants'
 import { creerNotification } from '../lib/notificationsInterne'
+import { envoyerNotifDemandeNouvelle } from '../lib/notifications'
 import { supabase } from '../lib/supabase'
 
 const STATUT_CONFIG = {
@@ -151,10 +152,11 @@ export default function DemandesScreen() {
       titre: 'Nouvelle demande',
       message: `${formType.icon} ${formType.label} pour ${formTrav.nom} — ${restaurantNom}`,
       restaurant_id: restaurantId,
-      cible_role: ['directeur', 'rh'],
+      cible_role: ['directeur', 'rh', 'manager'],
       created_by: userId,
       screen: 'demandes-admin',
     }).catch(() => {})
+    envoyerNotifDemandeNouvelle(formTrav.nom, `${formType.icon} ${formType.label}`, restaurantId).catch(() => {})
     journaliser({ action: 'demande_creee', details: `${formType.label} pour ${formTrav.nom}`, userId, restaurantId }).catch(() => {})
     setSaving(false)
     setShowModal(false)

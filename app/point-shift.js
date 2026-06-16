@@ -17,6 +17,7 @@ import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { savePointShiftData } from '../lib/api'
 import { creerNotification } from '../lib/notificationsInterne'
+import { envoyerNotifShiftValide } from '../lib/notifications'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
 
@@ -613,11 +614,12 @@ export default function PointShiftScreen() {
         titre: '⏱️ Shift validé',
         message: `${userNom || 'Caissier'} — ${heureDebut}→${heureFin}`,
         restaurant_id: restaurantId,
-        cible_role: ['gerant'],
+        cible_role: ['gerant', 'manager'],
         created_by: userId,
         screen: 'gerant-caissier',
         params: { restaurant_id: restaurantId, point_id: shiftPointId },
       }).catch(() => {})
+      envoyerNotifShiftValide(userNom, heureDebut, heureFin, restaurantId).catch(() => {})
     } catch (err) {
       Alert.alert('Erreur', err.message)
       setSaving(false)

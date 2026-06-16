@@ -26,6 +26,7 @@ import FormulaireTravailleur from '../components/FormulaireTravailleur'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { creerNotification } from '../lib/notificationsInterne'
+import { envoyerNotifNouveauTravailleur } from '../lib/notifications'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
 
@@ -264,9 +265,10 @@ export default function RHScreen() {
         titre: '👤 Nouveau travailleur',
         message: `${formTravailleur.nom} ajouté à ${restoSelectionne.nom}`,
         restaurant_id: restoSelectionne.id,
-        cible_role: ['manager', 'directeur'],
+        cible_role: ['manager', 'directeur', 'rh'],
         screen: 'rh',
       }).catch(() => {})
+      envoyerNotifNouveauTravailleur(formTravailleur.nom, restoSelectionne.nom, restoSelectionne.id).catch(() => {})
     }
 
     if (papiersDraft.length > 0 && travId) {

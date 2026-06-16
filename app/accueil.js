@@ -74,9 +74,9 @@ export default function AccueilScreen() {
     }
   }, [roleEffectif])
 
-  // Manager et Directeur : enregistrer le token push dès la connexion
+  // Enregistrer le token push pour tous les rôles qui reçoivent des notifications
   useEffect(() => {
-    if ((roleEffectif === 'directeur' || roleEffectif === 'manager') && userId) {
+    if (['manager', 'directeur', 'gerant', 'rh'].includes(roleEffectif) && userId) {
       enregistrerTokenDirecteur(userId)
     }
   }, [roleEffectif, userId])

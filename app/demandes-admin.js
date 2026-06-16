@@ -20,6 +20,7 @@ import { useTheme } from '../context/ThemeContext'
 import { journaliser } from '../lib/journal'
 import { TYPES_DEMANDE } from '../lib/constants'
 import { creerNotification } from '../lib/notificationsInterne'
+import { envoyerNotifDemandeStatut } from '../lib/notifications'
 import { supabase } from '../lib/supabase'
 
 const STATUT_CONFIG = {
@@ -109,6 +110,7 @@ export default function DemandesAdminScreen() {
       created_by: userId,
       screen: 'demandes',
     }).catch(() => {})
+    envoyerNotifDemandeStatut(d.travailleur_nom, d.type, 'validee', d.cree_par_id).catch(() => {})
     journaliser({ action: 'demande_validee', details: `${d.type} pour ${d.travailleur_nom}`, userId, restaurantId: d.restaurant_id }).catch(() => {})
     setSaving(false)
     charger()
@@ -139,6 +141,7 @@ export default function DemandesAdminScreen() {
       created_by: userId,
       screen: 'demandes',
     }).catch(() => {})
+    envoyerNotifDemandeStatut(demandeEnCours.travailleur_nom, demandeEnCours.type, 'declinee', demandeEnCours.cree_par_id).catch(() => {})
     journaliser({ action: 'demande_declinee', details: `${demandeEnCours.type} — motif: ${motifDecline.trim()}`, userId, restaurantId: demandeEnCours.restaurant_id }).catch(() => {})
     setSaving(false)
     setShowDeclineModal(false)
