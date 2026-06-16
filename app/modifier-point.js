@@ -1,5 +1,5 @@
 import { router } from 'expo-router'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import {
     ActivityIndicator,
     Alert,
@@ -13,9 +13,10 @@ import {
 } from 'react-native'
 import { Calendar } from 'react-native-calendars'
 import { supabase } from '../lib/supabase'
+import { journaliser } from '../lib/journal'
 import { useTheme } from '../context/ThemeContext'
 
-const ONGLETS = ['Résumé', 'Shifts', 'Ventes', 'Dépenses', 'Fournisseurs', 'Présences']
+const ONGLETS = ['Résumé', 'Shifts', 'Ventes', 'Dépenses', 'Fournisseurs', 'Présences', 'Dép. Gérant']
 const CATS_DEPENSES = ['Marché', 'Légumes', 'Fruits', 'Dépenses annexes']
 
 export default function ModifierPointScreen() {
@@ -33,6 +34,7 @@ export default function ModifierPointScreen() {
   const [depenses, setDepenses] = useState([])
   const [presences, setPresences] = useState([])
   const [transactions, setTransactions] = useState([])
+  const [transactionsRaw, setTransactionsRaw] = useState([])
   const [shifts, setShifts] = useState([])
   // Fournisseurs du restaurant pour ajout
   const [fournisseursList, setFournisseursList] = useState([])
@@ -56,6 +58,21 @@ export default function ModifierPointScreen() {
   // Suppression dépenses / transactions
   const [confirmSupprDep, setConfirmSupprDep] = useState(null)
   const [confirmSupprTrans, setConfirmSupprTrans] = useState(null)
+  const [confirmSauvegarder, setConfirmSauvegarder] = useState(null) // { naviguer: bool }
+  // Toast recalcul
+  const [recalcMsg, setRecalcMsg] = useState(null)
+  const recalcTimerRef = useRef(null)
+  // Ajout 1 — détails dep/fourn par shift (edit inline)
+  const [shiftDetails, setShiftDetails] = useState({})
+  // Ajout 2 — onglet Dép. Gérant
+  const [depGerant, setDepGerant] = useState([])
+  const [fournGerant, setFournGerant] = useState([])
+  const [loadingGerant, setLoadingGerant] = useState(false)
+  const [subGerant, setSubGerant] = useState('A')
+  // Déplacement de shift
+  const [showMoveShift, setShowMoveShift] = useState(null)
+  const [moveDateCible, setMoveDateCible] = useState('')
+  const [deplacement, setDeplacement] = useState(false)
 
   useEffect(() => { chargerRestaurants() }, [])
 
@@ -139,6 +156,7 @@ export default function ModifierPointScreen() {
         return acc
       }, {})
     )
+    setTransactionsRaw(trans || [])
     setTransactions(transDedup)
 
     // Charger liste fournisseurs du restaurant
@@ -151,27 +169,169 @@ export default function ModifierPointScreen() {
     setLoading(false)
   }
 
-  async function supprimerShift(shift) {
-    if (point?.valide) {
-      Alert.alert('Suppression impossible', 'Ce point est déjà validé.')
-      setConfirmSupprShift(null)
+  function afficherToast(msg) {
+    if (recalcTimerRef.current) clearTimeout(recalcTimerRef.current)
+    setRecalcMsg(msg)
+    recalcTimerRef.current = setTimeout(() => setRecalcMsg(null), 4500)
+  }
+
+  function calculerVenteShift(s, paies = 0) {
+    return (parseFloat(s.espece) || 0)
+      + (parseFloat(s.wave) || 0)
+      + (parseFloat(s.om) || 0)
+      + (parseFloat(s.djamo) || 0)
+      + (parseFloat(s.yango_cse) || 0)
+      + (parseFloat(s.glovo_cse) || 0)
+      + (parseFloat(s.kdo) || 0)
+      + (parseFloat(s.retour) || 0)
+      + (parseFloat(s.depenses) || 0)
+      + (parseFloat(s.fournisseurs) || 0)
+      + paies
+  }
+
+  function paiesShift(shift) {
+    return presences
+      .filter(p => shift.caissier_id ? p.caissier_id === shift.caissier_id : p.caissier_nom === shift.caissier_nom)
+      .reduce((sum, p) => sum + (p.paye || 0), 0)
+  }
+
+  async function recalculerVenteTotalePoint(pointId) {
+    const { data: allShifts } = await supabase
+      .from('points_shifts').select('vente_shift').eq('point_id', pointId)
+    const total = (allShifts || []).reduce((sum, s) => sum + (s.vente_shift || 0), 0)
+    await supabase.from('points').update({ vente_total: total }).eq('id', pointId)
+    return total
+  }
+
+  async function rechargerShiftsEtTotal(pointId) {
+    const { data: sh } = await supabase
+      .from('points_shifts').select('*').eq('point_id', pointId).order('created_at')
+    setShifts(sh || [])
+    const total = (sh || []).reduce((sum, s) => sum + (s.vente_shift || 0), 0)
+    await supabase.from('points').update({ vente_total: total }).eq('id', pointId)
+    setForm(p => ({ ...p, vente_total: String(total) }))
+    return { total, shifts: sh || [] }
+  }
+
+  async function chargerDetailShift(shift) {
+    if (!shift.caissier_nom) {
+      setShiftDetails(prev => ({ ...prev, [shift.id]: { depenses: [], fournisseurs: [], loading: false } }))
       return
     }
+    setShiftDetails(prev => ({ ...prev, [shift.id]: { depenses: [], fournisseurs: [], loading: true } }))
+    const [{ data: deps }, { data: fourns }] = await Promise.all([
+      supabase.from('depenses').select('*').eq('point_id', point.id).eq('caissier_nom', shift.caissier_nom).eq('saisi_par', 'caissier'),
+      supabase.from('transactions_fournisseurs').select('*, fournisseurs(nom)').eq('point_id', point.id).eq('saisi_par', 'caissier').eq('caissier_nom', shift.caissier_nom),
+    ])
+    setShiftDetails(prev => ({ ...prev, [shift.id]: { depenses: deps || [], fournisseurs: fourns || [], loading: false } }))
+  }
+
+  async function chargerDepGerant() {
+    if (!point) return
+    setLoadingGerant(true)
+    try {
+      const { data: pt } = await supabase.from('points').select('draft_gerant').eq('id', point.id).single()
+      const draft = pt?.draft_gerant || {}
+      const draftDeps = draft.depenses || {}
+      const flat = []
+      Object.entries(draftDeps).forEach(([cat, items]) => {
+        if (Array.isArray(items)) items.forEach(item => flat.push({ categorie: cat, libelle: item.libelle || '', montant: item.montant || 0 }))
+      })
+      setDepGerant(flat)
+      const { data: fourns } = await supabase.from('transactions_fournisseurs')
+        .select('*, fournisseurs(nom)').eq('point_id', point.id).eq('saisi_par', 'gerant_caissier')
+      setFournGerant(fourns || [])
+    } catch (_) {}
+    setLoadingGerant(false)
+  }
+
+  async function sauverDepFournGerantShift(gerantShift) {
+    const details = shiftDetails[gerantShift.id]
+    if (!details) return
+    setLoading(true)
+    try {
+      for (const d of details.depenses) {
+        await supabase.from('depenses').update({ montant: d.montant, libelle: d.libelle }).eq('id', d.id)
+      }
+      const newDepDenorm = details.depenses.reduce((s, d) => s + (d.montant || 0), 0)
+      for (const t of details.fournisseurs) {
+        await supabase.from('transactions_fournisseurs').update({
+          facture: t.facture, paye: t.paye, reste: (t.facture || 0) - (t.paye || 0),
+        }).eq('id', t.id)
+      }
+      const newFournDenorm = details.fournisseurs.reduce((s, t) => s + (t.paye || 0), 0)
+      const updatedShift = { ...gerantShift, depenses: newDepDenorm, fournisseurs: newFournDenorm }
+      const nouvelleVente = calculerVenteShift(updatedShift)
+      await supabase.from('points_shifts').update({
+        depenses: newDepDenorm, fournisseurs: newFournDenorm, vente_shift: nouvelleVente,
+      }).eq('id', gerantShift.id)
+      const { total } = await rechargerShiftsEtTotal(point.id)
+      setDepenses(prev => prev.map(d => {
+        const ed = details.depenses.find(dd => dd.id === d.id)
+        return ed ? { ...d, montant: ed.montant, libelle: ed.libelle } : d
+      }))
+      setTransactions(prev => prev.map(t => {
+        const ed = details.fournisseurs.find(tt => tt.id === t.id)
+        return ed ? { ...t, facture: ed.facture, paye: ed.paye, reste: (ed.facture || 0) - (ed.paye || 0) } : t
+      }))
+      afficherToast(`✅ Gérant — Shift : ${fmt(nouvelleVente)} / Point total : ${fmt(total)}`)
+    } catch (err) { Alert.alert('Erreur', err.message) }
+    finally { setLoading(false) }
+  }
+
+  async function sauverDeductionsGerant() {
+    if (!point) return
+    setLoading(true)
+    try {
+      for (const t of fournGerant) {
+        await supabase.from('transactions_fournisseurs').update({
+          facture: t.facture, paye: t.paye, reste: (t.facture || 0) - (t.paye || 0),
+        }).eq('id', t.id)
+      }
+      const totalDep = depGerant.reduce((s, d) => s + (d.montant || 0), 0)
+      const totalFourn = fournGerant.reduce((s, t) => s + (t.paye || 0), 0)
+      const total = totalDep + totalFourn
+      const { data: pt } = await supabase.from('points')
+        .select('vente_total, depense_total, kdo, retour, yango_cse, glovo_cse, wave, om, djamo')
+        .eq('id', point.id).single()
+      const especes = (pt?.vente_total || 0) - (pt?.depense_total || 0)
+        - (pt?.kdo || 0) - (pt?.retour || 0)
+        - (pt?.yango_cse || 0) - (pt?.glovo_cse || 0)
+        - (pt?.wave || 0) - (pt?.om || 0) - (pt?.djamo || 0)
+        - total
+      await supabase.from('points').update({ depenses_gerant_caisse_total: total, reste_especes: especes }).eq('id', point.id)
+      afficherToast(`✅ Déductions gérant — Reste espèces : ${fmt(especes)}`)
+    } catch (err) { Alert.alert('Erreur', err.message) }
+    finally { setLoading(false) }
+  }
+
+  async function supprimerShift(shift) {
     setSuppressionEnCours(true)
     try {
+      const venteAvant = point ? (parseFloat(form.vente_total) || 0) : 0
       if (shift.caissier_id) {
         await supabase.from('presences').delete()
           .eq('point_id', shift.point_id).eq('caissier_id', shift.caissier_id)
       }
-      await supabase.from('depenses').delete()
-        .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
-      await supabase.from('transactions_fournisseurs').delete()
-        .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
+      if (shift.caissier_nom) {
+        await supabase.from('depenses').delete()
+          .eq('point_id', shift.point_id).eq('caissier_nom', shift.caissier_nom)
+        await supabase.from('transactions_fournisseurs').delete()
+          .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
+      } else {
+        await supabase.from('depenses').delete()
+          .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
+        await supabase.from('transactions_fournisseurs').delete()
+          .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
+      }
       await supabase.from('points_shifts').delete().eq('id', shift.id)
       setConfirmSupprShift(null)
-      const { data: sh } = await supabase
-        .from('points_shifts').select('*').eq('point_id', point.id).order('created_at')
-      setShifts(sh || [])
+      const { total } = await rechargerShiftsEtTotal(point.id)
+      journaliser('suppression_shift', {
+        caissier: shift.caissier_nom, vente_avant: venteAvant, vente_apres: total,
+        point_valide: !!point?.valide,
+      }, { pointId: point.id }).catch(() => {})
+      afficherToast(`✅ Shift supprimé — Point total recalculé : ${fmt(total)}`)
     } catch (err) {
       Alert.alert('Erreur', err.message)
     } finally {
@@ -180,11 +340,6 @@ export default function ModifierPointScreen() {
   }
 
   async function supprimerShiftsMultiples() {
-    if (point?.valide) {
-      Alert.alert('Suppression impossible', 'Ce point est déjà validé.')
-      setConfirmSupprMultiple(false)
-      return
-    }
     setSuppressionEnCours(true)
     setConfirmSupprMultiple(false)
     const selectedShifts = shifts.filter(s => shiftsSelectionnes.has(s.id))
@@ -204,13 +359,108 @@ export default function ModifierPointScreen() {
       await supabase.from('points_shifts').delete().in('id', shiftIds)
       setModeSelShifts(false)
       setShiftsSelectionnes(new Set())
-      const { data: sh } = await supabase
-        .from('points_shifts').select('*').eq('point_id', point.id).order('created_at')
-      setShifts(sh || [])
+      const { total } = await rechargerShiftsEtTotal(point.id)
+      afficherToast(`✅ Shifts supprimés — Point total recalculé : ${fmt(total)}`)
     } catch (err) {
       Alert.alert('Erreur', err.message)
     } finally {
       setSuppressionEnCours(false)
+    }
+  }
+
+  async function deplacerShift(shift, dateCible) {
+    setDeplacement(true)
+    try {
+      // Chercher le point cible
+      const { data: pointCible, error: errCible } = await supabase
+        .from('points').select('*')
+        .eq('restaurant_id', selectedResto.id)
+        .eq('date', dateCible)
+        .single()
+
+      if (errCible || !pointCible) {
+        Alert.alert('Erreur', `Aucun point trouvé pour le ${dateCible} dans ce restaurant. Créez d'abord le point pour cette date.`)
+        return
+      }
+
+      if (pointCible.id === shift.point_id) {
+        Alert.alert('Erreur', 'Le shift est déjà sur ce point.')
+        return
+      }
+
+      // 1. Déplacer le record points_shifts
+      const { error: errShift } = await supabase.from('points_shifts')
+        .update({ point_id: pointCible.id, date: dateCible })
+        .eq('id', shift.id)
+      if (errShift) throw errShift
+
+      // 2. Déplacer les dépenses caissier
+      if (shift.caissier_nom) {
+        await supabase.from('depenses')
+          .update({ point_id: pointCible.id })
+          .eq('point_id', shift.point_id)
+          .eq('saisi_par', 'caissier')
+          .eq('caissier_nom', shift.caissier_nom)
+      }
+
+      // 3. Déplacer les transactions fournisseurs caissier
+      if (shift.caissier_id) {
+        await supabase.from('transactions_fournisseurs')
+          .update({ point_id: pointCible.id })
+          .eq('point_id', shift.point_id)
+          .eq('saisi_par', 'caissier')
+          .eq('caissier_id', shift.caissier_id)
+      } else if (shift.caissier_nom) {
+        await supabase.from('transactions_fournisseurs')
+          .update({ point_id: pointCible.id })
+          .eq('point_id', shift.point_id)
+          .eq('saisi_par', 'caissier')
+          .eq('caissier_nom', shift.caissier_nom)
+      }
+
+      // 4. Déplacer les présences
+      if (shift.caissier_id) {
+        await supabase.from('presences')
+          .update({ point_id: pointCible.id, date: dateCible })
+          .eq('point_id', shift.point_id)
+          .eq('caissier_id', shift.caissier_id)
+      }
+
+      // 5. Déplacer inventaires_shifts
+      if (shift.caissier_id) {
+        await supabase.from('inventaires_shifts')
+          .update({ point_id: pointCible.id })
+          .eq('point_id', shift.point_id)
+          .eq('caissier_id', shift.caissier_id)
+      }
+
+      // 6. Recalculer vente_total sur le point source (point courant)
+      const { data: shiftsSource } = await supabase
+        .from('points_shifts').select('vente_shift').eq('point_id', shift.point_id)
+      const totalSource = (shiftsSource || []).reduce((s, r) => s + (r.vente_shift || 0), 0)
+      await supabase.from('points').update({ vente_total: totalSource }).eq('id', shift.point_id)
+
+      // 7. Recalculer vente_total sur le point cible
+      const { data: shiftsCible } = await supabase
+        .from('points_shifts').select('vente_shift').eq('point_id', pointCible.id)
+      const totalCible = (shiftsCible || []).reduce((s, r) => s + (r.vente_shift || 0), 0)
+      await supabase.from('points').update({ vente_total: totalCible }).eq('id', pointCible.id)
+
+      journaliser('deplacement_shift', {
+        caissier: shift.caissier_nom,
+        date_source: selectedDate, date_cible: dateCible,
+        vente_shift: shift.vente_shift,
+        point_source_valide: !!point?.valide, point_cible_valide: !!pointCible?.valide,
+      }, { pointId: shift.point_id }).catch(() => {})
+
+      setShowMoveShift(null)
+      setMoveDateCible('')
+      await chargerPoint(selectedResto.id, selectedDate)
+      afficherToast(`✅ Shift déplacé vers le ${dateCible} — Total point mis à jour`)
+    } catch (err) {
+      Alert.alert('Erreur', err.message || String(err))
+    } finally {
+      setDeplacement(false)
     }
   }
 
@@ -227,61 +477,163 @@ export default function ModifierPointScreen() {
     setShiftEdits(prev => ({
       ...prev,
       [shift.id]: {
-        vente_shift: String(shift.vente_shift || ''),
         heure_debut: shift.heure_debut || '',
         heure_fin: shift.heure_fin || '',
         espece: String(shift.espece || ''),
+        wave: String(shift.wave || ''),
+        om: String(shift.om || ''),
+        djamo: String(shift.djamo || ''),
+        yango_cse: String(shift.yango_cse || ''),
+        glovo_cse: String(shift.glovo_cse || ''),
+        kdo: String(shift.kdo || ''),
+        retour: String(shift.retour || ''),
         editing: true,
       }
     }))
+    if (!shiftDetails[shift.id]) chargerDetailShift(shift)
   }
 
   async function sauverShift(shift) {
     const edits = shiftEdits[shift.id]
     if (!edits) return
     setLoading(true)
-    const { error } = await supabase.from('points_shifts').update({
-      vente_shift: parseFloat(edits.vente_shift) || 0,
-      heure_debut: edits.heure_debut || shift.heure_debut,
-      heure_fin: edits.heure_fin || shift.heure_fin,
-      espece: parseFloat(edits.espece) || 0,
-    }).eq('id', shift.id)
-    if (error) { setLoading(false); Alert.alert('Erreur', error.message); return }
-    const { data: sh } = await supabase.from('points_shifts').select('*').eq('point_id', point.id).order('created_at')
-    setShifts(sh || [])
-    const totalEspece = (sh || []).reduce((s, s2) => s + (s2.espece || 0), 0)
-    await supabase.from('points').update({ espece_shifts: totalEspece }).eq('id', point.id)
-    setShiftEdits(prev => ({ ...prev, [shift.id]: { ...prev[shift.id], editing: false } }))
-    setLoading(false)
-    Alert.alert('Succès', 'Shift mis à jour !')
+    try {
+      const details = shiftDetails[shift.id]
+      const detailsLoaded = details && !details.loading
+
+      const newDepDenorm = detailsLoaded
+        ? details.depenses.reduce((s, d) => s + (d.montant || 0), 0)
+        : 0
+      const newFournDenorm = detailsLoaded
+        ? details.fournisseurs.reduce((s, t) => s + (t.paye || 0), 0)
+        : 0
+
+      if (detailsLoaded && details.depenses.length > 0) {
+        for (const d of details.depenses) {
+          await supabase.from('depenses').update({ montant: d.montant, libelle: d.libelle }).eq('id', d.id)
+        }
+        setDepenses(prev => prev.map(d => {
+          const ed = details.depenses.find(dd => dd.id === d.id)
+          return ed ? { ...d, montant: ed.montant, libelle: ed.libelle } : d
+        }))
+      }
+
+      if (detailsLoaded && details.fournisseurs.length > 0) {
+        for (const t of details.fournisseurs) {
+          await supabase.from('transactions_fournisseurs').update({
+            facture: t.facture, paye: t.paye, reste: (t.facture || 0) - (t.paye || 0),
+          }).eq('id', t.id)
+        }
+        const updater = t => {
+          const ed = details.fournisseurs.find(tt => tt.id === t.id)
+          return ed ? { ...t, facture: ed.facture, paye: ed.paye, reste: (ed.facture || 0) - (ed.paye || 0) } : t
+        }
+        setTransactions(prev => prev.map(updater))
+        setTransactionsRaw(prev => prev.map(updater))
+      }
+
+      const updated = {
+        heure_debut: edits.heure_debut || shift.heure_debut,
+        heure_fin: edits.heure_fin || shift.heure_fin,
+        espece: parseFloat(edits.espece) || 0,
+        wave: parseFloat(edits.wave) || 0,
+        om: parseFloat(edits.om) || 0,
+        djamo: parseFloat(edits.djamo) || 0,
+        yango_cse: parseFloat(edits.yango_cse) || 0,
+        glovo_cse: parseFloat(edits.glovo_cse) || 0,
+        kdo: parseFloat(edits.kdo) || 0,
+        retour: parseFloat(edits.retour) || 0,
+        depenses: newDepDenorm,
+        fournisseurs: newFournDenorm,
+      }
+
+      const nouvelleVente = calculerVenteShift(updated, paiesShift(shift))
+      updated.vente_shift = nouvelleVente
+
+      const { error } = await supabase.from('points_shifts').update(updated).eq('id', shift.id)
+      if (error) { Alert.alert('Erreur', error.message); return }
+
+      const { total } = await rechargerShiftsEtTotal(point.id)
+
+      journaliser('modification_shift', {
+        caissier: shift.caissier_nom,
+        vente_shift_avant: shift.vente_shift, vente_shift_apres: nouvelleVente,
+        vente_point_avant: parseFloat(form.vente_total) || 0, vente_point_apres: total,
+      }, { pointId: point.id }).catch(() => {})
+
+      setShiftEdits(prev => ({ ...prev, [shift.id]: { ...prev[shift.id], editing: false } }))
+      afficherToast(`✅ Vente recalculée — Shift : ${fmt(nouvelleVente)} / Point total : ${fmt(total)}`)
+    } catch (err) {
+      Alert.alert('Erreur', err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function supprimerDepense(dep) {
     setLoading(true)
     const { error } = await supabase.from('depenses').delete().eq('id', dep.id)
     if (error) { setLoading(false); Alert.alert('Erreur', error.message); return }
+
     const nouvelles = depenses.filter(d => d.id !== dep.id)
     setDepenses(nouvelles)
-    const total = nouvelles.reduce((s, d) => s + (d.montant || 0), 0)
-               + transactions.reduce((s, t) => s + (t.paye || 0), 0)
-    await supabase.from('points').update({ depense_total: total }).eq('id', point.id)
-    setForm(p => ({ ...p, depense_total: String(total) }))
-    setLoading(false)
     setConfirmSupprDep(null)
+
+    const totalDep = nouvelles.reduce((s, d) => s + (d.montant || 0), 0)
+    const totalTx = transactions.reduce((s, t) => s + (t.paye || 0), 0)
+    await supabase.from('points').update({ depense_total: totalDep + totalTx }).eq('id', point.id)
+    setForm(p => ({ ...p, depense_total: String(totalDep + totalTx) }))
+
+    // Cascade vers le shift si dépense caissier
+    if (dep.saisi_par === 'caissier' && dep.caissier_nom) {
+      const matchShift = shifts.find(s => s.caissier_nom === dep.caissier_nom)
+      if (matchShift) {
+        const { data: restantes } = await supabase.from('depenses')
+          .select('montant').eq('point_id', point.id).eq('caissier_nom', dep.caissier_nom)
+        const newDepTotal = (restantes || []).reduce((s, d) => s + (d.montant || 0), 0)
+        const nouvelleVente = Math.max(0, (matchShift.vente_shift || 0) - (dep.montant || 0))
+        await supabase.from('points_shifts')
+          .update({ depenses: newDepTotal, vente_shift: nouvelleVente }).eq('id', matchShift.id)
+      }
+    }
+
+    const { total } = await rechargerShiftsEtTotal(point.id)
+    setLoading(false)
+    afficherToast(`✅ Dépense supprimée — Point total recalculé : ${fmt(total)}`)
   }
 
   async function supprimerTransaction(trans) {
     setLoading(true)
     const { error } = await supabase.from('transactions_fournisseurs').delete().eq('id', trans.id)
     if (error) { setLoading(false); Alert.alert('Erreur', error.message); return }
+
     const restantes = transactions.filter(t => t.id !== trans.id)
     setTransactions(restantes)
-    const total = depenses.reduce((s, d) => s + (d.montant || 0), 0)
-               + restantes.reduce((s, t) => s + (t.paye || 0), 0)
-    await supabase.from('points').update({ depense_total: total }).eq('id', point.id)
-    setForm(p => ({ ...p, depense_total: String(total) }))
-    setLoading(false)
     setConfirmSupprTrans(null)
+
+    const totalDep = depenses.reduce((s, d) => s + (d.montant || 0), 0)
+    const totalTx = restantes.reduce((s, t) => s + (t.paye || 0), 0)
+    await supabase.from('points').update({ depense_total: totalDep + totalTx }).eq('id', point.id)
+    setForm(p => ({ ...p, depense_total: String(totalDep + totalTx) }))
+
+    // Cascade vers le shift caissier
+    if (trans.saisi_par === 'caissier') {
+      const caissierShifts = shifts.filter(s => s.caissier_nom)
+      const matchShift = caissierShifts.length === 1 ? caissierShifts[0]
+        : caissierShifts.find(s => s.caissier_nom === trans.caissier_nom)
+      if (matchShift) {
+        const { data: restTx } = await supabase.from('transactions_fournisseurs')
+          .select('paye').eq('point_id', point.id).eq('saisi_par', 'caissier')
+        const newFournTotal = (restTx || []).reduce((s, t) => s + (t.paye || 0), 0)
+        const nouvelleVente = Math.max(0, (matchShift.vente_shift || 0) - (trans.paye || 0))
+        await supabase.from('points_shifts')
+          .update({ fournisseurs: newFournTotal, vente_shift: nouvelleVente }).eq('id', matchShift.id)
+      }
+    }
+
+    const { total } = await rechargerShiftsEtTotal(point.id)
+    setLoading(false)
+    afficherToast(`✅ Fournisseur supprimé — Point total recalculé : ${fmt(total)}`)
   }
 
   function renderShifts() {
@@ -290,11 +642,11 @@ export default function ModifierPointScreen() {
       <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {pointValide && (
           <View style={styles.warningBanner}>
-            <Text style={styles.warningTxt}>🔒 Point validé — suppression désactivée</Text>
+            <Text style={styles.warningTxt}>🔒 Point validé — ✏️ Modification et suppression autorisées</Text>
           </View>
         )}
 
-        {!pointValide && shifts.length > 0 && (
+        {shifts.length > 0 && (
           <View style={styles.selectionBar}>
             {modeSelShifts ? (
               <>
@@ -350,13 +702,16 @@ export default function ModifierPointScreen() {
                     {s.espece > 0 && (
                       <Text style={{ fontSize: 11, color: colors.textMuted }}>💵 {fmt(s.espece)}</Text>
                     )}
-                    {!pointValide && !modeSelShifts && (
+                    {!modeSelShifts && (
                       <View style={{ flexDirection: 'row', gap: 6 }}>
                         <TouchableOpacity style={styles.editBtn} onPress={() => isEditing
                           ? setShiftEdits(prev => ({ ...prev, [s.id]: { ...prev[s.id], editing: false } }))
                           : initShiftEdit(s)
                         }>
                           <Text style={styles.editBtnTxt}>{isEditing ? '✕' : '✏️'}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.moveBtn} onPress={() => { setShowMoveShift(s); setMoveDateCible('') }}>
+                          <Text style={styles.moveBtnTxt}>📅</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.supprimerBtn} onPress={() => setConfirmSupprShift(s)}>
                           <Text style={styles.supprimerBtnTxt}>🗑️</Text>
@@ -366,49 +721,176 @@ export default function ModifierPointScreen() {
                   </View>
                 </View>
 
-                {isEditing && (
-                  <View style={styles.shiftEditPanel}>
-                    <View style={styles.inputLigne}>
-                      <Text style={styles.inputLabel}>Vente shift</Text>
-                      <TextInput
-                        style={styles.inputField}
-                        value={edit.vente_shift || ''}
-                        onChangeText={v => setShiftEdits(prev => ({ ...prev, [s.id]: { ...prev[s.id], vente_shift: v } }))}
-                        keyboardType="numeric" placeholder="0" placeholderTextColor="#bbb"
-                      />
+                {(() => {
+                  const shiftFourn = transactionsRaw.filter(t =>
+                    t.saisi_par === 'caissier' &&
+                    (t.caissier_nom === s.caissier_nom || t.caissier_nom == null) &&
+                    (t.paye || 0) > 0
+                  )
+                  const shiftPres = s.caissier_id
+                    ? presences.filter(p => p.caissier_id === s.caissier_id)
+                    : []
+                  if (shiftFourn.length === 0 && shiftPres.length === 0) return null
+                  return (
+                    <View style={styles.shiftSubSection}>
+                      {shiftFourn.length > 0 && (
+                        <>
+                          <Text style={styles.shiftSubTitre}>Fournisseurs</Text>
+                          {shiftFourn.map((t, ti) => (
+                            <View key={t.id || ti} style={styles.shiftSubRow}>
+                              <Text style={styles.shiftSubLabel}>{t.fournisseurs?.nom || 'Fournisseur'}</Text>
+                              <Text style={styles.shiftSubVal}>{fmt(t.paye)}</Text>
+                            </View>
+                          ))}
+                        </>
+                      )}
+                      {shiftPres.length > 0 && (
+                        <>
+                          <Text style={styles.shiftSubTitre}>Présences</Text>
+                          {shiftPres.map((p, pi) => (
+                            <View key={p.id || pi} style={styles.shiftSubRow}>
+                              <Text style={styles.shiftSubLabel}>
+                                {p.travailleur_nom}{' — '}
+                                <Text style={{ color: p.statut === 'present' ? '#3B6D11' : '#A32D2D' }}>{p.statut}</Text>
+                              </Text>
+                              {(p.paye || 0) > 0 && <Text style={styles.shiftSubVal}>{fmt(p.paye)}</Text>}
+                            </View>
+                          ))}
+                        </>
+                      )}
                     </View>
-                    <View style={styles.inputLigne}>
-                      <Text style={styles.inputLabel}>Heure début</Text>
-                      <TextInput
-                        style={styles.inputField}
-                        value={edit.heure_debut || ''}
-                        onChangeText={v => setShiftEdits(prev => ({ ...prev, [s.id]: { ...prev[s.id], heure_debut: v } }))}
-                        placeholder="08:00" placeholderTextColor="#bbb"
-                      />
+                  )
+                })()}
+
+                {isEditing && (() => {
+                  const detLoaded = shiftDetails[s.id] && !shiftDetails[s.id].loading
+                  const venteCalculee = calculerVenteShift({
+                    espece: parseFloat(edit.espece) || 0,
+                    wave: parseFloat(edit.wave) || 0,
+                    om: parseFloat(edit.om) || 0,
+                    djamo: parseFloat(edit.djamo) || 0,
+                    yango_cse: parseFloat(edit.yango_cse) || 0,
+                    glovo_cse: parseFloat(edit.glovo_cse) || 0,
+                    kdo: parseFloat(edit.kdo) || 0,
+                    retour: parseFloat(edit.retour) || 0,
+                    depenses: detLoaded ? shiftDetails[s.id].depenses.reduce((sum, d) => sum + (d.montant || 0), 0) : 0,
+                    fournisseurs: detLoaded ? shiftDetails[s.id].fournisseurs.reduce((sum, t) => sum + (t.paye || 0), 0) : 0,
+                  }, paiesShift(s))
+                  const setField = (field, v) => setShiftEdits(prev => ({ ...prev, [s.id]: { ...prev[s.id], [field]: v } }))
+                  return (
+                    <View style={styles.shiftEditPanel}>
+                      {[
+                        ['Heure début', 'heure_debut', false, '08:00'],
+                        ['Heure fin', 'heure_fin', false, '16:00'],
+                        ['Espèces', 'espece', true, '0'],
+                        ['Wave', 'wave', true, '0'],
+                        ['Orange Money', 'om', true, '0'],
+                        ['Djamo', 'djamo', true, '0'],
+                        ['Yango CSE', 'yango_cse', true, '0'],
+                        ['Glovo CSE', 'glovo_cse', true, '0'],
+                        ['KDO', 'kdo', true, '0'],
+                        ['Retour', 'retour', true, '0'],
+                      ].map(([label, field, numeric, placeholder]) => (
+                        <View key={field} style={styles.inputLigne}>
+                          <Text style={styles.inputLabel}>{label}</Text>
+                          <TextInput
+                            style={styles.inputField}
+                            value={edit[field] || ''}
+                            onChangeText={v => setField(field, v)}
+                            keyboardType={numeric ? 'numeric' : 'default'}
+                            placeholder={placeholder}
+                            placeholderTextColor="#bbb"
+                          />
+                        </View>
+                      ))}
+                      <View style={[styles.shiftVenteCalc]}>
+                        <Text style={styles.shiftVenteCalcLabel}>Vente shift calculée</Text>
+                        <Text style={styles.shiftVenteCalcVal}>{fmt(venteCalculee)}</Text>
+                      </View>
+
+                      {/* Dépenses du shift */}
+                      {shiftDetails[s.id]?.loading && (
+                        <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+                          <ActivityIndicator size="small" color={colors.primary} />
+                        </View>
+                      )}
+                      {!shiftDetails[s.id]?.loading && shiftDetails[s.id]?.depenses?.length > 0 && (
+                        <>
+                          <Text style={[styles.sectionTitre, { marginTop: 12 }]}>Dépenses du shift</Text>
+                          {shiftDetails[s.id].depenses.map((d, di) => (
+                            <View key={d.id || di} style={styles.depLigneBlock}>
+                              <Text style={{ fontSize: 10, color: '#534AB7', marginBottom: 2 }}>{d.categorie}</Text>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <View style={{ flex: 1 }}>
+                                  <TextInput
+                                    style={styles.libellInput}
+                                    value={d.libelle || ''}
+                                    onChangeText={v => setShiftDetails(prev => ({
+                                      ...prev,
+                                      [s.id]: { ...prev[s.id], depenses: prev[s.id].depenses.map((dd, idx) => idx === di ? { ...dd, libelle: v } : dd) },
+                                    }))}
+                                    placeholder="Description" placeholderTextColor="#bbb"
+                                  />
+                                </View>
+                                <TextInput
+                                  style={[styles.inputField, { width: 90 }]}
+                                  value={String(d.montant || '')}
+                                  onChangeText={v => setShiftDetails(prev => ({
+                                    ...prev,
+                                    [s.id]: { ...prev[s.id], depenses: prev[s.id].depenses.map((dd, idx) => idx === di ? { ...dd, montant: parseFloat(v) || 0 } : dd) },
+                                  }))}
+                                  keyboardType="numeric" placeholder="0" placeholderTextColor="#bbb"
+                                />
+                              </View>
+                            </View>
+                          ))}
+                        </>
+                      )}
+                      {!shiftDetails[s.id]?.loading && shiftDetails[s.id]?.fournisseurs?.length > 0 && (
+                        <>
+                          <Text style={[styles.sectionTitre, { marginTop: 12 }]}>Fournisseurs du shift</Text>
+                          {shiftDetails[s.id].fournisseurs.map((t, ti) => (
+                            <View key={t.id || ti} style={styles.depLigneBlock}>
+                              <Text style={{ fontSize: 11, fontWeight: '600', color: colors.text, marginBottom: 4 }}>
+                                {t.fournisseurs?.nom || `Fournisseur ${ti + 1}`}
+                              </Text>
+                              <View style={{ flexDirection: 'row', gap: 8 }}>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={{ fontSize: 10, color: colors.textMuted, marginBottom: 2 }}>Facture</Text>
+                                  <TextInput
+                                    style={[styles.inputField, { width: '100%', textAlign: 'left' }]}
+                                    value={String(t.facture || '')}
+                                    onChangeText={v => setShiftDetails(prev => ({
+                                      ...prev,
+                                      [s.id]: { ...prev[s.id], fournisseurs: prev[s.id].fournisseurs.map((tt, idx) => idx === ti ? { ...tt, facture: parseFloat(v) || 0 } : tt) },
+                                    }))}
+                                    keyboardType="numeric" placeholder="0" placeholderTextColor="#bbb"
+                                  />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={{ fontSize: 10, color: colors.textMuted, marginBottom: 2 }}>Payé</Text>
+                                  <TextInput
+                                    style={[styles.inputField, { width: '100%', textAlign: 'left' }]}
+                                    value={String(t.paye || '')}
+                                    onChangeText={v => setShiftDetails(prev => ({
+                                      ...prev,
+                                      [s.id]: { ...prev[s.id], fournisseurs: prev[s.id].fournisseurs.map((tt, idx) => idx === ti ? { ...tt, paye: parseFloat(v) || 0 } : tt) },
+                                    }))}
+                                    keyboardType="numeric" placeholder="0" placeholderTextColor="#bbb"
+                                  />
+                                </View>
+                              </View>
+                            </View>
+                          ))}
+                        </>
+                      )}
+
+                      <TouchableOpacity style={[styles.saveBtn, { marginTop: 10, marginBottom: 0 }]} onPress={() => sauverShift(s)}>
+                        <Text style={styles.saveTxt}>💾 Sauvegarder & recalculer</Text>
+                      </TouchableOpacity>
                     </View>
-                    <View style={styles.inputLigne}>
-                      <Text style={styles.inputLabel}>Heure fin</Text>
-                      <TextInput
-                        style={styles.inputField}
-                        value={edit.heure_fin || ''}
-                        onChangeText={v => setShiftEdits(prev => ({ ...prev, [s.id]: { ...prev[s.id], heure_fin: v } }))}
-                        placeholder="16:00" placeholderTextColor="#bbb"
-                      />
-                    </View>
-                    <View style={[styles.inputLigne, { borderBottomWidth: 0 }]}>
-                      <Text style={styles.inputLabel}>Espèces</Text>
-                      <TextInput
-                        style={styles.inputField}
-                        value={edit.espece || ''}
-                        onChangeText={v => setShiftEdits(prev => ({ ...prev, [s.id]: { ...prev[s.id], espece: v } }))}
-                        keyboardType="numeric" placeholder="0" placeholderTextColor="#bbb"
-                      />
-                    </View>
-                    <TouchableOpacity style={[styles.saveBtn, { marginTop: 10, marginBottom: 0 }]} onPress={() => sauverShift(s)}>
-                      <Text style={styles.saveTxt}>💾 Sauvegarder ce shift</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
+                  )
+                })()}
               </View>
             )
           })
@@ -462,47 +944,43 @@ export default function ModifierPointScreen() {
     return `${parseInt(d)} ${mois[parseInt(m) - 1]} ${y}`
   }
 
-  async function sauvegarder({ naviguer = true } = {}) {
-    Alert.alert(
-      'Confirmer la modification',
-      `Ventes : ${fmt(val(form.vente_total))}\nDépenses : ${fmt(val(form.depense_total))}\nBénéfice SC : ${fmt(beneficeSC())}\n\nModifier ce point ?`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Confirmer', onPress: async () => {
-          setLoading(true)
-          const { data: updated, error } = await supabase.from('points').update({
-            vente_total: val(form.vente_total),
-            depense_total: val(form.depense_total),
-            kdo: val(form.kdo),
-            retour: val(form.retour),
-            yango_cse: val(form.yango_cse),
-            yango_tab: val(form.yango_tab),
-            glovo_cse: val(form.glovo_cse),
-            glovo_tab: val(form.glovo_tab),
-            wave: val(form.wave),
-            om: val(form.om),
-            djamo: val(form.djamo),
-            fc_veille: val(form.fc_veille),
-            fond_recu: val(form.fond_recu),
-            reste_especes: resteEspeces(),
-            reste_fc: fc(),
-            benefice_sc: beneficeSC(),
-          }).eq('id', point.id).select('id')
-          setLoading(false)
-          if (error) {
-            Alert.alert('Erreur', error.message)
-          } else if (!updated?.length) {
-            Alert.alert('Erreur', 'Modification refusée (droits insuffisants ou point introuvable).')
-          } else {
-            Alert.alert('✅ Sauvegardé', 'Ventes enregistrées avec succès !')
-            if (naviguer) {
-              if (router.canGoBack()) router.back()
-              else router.replace('/accueil')
-            }
-          }
-        }}
-      ]
-    )
+  function sauvegarder({ naviguer = true } = {}) {
+    setConfirmSauvegarder({ naviguer })
+  }
+
+  async function confirmerSauvegarder() {
+    if (!confirmSauvegarder) return
+    const { naviguer } = confirmSauvegarder
+    setConfirmSauvegarder(null)
+    setLoading(true)
+    const { error } = await supabase.from('points').update({
+      vente_total: val(form.vente_total),
+      depense_total: val(form.depense_total),
+      kdo: val(form.kdo),
+      retour: val(form.retour),
+      yango_cse: val(form.yango_cse),
+      yango_tab: val(form.yango_tab),
+      glovo_cse: val(form.glovo_cse),
+      glovo_tab: val(form.glovo_tab),
+      wave: val(form.wave),
+      om: val(form.om),
+      djamo: val(form.djamo),
+      fc_veille: val(form.fc_veille),
+      fond_recu: val(form.fond_recu),
+      reste_especes: resteEspeces(),
+      reste_fc: fc(),
+      benefice_sc: beneficeSC(),
+    }).eq('id', point.id)
+    setLoading(false)
+    if (error) {
+      Alert.alert('Erreur', error.message)
+    } else {
+      afficherToast('✅ Ventes enregistrées avec succès !')
+      if (naviguer) {
+        if (router.canGoBack()) router.back()
+        else router.replace('/accueil')
+      }
+    }
   }
 
   function InputLigne({ label, champ }) {
@@ -1114,6 +1592,239 @@ export default function ModifierPointScreen() {
     )
   }
 
+  function renderDepGerant() {
+    const gerantShift = shifts.find(s => s.caissier_id === point?.gerant_id)
+
+    function renderSubGerantA() {
+      if (!gerantShift) {
+        return (
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyTxt}>Aucun shift gérant identifié{'\n'}(gerant_id non renseigné sur ce point)</Text>
+          </View>
+        )
+      }
+      const details = shiftDetails[gerantShift.id]
+      if (!details) {
+        return (
+          <View style={{ alignItems: 'center', paddingVertical: 30 }}>
+            <TouchableOpacity style={styles.saveBtn} onPress={() => chargerDetailShift(gerantShift)}>
+              <Text style={styles.saveTxt}>Charger les détails du gérant</Text>
+            </TouchableOpacity>
+          </View>
+        )
+      }
+      if (details.loading) return <ActivityIndicator color={colors.primary} style={{ margin: 30 }} />
+      const { depenses: gDeps, fournisseurs: gFourns } = details
+      const totalDep = gDeps.reduce((s, d) => s + (d.montant || 0), 0)
+      const totalFourn = gFourns.reduce((s, t) => s + (t.paye || 0), 0)
+      return (
+        <>
+          <Text style={styles.sectionTitre}>Shift du gérant — {gerantShift.heure_debut} → {gerantShift.heure_fin}</Text>
+          <View style={styles.card}>
+            <View style={styles.resumeRow}>
+              <Text style={styles.resumeLabel}>Vente shift actuelle</Text>
+              <Text style={[styles.resumeValue, { color: '#EF9F27' }]}>{fmt(gerantShift.vente_shift || 0)}</Text>
+            </View>
+          </View>
+
+          <Text style={styles.sectionTitre}>Dépenses ({gDeps.length})</Text>
+          <View style={styles.card}>
+            {gDeps.length === 0 ? (
+              <Text style={styles.emptyTxt}>Aucune dépense pour ce shift</Text>
+            ) : gDeps.map((d, di) => (
+              <View key={d.id || di} style={styles.depLigneBlock}>
+                <Text style={{ fontSize: 10, color: '#534AB7', marginBottom: 2 }}>{d.categorie}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ flex: 1 }}>
+                    <TextInput
+                      style={styles.libellInput}
+                      value={d.libelle || ''}
+                      onChangeText={v => setShiftDetails(prev => ({
+                        ...prev,
+                        [gerantShift.id]: { ...prev[gerantShift.id], depenses: prev[gerantShift.id].depenses.map((dd, idx) => idx === di ? { ...dd, libelle: v } : dd) },
+                      }))}
+                      placeholder="Description" placeholderTextColor="#bbb"
+                    />
+                  </View>
+                  <TextInput
+                    style={[styles.inputField, { width: 90 }]}
+                    value={String(d.montant || '')}
+                    onChangeText={v => setShiftDetails(prev => ({
+                      ...prev,
+                      [gerantShift.id]: { ...prev[gerantShift.id], depenses: prev[gerantShift.id].depenses.map((dd, idx) => idx === di ? { ...dd, montant: parseFloat(v) || 0 } : dd) },
+                    }))}
+                    keyboardType="numeric" placeholder="0" placeholderTextColor="#bbb"
+                  />
+                </View>
+              </View>
+            ))}
+            {gDeps.length > 0 && (
+              <View style={styles.catTotal}>
+                <Text style={styles.catTotalLabel}>Total dépenses</Text>
+                <Text style={styles.catTotalValue}>{fmt(totalDep)}</Text>
+              </View>
+            )}
+          </View>
+
+          <Text style={styles.sectionTitre}>Fournisseurs ({gFourns.length})</Text>
+          <View style={styles.card}>
+            {gFourns.length === 0 ? (
+              <Text style={styles.emptyTxt}>Aucun fournisseur pour ce shift</Text>
+            ) : gFourns.map((t, ti) => (
+              <View key={t.id || ti} style={styles.depLigneBlock}>
+                <Text style={{ fontSize: 11, fontWeight: '600', color: colors.text, marginBottom: 4 }}>
+                  {t.fournisseurs?.nom || `Fournisseur ${ti + 1}`}
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 10, color: colors.textMuted, marginBottom: 2 }}>Facture</Text>
+                    <TextInput
+                      style={[styles.inputField, { width: '100%', textAlign: 'left' }]}
+                      value={String(t.facture || '')}
+                      onChangeText={v => setShiftDetails(prev => ({
+                        ...prev,
+                        [gerantShift.id]: { ...prev[gerantShift.id], fournisseurs: prev[gerantShift.id].fournisseurs.map((tt, idx) => idx === ti ? { ...tt, facture: parseFloat(v) || 0 } : tt) },
+                      }))}
+                      keyboardType="numeric" placeholder="0" placeholderTextColor="#bbb"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 10, color: colors.textMuted, marginBottom: 2 }}>Payé</Text>
+                    <TextInput
+                      style={[styles.inputField, { width: '100%', textAlign: 'left' }]}
+                      value={String(t.paye || '')}
+                      onChangeText={v => setShiftDetails(prev => ({
+                        ...prev,
+                        [gerantShift.id]: { ...prev[gerantShift.id], fournisseurs: prev[gerantShift.id].fournisseurs.map((tt, idx) => idx === ti ? { ...tt, paye: parseFloat(v) || 0 } : tt) },
+                      }))}
+                      keyboardType="numeric" placeholder="0" placeholderTextColor="#bbb"
+                    />
+                  </View>
+                </View>
+              </View>
+            ))}
+            {gFourns.length > 0 && (
+              <View style={styles.catTotal}>
+                <Text style={styles.catTotalLabel}>Total fournisseurs</Text>
+                <Text style={styles.catTotalValue}>{fmt(totalFourn)}</Text>
+              </View>
+            )}
+          </View>
+
+          <TouchableOpacity style={styles.saveBtn} onPress={() => sauverDepFournGerantShift(gerantShift)}>
+            <Text style={styles.saveTxt}>💾 Enregistrer & recalculer vente</Text>
+          </TouchableOpacity>
+        </>
+      )
+    }
+
+    function renderSubGerantB() {
+      if (loadingGerant) return <ActivityIndicator color={colors.primary} style={{ margin: 30 }} />
+      const totalDraftDep = depGerant.reduce((s, d) => s + (d.montant || 0), 0)
+      const totalFournG = fournGerant.reduce((s, t) => s + (t.paye || 0), 0)
+      const totalGerant = totalDraftDep + totalFournG
+      return (
+        <>
+          <Text style={styles.sectionTitre}>Dépenses gérant (depuis validation)</Text>
+          <View style={styles.card}>
+            {depGerant.length === 0 ? (
+              <Text style={styles.emptyTxt}>Aucune dépense gérant enregistrée</Text>
+            ) : Object.entries(
+                depGerant.reduce((acc, d) => { acc[d.categorie] = (acc[d.categorie] || 0) + d.montant; return acc }, {})
+              ).map(([cat, tot], i) => (
+              <View key={i} style={styles.resumeRow}>
+                <Text style={styles.resumeLabel}>{cat}</Text>
+                <Text style={styles.resumeValue}>{fmt(tot)}</Text>
+              </View>
+            ))}
+            {depGerant.length > 0 && (
+              <View style={styles.catTotal}>
+                <Text style={styles.catTotalLabel}>Sous-total</Text>
+                <Text style={styles.catTotalValue}>{fmt(totalDraftDep)}</Text>
+              </View>
+            )}
+          </View>
+
+          <Text style={styles.sectionTitre}>Fournisseurs gérant ({fournGerant.length})</Text>
+          <View style={styles.card}>
+            {fournGerant.length === 0 ? (
+              <Text style={styles.emptyTxt}>Aucun fournisseur gérant</Text>
+            ) : fournGerant.map((t, i) => (
+              <View key={t.id || i} style={styles.depLigneBlock}>
+                <Text style={{ fontSize: 11, fontWeight: '600', color: colors.text, marginBottom: 4 }}>
+                  {t.fournisseurs?.nom || `Fournisseur ${i + 1}`}
+                </Text>
+                <View style={styles.inputLigne}>
+                  <Text style={styles.inputLabel}>Facture</Text>
+                  <TextInput
+                    style={styles.inputField}
+                    value={String(t.facture || '')}
+                    onChangeText={v => setFournGerant(prev => prev.map((tt, idx) => idx === i ? { ...tt, facture: parseFloat(v) || 0 } : tt))}
+                    keyboardType="numeric" placeholder="0" placeholderTextColor="#bbb"
+                  />
+                </View>
+                <View style={styles.inputLigne}>
+                  <Text style={styles.inputLabel}>Payé</Text>
+                  <TextInput
+                    style={styles.inputField}
+                    value={String(t.paye || '')}
+                    onChangeText={v => setFournGerant(prev => prev.map((tt, idx) => idx === i ? { ...tt, paye: parseFloat(v) || 0 } : tt))}
+                    keyboardType="numeric" placeholder="0" placeholderTextColor="#bbb"
+                  />
+                </View>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.recapCard}>
+            <Text style={styles.recapTitre}>Total déductions gérant</Text>
+            <View style={styles.resumeRow}>
+              <Text style={styles.recapLabel}>Dépenses gérant</Text>
+              <Text style={styles.recapValue}>{fmt(totalDraftDep)}</Text>
+            </View>
+            <View style={styles.resumeRow}>
+              <Text style={styles.recapLabel}>Fournisseurs gérant</Text>
+              <Text style={styles.recapValue}>{fmt(totalFournG)}</Text>
+            </View>
+            <View style={[styles.resumeRow, { borderBottomWidth: 0 }]}>
+              <Text style={[styles.recapLabel, { fontWeight: '600' }]}>Total</Text>
+              <Text style={[styles.recapValue, { color: '#EF9F27', fontWeight: '600' }]}>{fmt(totalGerant)}</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity style={[styles.saveBtn, { backgroundColor: '#534AB7' }]} onPress={sauverDeductionsGerant}>
+            <Text style={styles.saveTxt}>💾 Enregistrer (impact espèces uniquement)</Text>
+          </TouchableOpacity>
+        </>
+      )
+    }
+
+    return (
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <View style={styles.subTabRow}>
+          <TouchableOpacity
+            style={[styles.subTabBtn, subGerant === 'A' && styles.subTabBtnActive]}
+            onPress={() => {
+              setSubGerant('A')
+              if (gerantShift && !shiftDetails[gerantShift.id]) chargerDetailShift(gerantShift)
+            }}
+          >
+            <Text style={[styles.subTabTxt, subGerant === 'A' && styles.subTabTxtActive]}>Gérant caissier</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.subTabBtn, subGerant === 'B' && styles.subTabBtnActive]}
+            onPress={() => { setSubGerant('B'); chargerDepGerant() }}
+          >
+            <Text style={[styles.subTabTxt, subGerant === 'B' && styles.subTabTxtActive]}>Déductions gérant</Text>
+          </TouchableOpacity>
+        </View>
+        {subGerant === 'A' && renderSubGerantA()}
+        {subGerant === 'B' && renderSubGerantB()}
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    )
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -1221,7 +1932,14 @@ export default function ModifierPointScreen() {
                   <TouchableOpacity
                     key={o}
                     style={[styles.ongletBtn, ongletActif === o && styles.ongletBtnActive]}
-                    onPress={() => setOngletActif(o)}
+                    onPress={() => {
+                      setOngletActif(o)
+                      if (o === 'Dép. Gérant') {
+                        const gs = shifts.find(s => s.caissier_id === point?.gerant_id)
+                        if (gs && !shiftDetails[gs.id]) chargerDetailShift(gs)
+                        if (depGerant.length === 0 && fournGerant.length === 0) chargerDepGerant()
+                      }
+                    }}
                   >
                     <Text style={[styles.ongletTxt, ongletActif === o && styles.ongletTxtActive]}>{o}</Text>
                   </TouchableOpacity>
@@ -1235,10 +1953,18 @@ export default function ModifierPointScreen() {
                 {ongletActif === 'Dépenses' && renderDepenses()}
                 {ongletActif === 'Fournisseurs' && renderFournisseurs()}
                 {ongletActif === 'Présences' && renderPresences()}
+                {ongletActif === 'Dép. Gérant' && renderDepGerant()}
               </View>
             </>
           )}
         </>
+      )}
+
+      {/* Toast recalcul automatique */}
+      {recalcMsg && (
+        <View style={styles.recalcToast}>
+          <Text style={styles.recalcToastTxt}>{recalcMsg}</Text>
+        </View>
       )}
 
       {/* Modal confirmation suppression individuelle */}
@@ -1326,6 +2052,81 @@ export default function ModifierPointScreen() {
               <TouchableOpacity style={[styles.confirmOk, loading && { opacity: 0.6 }]}
                 onPress={() => supprimerTransaction(confirmSupprTrans)} disabled={loading}>
                 {loading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.confirmOkTxt}>🗑️ Confirmer</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal déplacement de shift */}
+      <Modal visible={!!showMoveShift} transparent animationType="slide">
+        <View style={styles.confirmOverlay}>
+          <View style={[styles.confirmBox, { maxHeight: '80%' }]}>
+            <Text style={styles.confirmTitre}>📅 Déplacer ce shift</Text>
+            <Text style={[styles.confirmMsg, { marginBottom: 8 }]}>
+              {showMoveShift?.caissier_nom ? `👤 ${showMoveShift.caissier_nom}\n` : ''}
+              {showMoveShift ? `⏰ ${showMoveShift.heure_debut} → ${showMoveShift.heure_fin}` : ''}
+              {'\n\n'}Choisissez la date cible :
+              {point?.valide ? '\n\n⚠️ Le point source est validé — la modification sera quand même effectuée.' : ''}
+            </Text>
+            <Calendar
+              onDayPress={day => setMoveDateCible(day.dateString)}
+              markedDates={{
+                ...(moveDateCible ? { [moveDateCible]: { selected: true, selectedColor: '#534AB7' } } : {}),
+                ...(selectedDate ? { [selectedDate]: { marked: true, dotColor: '#EF9F27' } } : {}),
+              }}
+              maxDate={new Date().toISOString().split('T')[0]}
+              theme={{
+                selectedDayBackgroundColor: '#534AB7',
+                todayTextColor: '#534AB7',
+                arrowColor: '#534AB7',
+              }}
+              style={{ borderRadius: 12, marginBottom: 16 }}
+            />
+            {moveDateCible ? (
+              <Text style={{ fontSize: 13, color: '#534AB7', fontWeight: '600', textAlign: 'center', marginBottom: 12 }}>
+                Date sélectionnée : {moveDateCible}
+              </Text>
+            ) : null}
+            <View style={styles.confirmBtns}>
+              <TouchableOpacity style={styles.confirmCancel} onPress={() => { setShowMoveShift(null); setMoveDateCible('') }} disabled={deplacement}>
+                <Text style={styles.confirmCancelTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmOk, { backgroundColor: moveDateCible ? '#534AB7' : '#ccc' }, deplacement && { opacity: 0.6 }]}
+                onPress={() => moveDateCible && deplacerShift(showMoveShift, moveDateCible)}
+                disabled={!moveDateCible || deplacement}
+              >
+                {deplacement
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={styles.confirmOkTxt}>📅 Déplacer</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal confirmation sauvegarde ventes */}
+      <Modal visible={!!confirmSauvegarder} transparent animationType="fade">
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmTitre}>Confirmer la modification</Text>
+            <Text style={styles.confirmMsg}>
+              Ventes : {fmt(val(form.vente_total))}{'\n'}
+              Dépenses : {fmt(val(form.depense_total))}{'\n'}
+              Bénéfice SC : {fmt(beneficeSC())}{'\n\n'}
+              Modifier ce point ?
+            </Text>
+            <View style={styles.confirmBtns}>
+              <TouchableOpacity style={styles.confirmCancel} onPress={() => setConfirmSauvegarder(null)}>
+                <Text style={styles.confirmCancelTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmOk, { backgroundColor: '#534AB7' }]}
+                onPress={confirmerSauvegarder}
+              >
+                <Text style={styles.confirmOkTxt}>💾 Confirmer</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1429,10 +2230,31 @@ function makeStyles(colors) { return StyleSheet.create({
   btnSupprimerSelTxt: { fontSize: 15, fontWeight: '600', color: '#fff' },
   editBtn: { backgroundColor: '#E6F1FB', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 0.5, borderColor: '#B8D4F5' },
   editBtnTxt: { fontSize: 11, color: '#185FA5', fontWeight: '500' },
+  moveBtn: { backgroundColor: '#EEF0FF', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 0.5, borderColor: '#C5C8F5' },
+  moveBtnTxt: { fontSize: 11, color: '#534AB7', fontWeight: '500' },
   shiftCardEditing: { borderColor: '#185FA5', borderWidth: 1.5, backgroundColor: '#F5F8FF' },
   shiftEditPanel: { marginTop: 12, paddingTop: 12, borderTopWidth: 0.5, borderTopColor: '#eee' },
+  shiftVenteCalc: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, backgroundColor: '#FFF8ED', borderRadius: 10, padding: 10 },
+  shiftVenteCalcLabel: { fontSize: 13, fontWeight: '600', color: '#854F0B' },
+  shiftVenteCalcVal: { fontSize: 15, fontWeight: '700', color: '#EF9F27' },
+  shiftSubSection: { marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: '#eee' },
+  shiftSubTitre: { fontSize: 10, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4, marginTop: 6 },
+  shiftSubRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 3 },
+  shiftSubLabel: { flex: 1, fontSize: 12, color: colors.textSecondary },
+  shiftSubVal: { fontSize: 12, fontWeight: '500', color: colors.text },
+  recalcToast: {
+    position: 'absolute', bottom: 80, left: 16, right: 16,
+    backgroundColor: '#1C3A1A', borderRadius: 14, padding: 14,
+    shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8, elevation: 8,
+  },
+  recalcToastTxt: { fontSize: 13, color: '#A8E6A3', fontWeight: '500', textAlign: 'center' },
   depLigneBlock: { paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5' },
   libellInput: { backgroundColor: colors.bg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, fontSize: 13, color: colors.text },
+  subTabRow: { flexDirection: 'row', backgroundColor: colors.bg, borderRadius: 10, padding: 3, marginBottom: 14, gap: 3 },
+  subTabBtn: { flex: 1, paddingVertical: 9, borderRadius: 8, alignItems: 'center' },
+  subTabBtnActive: { backgroundColor: colors.surface, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
+  subTabTxt: { fontSize: 13, color: colors.textMuted },
+  subTabTxtActive: { color: colors.primary, fontWeight: '600' },
   confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: 24 },
   confirmBox: { backgroundColor: colors.surface, borderRadius: 18, padding: 24, width: '100%', maxWidth: 380 },
   confirmTitre: { fontSize: 17, fontWeight: '700', color: colors.text, marginBottom: 12 },

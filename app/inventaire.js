@@ -182,13 +182,14 @@ export default function InventaireScreen() {
       .from('inventaires_shifts')
       .select('id, inventaire_lignes(produit_id, stock_reel)')
       .eq('restaurant_id', restaurantId)
+      .eq('valide', true)
       .order('created_at', { ascending: false })
       .limit(10)
     if (idActuel) query = query.neq('id', idActuel)
 
     const { data: allShifts } = await query
 
-    // Prendre le premier shift qui a au moins une ligne avec stock_reel renseigné
+    // Prendre le dernier shift validé qui a au moins une ligne avec stock_reel renseigné
     const found = (allShifts || []).find(s =>
       s.inventaire_lignes && s.inventaire_lignes.some(l => l.stock_reel != null)
     )

@@ -4,9 +4,6 @@ import {
     ActivityIndicator,
     Alert,
     Image,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
     SafeAreaView, ScrollView,
     StyleSheet,
     Text,
@@ -17,25 +14,8 @@ import {
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { saveOneTransactionFournisseur } from '../lib/api'
-import { CATEGORIES_INVENTAIRE } from '../lib/constants'
 import { usePhoto } from '../lib/usePhoto'
 import { supabase } from '../lib/supabase'
-
-// Produits sélectionnables pour les entrées inventaire lors d'une livraison fournisseur
-// Poulet : uniquement po1 (Poulets frais) — les formes sont gérées dans l'inventaire
-// Fromage : uniquement f10 (Total Fromage en g) — les produits individuels sont calculés auto
-const PRODUITS_LIVRAISON = CATEGORIES_INVENTAIRE.flatMap(cat =>
-  cat.produits
-    .filter(p => {
-      if (p.auto) return false                          // po7 (Pâte), b7 (Darina)
-      if (p.totalFrites) return false                   // fr3
-      if (p.totalPoulet) return false                   // po8
-      if (['po2','po3','po4','po5','po6'].includes(p.id)) return false  // formes poulet
-      if (p.fromage) return false                       // f2-f9 (fromage auto calculé)
-      return true
-    })
-    .map(p => ({ ...p, categorie: cat.nom }))
-)
 
 export default function FournisseursScreen() {
   const {
@@ -52,11 +32,6 @@ export default function FournisseursScreen() {
   const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState(null)
   const [validatedIds, setValidatedIds] = useState(new Set())
-  const [fournisseurEnCours, setFournisseurEnCours] = useState(null)
-  const [showInventaireModal, setShowInventaireModal] = useState(false)
-  const [qtesEntree, setQtesEntree] = useState({})
-  const [savingInventaire, setSavingInventaire] = useState(false)
-  const [catLivraison, setCatLivraison] = useState(PRODUITS_LIVRAISON[0]?.categorie || '')
   const today = new Date().toISOString().split('T')[0]
 
   useEffect(() => {
@@ -94,6 +69,49 @@ export default function FournisseursScreen() {
       return
     }
 
+    // Source de vérité pour le crédit du jour = reste de la transaction la plus récente
+    // par DATE DE JOURNÉE (points.date), en excluant le point courant.
+    // Priorité quand même date : gerant_caissier > gerant > caissier.
+    // Garde-fou : si reste < 0 mais credit_actuel >= 0 → incohérence historique → fallback credit_actuel.
+    {
+      const sourcePrio = { gerant_caissier: 3, gerant: 2, caissier: 1 }
+      const fournIdsAll = (fourn || []).map(f => f.id)
+      const fournCreditActuel = {}
+      ;(fourn || []).forEach(f => { fournCreditActuel[f.id] = f.credit_actuel || 0 })
+      // Filtre par fournisseur_id (robust même si restaurant_id=NULL sur les transactions)
+      let prevQ = supabase
+        .from('transactions_fournisseurs')
+        .select('fournisseur_id, reste, saisi_par, point_id')
+        .in('fournisseur_id', fournIdsAll)
+      if (pointId) prevQ = prevQ.neq('point_id', pointId)
+      const { data: prevTrans } = await prevQ
+
+      // Récupérer les dates des points séparément (évite la jointure qui échoue silencieusement)
+      const prevPointIds = [...new Set((prevTrans || []).map(t => t.point_id).filter(Boolean))]
+      const { data: prevPoints } = prevPointIds.length
+        ? await supabase.from('points').select('id, date').in('id', prevPointIds)
+        : { data: [] }
+      const prevDateByPoint = {}
+      ;(prevPoints || []).forEach(p => { prevDateByPoint[p.id] = p.date })
+
+      const prevMap = {}
+      ;(prevTrans || []).forEach(t => {
+        const date = prevDateByPoint[t.point_id] || ''
+        const ex = prevMap[t.fournisseur_id]
+        const tp = sourcePrio[t.saisi_par] || 0
+        const ep = ex ? (sourcePrio[ex.saisi_par] || 0) : -1
+        if (!ex || date > ex.date || (date === ex.date && tp > ep)) {
+          prevMap[t.fournisseur_id] = { reste: t.reste, date, saisi_par: t.saisi_par }
+        }
+      })
+      Object.entries(prevMap).forEach(([id, info]) => {
+        // Si reste négatif alors que credit_actuel >= 0 : incohérence de données historiques
+        // → utiliser credit_actuel (source de vérité corrigée par le gérant ou le bouton Fix)
+        const ca = fournCreditActuel[id] || 0
+        credits[id] = (info.reste < 0 && ca >= 0) ? ca : info.reste
+      })
+    }
+
     if (trans && trans.length > 0) {
       // Dédupliquer : préférer la saisie gérant
       const priorite = { gerant: 3, caissier: 2 }
@@ -105,28 +123,56 @@ export default function FournisseursScreen() {
         }
       })
 
-      // Toujours restaurer validatedIds pour que le bouton affiche "Validé" (TEST 1/2)
-      setValidatedIds(new Set(Object.keys(dedup)))
+      // Filtrer selon le rôle courant : ne jamais mélanger les transactions caissier
+      // dans le contexte du gérant, ni l'inverse — chaque shift est indépendant
+      const estCaissier = roleActif === 'caissier'
+      const transactionsPropres = Object.values(dedup).filter(t => {
+        if (!estCaissier) return t.saisi_par === 'gerant'
+        if (t.saisi_par !== 'caissier') return false
+        // Pour les caissiers : ne restaurer que les transactions du caissier courant
+        if (userId && t.caissier_id) return t.caissier_id === userId
+        if (userNom && t.caissier_nom) return t.caissier_nom === userNom
+        return true
+      })
 
-      // Back-calculer le crédit d'origine (avant la transaction du jour) pour bloquer
-      // le double-comptage si l'utilisateur valide à nouveau
+      // Marquer "Validé" uniquement pour les transactions du rôle courant
+      setValidatedIds(new Set(transactionsPropres.map(t => t.fournisseur_id)))
+
+      // Back-calculer le crédit d'origine uniquement pour les transactions du rôle courant
+      // pour bloquer le double-comptage si l'utilisateur valide à nouveau
       // reste = originalCredit + facture - paye  →  originalCredit = reste - facture + paye
-      Object.values(dedup).forEach(t => {
+      transactionsPropres.forEach(t => {
         credits[t.fournisseur_id] = (t.reste || 0) - (t.facture || 0) + (t.paye || 0)
       })
 
-      // Restaurer fournisseursJour uniquement sur rechargement de page (contexte vide)
-      if (Object.keys(fournisseursJour).length === 0) {
-        const restored = {}
-        Object.values(dedup).forEach(t => {
-          restored[t.fournisseur_id] = {
-            facture: String(t.facture ?? ''),
-            paye: String(t.paye ?? ''),
-            hasPhoto: !!t.photo_url,
-            photoUri: t.photo_url || null,
-          }
+      // Restaurer les transactions déjà validées du rôle courant dans fournisseursJour
+      // — uniquement pour les fournisseurs dont l'entrée locale est encore vide, afin de :
+      // 1) ne jamais écraser une saisie en cours (en mémoire) de l'utilisateur
+      // 2) ne jamais mélanger les transactions d'un autre caissier dont le shift est clôturé
+      // Une vérification par fournisseur (plutôt que sur l'objet entier) est nécessaire car
+      // après une validation, l'entrée locale est remise à vide puis persistée en session —
+      // un objet "non vide" ne signifiait donc pas forcément "déjà restauré".
+      if (transactionsPropres.length > 0) {
+        setFournisseursJour(prev => {
+          let changed = false
+          const merged = { ...prev }
+          transactionsPropres.forEach(t => {
+            const existing = merged[t.fournisseur_id]
+            // Seuls facture/payé sont remis à vide après validation (la photo est conservée) —
+            // ne se baser que sur eux pour décider si une restauration est nécessaire.
+            const estVide = !existing || (!existing.facture && !existing.paye)
+            if (estVide) {
+              merged[t.fournisseur_id] = {
+                facture: String(t.facture ?? ''),
+                paye: String(t.paye ?? ''),
+                hasPhoto: !!t.photo_url,
+                photoUri: t.photo_url || null,
+              }
+              changed = true
+            }
+          })
+          return changed ? merged : prev
         })
-        setFournisseursJour(restored)
       }
     }
 
@@ -199,77 +245,55 @@ export default function FournisseursScreen() {
     setSavingId(f.id)
     const credit = creditVeille(f.id)
     const saisiPar = roleActif === 'caissier' ? 'caissier' : 'gerant'
-    const ok = await saveOneTransactionFournisseur(pointId, f.id, t, credit, saisiPar, userNom)
+    const ok = await saveOneTransactionFournisseur(pointId, f.id, t, credit, saisiPar, userNom, restaurantId, userId, f.nom)
     if (ok) {
       const nouveauReste = credit + (parseFloat(t.facture) || 0) - (parseFloat(t.paye) || 0)
-      await supabase.from('fournisseurs').update({ credit_actuel: nouveauReste }).eq('id', f.id)
-      const motifJour = `Journée du ${dateJour || today}:`
-      // Supprimer l'entrée existante du jour pour ce fournisseur avant d'insérer
-      supabase.from('historique_credit_fournisseurs')
-        .delete().eq('fournisseur_id', f.id).like('motif', `${motifJour}%`)
-        .then(() => {}).catch(() => {})
-      supabase.from('historique_credit_fournisseurs').insert({
+      // Ne mettre à jour credit_actuel que pour le gérant — les caissiers ne doivent pas écraser le solde officiel
+      if (saisiPar !== 'caissier') {
+        await supabase.from('fournisseurs').update({ credit_actuel: nouveauReste }).eq('id', f.id)
+      }
+      // Motif spécifique par rôle pour permettre la déduplication lors de la validation du shift caissier
+      const motifPrefix = saisiPar === 'caissier'
+        ? `caissier|${today}|`
+        : `Journée du ${dateJour || today}: `
+      const motifTexte = `${motifPrefix}facture ${Math.round(parseFloat(t.facture)||0).toLocaleString('fr-FR')} FCFA, payé ${Math.round(parseFloat(t.paye)||0).toLocaleString('fr-FR')} FCFA`
+      // Séquencer delete puis insert pour éviter la race condition (fire-and-forget causait la perte de l'entrée)
+      await supabase.from('historique_credit_fournisseurs')
+        .delete()
+        .eq('fournisseur_id', f.id)
+        .eq('restaurant_id', restaurantId)
+        .like('motif', `${motifPrefix}%`)
+      await supabase.from('historique_credit_fournisseurs').insert({
         fournisseur_id: f.id,
         restaurant_id: restaurantId,
+        point_id: pointId,
+        source: saisiPar,
         ancien_credit: credit,
         nouveau_credit: nouveauReste,
-        motif: `${motifJour} facture ${Math.round(parseFloat(t.facture)||0).toLocaleString('fr-FR')}, payé ${Math.round(parseFloat(t.paye)||0).toLocaleString('fr-FR')}`,
+        facture: parseFloat(t.facture) || 0,
+        paye: parseFloat(t.paye) || 0,
+        photo_url: t.photoUri || null,
+        motif: motifTexte,
         modified_by: userId || null,
-      }).then(() => {}).catch(() => {})
+      })
+      // Mettre à jour le crédit affiché immédiatement depuis Supabase
+      const { data: updatedFourn } = await supabase
+        .from('fournisseurs').select('credit_actuel').eq('id', f.id).maybeSingle()
+      if (updatedFourn) {
+        setFournisseurs(prev => prev.map(item =>
+          item.id === f.id ? { ...item, credit_actuel: updatedFourn.credit_actuel } : item
+        ))
+        // Garder creditsVeille au crédit d'origine (avant la transaction du jour)
+        // — évite le double-comptage si le gérant corrige et re-valide sur le même point
+        setCreditsVeille(prev => ({ ...prev, [f.id]: credit }))
+        setFournisseursJour(prev => ({
+          ...prev,
+          [f.id]: { facture: '', paye: '', hasPhoto: prev[f.id]?.hasPhoto || false, photoUri: prev[f.id]?.photoUri || null },
+        }))
+      }
     }
     setSavingId(null)
     setValidatedIds(prev => new Set([...prev, f.id]))
-    setFournisseurEnCours(f)
-    setQtesEntree({})
-    setShowInventaireModal(true)
-  }
-
-  async function enregistrerEntreeInventaire() {
-    const lignes = Object.entries(qtesEntree)
-      .filter(([, v]) => parseFloat(v) > 0)
-      .map(([produitId, qte]) => {
-        const produit = PRODUITS_LIVRAISON.find(p => p.id === produitId)
-        return {
-          point_id: pointId,
-          produit_id: produitId,
-          produit_nom: produit?.nom || produitId,
-          stock_initial: 0,
-          entrees: parseFloat(qte) || 0,
-          sorties: 0,
-          stock_final: 0,
-          ecart: 0,
-          prevision: 0,
-          shift_numero: 0,
-          shift_nom: 'Livraisons fournisseurs',
-          heure_debut: '00:00',
-          heure_fin: '23:59',
-          fournisseur_id: fournisseurEnCours?.id || null,
-          fournisseur_nom: fournisseurEnCours?.nom || null,
-          source: 'fournisseur',
-        }
-      })
-
-    if (lignes.length > 0) {
-      setSavingInventaire(true)
-      // Supprimer les entrées existantes pour ce fournisseur avant de réinsérer
-      if (fournisseurEnCours?.id) {
-        await supabase.from('inventaires')
-          .delete()
-          .eq('point_id', pointId)
-          .eq('shift_numero', 0)
-          .eq('fournisseur_id', fournisseurEnCours.id)
-      }
-      await supabase.from('inventaires').insert(lignes)
-      setSavingInventaire(false)
-    }
-
-    setShowInventaireModal(false)
-    setFournisseurEnCours(null)
-  }
-
-  function fermerSansInventaire() {
-    setShowInventaireModal(false)
-    setFournisseurEnCours(null)
   }
 
   if (loading) {
@@ -396,7 +420,7 @@ export default function FournisseursScreen() {
                               </View>
                               <View style={styles.inputBox}>
                                 <Text style={styles.inputLabel}>
-                                  {credit > 0 && !t.facture ? 'Payer crédit' : 'Payé'}
+                                  Payé
                                 </Text>
                                 <TextInput
                                   style={[styles.input, { backgroundColor: '#FAEEDA' }]}
@@ -531,82 +555,6 @@ export default function FournisseursScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* ── Modal : produits reçus à ajouter à l'inventaire ── */}
-      <Modal visible={showInventaireModal} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-          <View style={styles.invHeader}>
-            <Text style={styles.invTitre}>Produits reçus de {fournisseurEnCours?.nom || 'ce fournisseur'} ?</Text>
-            <Text style={styles.invSub}>Sélectionnez les produits livrés et entrez les quantités</Text>
-          </View>
-
-          {/* Onglets catégories */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.invCatBar}>
-            {[...new Set(PRODUITS_LIVRAISON.map(p => p.categorie))].map(cat => (
-              <TouchableOpacity
-                key={cat}
-                style={[styles.invCatBtn, catLivraison === cat && styles.invCatBtnActive]}
-                onPress={() => setCatLivraison(cat)}
-              >
-                <Text style={[styles.invCatTxt, catLivraison === cat && styles.invCatTxtActive]}>
-                  {cat}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          >
-            <ScrollView style={styles.invBody} keyboardShouldPersistTaps="handled">
-              {PRODUITS_LIVRAISON.filter(p => p.categorie === catLivraison).map(produit => (
-                <View key={produit.id} style={[
-                  styles.invProdRow,
-                  parseFloat(qtesEntree[produit.id]) > 0 && styles.invProdRowActive
-                ]}>
-                  <Text style={styles.invProdNom}>{produit.nom}</Text>
-                  <TextInput
-                    style={[
-                      styles.invQteInput,
-                      parseFloat(qtesEntree[produit.id]) > 0 && styles.invQteInputActive
-                    ]}
-                    placeholder="Qté"
-                    value={qtesEntree[produit.id] || ''}
-                    onChangeText={v => setQtesEntree(prev => ({ ...prev, [produit.id]: v }))}
-                    keyboardType="numeric"
-                    placeholderTextColor="#bbb"
-                  />
-                </View>
-              ))}
-              <View style={{ height: 20 }} />
-            </ScrollView>
-          </KeyboardAvoidingView>
-
-          {/* Résumé produits saisis */}
-          {Object.values(qtesEntree).some(v => parseFloat(v) > 0) && (
-            <View style={styles.invResume}>
-              <Text style={styles.invResumeTitre}>
-                {Object.values(qtesEntree).filter(v => parseFloat(v) > 0).length} produit(s) à enregistrer
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.invBtns}>
-            <TouchableOpacity style={styles.invBtnNon} onPress={fermerSansInventaire}>
-              <Text style={styles.invBtnNonTxt}>Non, terminer</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.invBtnOui, savingInventaire && { opacity: 0.6 }]}
-              onPress={enregistrerEntreeInventaire}
-              disabled={savingInventaire}
-            >
-              <Text style={styles.invBtnOuiTxt}>
-                {savingInventaire ? 'Enregistrement...' : '✅ Enregistrer'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </Modal>
     </SafeAreaView>
   )
 }
@@ -663,27 +611,6 @@ function makeStyles(colors) { return StyleSheet.create({
   recapVal: { fontSize: 13, fontWeight: '500', color: colors.text },
   saveBtn: { backgroundColor: '#EF9F27', borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 10 },
   saveTxt: { fontSize: 15, fontWeight: '600', color: '#412402' },
-  invHeader: { backgroundColor: '#EF9F27', padding: 16 },
-  invTitre: { fontSize: 16, fontWeight: '600', color: '#412402', textAlign: 'center' },
-  invSub: { fontSize: 11, color: '#854F0B', textAlign: 'center', marginTop: 4 },
-  invCatBar: { backgroundColor: colors.surface, maxHeight: 46, borderBottomWidth: 0.5, borderBottomColor: colors.border },
-  invCatBtn: { paddingHorizontal: 14, paddingVertical: 12 },
-  invCatBtnActive: { borderBottomWidth: 2, borderBottomColor: '#EF9F27' },
-  invCatTxt: { fontSize: 12, color: colors.textMuted },
-  invCatTxtActive: { color: '#EF9F27', fontWeight: '600' },
-  invBody: { flex: 1, padding: 12 },
-  invProdRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: 10, padding: 12, marginBottom: 6, borderWidth: 0.5, borderColor: colors.border },
-  invProdRowActive: { borderColor: '#EF9F27', backgroundColor: colors.orangeLight },
-  invProdNom: { fontSize: 13, color: colors.text, flex: 1 },
-  invQteInput: { width: 70, backgroundColor: colors.inputBg, borderRadius: 8, padding: 8, fontSize: 13, textAlign: 'center', color: colors.text },
-  invQteInputActive: { backgroundColor: '#EF9F27', color: '#412402', fontWeight: '600' },
-  invResume: { backgroundColor: '#EAF3DE', padding: 10, alignItems: 'center', borderTopWidth: 0.5, borderTopColor: '#C0DD97' },
-  invResumeTitre: { fontSize: 13, color: '#3B6D11', fontWeight: '600' },
-  invBtns: { flexDirection: 'row', gap: 10, padding: 16, paddingBottom: 24 },
-  invBtnNon: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.inputBg, alignItems: 'center' },
-  invBtnNonTxt: { fontSize: 14, color: colors.textMuted },
-  invBtnOui: { flex: 2, padding: 14, borderRadius: 12, backgroundColor: '#EF9F27', alignItems: 'center' },
-  invBtnOuiTxt: { fontSize: 14, fontWeight: '600', color: '#412402' },
   validerBtn: { marginTop: 10, backgroundColor: '#EF9F27', borderRadius: 10, padding: 10, alignItems: 'center' },
   validerBtnDone: { backgroundColor: '#EAF3DE' },
   validerBtnTxt: { fontSize: 13, fontWeight: '600', color: '#412402' },

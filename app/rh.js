@@ -45,7 +45,7 @@ const PERIODES = [
   { label: '📅 Période', key: 'custom' },
 ]
 
-const ONGLETS = ['Dashboard', 'Travailleurs', 'Présences', 'Salaires', 'Congés', 'Archivés']
+const ONGLETS = ['Dashboard', 'Travailleurs', 'Présences', 'Salaires', 'Archivés']
 const MOTIFS_ARCHIVE = ['Démission', 'Renvoi', 'Fin de contrat', 'Autre']
 
 export default function RHScreen() {
@@ -57,6 +57,7 @@ export default function RHScreen() {
   const [onglet, setOnglet] = useState('Dashboard')
   const [periodeKey, setPeriodeKey] = useState('month')
   const [presences, setPresences] = useState([])
+  const [paiesGerantDB, setPaiesGerantDB] = useState([])
   const [travailleurs, setTravailleurs] = useState([])
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -95,15 +96,10 @@ export default function RHScreen() {
   const [motifArchiveCustom, setMotifArchiveCustom] = useState('')
   const [savingArchive, setSavingArchive] = useState(false)
 
-  // Congés & Permissions
-  const [conges, setConges] = useState([])
-  const [loadingConges, setLoadingConges] = useState(false)
-  const [modalConge, setModalConge] = useState(false)
-  const [editingConge, setEditingConge] = useState(null)
-  const [formConge, setFormConge] = useState({ type: 'conge', travailleur_id: '', travailleur_nom: '', date_debut: '', date_fin: '', motif: '' })
-  const [savingConge, setSavingConge] = useState(false)
-  // null = calendrier caché, 'debut'/'fin' = calendrier inline affiché pour ce champ
-  const [dateCongeChamp, setDateCongeChamp] = useState(null)
+  // Transfert travailleur
+  const [modalTransfert, setModalTransfert] = useState(false)
+  const [restoTransfertId, setRestoTransfertId] = useState(null)
+  const [savingTransfert, setSavingTransfert] = useState(false)
 
   useEffect(() => { chargerRestaurants() }, [])
   useEffect(() => {
@@ -117,17 +113,12 @@ export default function RHScreen() {
 
   useEffect(() => {
     if (!restoSelectionne) return
-    if (onglet === 'Congés') chargerConges()
     if (onglet === 'Archivés') chargerArchives()
   }, [restoSelectionne, onglet])
 
-  // Fermer le modal congé au démontage pour éviter le crash iOS (modal visible + composant démonté)
   const isMountedRef = useRef(true)
   useEffect(() => {
-    return () => {
-      isMountedRef.current = false
-      setModalConge(false)
-    }
+    return () => { isMountedRef.current = false }
   }, [])
 
   async function chargerRestaurants() {
@@ -180,6 +171,14 @@ export default function RHScreen() {
       .from('presences').select('*').in('point_id', pointIds)
 
     setPresences((presData || []).map(p => ({ ...p, date: pointDates[p.point_id] || '' })))
+
+    const { data: paiesGerantData } = await supabase
+      .from('depenses')
+      .select('libelle, montant, point_id')
+      .in('point_id', pointIds)
+      .eq('categorie', 'Paie')
+      .eq('saisi_par', 'gerant')
+    setPaiesGerantDB(paiesGerantData || [])
 
     const { data: travData } = await supabase
       .from('travailleurs').select('*')
@@ -266,6 +265,7 @@ export default function RHScreen() {
         message: `${formTravailleur.nom} ajouté à ${restoSelectionne.nom}`,
         restaurant_id: restoSelectionne.id,
         cible_role: ['manager', 'directeur'],
+        screen: 'rh',
       }).catch(() => {})
     }
 
@@ -326,6 +326,21 @@ export default function RHScreen() {
     Alert.alert('Archivé', `${travailleurAction.nom} a été archivé.`)
   }
 
+  async function transfererTravailleur() {
+    if (!travailleurSelectionne || !restoTransfertId) return
+    setSavingTransfert(true)
+    await supabase.from('travailleurs')
+      .update({ restaurant_id: restoTransfertId })
+      .eq('id', travailleurSelectionne.id)
+    setSavingTransfert(false)
+    setModalTransfert(false)
+    setRestoTransfertId(null)
+    setModalTravailleur(false)
+    chargerDonnees()
+    const restoNom = restaurants.find(r => r.id === restoTransfertId)?.nom || ''
+    Alert.alert('Transféré', `${travailleurSelectionne.nom} a été transféré vers ${restoNom}.`)
+  }
+
   async function reactiverTravailleur(trav) {
     await supabase.from('travailleurs').update({
       statut: 'actif',
@@ -357,7 +372,7 @@ export default function RHScreen() {
                   style: 'destructive',
                   onPress: async () => {
                     await supabase.from('presences').delete().eq('travailleur_id', trav.id)
-                    await supabase.from('permissions_conges').delete().eq('travailleur_id', trav.id)
+                    await supabase.from('demandes').delete().eq('travailleur_id', trav.id)
                     await supabase.from('documents_travailleurs').delete().eq('travailleur_id', trav.id)
                     await supabase.from('travailleurs').delete().eq('id', trav.id)
                     chargerArchives()
@@ -425,69 +440,6 @@ export default function RHScreen() {
       Alert.alert('Erreur', "Impossible d'uploader le fichier")
     }
     setUploadingPapier(false)
-  }
-
-  async function chargerConges() {
-    if (!restoSelectionne) return
-    setLoadingConges(true)
-    const { data } = await supabase
-      .from('permissions_conges')
-      .select('*')
-      .eq('restaurant_id', restoSelectionne.id)
-      .order('date_debut', { ascending: false })
-    if (!isMountedRef.current) return
-    setConges(data || [])
-    setLoadingConges(false)
-  }
-
-  async function sauvegarderConge() {
-    if (!formConge.travailleur_id || !formConge.date_debut || !formConge.date_fin) {
-      Alert.alert('Erreur', 'Travailleur et dates obligatoires')
-      return
-    }
-    setSavingConge(true)
-    if (editingConge) {
-      await supabase.from('permissions_conges').update({
-        type: formConge.type,
-        date_debut: formConge.date_debut,
-        date_fin: formConge.date_fin,
-        motif: formConge.motif || null,
-      }).eq('id', editingConge.id)
-    } else {
-      await supabase.from('permissions_conges').insert({
-        restaurant_id: restoSelectionne.id,
-        travailleur_id: formConge.travailleur_id,
-        travailleur_nom: formConge.travailleur_nom,
-        type: formConge.type,
-        date_debut: formConge.date_debut,
-        date_fin: formConge.date_fin,
-        motif: formConge.motif || null,
-        created_by: 'rh',
-      })
-    }
-    setSavingConge(false)
-    setModalConge(false)
-    setEditingConge(null)
-    setFormConge({ type: 'conge', travailleur_id: '', travailleur_nom: '', date_debut: '', date_fin: '', motif: '' })
-    chargerConges()
-    Alert.alert('Succès', editingConge ? 'Modifié !' : 'Congé / permission enregistré !')
-  }
-
-  async function supprimerConge(conge) {
-    Alert.alert('Confirmer', 'Supprimer cette entrée ?', [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: async () => {
-        await supabase.from('permissions_conges').delete().eq('id', conge.id)
-        chargerConges()
-      }}
-    ])
-  }
-
-  function getStatutConge(conge) {
-    const today = new Date().toISOString().split('T')[0]
-    if (conge.date_fin < today) return { label: 'Terminé', bg: '#F1EFE8', text: '#666' }
-    if (conge.date_debut > today) return { label: 'À venir', bg: '#E6F1FB', text: '#185FA5' }
-    return { label: 'En cours', bg: '#EAF3DE', text: '#3B6D11' }
   }
 
   async function exporterExcel() {
@@ -583,10 +535,14 @@ export default function RHScreen() {
 
   function statsGlobales() {
     const s = statsParTravailleur()
+    const totalPayePresences = s.reduce((sum, t) => sum + t.totalPaye, 0)
+    const totalPayeGerant = paiesGerantDB.reduce((sum, d) => sum + (parseFloat(d.montant) || 0), 0)
     return {
       totalPresences: s.reduce((sum, t) => sum + t.present, 0),
       totalAbsences: s.reduce((sum, t) => sum + t.absent, 0),
-      totalPaye: s.reduce((sum, t) => sum + t.totalPaye, 0),
+      totalPaye: totalPayePresences + totalPayeGerant,
+      totalPayePresences,
+      totalPayeGerant,
       nbJours: [...new Set(presences.map(p => p.date))].length,
       nbTravailleurs: travailleurs.length,
     }
@@ -673,6 +629,16 @@ export default function RHScreen() {
           <Text style={styles.salaireTitre}>💰 Total salaires versés</Text>
           <Text style={styles.salaireValeur}>{fmt(globales.totalPaye)}</Text>
           <Text style={styles.salaireSub}>{titrePeriode()} — {restoSelectionne?.nom}</Text>
+          {globales.totalPayeGerant > 0 && (
+            <View style={{ marginTop: 10, gap: 4 }}>
+              <Text style={[styles.salaireSub, { color: '#B8D4F5' }]}>
+                Présences : {fmt(globales.totalPayePresences)}
+              </Text>
+              <Text style={[styles.salaireSub, { color: '#B8D4F5' }]}>
+                Gérant caisse : {fmt(globales.totalPayeGerant)}
+              </Text>
+            </View>
+          )}
         </View>
 
         <Text style={styles.sectionTitre}>Taux de présence par travailleur</Text>
@@ -904,7 +870,16 @@ export default function RHScreen() {
   // ─── SALAIRES ──────────────────────────────────────────────
   function renderSalaires() {
     const statsTriees = [...stats].sort((a, b) => b.totalPaye - a.totalPaye)
-    const totalGlobal = statsTriees.reduce((sum, t) => sum + t.totalPaye, 0)
+    const totalPresences = statsTriees.reduce((sum, t) => sum + t.totalPaye, 0)
+    const totalGerant = paiesGerantDB.reduce((sum, d) => sum + (parseFloat(d.montant) || 0), 0)
+    const totalGlobal = totalPresences + totalGerant
+
+    const paiesGerantGrouped = {}
+    paiesGerantDB.forEach(d => {
+      const key = d.libelle || 'Paie gérant'
+      paiesGerantGrouped[key] = (paiesGerantGrouped[key] || 0) + (parseFloat(d.montant) || 0)
+    })
+    const paiesGerantLignes = Object.entries(paiesGerantGrouped).sort((a, b) => b[1] - a[1])
 
     return (
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -912,127 +887,113 @@ export default function RHScreen() {
           <Text style={styles.salaireTitre}>💰 Total masse salariale</Text>
           <Text style={styles.salaireValeur}>{fmt(totalGlobal)}</Text>
           <Text style={styles.salaireSub}>{titrePeriode()}</Text>
+          {totalGerant > 0 && (
+            <View style={{ marginTop: 10, gap: 4 }}>
+              <Text style={[styles.salaireSub, { color: '#B8D4F5' }]}>
+                Présences : {fmt(totalPresences)}
+              </Text>
+              <Text style={[styles.salaireSub, { color: '#B8D4F5' }]}>
+                Gérant caisse : {fmt(totalGerant)}
+              </Text>
+            </View>
+          )}
         </View>
 
-        {statsTriees.length === 0 ? (
+        {statsTriees.length === 0 && paiesGerantLignes.length === 0 ? (
           <View style={styles.emptyBox}>
             <Text style={styles.emptyIcon}>💰</Text>
             <Text style={styles.emptyTxt}>Aucune donnée sur cette période</Text>
           </View>
         ) : (
-          <View style={styles.salaireListCard}>
-            {statsTriees.map((t, i) => {
-              const pct = totalGlobal > 0 ? (t.totalPaye / totalGlobal * 100) : 0
-              return (
-                <TouchableOpacity
-                  key={i}
-                  style={[styles.salaireRow, i === statsTriees.length - 1 && { borderBottomWidth: 0 }]}
-                  onPress={() => ouvrirDetailTravailleur(
-                    travailleurs.find(tr => tr.id === t.id) || { id: t.id, nom: t.nom, poste: t.poste }
-                  )}
-                >
-                  <View style={styles.salaireLeft}>
-                    <View style={styles.avatar}>
-                      <Text style={styles.avatarTxt}>
-                        {t.nom.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.salaireNom}>{t.nom}</Text>
-                      <Text style={styles.salairePoste}>{t.poste || ''} — {t.present}j travaillé(s)</Text>
-                      <View style={styles.salaireBarre}>
-                        <View style={[styles.salaireBarreFill, { width: `${pct}%` }]} />
+          <>
+            {statsTriees.length > 0 && (
+              <>
+                <Text style={styles.sectionTitre}>Paies présences</Text>
+                <View style={styles.salaireListCard}>
+                  {statsTriees.map((t, i) => {
+                    const pct = totalGlobal > 0 ? (t.totalPaye / totalGlobal * 100) : 0
+                    return (
+                      <TouchableOpacity
+                        key={i}
+                        style={[styles.salaireRow, i === statsTriees.length - 1 && { borderBottomWidth: 0 }]}
+                        onPress={() => ouvrirDetailTravailleur(
+                          travailleurs.find(tr => tr.id === t.id) || { id: t.id, nom: t.nom, poste: t.poste }
+                        )}
+                      >
+                        <View style={styles.salaireLeft}>
+                          <View style={styles.avatar}>
+                            <Text style={styles.avatarTxt}>
+                              {t.nom.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.salaireNom}>{t.nom}</Text>
+                            <Text style={styles.salairePoste}>{t.poste || ''} — {t.present}j travaillé(s)</Text>
+                            <View style={styles.salaireBarre}>
+                              <View style={[styles.salaireBarreFill, { width: `${pct}%` }]} />
+                            </View>
+                          </View>
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={styles.salaireValeurRow}>{fmt(t.totalPaye)}</Text>
+                          <Text style={styles.salairePct}>{pct.toFixed(1)}%</Text>
+                        </View>
+                      </TouchableOpacity>
+                    )
+                  })}
+                  <View style={styles.salaireTotalRow}>
+                    <Text style={styles.salaireTotalLabel}>Sous-total</Text>
+                    <Text style={styles.salaireTotalVal}>{fmt(totalPresences)}</Text>
+                  </View>
+                </View>
+              </>
+            )}
+
+            {paiesGerantLignes.length > 0 && (
+              <>
+                <Text style={styles.sectionTitre}>Paies gérant caisse</Text>
+                <View style={styles.salaireListCard}>
+                  {paiesGerantLignes.map(([nom, montant], i) => {
+                    const pct = totalGlobal > 0 ? (montant / totalGlobal * 100) : 0
+                    return (
+                      <View
+                        key={i}
+                        style={[styles.salaireRow, i === paiesGerantLignes.length - 1 && { borderBottomWidth: 0 }]}
+                      >
+                        <View style={styles.salaireLeft}>
+                          <View style={styles.avatar}>
+                            <Text style={styles.avatarTxt}>
+                              {nom.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.salaireNom}>{nom}</Text>
+                            <Text style={styles.salairePoste}>Payé via gérant caisse</Text>
+                            <View style={styles.salaireBarre}>
+                              <View style={[styles.salaireBarreFill, { width: `${pct}%`, backgroundColor: '#EF9F27' }]} />
+                            </View>
+                          </View>
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={styles.salaireValeurRow}>{fmt(montant)}</Text>
+                          <Text style={styles.salairePct}>{pct.toFixed(1)}%</Text>
+                        </View>
                       </View>
-                    </View>
+                    )
+                  })}
+                  <View style={styles.salaireTotalRow}>
+                    <Text style={styles.salaireTotalLabel}>Sous-total</Text>
+                    <Text style={styles.salaireTotalVal}>{fmt(totalGerant)}</Text>
                   </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={styles.salaireValeurRow}>{fmt(t.totalPaye)}</Text>
-                    <Text style={styles.salairePct}>{pct.toFixed(1)}%</Text>
-                  </View>
-                </TouchableOpacity>
-              )
-            })}
-            <View style={styles.salaireTotalRow}>
-              <Text style={styles.salaireTotalLabel}>Total</Text>
-              <Text style={styles.salaireTotalVal}>{fmt(totalGlobal)}</Text>
+                </View>
+              </>
+            )}
+
+            <View style={[styles.salaireTotalRow, { marginTop: 12, backgroundColor: colors.surface, borderRadius: 12, padding: 14 }]}>
+              <Text style={[styles.salaireTotalLabel, { fontSize: 15 }]}>Total général</Text>
+              <Text style={[styles.salaireTotalVal, { fontSize: 18 }]}>{fmt(totalGlobal)}</Text>
             </View>
-          </View>
-        )}
-        <View style={{ height: 30 }} />
-      </ScrollView>
-    )
-  }
-
-  // ─── CONGÉS & PERMISSIONS ──────────────────────────────────
-  function renderConges() {
-    return (
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <TouchableOpacity
-          style={styles.addTravBtn}
-          onPress={() => {
-            setFormConge({ type: 'conge', travailleur_id: '', travailleur_nom: '', date_debut: '', date_fin: '', motif: '' })
-            setEditingConge(null)
-            setModalConge(true)
-          }}
-        >
-          <Text style={styles.addTravTxt}>+ Ajouter congé / permission</Text>
-        </TouchableOpacity>
-
-        {loadingConges ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color="#185FA5" />
-          </View>
-        ) : conges.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyIcon}>🏖️</Text>
-            <Text style={styles.emptyTxt}>Aucun congé ou permission enregistré</Text>
-          </View>
-        ) : (
-          conges.map((c) => {
-            const statut = getStatutConge(c)
-            return (
-              <View key={c.id} style={styles.congeCard}>
-                <View style={styles.congeTop}>
-                  <View style={[styles.congeTypeBadge, { backgroundColor: c.type === 'conge' ? '#EEEDFE' : '#FAEEDA' }]}>
-                    <Text style={[styles.congeTypeTxt, { color: c.type === 'conge' ? '#3C3489' : '#854F0B' }]}>
-                      {c.type === 'conge' ? '🏖️ Congé' : '📋 Permission'}
-                    </Text>
-                  </View>
-                  <View style={[styles.congeStatutBadge, { backgroundColor: statut.bg }]}>
-                    <Text style={[styles.congeStatutTxt, { color: statut.text }]}>{statut.label}</Text>
-                  </View>
-                </View>
-                <Text style={styles.congeNom}>{c.travailleur_nom}</Text>
-                <Text style={styles.congeDates}>{formatDate(c.date_debut)} → {formatDate(c.date_fin)}</Text>
-                {c.motif ? <Text style={styles.congeMotif}>"{c.motif}"</Text> : null}
-                <View style={styles.congeActions}>
-                  <TouchableOpacity
-                    style={styles.congeEditBtn}
-                    onPress={() => {
-                      setFormConge({
-                        type: c.type,
-                        travailleur_id: c.travailleur_id,
-                        travailleur_nom: c.travailleur_nom,
-                        date_debut: c.date_debut,
-                        date_fin: c.date_fin,
-                        motif: c.motif || '',
-                      })
-                      setEditingConge(c)
-                      setModalConge(true)
-                    }}
-                  >
-                    <Text style={styles.congeEditTxt}>✏️ Modifier</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.congeDeleteBtn}
-                    onPress={() => supprimerConge(c)}
-                  >
-                    <Text style={styles.congeDeleteTxt}>🗑 Supprimer</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )
-          })
+          </>
         )}
         <View style={{ height: 30 }} />
       </ScrollView>
@@ -1184,142 +1145,6 @@ export default function RHScreen() {
     )
   }
 
-  function renderModalConge() {
-    return (
-      <Modal visible={modalConge} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.modalOverlay}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-              <ScrollView style={styles.modal} showsVerticalScrollIndicator={false}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitre}>
-                    {editingConge ? 'Modifier' : 'Nouveau congé / permission'}
-                  </Text>
-                  <TouchableOpacity onPress={() => { setModalConge(false); setEditingConge(null) }}>
-                    <Text style={styles.modalClose}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <Text style={styles.modalLabel}>Type</Text>
-                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
-                  {[{ key: 'conge', label: '🏖️ Congé' }, { key: 'permission', label: '📋 Permission' }].map(t => (
-                    <TouchableOpacity
-                      key={t.key}
-                      style={[styles.contratChoix, formConge.type === t.key && styles.contratChoixActive]}
-                      onPress={() => setFormConge(p => ({ ...p, type: t.key }))}
-                    >
-                      <Text style={[styles.contratChoixTxt, formConge.type === t.key && styles.contratChoixTxtActive]}>
-                        {t.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <Text style={styles.modalLabel}>Travailleur</Text>
-                {!editingConge ? (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
-                    {travailleurs.map(t => (
-                      <TouchableOpacity
-                        key={t.id}
-                        style={[styles.travChoixBtn, formConge.travailleur_id === t.id && styles.travChoixBtnActive]}
-                        onPress={() => setFormConge(p => ({ ...p, travailleur_id: t.id, travailleur_nom: t.nom }))}
-                      >
-                        <Text style={[styles.travChoixTxt, formConge.travailleur_id === t.id && styles.travChoixTxtActive]}>
-                          {t.nom}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                ) : (
-                  <View style={[styles.modalInput, { marginBottom: 14, paddingVertical: 14 }]}>
-                    <Text style={{ color: colors.text }}>{formConge.travailleur_nom}</Text>
-                  </View>
-                )}
-
-                <Text style={styles.modalLabel}>Dates</Text>
-                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10, alignItems: 'center' }}>
-                  <TouchableOpacity
-                    style={[styles.contratChoix, { flex: 1 }, dateCongeChamp === 'debut' && styles.contratChoixActive]}
-                    onPress={() => setDateCongeChamp(dateCongeChamp === 'debut' ? null : 'debut')}
-                  >
-                    <Text style={[styles.contratChoixTxt, formConge.date_debut && { color: colors.text, fontWeight: '600' }, dateCongeChamp === 'debut' && { color: '#fff' }]}>
-                      {formConge.date_debut ? formatDate(formConge.date_debut) : '📅 Début'}
-                    </Text>
-                  </TouchableOpacity>
-                  <Text style={{ color: colors.textMuted }}>→</Text>
-                  <TouchableOpacity
-                    style={[styles.contratChoix, { flex: 1 }, dateCongeChamp === 'fin' && styles.contratChoixActive]}
-                    onPress={() => setDateCongeChamp(dateCongeChamp === 'fin' ? null : 'fin')}
-                  >
-                    <Text style={[styles.contratChoixTxt, formConge.date_fin && { color: colors.text, fontWeight: '600' }, dateCongeChamp === 'fin' && { color: '#fff' }]}>
-                      {formConge.date_fin ? formatDate(formConge.date_fin) : '📅 Fin'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                {dateCongeChamp !== null && (
-                  <View style={{ marginBottom: 14 }}>
-                    <Text style={styles.calInlineTitre}>
-                      {dateCongeChamp === 'debut' ? '📅 Sélectionner la date de début' : '📅 Sélectionner la date de fin'}
-                    </Text>
-                    <Calendar
-                      onDayPress={day => {
-                        setFormConge(p => ({
-                          ...p,
-                          [dateCongeChamp === 'debut' ? 'date_debut' : 'date_fin']: day.dateString,
-                        }))
-                        setDateCongeChamp(null)
-                      }}
-                      markedDates={{
-                        ...(formConge.date_debut ? { [formConge.date_debut]: { selected: true, selectedColor: '#185FA5' } } : {}),
-                        ...(formConge.date_fin ? { [formConge.date_fin]: { selected: true, selectedColor: '#3B6D11' } } : {}),
-                      }}
-                      theme={{
-                        selectedDayBackgroundColor: dateCongeChamp === 'debut' ? '#185FA5' : '#3B6D11',
-                        todayTextColor: '#185FA5',
-                        arrowColor: '#185FA5',
-                        monthTextColor: colors.text,
-                        dayTextColor: colors.text,
-                        textDisabledColor: '#ccc',
-                      }}
-                    />
-                  </View>
-                )}
-
-                <Text style={styles.modalLabel}>Motif (optionnel)</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="Ex: Voyage famille, Maladie..."
-                  value={formConge.motif}
-                  onChangeText={v => setFormConge(p => ({ ...p, motif: v }))}
-                  placeholderTextColor="#bbb"
-                />
-
-                <View style={styles.modalBtns}>
-                  <TouchableOpacity
-                    style={styles.modalCancel}
-                    onPress={() => { setModalConge(false); setEditingConge(null) }}
-                  >
-                    <Text style={styles.modalCancelTxt}>Annuler</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.modalConfirm, savingConge && { opacity: 0.6 }]}
-                    onPress={sauvegarderConge}
-                    disabled={savingConge}
-                  >
-                    <Text style={styles.modalConfirmTxt}>
-                      {savingConge ? 'Enregistrement...' : 'Enregistrer'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={{ height: 30 }} />
-              </ScrollView>
-            </KeyboardAvoidingView>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-    )
-  }
-
   // ─── MODAL DETAIL TRAVAILLEUR ───────────────────────────────
   function renderModalDetailTravailleur() {
     if (!travailleurSelectionne) return null
@@ -1438,10 +1263,89 @@ export default function RHScreen() {
                   ))}
                 </View>
               )}
+              <View style={styles.transfertArchiveRow}>
+                <TouchableOpacity
+                  style={styles.transfertBtn}
+                  onPress={() => {
+                    setRestoTransfertId(null)
+                    setModalTransfert(true)
+                  }}
+                >
+                  <Text style={styles.transfertBtnTxt}>🔄 Transférer</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.archiverBtn}
+                  onPress={() => {
+                    setTravailleurAction(travailleurSelectionne)
+                    setMotifArchive('Démission')
+                    setMotifArchiveCustom('')
+                    setModalArchiveAction(true)
+                  }}
+                >
+                  <Text style={styles.archiverBtnTxt}>📦 Archiver</Text>
+                </TouchableOpacity>
+              </View>
+
               <View style={{ height: 40 }} />
             </ScrollView>
           )}
         </SafeAreaView>
+      </Modal>
+    )
+  }
+
+  // ─── MODAL TRANSFERT ────────────────────────────────────────
+  function renderModalTransfert() {
+    if (!travailleurSelectionne) return null
+    const autresRestos = restaurants.filter(r => r.id !== restoSelectionne?.id)
+    return (
+      <Modal visible={modalTransfert} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitre}>Transférer {travailleurSelectionne.nom}</Text>
+              <TouchableOpacity onPress={() => setModalTransfert(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalLabel}>Choisir le restaurant destination</Text>
+            {autresRestos.map(r => (
+              <TouchableOpacity
+                key={r.id}
+                style={[
+                  styles.restoChoixBtn,
+                  restoTransfertId === r.id && styles.restoChoixBtnActive,
+                ]}
+                onPress={() => setRestoTransfertId(r.id)}
+              >
+                <Text style={[
+                  styles.restoChoixTxt,
+                  restoTransfertId === r.id && styles.restoChoixTxtActive,
+                ]}>
+                  {r.nom}
+                </Text>
+                {restoTransfertId === r.id && (
+                  <Text style={{ color: '#fff', fontSize: 16 }}>✓</Text>
+                )}
+              </TouchableOpacity>
+            ))}
+            <View style={[styles.modalBtns, { marginTop: 20 }]}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setModalTransfert(false)}>
+                <Text style={styles.modalCancelTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirm, (!restoTransfertId || savingTransfert) && { opacity: 0.5 }]}
+                onPress={transfererTravailleur}
+                disabled={!restoTransfertId || savingTransfert}
+              >
+                <Text style={styles.modalConfirmTxt}>
+                  {savingTransfert ? 'Transfert...' : 'Confirmer'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ height: 20 }} />
+          </View>
+        </View>
       </Modal>
     )
   }
@@ -1694,7 +1598,7 @@ export default function RHScreen() {
         ))}
       </ScrollView>
 
-      {onglet !== 'Congés' && onglet !== 'Archivés' && (
+      {onglet !== 'Archivés' && (
         <View style={styles.periodeBanner}>
           <Text style={styles.periodeBannerTxt}>📅 {titrePeriode()}</Text>
           <Text style={styles.periodeBannerSub}>{presences.length} enregistrement(s)</Text>
@@ -1724,15 +1628,14 @@ export default function RHScreen() {
           {onglet === 'Travailleurs' && renderTravailleurs()}
           {onglet === 'Présences' && renderPresences()}
           {onglet === 'Salaires' && renderSalaires()}
-          {onglet === 'Congés' && renderConges()}
           {onglet === 'Archivés' && renderArchives()}
         </View>
       )}
 
       {renderModalDetailTravailleur()}
+      {renderModalTransfert()}
       {renderModalFormTravailleur()}
       {renderModalCalendrier()}
-      {renderModalConge()}
       {renderModalArchiveAction()}
     </SafeAreaView>
   )
@@ -1985,6 +1888,15 @@ function makeStyles(colors) { return StyleSheet.create({
   motifTxtActive: { color: '#fff', fontWeight: '600' },
   supprimerModalBtn: { padding: 14, borderRadius: 12, backgroundColor: '#FAECE7', alignItems: 'center' },
   supprimerModalTxt: { fontSize: 14, fontWeight: '600', color: '#993C1D' },
+  transfertArchiveRow: { flexDirection: 'row', gap: 10, marginTop: 20, marginBottom: 4 },
+  transfertBtn: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#E6F1FB', alignItems: 'center' },
+  transfertBtnTxt: { fontSize: 14, fontWeight: '600', color: '#185FA5' },
+  archiverBtn: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#FAEEDA', alignItems: 'center' },
+  archiverBtnTxt: { fontSize: 14, fontWeight: '600', color: '#854F0B' },
+  restoChoixBtn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderRadius: 12, backgroundColor: colors.bg, borderWidth: 0.5, borderColor: colors.border, marginBottom: 8 },
+  restoChoixBtnActive: { backgroundColor: '#185FA5', borderColor: '#185FA5' },
+  restoChoixTxt: { fontSize: 14, color: colors.text, fontWeight: '500' },
+  restoChoixTxtActive: { color: '#fff', fontWeight: '600' },
   photoProfilBox: { alignItems: 'center', marginBottom: 16 },
   photoProfilPreview: { width: 70, height: 70, borderRadius: 35, marginBottom: 8 },
   photoProfilVide: { width: 70, height: 70, borderRadius: 35, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', marginBottom: 8, borderWidth: 0.5, borderColor: colors.border },

@@ -1,22 +1,68 @@
 import { router, useLocalSearchParams } from 'expo-router'
-import { useEffect, useMemo } from 'react'
-import { FlatList, Modal, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native'
+import { useEffect, useMemo, useState } from 'react'
+import { FlatList, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native'
+import Animated, {
+  FadeInDown,
+  FadeInRight,
+  FadeIn,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated'
 import { useApp } from '../context/AppContext'
 import { useNotifications } from '../context/NotificationsContext'
 import { useTheme } from '../context/ThemeContext'
 import { enregistrerTokenDirecteur } from '../lib/notifications'
 import SignatureFooter from '../components/SignatureFooter'
+import { supabase } from '../lib/supabase'
+import { SPRINGS, staggerDelay } from '../lib/animations'
+
+function MenuCard({ item, index }) {
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
+  const scale = useSharedValue(1)
+  const aStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }))
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(staggerDelay(index, 55)).springify().damping(18).stiffness(190)}
+      style={[styles.cardWrap, aStyle]}
+    >
+      <Pressable
+        onPressIn={() => { if (!item.bloque) scale.value = withSpring(0.93, SPRINGS.snappy) }}
+        onPressOut={() => { scale.value = withSpring(1, SPRINGS.gentle) }}
+        onPress={() => !item.bloque && router.push(item.route)}
+        style={[styles.card, item.bloque && styles.cardBloque]}
+        disabled={item.bloque}
+      >
+        <View style={styles.cardIconWrap}>
+          <Text style={styles.cardIcon}>{item.icon}</Text>
+        </View>
+        <Text style={[styles.cardTitre, item.bloque && styles.cardTitreBloque]} numberOfLines={1}>
+          {item.titre}
+        </Text>
+        <Text style={[styles.cardSous, item.bloque && styles.cardSousBloque]} numberOfLines={2}>
+          {item.bloque ? '🔒 Verrouillé' : item.sous}
+        </Text>
+      </Pressable>
+    </Animated.View>
+  )
+}
 
 export default function AccueilScreen() {
   const { nom, role } = useLocalSearchParams()
   const {
     pointValide, estBloque, roleActif, deconnecter,
-    userId,
+    userId, restaurantId,
   } = useApp()
+  const [nbCorrections, setNbCorrections] = useState(0)
 
   const { colors, isDark, toggleTheme } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
-  const { notifications, nonLues, panelVisible, ouvrirPanel, fermerPanel } = useNotifications()
+  const {
+    notifications, nonLues, panelVisible,
+    ouvrirPanel, fermerPanel,
+    supprimerUne, supprimerTout, naviguerDepuisNotif,
+  } = useNotifications()
 
   const roleEffectif = role || roleActif
 
@@ -28,12 +74,24 @@ export default function AccueilScreen() {
     }
   }, [roleEffectif])
 
-  // Directeur : enregistrer le token push dès la connexion (silencieux si déjà accordé)
+  // Manager et Directeur : enregistrer le token push dès la connexion
   useEffect(() => {
-    if (roleEffectif === 'directeur' && userId) {
+    if ((roleEffectif === 'directeur' || roleEffectif === 'manager') && userId) {
       enregistrerTokenDirecteur(userId)
     }
   }, [roleEffectif, userId])
+
+  // Gérant : charger les corrections en attente
+  useEffect(() => {
+    if (roleEffectif === 'gerant' && restaurantId) {
+      supabase
+        .from('deverouillages_points')
+        .select('id', { count: 'exact', head: true })
+        .eq('restaurant_id', restaurantId)
+        .eq('statut', 'ouvert')
+        .then(({ count }) => setNbCorrections(count || 0))
+    }
+  }, [roleEffectif, restaurantId])
 
   const isManager = roleEffectif === 'manager'
   const isDirecteur = roleEffectif === 'directeur'
@@ -50,7 +108,9 @@ export default function AccueilScreen() {
     { icon: '🧑‍💼', titre: 'Ressources Humaines', sous: 'Présences & salaires', route: '/rh', bloque: false },
     { icon: '💳', titre: 'Charges du mois', sous: 'Saisir & voir bénéfice réel', route: '/charges', bloque: false },
     { icon: '📁', titre: 'Documents', sous: 'Documents administratifs', route: '/documents', bloque: false },
+    { icon: '📋', titre: 'Demandes', sous: 'Permissions, congés & réclamations', route: '/demandes-admin', bloque: false },
     { icon: '💳', titre: 'Crédits fournisseurs', sous: 'Crédit, avances & paiements', route: '/credits-fournisseurs', bloque: false },
+    { icon: '⚖️', titre: 'Litiges', sous: 'Écarts, avis & réclamations', route: '/litiges', bloque: false },
     { icon: '🔍', titre: 'Vérification', sous: 'Photos & points à vérifier', route: '/verification', bloque: false },
     { icon: '📊', titre: 'Rapports hebdo', sous: 'Synthèse automatique semaine', route: '/rapports', bloque: false },
     { icon: '👤', titre: 'Stats caissiers', sous: 'Performance par caissier', route: '/stats-caissiers', bloque: false },
@@ -61,10 +121,12 @@ export default function AccueilScreen() {
 
   const menuRH = [
     { icon: '🧑‍💼', titre: 'Ressources Humaines', sous: 'Présences & salaires', route: '/rh', bloque: false },
+    { icon: '📋', titre: 'Demandes', sous: 'Valider permissions & congés', route: '/demandes-admin', bloque: false },
     { icon: '👥', titre: 'Équipe globale', sous: 'Tous les travailleurs', route: '/equipe', bloque: false },
     { icon: '📲', titre: 'Contacts', sous: 'Contacts équipe', route: '/contacts', bloque: false },
     { icon: '💳', titre: 'Charges du mois', sous: 'Saisir les charges', route: '/charges', bloque: false },
     { icon: '📁', titre: 'Documents', sous: 'Ajouter des documents', route: '/documents', bloque: false },
+    { icon: '💳', titre: 'Crédits fournisseurs', sous: 'Crédit, avances & paiements', route: '/credits-fournisseurs', bloque: false },
   ]
 
   const menuGerant = [
@@ -75,6 +137,7 @@ export default function AccueilScreen() {
     { icon: '👤', titre: 'Espace Caissier', sous: 'Point, dépenses, présences, inventaire…', route: '/gerant-caissier', bloque: false },
     { icon: '💸', titre: 'Déductions Gérant', sous: 'Fournisseurs, marché, divers', route: '/deductions-gerant', bloque: false },
     { icon: '💳', titre: 'Crédits fournisseurs', sous: 'Crédit, avances & paiements', route: '/credits-fournisseurs', bloque: false },
+    { icon: '📋', titre: 'Demandes', sous: 'Permissions & congés travailleurs', route: '/demandes', bloque: false },
     { icon: '📲', titre: 'Contacts', sous: 'SMS & WhatsApp équipe', route: '/contacts', bloque: false },
   ]
 
@@ -93,20 +156,7 @@ export default function AccueilScreen() {
         {titre && <Text style={styles.sectionTitre}>{titre}</Text>}
         <View style={styles.grid}>
           {items.map((item, i) => (
-            <TouchableOpacity
-              key={i}
-              style={[styles.card, item.bloque && styles.cardBloque]}
-              onPress={() => !item.bloque && router.push(item.route)}
-              disabled={item.bloque}
-            >
-              <Text style={styles.cardIcon}>{item.icon}</Text>
-              <Text style={[styles.cardTitre, item.bloque && styles.cardTitreBloque]}>
-                {item.titre}
-              </Text>
-              <Text style={[styles.cardSous, item.bloque && styles.cardSousBloque]}>
-                {item.bloque ? '🔒 Verrouillé' : item.sous}
-              </Text>
-            </TouchableOpacity>
+            <MenuCard key={i} item={item} index={i} />
           ))}
         </View>
       </View>
@@ -167,7 +217,10 @@ export default function AccueilScreen() {
     <SafeAreaView style={styles.container}>
 
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: getHeaderColor() }]}>
+      <Animated.View
+        entering={FadeInDown.springify().damping(22).stiffness(180)}
+        style={[styles.header, { backgroundColor: getHeaderColor() }]}
+      >
         <View style={{ flex: 1 }}>
           <Text style={[styles.headerSub, { color: getRoleBadgeText() }]}>
             {getSubtitle()}
@@ -186,25 +239,40 @@ export default function AccueilScreen() {
             <TouchableOpacity onPress={ouvrirPanel} style={styles.bellBtn}>
               <Text style={styles.bellIcon}>🔔</Text>
               {nonLues > 0 && (
-                <View style={styles.bellBadge}>
+                <Animated.View
+                  entering={FadeIn.delay(600).springify()}
+                  style={styles.bellBadge}
+                >
                   <Text style={styles.bellBadgeTxt}>{nonLues > 9 ? '9+' : nonLues}</Text>
-                </View>
+                </Animated.View>
               )}
             </TouchableOpacity>
           )}
-          <View style={[styles.roleBadge, { backgroundColor: getRoleBadgeBg() }]}>
+          <Animated.View
+            entering={FadeInRight.delay(200).springify().damping(18)}
+            style={[styles.roleBadge, { backgroundColor: getRoleBadgeBg() }]}
+          >
             <Text style={[styles.roleText, { color: getRoleBadgeText() }]}>
               {getRoleLabel()}
             </Text>
-          </View>
+          </Animated.View>
         </View>
-      </View>
+      </Animated.View>
 
       {/* Bannières */}
       {pointValide && !isManager && !isDirecteur && !isRH && (
         <View style={styles.valideBanner}>
           <Text style={styles.valideTxt}>✅ Point du jour validé — lecture seule</Text>
         </View>
+      )}
+
+      {isGerant && nbCorrections > 0 && (
+        <TouchableOpacity style={styles.correctionBanner} onPress={() => router.push('/correction-point')}>
+          <Text style={styles.correctionBannerTxt}>
+            ⚠️ {nbCorrections} correction(s) demandée(s) par le manager
+          </Text>
+          <Text style={styles.correctionBannerSub}>Appuyer pour voir et corriger ›</Text>
+        </TouchableOpacity>
       )}
 
       {isManager && (
@@ -282,9 +350,16 @@ export default function AccueilScreen() {
           <View style={styles.notifPanel}>
             <View style={styles.notifPanelHeader}>
               <Text style={styles.notifPanelTitre}>🔔 Notifications</Text>
-              <TouchableOpacity onPress={fermerPanel}>
-                <Text style={styles.notifPanelClose}>✕</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                {notifications.length > 0 && (
+                  <TouchableOpacity onPress={supprimerTout}>
+                    <Text style={styles.notifEffacer}>Tout effacer</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={fermerPanel}>
+                  <Text style={styles.notifPanelClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
             </View>
             {notifications.length === 0 ? (
               <View style={styles.notifEmpty}>
@@ -297,17 +372,34 @@ export default function AccueilScreen() {
                 contentContainerStyle={{ padding: 14, paddingBottom: 30 }}
                 renderItem={({ item: n }) => {
                   const nonLue = !n.lu_par?.includes(userId)
+                  const aUneLigne = !!(n.screen || (n.type && ['point_valide','shift_valide','correction_demandee','nouveau_document','nouveau_travailleur'].includes(n.type)))
                   return (
-                    <View style={[styles.notifCard, nonLue && styles.notifCardNonLue]}>
+                    <TouchableOpacity
+                      activeOpacity={aUneLigne ? 0.75 : 1}
+                      onPress={aUneLigne ? () => naviguerDepuisNotif(n) : undefined}
+                      style={[styles.notifCard, nonLue && styles.notifCardNonLue]}
+                    >
                       {nonLue && <View style={styles.notifDot} />}
+                      <TouchableOpacity
+                        style={styles.notifDeleteBtn}
+                        onPress={() => supprimerUne(n.id)}
+                        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                      >
+                        <Text style={styles.notifDeleteTxt}>✕</Text>
+                      </TouchableOpacity>
                       <Text style={styles.notifCardTitre}>{n.titre}</Text>
                       <Text style={styles.notifCardMsg}>{n.message}</Text>
-                      <Text style={styles.notifCardDate}>
-                        {new Date(n.created_at).toLocaleDateString('fr-FR', {
-                          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-                        })}
-                      </Text>
-                    </View>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                        <Text style={styles.notifCardDate}>
+                          {new Date(n.created_at).toLocaleDateString('fr-FR', {
+                            day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                          })}
+                        </Text>
+                        {aUneLigne && (
+                          <Text style={styles.notifVoir}>Voir ›</Text>
+                        )}
+                      </View>
+                    </TouchableOpacity>
                   )
                 }}
               />
@@ -322,84 +414,113 @@ export default function AccueilScreen() {
 function makeStyles(colors) { return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
-    padding: 20, paddingBottom: 24,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start'
+    padding: 22, paddingBottom: 26,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
   },
-  headerSub: { fontSize: 12, marginBottom: 4 },
-  headerTitre: { fontSize: 22, fontWeight: '700' },
-  headerDate: { fontSize: 12, marginTop: 4 },
-  roleBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginTop: 4 },
-  roleText: { fontSize: 12, fontWeight: '600' },
+  headerSub: { fontSize: 11, marginBottom: 5, letterSpacing: 0.3, opacity: 0.8 },
+  headerTitre: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
+  headerDate: { fontSize: 12, marginTop: 5, opacity: 0.75 },
+  roleBadge: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 22, marginTop: 4 },
+  roleText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.2 },
   valideBanner: {
-    backgroundColor: '#EAF3DE', padding: 10, alignItems: 'center',
-    borderBottomWidth: 0.5, borderBottomColor: '#C0DD97'
+    backgroundColor: '#E0F9EE', padding: 10, alignItems: 'center',
+    borderBottomWidth: 0.5, borderBottomColor: '#A8E8CC',
   },
-  valideTxt: { fontSize: 12, color: '#3B6D11', fontWeight: '500' },
+  valideTxt: { fontSize: 12, color: '#157548', fontWeight: '600' },
+  correctionBanner: {
+    backgroundColor: '#FEF0DA', padding: 12, alignItems: 'center',
+    borderBottomWidth: 1.5, borderBottomColor: '#F0A020',
+  },
+  correctionBannerTxt: { fontSize: 13, color: '#7A4800', fontWeight: '700' },
+  correctionBannerSub: { fontSize: 11, color: '#7A4800', marginTop: 3 },
   managerBanner: {
     backgroundColor: colors.primaryLight, padding: 10, alignItems: 'center',
-    borderBottomWidth: 0.5, borderBottomColor: colors.primaryText
+    borderBottomWidth: 0.5, borderBottomColor: colors.primaryText,
   },
   managerTxt: { fontSize: 12, color: colors.primaryDark, fontWeight: '500' },
-  body: { flex: 1, padding: 16 },
-  section: { marginBottom: 16 },
+  body: { flex: 1, padding: 14 },
+  section: { marginBottom: 14 },
   sectionTitre: {
-    fontSize: 11, fontWeight: '600', color: colors.textMuted,
-    letterSpacing: 0.5, marginBottom: 10, textTransform: 'uppercase'
+    fontSize: 10, fontWeight: '700', color: colors.textMuted,
+    letterSpacing: 1, marginBottom: 12, textTransform: 'uppercase',
   },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  cardWrap: { width: '47.5%' },
   card: {
-    width: '47%', backgroundColor: colors.surface, borderRadius: 14,
-    padding: 14, borderWidth: 0.5, borderColor: colors.borderLight
+    backgroundColor: colors.surface, borderRadius: 18,
+    padding: 16, overflow: 'hidden',
+    shadowColor: colors.cardShadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08, shadowRadius: 12, elevation: 5,
+    borderWidth: 1, borderColor: colors.borderLight,
+    minHeight: 110,
   },
-  cardBloque: { backgroundColor: colors.surfaceAlt, borderColor: colors.border, opacity: 0.6 },
-  cardIcon: { fontSize: 26, marginBottom: 8 },
-  cardTitre: { fontSize: 13, fontWeight: '600', color: colors.text },
-  cardTitreBloque: { color: '#aaa' },
-  cardSous: { fontSize: 11, color: colors.textMuted, marginTop: 3 },
-  cardSousBloque: { color: '#ccc' },
+  cardBloque: {
+    backgroundColor: colors.surfaceAlt, borderColor: colors.border,
+    opacity: 0.55, shadowOpacity: 0,
+  },
+  cardIconWrap: {
+    width: 46, height: 46, borderRadius: 14,
+    backgroundColor: colors.bg,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 10,
+  },
+  cardIcon: { fontSize: 24 },
+  cardTitre: { fontSize: 13, fontWeight: '700', color: colors.text, letterSpacing: -0.2 },
+  cardTitreBloque: { color: colors.textMuted },
+  cardSous: { fontSize: 11, color: colors.textMuted, marginTop: 4, lineHeight: 15 },
+  cardSousBloque: { color: colors.textPlaceholder },
   themeRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: colors.surface, borderRadius: 12, padding: 14,
-    marginBottom: 8, borderWidth: 0.5, borderColor: colors.borderLight
+    backgroundColor: colors.surface, borderRadius: 16, padding: 16,
+    marginBottom: 10, borderWidth: 1, borderColor: colors.borderLight,
+    shadowColor: colors.cardShadow, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
   },
-  themeLabel: { fontSize: 14, color: colors.text, fontWeight: '500' },
+  themeLabel: { fontSize: 14, color: colors.text, fontWeight: '600' },
   logoutBtn: {
-    marginTop: 0, marginBottom: 10, padding: 14,
-    backgroundColor: colors.surface, borderRadius: 12, alignItems: 'center',
-    borderWidth: 0.5, borderColor: colors.borderLight
+    marginBottom: 12, padding: 16,
+    backgroundColor: colors.surface, borderRadius: 16, alignItems: 'center',
+    borderWidth: 1, borderColor: colors.borderLight,
+    shadowColor: colors.cardShadow, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
   },
-  logoutText: { fontSize: 14, color: colors.textMuted },
+  logoutText: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
   bellBtn: { position: 'relative', padding: 4 },
-  bellIcon: { fontSize: 22 },
+  bellIcon: { fontSize: 24 },
   bellBadge: {
     position: 'absolute', top: 0, right: 0,
-    minWidth: 16, height: 16, borderRadius: 8,
-    backgroundColor: '#E53535', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
+    minWidth: 18, height: 18, borderRadius: 9,
+    backgroundColor: '#EE4444', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
   },
-  bellBadgeTxt: { fontSize: 9, color: '#fff', fontWeight: '700' },
-  notifOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  bellBadgeTxt: { fontSize: 10, color: '#fff', fontWeight: '800' },
+  notifOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   notifPanel: {
-    backgroundColor: colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    backgroundColor: colors.surface, borderTopLeftRadius: 26, borderTopRightRadius: 26,
     maxHeight: '75%', minHeight: 200,
   },
   notifPanelHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    padding: 18, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight,
+    padding: 20, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight,
   },
-  notifPanelTitre: { fontSize: 16, fontWeight: '700', color: colors.text },
+  notifPanelTitre: { fontSize: 17, fontWeight: '700', color: colors.text },
   notifPanelClose: { fontSize: 18, color: colors.textMuted, paddingHorizontal: 4 },
   notifEmpty: { padding: 40, alignItems: 'center' },
   notifEmptyTxt: { fontSize: 14, color: colors.textMuted },
   notifCard: {
-    backgroundColor: colors.bg, borderRadius: 12, padding: 12,
+    backgroundColor: colors.bg, borderRadius: 14, padding: 14,
     marginBottom: 8, borderWidth: 0.5, borderColor: colors.borderLight, position: 'relative',
   },
   notifCardNonLue: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
   notifDot: {
-    position: 'absolute', top: 12, right: 12,
+    position: 'absolute', top: 14, right: 14,
     width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary,
   },
-  notifCardTitre: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 3 },
-  notifCardMsg: { fontSize: 12, color: colors.textSecondary, marginBottom: 4 },
+  notifEffacer: { fontSize: 12, color: '#EE4444', fontWeight: '700' },
+  notifCardTitre: { fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: 3, paddingRight: 22 },
+  notifCardMsg: { fontSize: 12, color: colors.textSecondary, marginBottom: 4, paddingRight: 8 },
   notifCardDate: { fontSize: 10, color: colors.textMuted },
+  notifDeleteBtn: { position: 'absolute', top: 10, right: 10, padding: 4 },
+  notifDeleteTxt: { fontSize: 12, color: colors.textMuted },
+  notifVoir: { fontSize: 11, color: colors.primary, fontWeight: '700' },
 }) }

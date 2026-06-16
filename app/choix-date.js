@@ -18,7 +18,7 @@ export default function ChoixDateScreen() {
   const { nom, role, userId } = useLocalSearchParams()
   const {
     setPointId, setDateJour, resetJour, setPointValide,
-    setDepensesJour, setVentesJour,
+    setVentesJour,
     restaurantId, restaurantNom,
   } = useApp()
 
@@ -93,7 +93,6 @@ export default function ChoixDateScreen() {
       const cumulOm = shifts.reduce((sum, s) => sum + (s.om || 0), 0)
       const cumulKdo = shifts.reduce((sum, s) => sum + (s.kdo || 0), 0)
       const cumulRetour = shifts.reduce((sum, s) => sum + (s.retour || 0), 0)
-      const cumulDepenses = shifts.reduce((sum, s) => sum + (s.depenses || 0), 0)
 
       // Pré-remplir les ventes avec le cumul des shifts
       setVentesJour(prev => ({
@@ -106,16 +105,6 @@ export default function ChoixDateScreen() {
         kdo: cumulKdo > 0 ? String(cumulKdo) : '',
         retour: cumulRetour > 0 ? String(cumulRetour) : '',
       }))
-
-      // Pré-remplir les dépenses avec le cumul des shifts
-      if (cumulDepenses > 0) {
-        setDepensesJour({
-          'Marché': [{ libelle: 'Cumul dépenses caissiers', montant: String(cumulDepenses) }],
-          'Légumes': [],
-          'Fruits': [],
-          'Dépenses annexes': [],
-        })
-      }
     }
 
     // Charger les séquences existantes

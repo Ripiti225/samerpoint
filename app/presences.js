@@ -31,6 +31,11 @@ const STATUT_COLORS = {
   'Malade': { bg: '#FAEEDA', text: '#854F0B' },
   'Permission': { bg: '#F1EFE8', text: '#444441' },
 }
+// Couleur par défaut pour les types de demande (Mariage, Maladie, etc.)
+const DEMANDE_COLOR_DEFAULT = { bg: '#EEEDFE', text: '#3C3489' }
+function getStatutColor(statut) {
+  return STATUT_COLORS[statut] || DEMANDE_COLOR_DEFAULT
+}
 
 export default function PresencesScreen() {
   const {
@@ -44,7 +49,7 @@ export default function PresencesScreen() {
   const [presences, setPresences] = useState({}) // { travailleurId: { statut, paye, shift_nom, heure_debut, heure_fin, presenceId } }
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState(null)
-  const [autoStatuts, setAutoStatuts] = useState({}) // { travailleur_id: { statut, motif } } — depuis permissions_conges
+  const [autoStatuts, setAutoStatuts] = useState({}) // { travailleur_id: { statut, motif } } — depuis demandes validées
 
   // Travailleurs dont la présence a été sauvegardée dans cette session (ce shift)
   // Évite que les présences chargées depuis la DB (shifts précédents) polluent paiesJour
@@ -92,23 +97,30 @@ export default function PresencesScreen() {
       : Promise.resolve({ data: [] })
 
     const dateRef = dateJour || new Date().toISOString().split('T')[0]
-    const congesQuery = supabase
-      .from('permissions_conges')
-      .select('travailleur_id, type, motif')
+    const demandesQuery = supabase
+      .from('demandes')
+      .select('travailleur_id, type')
       .eq('restaurant_id', restaurantId)
+      .eq('statut', 'validee')
+      .eq('necessite_dates', true)
       .lte('date_debut', dateRef)
       .gte('date_fin', dateRef)
 
-    const [{ data: travData }, { data: presData }, { data: congesData }] = await Promise.all([travQuery, presQuery, congesQuery])
+    const [{ data: travData }, { data: presData }, { data: demandesData }] = await Promise.all([travQuery, presQuery, demandesQuery])
 
     setTravailleurs(travData || [])
 
-    // Statuts automatiques actifs aujourd'hui (congé / permission déclarés dans RH)
+    // Statuts automatiques actifs aujourd'hui (demandes validées avec dates)
+    const DEMANDE_ICONS = {
+      'Maladie': '🤒', 'Obsèque': '🕊️', 'Mariage': '💍', 'Naissance': '👶',
+      'Examen': '📝', 'Voyage personnel': '✈️', 'Congé annuel': '🏖️',
+    }
     const autoMap = {}
-    ;(congesData || []).forEach(c => {
-      autoMap[c.travailleur_id] = {
-        statut: c.type === 'conge' ? 'Congé' : 'Permission',
-        motif: c.motif || '',
+    ;(demandesData || []).forEach(d => {
+      const icon = DEMANDE_ICONS[d.type] || '📋'
+      autoMap[d.travailleur_id] = {
+        statut: d.type,
+        motif: `${icon} ${d.type} validé par Administration`,
       }
     })
     setAutoStatuts(autoMap)
@@ -333,7 +345,7 @@ export default function PresencesScreen() {
             const autoStatut = autoStatuts[t.id]
             const effectifStatut = autoStatut?.statut || statut
             const isSelected = selectedId === t.id
-            const couleurStatut = effectifStatut ? STATUT_COLORS[effectifStatut] : null
+            const couleurStatut = effectifStatut ? getStatutColor(effectifStatut) : null
 
             return (
               <View key={t.id} style={[
@@ -342,10 +354,7 @@ export default function PresencesScreen() {
               ]}>
                 {autoStatut && (
                   <View style={styles.autoStatutBanner}>
-                    <Text style={styles.autoStatutTxt}>
-                      {autoStatut.statut === 'Congé' ? '🏖️' : '📋'} {autoStatut.statut} déclaré par RH
-                      {autoStatut.motif ? ` — ${autoStatut.motif}` : ''}
-                    </Text>
+                    <Text style={styles.autoStatutTxt}>{autoStatut.motif}</Text>
                   </View>
                 )}
                 <TouchableOpacity

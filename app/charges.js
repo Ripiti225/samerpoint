@@ -24,6 +24,15 @@ const MOIS_NOMS = [
   'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
 ]
 
+const LITIGES_CATS = [
+  { key: 'ecart',      label: '📊 Écart point' },
+  { key: 'inventaire', label: '📦 Inventaire' },
+  { key: 'avis',       label: '👁 Avis clients' },
+  { key: 'yango',      label: '🛵 Yango' },
+  { key: 'glovo',      label: '🟡 Glovo' },
+  { key: 'contact',    label: '📱 Contacts' },
+]
+
 export default function ChargesScreen() {
   const { roleActif } = useApp()
   const { colors } = useTheme()
@@ -46,6 +55,7 @@ export default function ChargesScreen() {
   const [bscMois, setBscMois] = useState(0)
   const [pointsValideCount, setPointsValideCount] = useState(0)
   const [recalculating, setRecalculating] = useState(false)
+  const [litigesCharges, setLitigesCharges] = useState({ ecart: 0, inventaire: 0, avis: 0, yango: 0, glovo: 0, contact: 0 })
 
   useEffect(() => { chargerRestaurants() }, [])
   useEffect(() => {
@@ -78,7 +88,7 @@ export default function ChargesScreen() {
       const fin = `${moisSelectionne}-${String(dernierJour).padStart(2, '0')}`
       const { data: points } = await supabase
         .from('points')
-        .select('id, yango_tab, glovo_tab')
+        .select('id, yango_tab, glovo_tab, depenses_gerant_caisse_total')
         .eq('restaurant_id', restoSelectionne.id)
         .eq('valide', true)
         .gte('date', debut)
@@ -102,13 +112,77 @@ export default function ChargesScreen() {
 
         const yangoTab = parseFloat(point.yango_tab) || 0
         const glovoTab = parseFloat(point.glovo_tab) || 0
+        const depGerant = parseFloat(point.depenses_gerant_caisse_total) || 0
         totalBSC += (yangoTab * 0.77) + (glovoTab * 0.705)
-          + (s.om * 0.99) + (s.wave * 0.99) + (s.djamo * 0.99) + s.espece
+          + (s.om * 0.99) + (s.wave * 0.99) + (s.djamo * 0.99) + (s.espece - depGerant)
       }
       setBscMois(totalBSC)
+      await chargerLitigesMois()
     }
 
     setLoading(false)
+  }
+
+  async function chargerLitigesMois() {
+    const debut = `${moisSelectionne}-01`
+    const [ly, lm] = moisSelectionne.split('-').map(Number)
+    const fin = `${moisSelectionne}-${String(new Date(ly, lm, 0).getDate()).padStart(2, '0')}`
+
+    // Écarts point
+    let ecart = 0
+    const { data: pts } = await supabase
+      .from('points').select('id, vente_machine')
+      .eq('restaurant_id', restoSelectionne.id).gte('date', debut).lte('date', fin)
+    if (pts?.length) {
+      const ids = pts.map(p => p.id)
+      const { data: sh } = await supabase
+        .from('points_shifts').select('point_id, vente_shift').in('point_id', ids)
+      const byPt = {}
+      ;(sh || []).forEach(s => { byPt[s.point_id] = (byPt[s.point_id] || 0) + (s.vente_shift || 0) })
+      pts.forEach(p => { ecart += (p.vente_machine || 0) - (byPt[p.id] || 0) })
+    }
+
+    // Inventaire
+    const { data: inv } = await supabase
+      .from('inventaires_shifts').select('montant_a_deduire')
+      .eq('restaurant_id', restoSelectionne.id).gte('date', debut).lte('date', fin).eq('valide', true)
+    const inventaire = (inv || []).reduce((s, x) => s + (x.montant_a_deduire || 0), 0)
+
+    // Avis / Yango / Glovo
+    const [{ data: avisD }, { data: yangoD }, { data: glovoD }] = await Promise.all([
+      supabase.from('litiges_avis_clients').select('montant').eq('restaurant_id', restoSelectionne.id).gte('date', debut).lte('date', fin),
+      supabase.from('litiges_yango').select('montant').eq('restaurant_id', restoSelectionne.id).gte('date', debut).lte('date', fin),
+      supabase.from('litiges_glovo').select('montant').eq('restaurant_id', restoSelectionne.id).gte('date', debut).lte('date', fin),
+    ])
+    const avis  = (avisD  || []).reduce((s, x) => s + (x.montant || 0), 0)
+    const yango = (yangoD || []).reduce((s, x) => s + (x.montant || 0), 0)
+    const glovo = (glovoD || []).reduce((s, x) => s + (x.montant || 0), 0)
+
+    // Contacts : écart entre nb commandes (points) et contacts pris (commandes)
+    let contact = 0
+    const { data: ptsCmds } = await supabase
+      .from('points').select('id, yango_nb_commandes, glovo_nb_commandes')
+      .eq('restaurant_id', restoSelectionne.id).gte('date', debut).lte('date', fin)
+    if (ptsCmds?.length) {
+      const ptIds = ptsCmds.map(p => p.id)
+      const { data: cmdsContact } = await supabase
+        .from('commandes').select('point_id, contact_client').in('point_id', ptIds)
+      const contactsByPt = {}
+      ;(cmdsContact || []).forEach(c => {
+        if (c.contact_client && c.contact_client.trim() !== '') {
+          contactsByPt[c.point_id] = (contactsByPt[c.point_id] || 0) + 1
+        }
+      })
+      ptsCmds.forEach(p => {
+        const nbCmds = (p.yango_nb_commandes || 0) + (p.glovo_nb_commandes || 0)
+        const nbContacts = contactsByPt[p.id] || 0
+        const ecartPt = nbCmds - nbContacts
+        const taux = nbCmds > 0 ? ecartPt / nbCmds : 0
+        if (taux > 0.2) contact += ecartPt * 500
+      })
+    }
+
+    setLitigesCharges({ ecart, inventaire, avis, yango, glovo, contact })
   }
 
   async function recalculerBSC() {
@@ -118,7 +192,7 @@ export default function ChargesScreen() {
     const fin = `${moisSelectionne}-${String(new Date(ry, rm, 0).getDate()).padStart(2, '0')}`
     const { data: points } = await supabase
       .from('points')
-      .select('id, yango_tab, glovo_tab')
+      .select('id, yango_tab, glovo_tab, depenses_gerant_caisse_total')
       .eq('restaurant_id', restoSelectionne.id)
       .eq('valide', true)
       .gte('date', debut)
@@ -139,8 +213,9 @@ export default function ChargesScreen() {
 
       const yangoTab = parseFloat(point.yango_tab) || 0
       const glovoTab = parseFloat(point.glovo_tab) || 0
+      const depGerant = parseFloat(point.depenses_gerant_caisse_total) || 0
       const bsc = (yangoTab * 0.77) + (glovoTab * 0.705)
-        + (s.om * 0.99) + (s.wave * 0.99) + (s.djamo * 0.99) + s.espece
+        + (s.om * 0.99) + (s.wave * 0.99) + (s.djamo * 0.99) + (s.espece - depGerant)
 
       await supabase.from('points').update({ benefice_sc: bsc }).eq('id', point.id)
     }
@@ -154,14 +229,19 @@ export default function ChargesScreen() {
     return charges.reduce((sum, c) => sum + (parseFloat(c.montant) || 0), 0)
   }
 
+  function totalLitiges() {
+    const { ecart, inventaire, avis, yango, glovo, contact } = litigesCharges
+    return ecart + inventaire + avis + yango + glovo + contact
+  }
+
   function beneficeReel() {
-    return bscMois - totalCharges()
+    return bscMois - totalCharges() - totalLitiges()
   }
 
   function beneficeApresCharge() {
     const montant = parseFloat(formCharge.montant) || 0
     const ancienMontant = chargeEnEdition ? (parseFloat(chargeEnEdition.montant) || 0) : 0
-    return bscMois - (totalCharges() - ancienMontant + montant)
+    return bscMois - (totalCharges() - ancienMontant + montant) - totalLitiges()
   }
 
   function totalApresCharge() {
@@ -320,6 +400,14 @@ export default function ChargesScreen() {
                 <Text style={styles.bilanLabel}>− Total charges</Text>
                 <Text style={[styles.bilanValue, { color: '#A32D2D' }]}>{fmt(totalCharges())}</Text>
               </View>
+              {totalLitiges() !== 0 && (
+                <View style={styles.bilanRow}>
+                  <Text style={styles.bilanLabel}>⚖️ Litiges du mois</Text>
+                  <Text style={[styles.bilanValue, { color: totalLitiges() > 0 ? '#A32D2D' : '#3B6D11' }]}>
+                    {totalLitiges() > 0 ? '−' : '+'}{fmt(Math.abs(totalLitiges()))}
+                  </Text>
+                </View>
+              )}
               <View style={[styles.bilanRow, { borderBottomWidth: 0, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#C0A860' }]}>
                 <Text style={[styles.bilanLabel, { fontSize: 16, fontWeight: '700', color: '#1a1a1a' }]}>
                   = Bénéfice réel
@@ -383,8 +471,40 @@ export default function ChargesScreen() {
             </View>
           )}
 
+          {/* Section Litiges du mois — chargé automatiquement */}
+          {!isRH && totalLitiges() !== 0 && (
+            <View>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitre}>⚖️ Litiges du mois</Text>
+                <TouchableOpacity onPress={() => router.push('/litiges')}>
+                  <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '500' }}>Voir détails →</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.litigesCard}>
+                {LITIGES_CATS.filter(c => litigesCharges[c.key] !== 0).map((c, i, arr) => (
+                  <View key={c.key} style={[styles.chargeRow, i === arr.length - 1 && { borderBottomWidth: 0 }]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.chargeLibelle}>{c.label}</Text>
+                    </View>
+                    <Text style={[styles.chargeMontant, {
+                      color: litigesCharges[c.key] > 0 ? '#A32D2D' : '#3B6D11'
+                    }]}>
+                      {litigesCharges[c.key] > 0 ? '−' : '+'}{fmt(Math.abs(litigesCharges[c.key]))}
+                    </Text>
+                  </View>
+                ))}
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Impact total litiges</Text>
+                  <Text style={[styles.totalVal, { color: totalLitiges() > 0 ? '#A32D2D' : '#3B6D11' }]}>
+                    {totalLitiges() > 0 ? '−' : '+'}{fmt(Math.abs(totalLitiges()))}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+
           {/* Bénéfice réel en bas en gras — uniquement manager/admin */}
-          {!isRH && charges.length > 0 && (
+          {!isRH && (charges.length > 0 || totalLitiges() !== 0) && (
             <View style={[styles.beneficeCard, {
               backgroundColor: beneficeReel() >= 0 ? '#EAF3DE' : '#FAECE7',
               borderColor: beneficeReel() >= 0 ? '#3B6D11' : '#A32D2D',
@@ -397,6 +517,9 @@ export default function ChargesScreen() {
               </Text>
               <Text style={styles.beneficeSub}>
                 BSC {fmt(bscMois)} − Charges {fmt(totalCharges())}
+                {totalLitiges() !== 0
+                  ? (totalLitiges() > 0 ? ` − Litiges ${fmt(totalLitiges())}` : ` + Litiges ${fmt(Math.abs(totalLitiges()))}`)
+                  : ''}
               </Text>
             </View>
           )}
@@ -453,6 +576,7 @@ export default function ChargesScreen() {
                   </Text>
                   <Text style={styles.previewSub}>
                     BSC {fmt(bscMois)} − Charges {fmt(totalApresCharge())}
+                    {totalLitiges() !== 0 ? ` − Litiges ${fmt(totalLitiges())}` : ''}
                   </Text>
                 </View>
               )}
@@ -534,6 +658,10 @@ function makeStyles(colors) { return StyleSheet.create({
   chargesCard: {
     backgroundColor: colors.surface, borderRadius: 14, padding: 14,
     marginBottom: 14, borderWidth: 0.5, borderColor: colors.border
+  },
+  litigesCard: {
+    backgroundColor: colors.surface, borderRadius: 14, padding: 14,
+    marginBottom: 14, borderWidth: 0.5, borderColor: '#FFCDD2',
   },
   chargeRow: {
     flexDirection: 'row', alignItems: 'center',

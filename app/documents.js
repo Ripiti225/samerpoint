@@ -126,6 +126,7 @@ export default function DocumentsScreen() {
           message: `"${form.titre}" ajouté`,
           restaurant_id: restoSelectionne.id,
           cible_role: ['manager', 'directeur'],
+          screen: 'documents',
         }).catch(() => {})
       }
 

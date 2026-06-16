@@ -11,6 +11,8 @@ import {
 } from 'react-native'
 import { Calendar } from 'react-native-calendars'
 import { useTheme } from '../context/ThemeContext'
+import { getDepensesPeriode, getFournisseursPeriodePaye, getPaiesGerantPeriode, getPresencesPeriode } from '../lib/api'
+import { FOURNISSEURS_LABOR, FOURNISSEURS_NON_FOOD } from '../lib/constants'
 import { supabase } from '../lib/supabase'
 
 const { width } = Dimensions.get('window')
@@ -35,6 +37,17 @@ const PERIODES = [
   { label: '📅 Période', key: 'custom' },
 ]
 
+const PILIERS = [
+  { key: 'apercu', label: '📈 Aperçu' },
+  { key: 'couts', label: '📊 Coûts' },
+  { key: 'clients', label: '🛵 Clients' },
+  { key: 'alertes', label: '⚠️ Alertes' },
+  { key: 'litiges', label: '⚖️ Litiges' },
+]
+
+const CATEGORIES_FOOD = ['Marché', 'Légumes', 'Fruits']
+const PIE_COLORS = ['#EF9F27', '#3B6D11', '#185FA5', '#993C1D', '#534AB7', '#888']
+
 export default function DashboardGlobalScreen() {
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
@@ -47,6 +60,16 @@ export default function DashboardGlobalScreen() {
   const [dateFin, setDateFin] = useState('')
   const [etapeCalendrier, setEtapeCalendrier] = useState('debut')
   const [restaurants, setRestaurants] = useState([])
+
+  // Navigation par piliers
+  const [pilier, setPilier] = useState('apercu')
+  const [depensesGlobal, setDepensesGlobal] = useState({})
+  const [presencesGlobal, setPresencesGlobal] = useState({})
+  const [chargesGlobal, setChargesGlobal] = useState([])
+  const [fournisseursGlobal, setFournisseursGlobal] = useState({})
+  const [paiesGerantGlobal, setPaiesGerantGlobal] = useState({})
+  const [chargementCouts, setChargementCouts] = useState(false)
+  const [restoFiltre, setRestoFiltre] = useState(null)
 
   useEffect(() => { chargerRestaurants() }, [])
 
@@ -81,7 +104,7 @@ export default function DashboardGlobalScreen() {
 
     const { data: allPoints, error } = await supabase
       .from('points')
-      .select('id, date, restaurant_id, vente_total, depense_total, benefice_sc')
+      .select('id, date, restaurant_id, vente_total, depense_total, benefice_sc, yango_cse, yango_tab, glovo_cse, glovo_tab, wave, om, djamo')
       .gte('date', range.debut)
       .lte('date', range.fin)
 
@@ -96,12 +119,53 @@ export default function DashboardGlobalScreen() {
     setLoading(false)
   }
 
+  useEffect(() => {
+    if ((pilier === 'couts' || pilier === 'alertes') && restaurants.length > 0 && periodeKey !== 'today') {
+      chargerCoutsGlobal()
+    }
+  }, [pilier, periodeKey, restaurants, points])
+
+  async function chargerCoutsGlobal() {
+    const range = getDateRange()
+    if (!range || !range.debut || !range.fin) return
+    setChargementCouts(true)
+    const resultats = await Promise.all(restaurants.map(async r => {
+      const [dep, pres, fourn, paiesGerant] = await Promise.all([
+        getDepensesPeriode(r.id, range.debut, range.fin),
+        getPresencesPeriode(r.id, range.debut, range.fin),
+        getFournisseursPeriodePaye(r.id, range.debut, range.fin),
+        getPaiesGerantPeriode(r.id, range.debut, range.fin),
+      ])
+      return { id: r.id, depenses: dep, presences: pres, fournisseurs: fourn, paiesGerant }
+    }))
+    const dep = {}, pres = {}, fourn = {}, paies = {}
+    resultats.forEach(r => { dep[r.id] = r.depenses; pres[r.id] = r.presences; fourn[r.id] = r.fournisseurs; paies[r.id] = r.paiesGerant })
+    setDepensesGlobal(dep)
+    setPresencesGlobal(pres)
+    setFournisseursGlobal(fourn)
+    setPaiesGerantGlobal(paies)
+
+    const moisListe = [...new Set(Object.values(points).flat().map(p => (p.date || '').slice(0, 7)))].filter(Boolean)
+    if (moisListe.length) {
+      const { data: ch } = await supabase
+        .from('charges')
+        .select('restaurant_id, libelle, montant, mois')
+        .in('mois', moisListe)
+      setChargesGlobal(ch || [])
+    } else {
+      setChargesGlobal([])
+    }
+    setChargementCouts(false)
+  }
+
   function totalResto(restId, champ) {
     return (points[restId] || []).reduce((sum, p) => sum + (parseFloat(p[champ]) || 0), 0)
   }
 
+  const restosVus = restoFiltre ? restaurants.filter(r => r.id === restoFiltre) : restaurants
+
   function totalGlobal(champ) {
-    return restaurants.reduce((sum, r) => sum + totalResto(r.id, champ), 0)
+    return restosVus.reduce((sum, r) => sum + totalResto(r.id, champ), 0)
   }
 
   function tauxRenta(ventes, benefice) {
@@ -134,7 +198,7 @@ export default function DashboardGlobalScreen() {
 
     const { data: allPoints, error } = await supabase
       .from('points')
-      .select('id, date, restaurant_id, vente_total, depense_total, benefice_sc')
+      .select('id, date, restaurant_id, vente_total, depense_total, benefice_sc, yango_cse, yango_tab, glovo_cse, glovo_tab, wave, om, djamo')
       .gte('date', dateDebut)
       .lte('date', dateFin)
 
@@ -172,7 +236,7 @@ export default function DashboardGlobalScreen() {
     return 'Période personnalisée'
   }
 
-  const classement = restaurants
+  const classement = restosVus
     .map(r => ({
       ...r,
       court: courtNom(r.nom),
@@ -188,6 +252,107 @@ export default function DashboardGlobalScreen() {
   const maxVentes = Math.max(...classement.map(r => r.ventes), 1)
   const maxBenefice = Math.max(...classement.map(r => Math.abs(r.benefice)), 1)
   const maxRenta = Math.max(...classement.map(r => tauxRenta(r.ventes, r.benefice)), 1)
+
+  // ---- Pilier 2 — Structure des coûts (consolidé) ----
+  function foodCostMontantResto(restId) {
+    const depFood = (depensesGlobal[restId] || [])
+      .filter(d => CATEGORIES_FOOD.includes(d.categorie))
+      .reduce((sum, d) => sum + (parseFloat(d.montant) || 0), 0)
+    const fournFood = (fournisseursGlobal[restId] || [])
+      .filter(t => !FOURNISSEURS_NON_FOOD.has(t.nom))
+      .reduce((sum, t) => sum + (parseFloat(t.paye) || 0), 0)
+    return depFood + fournFood
+  }
+  function laborCostMontantResto(restId) {
+    const presences = (presencesGlobal[restId] || []).reduce((sum, p) => sum + (parseFloat(p.paye) || 0), 0)
+    const fournLabor = (fournisseursGlobal[restId] || [])
+      .filter(t => FOURNISSEURS_LABOR.has(t.nom))
+      .reduce((sum, t) => sum + (parseFloat(t.paye) || 0), 0)
+    return presences + fournLabor + (paiesGerantGlobal[restId] || 0)
+  }
+  function chargesFixesMontantResto(restId) {
+    return chargesGlobal.filter(c => c.restaurant_id === restId).reduce((sum, c) => sum + (parseFloat(c.montant) || 0), 0)
+  }
+
+  const caGlobal = totalGlobal('vente_total')
+  const foodCostGlobalMt = restosVus.reduce((sum, r) => sum + foodCostMontantResto(r.id), 0)
+  const laborCostGlobalMt = restosVus.reduce((sum, r) => sum + laborCostMontantResto(r.id), 0)
+  const chargesFixesGlobalMt = restosVus.reduce((sum, r) => sum + chargesFixesMontantResto(r.id), 0)
+  const foodCostGlobalPct = caGlobal > 0 ? (foodCostGlobalMt / caGlobal * 100) : 0
+  const laborCostGlobalPct = caGlobal > 0 ? (laborCostGlobalMt / caGlobal * 100) : 0
+  const primeCostGlobalPct = foodCostGlobalPct + laborCostGlobalPct
+  const chargesFixesGlobalPct = caGlobal > 0 ? (chargesFixesGlobalMt / caGlobal * 100) : 0
+  const aDesChargesConfigurees = chargesGlobal.length > 0
+
+  const classementCouts = classement.map(r => {
+    const food = foodCostMontantResto(r.id)
+    const labor = laborCostMontantResto(r.id)
+    const foodPct = r.ventes > 0 ? (food / r.ventes * 100) : 0
+    const laborPct = r.ventes > 0 ? (labor / r.ventes * 100) : 0
+    return { ...r, foodPct, laborPct, primePct: foodPct + laborPct }
+  }).sort((a, b) => b.primePct - a.primePct)
+
+  // ---- Pilier 7 — Comportement clients (consolidé) ----
+  function montantLivraisonResto(restId) {
+    return (points[restId] || []).reduce((sum, p) =>
+      sum + (p.yango_tab || 0) + (p.glovo_tab || 0), 0)
+  }
+  const livraisonGlobalMt = restosVus.reduce((sum, r) => sum + montantLivraisonResto(r.id), 0)
+  const surPlaceGlobalMt = Math.max(caGlobal - livraisonGlobalMt, 0)
+  const pctLivraisonGlobal = caGlobal > 0 ? (livraisonGlobalMt / caGlobal * 100) : 0
+
+  const allPointsFlat = restoFiltre
+    ? (points[restoFiltre] || [])
+    : Object.values(points).flat()
+  function sommeChamp(champ) {
+    return allPointsFlat.reduce((sum, p) => sum + (parseFloat(p[champ]) || 0), 0)
+  }
+  const dataMixCanauxGlobal = [
+    { x: 'Yango', y: sommeChamp('yango_tab') },
+    { x: 'Glovo', y: sommeChamp('glovo_tab') },
+    { x: 'Wave', y: sommeChamp('wave') },
+    { x: 'OM', y: sommeChamp('om') },
+    { x: 'Djamo', y: sommeChamp('djamo') },
+  ].filter(d => d.y > 0)
+  const maxMixCanaux = Math.max(...dataMixCanauxGlobal.map(d => d.y), 1)
+
+  // ---- Pilier 9 — Alertes (consolidé) ----
+  function calculerAlertesGlobal() {
+    const alertes = []
+    classementCouts.forEach(r => {
+      if (r.ventes > 0 && (r.foodPct > 0 || r.laborPct > 0) && r.primePct > 60) {
+        alertes.push({
+          type: 'danger', icon: '🔴', titre: `${r.nom} — Coût primaire élevé`,
+          message: `Coût primaire à ${r.primePct.toFixed(1)}% (Matières ${r.foodPct.toFixed(1)}% + Salaire ${r.laborPct.toFixed(1)}%) — au-dessus du seuil de 60%`
+        })
+      }
+    })
+    classement.forEach(r => {
+      if (r.nbJours > 0 && r.benefice < 0) {
+        alertes.push({
+          type: 'danger', icon: '🔴', titre: `${r.nom} — Bénéfice négatif`,
+          message: `Bénéfice SC de ${fmt(r.benefice)} sur la période`
+        })
+      }
+    })
+    if (classement.length && classement[0].benefice > 0) {
+      alertes.push({
+        type: 'info', icon: '🏆', titre: 'Meilleur restaurant',
+        message: `${classement[0].nom} en tête avec ${fmt(classement[0].benefice)} de bénéfice SC`
+      })
+    }
+    if (!alertes.length) {
+      alertes.push({ type: 'info', icon: 'ℹ️', titre: 'Aucune alerte', message: 'Aucun seuil critique franchi sur cette période.' })
+    }
+    return alertes
+  }
+
+  const ALERTE_COLORS = {
+    danger: { bg: '#A32D2D15', border: '#A32D2D', txt: '#A32D2D' },
+    warning: { bg: '#BA751715', border: '#BA7517', txt: '#854F0B' },
+    ok: { bg: '#3B6D1115', border: '#3B6D11', txt: '#3B6D11' },
+    info: { bg: colors.bg, border: colors.borderLight, txt: colors.textMuted },
+  }
 
   // Graphique barres horizontal custom
   function GraphiqueBarres({ data, max, couleurFn, labelFn, titre, unite }) {
@@ -221,7 +386,9 @@ export default function DashboardGlobalScreen() {
         </TouchableOpacity>
         <View>
           <Text style={styles.headerTitre}>Dashboard Global</Text>
-          <Text style={styles.headerSub}>Tous les restaurants</Text>
+          <Text style={styles.headerSub}>
+            {restoFiltre ? (restaurants.find(r => r.id === restoFiltre)?.nom || '…') : 'Tous les restaurants'}
+          </Text>
         </View>
         <View style={{ width: 60 }} />
       </View>
@@ -242,6 +409,37 @@ export default function DashboardGlobalScreen() {
         <Text style={styles.periodeBannerTxt}>📅 {titrePeriode()}</Text>
       </View>
 
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillsBar} contentContainerStyle={{ paddingHorizontal: 14 }}>
+        {PILIERS.map(p => (
+          <TouchableOpacity
+            key={p.key}
+            style={[styles.pill, pilier === p.key && styles.pillActive]}
+            onPress={() => setPilier(p.key)}
+          >
+            <Text style={[styles.pillTxt, pilier === p.key && styles.pillTxtActive]}>{p.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.restoFiltreBar} contentContainerStyle={{ paddingHorizontal: 14, alignItems: 'center' }}>
+        <TouchableOpacity
+          style={[styles.restoFiltreBtn, !restoFiltre && styles.restoFiltreBtnActive]}
+          onPress={() => setRestoFiltre(null)}
+        >
+          <Text style={[styles.restoFiltreTxt, !restoFiltre && styles.restoFiltreTxtActive]}>Tous</Text>
+        </TouchableOpacity>
+        {restaurants.map(r => (
+          <TouchableOpacity
+            key={r.id}
+            style={[styles.restoFiltreBtn, restoFiltre === r.id && styles.restoFiltreBtnActive, restoFiltre === r.id && { borderColor: couleurResto(r.couleur) }]}
+            onPress={() => setRestoFiltre(r.id)}
+          >
+            <View style={[styles.restoDot, { backgroundColor: couleurResto(r.couleur) }]} />
+            <Text style={[styles.restoFiltreTxt, restoFiltre === r.id && styles.restoFiltreTxtActive]}>{courtNom(r.nom)}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
       {loading ? (
         <View style={styles.loadingBox}>
           <ActivityIndicator size="large" color="#534AB7" />
@@ -249,7 +447,7 @@ export default function DashboardGlobalScreen() {
         </View>
       ) : (
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-
+          {pilier === 'apercu' && (<>
           {/* KPIs */}
           <View style={styles.kpiGrid}>
             <View style={styles.kpiCard}>
@@ -427,6 +625,140 @@ export default function DashboardGlobalScreen() {
               </View>
             </View>
           </View>
+          </>)}
+
+          {/* Pilier 2 — Structure des coûts (consolidé) */}
+          {pilier === 'couts' && (
+            chargementCouts ? (
+              <View style={styles.loadingBox}>
+                <ActivityIndicator size="large" color="#534AB7" />
+                <Text style={styles.loadingTxt}>Chargement des coûts...</Text>
+              </View>
+            ) : caGlobal <= 0 ? (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyIcon}>📊</Text>
+                <Text style={styles.emptyTxt}>Aucune donnée de vente sur cette période</Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitre}>Structure des coûts — tous restaurants</Text>
+                  <View style={styles.resultCard}>
+                    <JaugeCout label="Coût matières" pct={foodCostGlobalPct} montant={foodCostGlobalMt} seuil={30} colors={colors} fmt={fmt} />
+                    <JaugeCout label="Coût du salaire" pct={laborCostGlobalPct} montant={laborCostGlobalMt} seuil={30} colors={colors} fmt={fmt} />
+                    <JaugeCout label="Coût primaire" pct={primeCostGlobalPct} montant={foodCostGlobalMt + laborCostGlobalMt} seuil={60} colors={colors} fmt={fmt} accent />
+                    {aDesChargesConfigurees ? (
+                      <JaugeCout label="Charges fixes" pct={chargesFixesGlobalPct} montant={chargesFixesGlobalMt} seuil={20} colors={colors} fmt={fmt} dernier />
+                    ) : (
+                      <TouchableOpacity style={styles.chargesEmptyRow} onPress={() => router.push('/charges')}>
+                        <Text style={styles.chargesEmptyTxt}>Charges fixes non configurées pour cette période</Text>
+                        <Text style={styles.chargesEmptyLink}>Configurer ›</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitre}>🏆 Classement par Coût primaire</Text>
+                  <View style={styles.classementCard}>
+                    {classementCouts.map((r, i) => (
+                      <View key={r.id} style={[styles.classementRow, i === classementCouts.length - 1 && { borderBottomWidth: 0 }]}>
+                        <View style={styles.classementLeft}>
+                          <View style={styles.rangBadge}>
+                            <Text style={styles.rangTxt}>#{i + 1}</Text>
+                          </View>
+                          <View style={styles.classementInfo}>
+                            <Text style={styles.classementNom}>{r.nom}</Text>
+                            <Text style={styles.classementJours}>Matières {r.foodPct.toFixed(1)}% · Salaire {r.laborPct.toFixed(1)}%</Text>
+                          </View>
+                        </View>
+                        <Text style={[styles.classementBenefice, { color: r.primePct > 60 ? '#A32D2D' : '#3B6D11' }]}>
+                          {r.ventes > 0 ? `${r.primePct.toFixed(1)}%` : '—'}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              </>
+            )
+          )}
+
+          {/* Pilier 7 — Comportement clients (consolidé) */}
+          {pilier === 'clients' && (
+            caGlobal <= 0 ? (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyIcon}>🛵</Text>
+                <Text style={styles.emptyTxt}>Aucune donnée de vente sur cette période</Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitre}>Livraison vs sur place — tous restaurants</Text>
+                  <View style={styles.resultCard}>
+                    <View style={styles.resultRow}>
+                      <Text style={styles.resultLabel}>🛵 Livraison (Yango/Glovo)</Text>
+                      <Text style={[styles.resultValue, { color: '#EF9F27' }]}>
+                        {fmt(livraisonGlobalMt)} ({pctLivraisonGlobal.toFixed(0)}%)
+                      </Text>
+                    </View>
+                    <View style={[styles.resultRow, { borderBottomWidth: 0 }]}>
+                      <Text style={styles.resultLabel}>🍽️ Sur place / autres canaux</Text>
+                      <Text style={[styles.resultValue, { color: '#185FA5' }]}>
+                        {fmt(surPlaceGlobalMt)} ({(100 - pctLivraisonGlobal).toFixed(0)}%)
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {dataMixCanauxGlobal.length > 0 && (
+                  <GraphiqueBarres
+                    titre={`🥧 Mix des canaux de vente — ${titrePeriode()}`}
+                    data={dataMixCanauxGlobal.map((d, i) => ({ nom: d.x, valeur: d.y, couleur: PIE_COLORS[i] }))}
+                    max={maxMixCanaux}
+                    couleurFn={item => item.couleur}
+                    labelFn={v => fmtK(v)}
+                  />
+                )}
+              </>
+            )
+          )}
+
+          {/* Pilier 9 — Alertes (consolidé) */}
+          {pilier === 'alertes' && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitre}>Alertes — {titrePeriode()}</Text>
+              {calculerAlertesGlobal().map((a, i) => {
+                const c = ALERTE_COLORS[a.type]
+                return (
+                  <View key={i} style={[styles.alerteCard, { backgroundColor: c.bg, borderColor: c.border }]}>
+                    <Text style={styles.alerteIcon}>{a.icon}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.alerteTitre, { color: c.txt }]}>{a.titre}</Text>
+                      <Text style={styles.alerteMsg}>{a.message}</Text>
+                    </View>
+                  </View>
+                )
+              })}
+            </View>
+          )}
+
+          {/* Pilier Litiges — carte récap */}
+          {pilier === 'litiges' && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitre}>Litiges & écarts</Text>
+              <View style={styles.litigesCard}>
+                <Text style={styles.litigesIcon}>⚖️</Text>
+                <Text style={styles.litigesTxt}>
+                  Le rapport complet des litiges (avis clients, Yango, Glovo, points non faits, écarts de caisse),
+                  consolidé pour tous les restaurants avec filtres par période et export PDF, est disponible
+                  dans l&apos;écran dédié.
+                </Text>
+                <TouchableOpacity style={styles.litigesBtn} onPress={() => router.push('/litiges')}>
+                  <Text style={styles.litigesBtnTxt}>Voir le rapport complet ›</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           <View style={{ height: 30 }} />
         </ScrollView>
@@ -498,6 +830,36 @@ export default function DashboardGlobalScreen() {
     </SafeAreaView>
   )
 }
+
+function JaugeCout({ label, pct, montant, seuil, colors, fmt, accent, dernier }) {
+  const ok = pct <= seuil
+  const couleur = accent ? (ok ? '#3B6D11' : '#A32D2D') : (ok ? '#3B6D11' : '#BA7517')
+  const largeur = Math.min(pct, 100)
+  return (
+    <View style={[jaugeStyles.row, dernier && { borderBottomWidth: 0 }]}>
+      <View style={jaugeStyles.head}>
+        <Text style={[jaugeStyles.label, { color: colors.text }]}>{label}</Text>
+        <Text style={[jaugeStyles.value, { color: couleur }]}>
+          {pct.toFixed(1)}% · {fmt(montant)}
+        </Text>
+      </View>
+      <View style={[jaugeStyles.barBg, { backgroundColor: colors.bg }]}>
+        <View style={[jaugeStyles.barFill, { width: `${largeur}%`, backgroundColor: couleur }]} />
+      </View>
+      <Text style={[jaugeStyles.seuil, { color: colors.textMuted }]}>Seuil indicatif : {seuil}%</Text>
+    </View>
+  )
+}
+
+const jaugeStyles = StyleSheet.create({
+  row: { paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#88888830' },
+  head: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  label: { fontSize: 13, fontWeight: '600' },
+  value: { fontSize: 12, fontWeight: '600' },
+  barBg: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  barFill: { height: 8, borderRadius: 4 },
+  seuil: { fontSize: 10, marginTop: 4 },
+})
 
 function makeStyles(colors) { return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
@@ -583,4 +945,57 @@ function makeStyles(colors) { return StyleSheet.create({
   modalCancelTxt: { fontSize: 14, color: colors.textMuted },
   modalConfirm: { flex: 2, padding: 14, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center' },
   modalConfirmTxt: { fontSize: 14, fontWeight: '600', color: colors.surface },
+
+  pillsBar: { backgroundColor: colors.bg, maxHeight: 44 },
+  pill: {
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, marginRight: 8, marginVertical: 6,
+    backgroundColor: colors.surface, borderWidth: 0.5, borderColor: colors.borderLight
+  },
+  pillActive: { backgroundColor: '#534AB7', borderColor: '#534AB7' },
+  pillTxt: { fontSize: 12, fontWeight: '500', color: colors.textMuted },
+  pillTxtActive: { color: '#fff', fontWeight: '700' },
+
+  restoFiltreBar: { backgroundColor: colors.bg, maxHeight: 40, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
+  restoFiltreBtn: {
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 5,
+    borderRadius: 14, marginRight: 6, marginVertical: 5,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderLight,
+  },
+  restoFiltreBtnActive: { backgroundColor: colors.bg, borderWidth: 1.5 },
+  restoDot: { width: 7, height: 7, borderRadius: 4, marginRight: 5 },
+  restoFiltreTxt: { fontSize: 11, fontWeight: '500', color: colors.textMuted },
+  restoFiltreTxtActive: { fontWeight: '700', color: colors.text },
+
+  emptyBox: { alignItems: 'center', paddingVertical: 60 },
+  emptyIcon: { fontSize: 40, marginBottom: 12 },
+  emptyTxt: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
+
+  resultCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: colors.borderLight },
+  resultRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 7, borderBottomWidth: 0.5, borderBottomColor: colors.bg
+  },
+  resultLabel: { fontSize: 13, color: colors.textMuted },
+  resultValue: { fontSize: 13, fontWeight: '500', color: colors.text },
+
+  chargesEmptyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
+  chargesEmptyTxt: { fontSize: 12, color: colors.textMuted, flex: 1, marginRight: 8 },
+  chargesEmptyLink: { fontSize: 12, fontWeight: '600', color: '#534AB7' },
+
+  alerteCard: {
+    flexDirection: 'row', gap: 12, alignItems: 'flex-start',
+    borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 10
+  },
+  alerteIcon: { fontSize: 20 },
+  alerteTitre: { fontSize: 13, fontWeight: '700', marginBottom: 3 },
+  alerteMsg: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
+
+  litigesCard: {
+    backgroundColor: colors.surface, borderRadius: 14, padding: 18,
+    borderWidth: 0.5, borderColor: colors.borderLight, alignItems: 'center'
+  },
+  litigesIcon: { fontSize: 32, marginBottom: 10 },
+  litigesTxt: { fontSize: 13, color: colors.textMuted, textAlign: 'center', lineHeight: 20, marginBottom: 14 },
+  litigesBtn: { backgroundColor: '#534AB7', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 24 },
+  litigesBtnTxt: { fontSize: 13, fontWeight: '700', color: '#fff' },
 }) }

@@ -2,22 +2,24 @@ import * as Linking from 'expo-linking'
 import { router } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import {
-    Alert,
-    Keyboard,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    SafeAreaView, ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  SafeAreaView, ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View
 } from 'react-native'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
-import { saveCommandes } from '../lib/api'
+import { getCommandes, saveCommandes } from '../lib/api'
+
+const VIDE = { Yango: [], Glovo: [], OM: [], Wave: [], Djamo: [], Client: [] }
 
 export default function LivraisonsScreen() {
   const { colors } = useTheme()
@@ -25,20 +27,74 @@ export default function LivraisonsScreen() {
 
   const partenaires = ['Yango', 'Glovo', 'OM', 'Wave', 'Djamo', 'Client']
   const [partenaire, setPartenaire] = useState('Yango')
-  const [commandes, setCommandes] = useState({ Yango: [], Glovo: [], OM: [], Wave: [], Djamo: [], Client: [] })
+  const [commandes, setCommandes] = useState(VIDE)
   const [modalVisible, setModalVisible] = useState(false)
   const [form, setForm] = useState({ numero: '', contact: '', plat: '' })
-  const { livraisonsJour, setLivraisonsJour, pointId } = useApp()
+  const [saving, setSaving] = useState(false)
+  const [sauvegardé, setSauvegardé] = useState(false)
+  const { livraisonsJour, setLivraisonsJour, pointId, userId } = useApp()
 
+  // Chargement : contexte en priorité, sinon Supabase.
+  // Dépend de pointId et userId pour se ré-exécuter au re-login
+  // (cas où le contexte a été vidé mais les données sont encore en base).
   useEffect(() => {
+    let actif = true
     if (livraisonsJour && Object.values(livraisonsJour).some(arr => arr.length > 0)) {
       setCommandes(livraisonsJour)
+    } else if (pointId) {
+      getCommandes(pointId, userId).then(data => {
+        if (!actif || !data?.length) return
+        const grouped = { ...VIDE }
+        data.forEach(cmd => {
+          const p = cmd.partenaire
+          if (grouped[p]) {
+            grouped[p].push({
+              id: cmd.id || Date.now(),
+              numero: cmd.numero_commande || '',
+              contact: cmd.contact_client || '',
+              plat: cmd.plat || '',
+            })
+          }
+        })
+        if (Object.values(grouped).some(arr => arr.length > 0)) {
+          setCommandes(grouped)
+          setLivraisonsJour(grouped)
+        }
+      }).catch(() => {})
     }
-  }, [])
+    return () => { actif = false }
+  }, [pointId, userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function appeler(numero) {
     if (!numero) return
     Linking.openURL(`tel:${numero.replace(/\s/g, '')}`)
+  }
+
+  // Sauvegarde immédiate silencieuse après chaque ajout/suppression
+  function sauvegarder(nouvellesCommandes) {
+    setLivraisonsJour(nouvellesCommandes)
+    if (pointId) saveCommandes(pointId, nouvellesCommandes, userId).catch(() => {})
+  }
+
+  // Sauvegarde explicite avec retour visuel — déclenchée par le bouton Sauvegarder
+  async function sauvegarderEtQuitter() {
+    setSaving(true)
+    setLivraisonsJour(commandes)
+    if (pointId) {
+      try {
+        await saveCommandes(pointId, commandes, userId)
+      } catch {
+        setSaving(false)
+        Alert.alert('Erreur', 'La sauvegarde a échoué. Réessayez.')
+        return
+      }
+    }
+    setSaving(false)
+    setSauvegardé(true)
+    setTimeout(() => {
+      if (router.canGoBack()) router.back()
+      else router.replace('/accueil')
+    }, 600)
   }
 
   function ajouterCommande() {
@@ -46,10 +102,12 @@ export default function LivraisonsScreen() {
       Alert.alert('Attention', 'Remplissez au moins un champ')
       return
     }
-    setCommandes(prev => ({
-      ...prev,
-      [partenaire]: [...(prev[partenaire] || []), { ...form, id: Date.now() }]
-    }))
+    const nouvelles = {
+      ...commandes,
+      [partenaire]: [...(commandes[partenaire] || []), { ...form, id: Date.now() }],
+    }
+    setCommandes(nouvelles)
+    sauvegarder(nouvelles)
     setForm({ numero: '', contact: '', plat: '' })
     setModalVisible(false)
   }
@@ -58,26 +116,15 @@ export default function LivraisonsScreen() {
     Alert.alert('Supprimer', 'Supprimer cette commande ?', [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Supprimer', style: 'destructive', onPress: () => {
-        setCommandes(prev => ({ ...prev, [partenaire]: prev[partenaire].filter(c => c.id !== id) }))
-      }}
+        const nouvelles = { ...commandes, [partenaire]: commandes[partenaire].filter(c => c.id !== id) }
+        setCommandes(nouvelles)
+        sauvegarder(nouvelles)
+      }},
     ])
   }
 
   function totalCommandes() {
     return Object.values(commandes).reduce((sum, arr) => sum + arr.length, 0)
-  }
-
-  async function enregistrer() {
-    Alert.alert('Confirmer', `Enregistrer ${totalCommandes()} commandes ?`, [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Confirmer', onPress: async () => {
-        setLivraisonsJour(commandes)
-        if (pointId) await saveCommandes(pointId, commandes)
-        Alert.alert('Succès', 'Livraisons enregistrées !')
-        if (router.canGoBack()) router.back()
-        else router.replace('/accueil')
-      }}
-    ])
   }
 
   const commandesPartenaire = commandes[partenaire] || []
@@ -86,7 +133,6 @@ export default function LivraisonsScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => {
-          setLivraisonsJour(commandes)
           if (router.canGoBack()) router.back()
           else router.replace('/accueil')
         }}>
@@ -161,8 +207,14 @@ export default function LivraisonsScreen() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.saveBtn} onPress={enregistrer}>
-          <Text style={styles.saveTxt}>Enregistrer les livraisons</Text>
+        <TouchableOpacity
+          style={[styles.saveBtn, (saving || sauvegardé) && styles.saveBtnActive]}
+          onPress={sauvegarderEtQuitter}
+          disabled={saving || sauvegardé}
+        >
+          <Text style={styles.saveTxt}>
+            {saving ? 'Sauvegarde...' : sauvegardé ? '✅ Sauvegardé' : '💾 Sauvegarder'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -253,6 +305,7 @@ function makeStyles(colors) { return StyleSheet.create({
   recapTotalLabel: { fontSize: 14, fontWeight: '600', color: colors.text },
   recapTotalValue: { fontSize: 16, fontWeight: '600', color: '#EF9F27' },
   saveBtn: { backgroundColor: '#EF9F27', borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 80 },
+  saveBtnActive: { backgroundColor: '#3B6D11' },
   saveTxt: { fontSize: 15, fontWeight: '600', color: '#412402' },
   fab: { position: 'absolute', bottom: 30, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: '#EF9F27', alignItems: 'center', justifyContent: 'center' },
   fabTxt: { fontSize: 28, color: '#412402', fontWeight: '300', lineHeight: 32 },

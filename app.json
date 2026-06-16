@@ -2,15 +2,10 @@
   "expo": {
     "name": "SAMER",
     "slug": "samtrackly",
-    "version": "2.10",
+    "version": "2.50",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#EF9F27"
-    },
     "scheme": "samtrackly",
     "ios": {
       "supportsTablet": false,
@@ -25,6 +20,7 @@
         "backgroundColor": "#EF9F27"
       },
       "package": "com.samer.app",
+      "versionCode": 10,
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
@@ -35,6 +31,14 @@
     "web": {},
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#EF9F27"
+        }
+      ],
       [
         "expo-image-picker",
         {
