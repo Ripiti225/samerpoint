@@ -60,6 +60,16 @@ export default function CreditsFournisseursScreen() {
   const [fournHisto, setFournHisto] = useState(null)
   const [histoMouvements, setHistoMouvements] = useState([])
   const [loadingHisto, setLoadingHisto] = useState(false)
+  const [repairing, setRepairing] = useState(false)
+  const [repairError, setRepairError] = useState(null)
+  const [showRepairModal, setShowRepairModal] = useState(false)
+  const [repairCreditDepart, setRepairCreditDepart] = useState('')
+  const [remettreAZeroId, setRemettreAZeroId] = useState(null)
+  const [fournisseurARemettre, setFournisseurARemettre] = useState(null)
+  const [remettreAZeroErreur, setRemettreAZeroErreur] = useState(null)
+  const [archivageId, setArchivageId] = useState(null)
+  const [fournisseurAArchiver, setFournisseurAArchiver] = useState(null)
+  const [archivageErreur, setArchivageErreur] = useState(null)
   const [modalPhotoUri, setModalPhotoUri] = useState(null)
 
   const today = new Date().toISOString().split('T')[0]
@@ -73,7 +83,7 @@ export default function CreditsFournisseursScreen() {
   }
 
   useEffect(() => {
-    if (roleActif === 'caissier' || roleActif === 'rh') {
+    if (roleActif === 'caissier') {
       router.replace('/accueil')
     }
   }, [roleActif])
@@ -149,9 +159,71 @@ export default function CreditsFournisseursScreen() {
       .order('created_at', { ascending: false })
 
     setHistoMouvements(transactions || [])
-
-    // Sync credit_actuel si désynchronisé avec la transaction la plus récente
     setLoadingHisto(false)
+  }
+
+  // ── Recalcul de la chaîne de crédit ──────────────────────────────────────
+  async function repairerChaine(creditDepart) {
+    if (!fournHisto) return
+    setRepairError(null)
+    setRepairing(true)
+    setShowRepairModal(false)
+    try {
+      // Récupérer toutes les transactions
+      const { data: trans, error: transErr } = await supabase
+        .from('transactions_fournisseurs')
+        .select('id, facture, paye, reste, created_at, point_id')
+        .eq('fournisseur_id', fournHisto.id)
+
+      if (transErr) throw transErr
+      if (!trans || trans.length === 0) { setRepairing(false); return }
+
+      // Récupérer les dates des points associés
+      const pointIds = [...new Set(trans.map(t => t.point_id).filter(Boolean))]
+      const { data: points, error: pointsErr } = await supabase
+        .from('points').select('id, date').in('id', pointIds)
+      if (pointsErr) throw pointsErr
+      const dateByPoint = {}
+      ;(points || []).forEach(p => { dateByPoint[p.id] = p.date })
+
+      // Trier par date de journée ASC, puis created_at ASC dans la même journée
+      const sorted = [...trans].sort((a, b) => {
+        const da = dateByPoint[a.point_id] || a.created_at
+        const db = dateByPoint[b.point_id] || b.created_at
+        if (da !== db) return da < db ? -1 : 1
+        return a.created_at < b.created_at ? -1 : 1
+      })
+
+      // Crédit de départ : saisi par l'utilisateur ou back-calculé depuis la première transaction
+      let prevReste = creditDepart !== undefined && creditDepart !== null
+        ? creditDepart
+        : (sorted[0].reste || 0) - (sorted[0].facture || 0) + (sorted[0].paye || 0)
+
+      for (const t of sorted) {
+        const credit = prevReste
+        const newReste = credit + (t.facture || 0) - (t.paye || 0)
+        if (newReste !== t.reste) {
+          const { error: updErr } = await supabase.from('transactions_fournisseurs')
+            .update({ reste: newReste })
+            .eq('id', t.id)
+          if (updErr) throw updErr
+        }
+        prevReste = newReste
+      }
+
+      // Mettre à jour credit_actuel avec le dernier reste calculé
+      const { error: fournErr } = await supabase.from('fournisseurs')
+        .update({ credit_actuel: prevReste })
+        .eq('id', fournHisto.id)
+      if (fournErr) throw fournErr
+
+      // Recharger l'historique et la liste
+      await chargerHistorique(fournHisto)
+      await charger()
+    } catch (err) {
+      setRepairError(err?.message || 'Impossible de recalculer')
+    }
+    setRepairing(false)
   }
 
   // ── Données export ───────────────────────────────────────────────────────
@@ -326,6 +398,79 @@ ${mouvements.map(m => {
   }
 
   // ── Carte fournisseur ────────────────────────────────────────────────────
+  async function confirmerArchivage() {
+    const f = fournisseurAArchiver
+    if (!f) return
+    setArchivageErreur(null)
+    setArchivageId(f.id)
+    try {
+      const { data: trans } = await supabase
+        .from('transactions_fournisseurs')
+        .select('id').eq('fournisseur_id', f.id).limit(1)
+
+      if (trans && trans.length > 0) {
+        const { error } = await supabase.from('fournisseurs').update({ actif: false }).eq('id', f.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('fournisseurs').delete().eq('id', f.id)
+        if (error) throw error
+      }
+      setFournisseurAArchiver(null)
+      await charger()
+    } catch (err) {
+      setArchivageErreur(err?.message || 'Impossible d\'archiver ce fournisseur')
+    }
+    setArchivageId(null)
+  }
+
+  function remettreAZero(f) {
+    const avance = Math.abs(f.credit_actuel || 0)
+    if (avance === 0) return
+    setRemettreAZeroErreur(null)
+    setFournisseurARemettre(f)
+  }
+
+  async function confirmerRemiseAZero() {
+    const f = fournisseurARemettre
+    if (!f) return
+    const avance = Math.abs(f.credit_actuel || 0)
+    setRemettreAZeroErreur(null)
+    setRemettreAZeroId(f.id)
+    try {
+      // Trouver le point le plus récent du restaurant
+      const { data: latestPoint, error: pointErr } = await supabase
+        .from('points').select('id').eq('restaurant_id', f.restaurant_id)
+        .order('date', { ascending: false }).limit(1).maybeSingle()
+      if (pointErr) throw pointErr
+
+      const pointId = latestPoint?.id || null
+
+      // Créer une transaction qui annule l'avance : facture = avance → reste = 0
+      const { error: insertErr } = await supabase.from('transactions_fournisseurs').insert({
+        point_id: pointId,
+        fournisseur_id: f.id,
+        fournisseur_nom: f.nom,
+        restaurant_id: f.restaurant_id,
+        facture: avance,
+        paye: 0,
+        reste: 0,
+        saisi_par: 'manager',
+        caissier_nom: null,
+        source: 'manager',
+      })
+      if (insertErr) throw insertErr
+
+      const { error: updateErr } = await supabase.from('fournisseurs').update({ credit_actuel: 0 }).eq('id', f.id)
+      if (updateErr) throw updateErr
+
+      setFournisseurARemettre(null)
+      await charger()
+    } catch (err) {
+      setRemettreAZeroErreur(err?.message || 'Impossible de remettre à 0')
+    }
+    setRemettreAZeroId(null)
+  }
+
   function renderCard(f) {
     const credit = f.credit_actuel || 0
     const isCotisation = credit < 0
@@ -387,6 +532,25 @@ ${mouvements.map(m => {
             <Text style={styles.actionBtnTxt}>✏️ Modifier le crédit</Text>
           </TouchableOpacity>
         )}
+        {isCotisation && peutModifier && (
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: '#EAF3DE', borderColor: '#C0DD97', marginTop: 6 }]}
+            onPress={() => remettreAZero(f)}
+            disabled={remettreAZeroId === f.id}
+          >
+            <Text style={[styles.actionBtnTxt, { color: '#3B6D11' }]}>
+              {remettreAZeroId === f.id ? 'En cours...' : '✅ Remettre à 0'}
+            </Text>
+          </TouchableOpacity>
+        )}
+        {isSolde && peutModifier && (
+          <TouchableOpacity
+            style={[styles.histoBtn, { marginTop: 6, borderColor: '#E57373', backgroundColor: '#FFF5F5' }]}
+            onPress={() => { setArchivageErreur(null); setFournisseurAArchiver(f) }}
+          >
+            <Text style={[styles.histoBtnTxt, { color: '#C62828' }]}>🗑️ Archiver ce fournisseur</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={styles.histoBtn} onPress={() => chargerHistorique(f)}>
           <Text style={styles.histoBtnTxt}>📋 Voir l'historique</Text>
         </TouchableOpacity>
@@ -418,7 +582,7 @@ ${mouvements.map(m => {
   const totalAvances = cotisList.reduce((s, f) => s + Math.abs(f.credit_actuel || 0), 0)
 
   // Aperçu en temps réel dans le formulaire
-  if (roleActif === 'caissier' || roleActif === 'rh') return null
+  if (roleActif === 'caissier') return null
 
   const deltaPreview = parseFloat(formCredit.montant)
   const nouveauPreview = selectedFourn ? (selectedFourn.credit_actuel || 0) + (isNaN(deltaPreview) ? 0 : deltaPreview) : 0
@@ -514,7 +678,15 @@ ${mouvements.map(m => {
               <Text style={styles.modalTitre}>📋 Historique</Text>
               {fournHisto && <Text style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>{fournHisto.nom}</Text>}
             </View>
-            <View style={{ width: 60 }} />
+            {peutModifier ? (
+              <TouchableOpacity onPress={() => { setRepairCreditDepart(''); setRepairError(null); setShowRepairModal(true) }} disabled={repairing} style={{ width: 60, alignItems: 'flex-end' }}>
+                <Text style={[styles.modalClose, { fontSize: 11, color: repairing ? '#666' : '#EF9F27' }]}>
+                  {repairing ? '...' : '🔧 Fix'}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ width: 60 }} />
+            )}
           </View>
 
           {loadingHisto ? (
@@ -622,6 +794,101 @@ ${mouvements.map(m => {
             </ScrollView>
           )}
         </SafeAreaView>
+      </Modal>
+
+      {/* ── Modal : Confirmation remise à 0 cotisation ── */}
+      <Modal visible={!!fournisseurARemettre} transparent animationType="fade">
+        <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setFournisseurARemettre(null)}>
+          <TouchableOpacity activeOpacity={1} style={[styles.pickerBox, { padding: 20 }]} onPress={() => {}}>
+            <Text style={[styles.pickerTitre, { marginBottom: 8 }]}>✅ Remettre à 0 ?</Text>
+            <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 16, textAlign: 'center' }}>
+              L'avance de {fmt(Math.abs(fournisseurARemettre?.credit_actuel || 0))} pour {fournisseurARemettre?.nom} sera annulée via une transaction.{'\n'}
+              Cette action est irréversible.
+            </Text>
+            {remettreAZeroErreur && (
+              <Text style={{ color: '#C62828', fontSize: 12, marginBottom: 10, textAlign: 'center' }}>⚠️ {remettreAZeroErreur}</Text>
+            )}
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity style={[styles.btnAnnuler, { flex: 1 }]} onPress={() => setFournisseurARemettre(null)}>
+                <Text style={styles.btnAnnulerTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnValider, { flex: 1 }]}
+                onPress={confirmerRemiseAZero}
+                disabled={!!remettreAZeroId}
+              >
+                <Text style={styles.btnValiderTxt}>{remettreAZeroId ? 'En cours...' : 'Confirmer'}</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Modal : Confirmation archivage fournisseur ── */}
+      <Modal visible={!!fournisseurAArchiver} transparent animationType="fade">
+        <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setFournisseurAArchiver(null)}>
+          <TouchableOpacity activeOpacity={1} style={[styles.pickerBox, { padding: 20 }]} onPress={() => {}}>
+            <Text style={[styles.pickerTitre, { marginBottom: 8 }]}>🗑️ Archiver ce fournisseur ?</Text>
+            <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 16, textAlign: 'center' }}>
+              {fournisseurAArchiver?.nom} sera retiré de la liste active.{'\n'}
+              Son historique sera conservé.
+            </Text>
+            {archivageErreur && (
+              <Text style={{ color: '#C62828', fontSize: 12, marginBottom: 10, textAlign: 'center' }}>⚠️ {archivageErreur}</Text>
+            )}
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity style={[styles.btnAnnuler, { flex: 1 }]} onPress={() => setFournisseurAArchiver(null)}>
+                <Text style={styles.btnAnnulerTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnValider, { flex: 1, backgroundColor: '#C62828' }]}
+                onPress={confirmerArchivage}
+                disabled={!!archivageId}
+              >
+                <Text style={styles.btnValiderTxt}>{archivageId ? 'En cours...' : 'Archiver'}</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Modal : Saisie crédit de départ pour Fix ── */}
+      <Modal visible={showRepairModal} transparent animationType="fade">
+        <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setShowRepairModal(false)}>
+          <TouchableOpacity activeOpacity={1} style={[styles.pickerBox, { padding: 20 }]} onPress={() => {}}>
+            <Text style={[styles.pickerTitre, { marginBottom: 6 }]}>🔧 Recalculer la chaîne</Text>
+            <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: 14, textAlign: 'center' }}>
+              Entrez le crédit correct <Text style={{ fontWeight: '700' }}>avant</Text> la toute première transaction de ce fournisseur.{'\n'}
+              (0 si le fournisseur n'avait aucune dette au départ)
+            </Text>
+            <TextInput
+              style={[styles.input, { marginBottom: 16, textAlign: 'center', fontSize: 16 }]}
+              placeholder="Ex: 0 ou 150000"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="numeric"
+              value={repairCreditDepart}
+              onChangeText={setRepairCreditDepart}
+            />
+            {repairError && (
+              <Text style={{ color: '#C62828', fontSize: 12, marginBottom: 10, textAlign: 'center' }}>⚠️ {repairError}</Text>
+            )}
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity style={[styles.btnAnnuler, { flex: 1 }]} onPress={() => setShowRepairModal(false)}>
+                <Text style={styles.btnAnnulerTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnValider, { flex: 1, backgroundColor: '#EF9F27' }]}
+                onPress={() => {
+                  const val = parseFloat(repairCreditDepart.replace(',', '.'))
+                  if (isNaN(val)) { setRepairError('Entrez un nombre valide (ex: 0 ou 150000)'); return }
+                  repairerChaine(val)
+                }}
+              >
+                <Text style={styles.btnValiderTxt}>Recalculer</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* ── Modal : Sélecteur restaurant ── */}
@@ -915,6 +1182,11 @@ function makeStyles(colors) { return StyleSheet.create({
   actionBtnTxt: { fontSize: 12, fontWeight: '600', color: '#185FA5' },
   histoBtn: { borderRadius: 8, padding: 9, alignItems: 'center', backgroundColor: colors.inputBg, borderWidth: 0.5, borderColor: colors.borderLight },
   histoBtnTxt: { fontSize: 12, color: colors.textMuted, fontWeight: '500' },
+  btnAnnuler: { borderRadius: 12, padding: 14, alignItems: 'center', backgroundColor: colors.inputBg, borderWidth: 0.5, borderColor: colors.borderLight },
+  btnAnnulerTxt: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
+  btnValider: { borderRadius: 12, padding: 14, alignItems: 'center', backgroundColor: '#3B6D11' },
+  btnValiderTxt: { fontSize: 14, fontWeight: '600', color: '#fff' },
+  input: { backgroundColor: colors.inputBg, borderRadius: 8, padding: 12, fontSize: 14, color: colors.text },
   histoKpiRow: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 12, marginBottom: 16, borderWidth: 0.5, borderColor: colors.border, overflow: 'hidden' },
   histoKpi: { flex: 1, alignItems: 'center', paddingVertical: 14 },
   histoKpiLabel: { fontSize: 9, color: colors.textMuted, textAlign: 'center' },

@@ -8,12 +8,13 @@ import {
 import { Calendar } from 'react-native-calendars'
 import {
   VictoryArea, VictoryAxis, VictoryBar,
-  VictoryChart, VictoryLabel, VictoryLine,
+  VictoryChart, VictoryLine,
   VictoryPie, VictoryTheme
 } from 'victory-native'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
-import { getPointsPeriode } from '../lib/api'
+import { getDepensesPeriode, getFournisseursPeriodePaye, getPaiesGerantPeriode, getPointsPeriode, getPresencesPeriode } from '../lib/api'
+import { FOURNISSEURS_LABOR, FOURNISSEURS_NON_FOOD } from '../lib/constants'
 import { supabase } from '../lib/supabase'
 
 const { width } = Dimensions.get('window')
@@ -26,6 +27,16 @@ const PERIODES = [
   { label: 'Mois préc.', key: 'lastmonth' },
   { label: '📅 Période', key: 'custom' },
 ]
+
+const PILIERS = [
+  { key: 'apercu', label: '📈 Aperçu' },
+  { key: 'couts', label: '📊 Coûts' },
+  { key: 'clients', label: '🛵 Clients' },
+  { key: 'alertes', label: '⚠️ Alertes' },
+  { key: 'litiges', label: '⚖️ Litiges' },
+]
+
+const CATEGORIES_FOOD = ['Marché', 'Légumes', 'Fruits']
 
 export default function DashboardScreen() {
   const {
@@ -54,6 +65,15 @@ export default function DashboardScreen() {
   // Cumul shifts pour aujourd'hui
   const [cumulShifts, setCumulShifts] = useState(null)
   const [chargementShifts, setChargementShifts] = useState(false)
+
+  // Navigation par piliers
+  const [pilier, setPilier] = useState('apercu')
+  const [depensesData, setDepensesData] = useState([])
+  const [presencesData, setPresencesData] = useState([])
+  const [chargesData, setChargesData] = useState([])
+  const [fournisseursData, setFournisseursData] = useState([])
+  const [paiesGerantData, setPaiesGerantData] = useState(0)
+  const [chargementCouts, setChargementCouts] = useState(false)
 
   useEffect(() => {
     if (periodeKey !== 'today' && periodeKey !== 'custom') chargerPoints()
@@ -131,6 +151,38 @@ export default function DashboardScreen() {
       setPoints(data)
     }
     setLoading(false)
+  }
+
+  useEffect(() => {
+    if ((pilier === 'couts' || pilier === 'alertes') && !isToday && restaurantId) chargerCouts()
+  }, [pilier, periodeKey, restaurantId, points.length])
+
+  async function chargerCouts() {
+    const range = getDateRange()
+    if (!range || !range.debut || !range.fin) return
+    setChargementCouts(true)
+    const [dep, pres, fourn, paiesGerant] = await Promise.all([
+      getDepensesPeriode(restaurantId, range.debut, range.fin),
+      getPresencesPeriode(restaurantId, range.debut, range.fin),
+      getFournisseursPeriodePaye(restaurantId, range.debut, range.fin),
+      getPaiesGerantPeriode(restaurantId, range.debut, range.fin),
+    ])
+    setDepensesData(dep)
+    setPresencesData(pres)
+    setFournisseursData(fourn)
+    setPaiesGerantData(paiesGerant)
+    const moisListe = [...new Set((points || []).map(p => (p.date || '').slice(0, 7)))].filter(Boolean)
+    if (moisListe.length) {
+      const { data: ch } = await supabase
+        .from('charges')
+        .select('libelle, montant, mois')
+        .eq('restaurant_id', restaurantId)
+        .in('mois', moisListe)
+      setChargesData(ch || [])
+    } else {
+      setChargesData([])
+    }
+    setChargementCouts(false)
   }
 
   function ouvrirCalendrier() {
@@ -256,23 +308,111 @@ export default function DashboardScreen() {
     x: i + 1, y: tauxRenta(p.vente_total || 0, p.benefice_sc || 0)
   }))
 
-  const dataCamembert = isToday && cumulShifts ? [
-    { x: 'Yango CSE', y: cumulShifts.yangoCse },
-    { x: 'Glovo CSE', y: cumulShifts.glovoCse },
-    { x: 'Wave', y: cumulShifts.wave },
-    { x: 'OM', y: cumulShifts.om },
-    { x: 'Djamo', y: cumulShifts.djamo },
-    { x: 'Espèces', y: cumulShifts.espece },
-  ].filter(d => d.y > 0) : isToday ? [
-    { x: 'Yango', y: (parseFloat(ventesJour.yangoTab) || 0) + (parseFloat(ventesJour.yangoCse) || 0) },
-    { x: 'Glovo', y: (parseFloat(ventesJour.glovoTab) || 0) + (parseFloat(ventesJour.glovoCse) || 0) },
-    { x: 'Wave', y: parseFloat(ventesJour.wave) || 0 },
-    { x: 'OM', y: parseFloat(ventesJour.om) || 0 },
-    { x: 'Djamo', y: parseFloat(ventesJour.djamo) || 0 },
-    { x: 'Espèces', y: Math.max(resteEspeces(), 0) },
+  // ---- Pilier 2 — Structure des coûts ----
+  function foodCostMontant() {
+    if (isToday) {
+      return CATEGORIES_FOOD.reduce((sum, cat) =>
+        sum + (depensesJour[cat] || []).reduce((s, l) => s + (parseFloat(l.montant) || 0), 0), 0)
+    }
+    const depFood = depensesData
+      .filter(d => CATEGORIES_FOOD.includes(d.categorie))
+      .reduce((sum, d) => sum + (parseFloat(d.montant) || 0), 0)
+    const fournFood = fournisseursData
+      .filter(t => !FOURNISSEURS_NON_FOOD.has(t.nom))
+      .reduce((sum, t) => sum + (parseFloat(t.paye) || 0), 0)
+    return depFood + fournFood
+  }
+
+  function laborCostMontant() {
+    if (isToday) return totalPaie()
+    const presences = presencesData.reduce((sum, p) => sum + (parseFloat(p.paye) || 0), 0)
+    const fournLabor = fournisseursData
+      .filter(t => FOURNISSEURS_LABOR.has(t.nom))
+      .reduce((sum, t) => sum + (parseFloat(t.paye) || 0), 0)
+    return presences + fournLabor + paiesGerantData
+  }
+
+  function chargesFixesMontant() {
+    return chargesData.reduce((sum, c) => sum + (parseFloat(c.montant) || 0), 0)
+  }
+
+  const caPeriode = ventesPeriode || 0
+  const foodCostMt = foodCostMontant()
+  const laborCostMt = laborCostMontant()
+  const chargesFixesMt = chargesFixesMontant()
+  const foodCostPct = caPeriode > 0 ? (foodCostMt / caPeriode * 100) : 0
+  const laborCostPct = caPeriode > 0 ? (laborCostMt / caPeriode * 100) : 0
+  const primeCostPct = foodCostPct + laborCostPct
+  const chargesFixesPct = caPeriode > 0 ? (chargesFixesMt / caPeriode * 100) : 0
+
+  // ---- Pilier 7 — Comportement clients ----
+  function montantLivraison() {
+    if (isToday) {
+      const cse = cumulShifts ? (cumulShifts.yangoCse + cumulShifts.glovoCse) : 0
+      return cse + (parseFloat(ventesJour.yangoTab) || 0) + (parseFloat(ventesJour.glovoTab) || 0)
+    }
+    return points.reduce((sum, p) =>
+      sum + (p.yango_tab || 0) + (p.glovo_tab || 0), 0)
+  }
+
+  const livraisonMt = montantLivraison()
+  const surPlaceMt = Math.max(caPeriode - livraisonMt, 0)
+  const pctLivraison = caPeriode > 0 ? (livraisonMt / caPeriode * 100) : 0
+
+  const dataMixCanaux = !isToday ? [
+    { x: 'Yango', y: totalPeriode('yango_tab') },
+    { x: 'Glovo', y: totalPeriode('glovo_tab') },
+    { x: 'Sur place', y: surPlaceMt },
   ].filter(d => d.y > 0) : []
 
-  const PIE_COLORS = ['#EF9F27', '#3B6D11', '#185FA5', '#993C1D', '#534AB7', '#888']
+  // ---- Pilier 9 — Alertes ----
+  function calculerAlertes() {
+    const alertes = []
+    if (caPeriode > 0 && (foodCostMt > 0 || laborCostMt > 0)) {
+      if (primeCostPct > 60) {
+        alertes.push({ type: 'danger', icon: '🔴', titre: 'Coût primaire trop élevé',
+          message: `Coût primaire à ${primeCostPct.toFixed(1)}% — au-dessus du seuil recommandé de 60% (Matières ${foodCostPct.toFixed(1)}% + Salaire ${laborCostPct.toFixed(1)}%)` })
+      } else {
+        alertes.push({ type: 'ok', icon: '🟢', titre: 'Coût primaire maîtrisé',
+          message: `Coût primaire à ${primeCostPct.toFixed(1)}%, sous le seuil de 60%` })
+      }
+    }
+    if (caPeriode > 0 && beneficePeriode < 0) {
+      alertes.push({ type: 'danger', icon: '🔴', titre: 'Bénéfice négatif',
+        message: `Le bénéfice SC de la période est négatif (${fmtFull(beneficePeriode)})` })
+    }
+    if (!isToday && points.length > 1) {
+      const meilleur = points.reduce((max, p) => (p.vente_total || 0) > (max.vente_total || 0) ? p : max, points[0])
+      if ((meilleur.vente_total || 0) > 0) {
+        alertes.push({ type: 'info', icon: '🏆', titre: 'Meilleure journée',
+          message: `${formatDateLong(meilleur.date)} avec ${fmtFull(meilleur.vente_total || 0)} de ventes` })
+      }
+      const pire = points.reduce((min, p) => (p.benefice_sc || 0) < (min.benefice_sc || 0) ? p : min, points[0])
+      if ((pire.benefice_sc || 0) < 0) {
+        alertes.push({ type: 'warning', icon: '🟠', titre: 'Journée déficitaire',
+          message: `${formatDateLong(pire.date)} — bénéfice SC de ${fmtFull(pire.benefice_sc || 0)}` })
+      }
+    }
+    if (!alertes.length) {
+      alertes.push({ type: 'info', icon: 'ℹ️', titre: 'Aucune alerte', message: 'Aucun seuil critique franchi sur cette période.' })
+    }
+    return alertes
+  }
+
+  const ALERTE_COLORS = {
+    danger: { bg: '#A32D2D15', border: '#A32D2D', txt: '#A32D2D' },
+    warning: { bg: '#BA751715', border: '#BA7517', txt: '#854F0B' },
+    ok: { bg: '#3B6D1115', border: '#3B6D11', txt: '#3B6D11' },
+    info: { bg: colors.bg, border: colors.borderLight, txt: colors.textMuted },
+  }
+
+  const dataCamembert = isToday ? [
+    { x: 'Yango', y: (cumulShifts?.yangoCse || 0) + (parseFloat(ventesJour.yangoTab) || 0) },
+    { x: 'Glovo', y: (cumulShifts?.glovoCse || 0) + (parseFloat(ventesJour.glovoTab) || 0) },
+    { x: 'Sur place', y: surPlaceMt },
+  ].filter(d => d.y > 0) : []
+
+  const PIE_COLORS = ['#EF9F27', '#534AB7', '#1FAD6B']
 
   return (
     <SafeAreaView style={styles.container}>
@@ -300,6 +440,18 @@ export default function DashboardScreen() {
             <Text style={[styles.periodeTxt, periodeKey === p.key && styles.periodeTxtActive]}>
               {p.label}
             </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillsBar} contentContainerStyle={{ paddingHorizontal: 14 }}>
+        {PILIERS.map(p => (
+          <TouchableOpacity
+            key={p.key}
+            style={[styles.pill, pilier === p.key && styles.pillActive]}
+            onPress={() => setPilier(p.key)}
+          >
+            <Text style={[styles.pillTxt, pilier === p.key && styles.pillTxtActive]}>{p.label}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -335,7 +487,7 @@ export default function DashboardScreen() {
         </View>
       ) : (
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-          {!isToday && points.length === 0 ? (
+          {pilier === 'apercu' && (!isToday && points.length === 0 ? (
             <View style={styles.emptyBox}>
               <Text style={styles.emptyIcon}>📊</Text>
               <Text style={styles.emptyTxt}>Aucun point validé sur cette période</Text>
@@ -493,13 +645,11 @@ export default function DashboardScreen() {
                   <View style={styles.pieContainer}>
                     <VictoryPie
                       data={dataCamembert}
-                      width={CHART_WIDTH * 0.6}
-                      height={200}
+                      width={220}
+                      height={170}
                       colorScale={PIE_COLORS}
-                      innerRadius={50}
-                      labelRadius={80}
-                      style={{ labels: { fontSize: 8, fill: '#555' } }}
-                      labelComponent={<VictoryLabel />}
+                      innerRadius={45}
+                      labels={() => ''}
                     />
                     <View style={styles.pieLegend}>
                       {dataCamembert.map((d, i) => (
@@ -630,6 +780,173 @@ export default function DashboardScreen() {
                 </View>
               )}
             </>
+          ))}
+
+          {/* Pilier 2 — Structure des coûts */}
+          {pilier === 'couts' && (
+            chargementCouts ? (
+              <View style={styles.loadingBox}>
+                <ActivityIndicator size="large" color="#EF9F27" />
+                <Text style={styles.loadingTxt}>Chargement des coûts...</Text>
+              </View>
+            ) : caPeriode <= 0 ? (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyIcon}>📊</Text>
+                <Text style={styles.emptyTxt}>Aucune donnée de vente sur cette période</Text>
+                <Text style={styles.emptySub}>Les indicateurs de coûts nécessitent un chiffre d&apos;affaires</Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitre}>Structure des coûts {isToday ? "(aujourd'hui)" : `(${nbJours}j)`}</Text>
+                  <View style={styles.resultCard}>
+                    <JaugeCout label="Coût matières" pct={foodCostPct} montant={foodCostMt} seuil={30} colors={colors} fmtFull={fmtFull} />
+                    <JaugeCout label="Coût du salaire" pct={laborCostPct} montant={laborCostMt} seuil={30} colors={colors} fmtFull={fmtFull} />
+                    <JaugeCout label="Coût primaire" pct={primeCostPct} montant={foodCostMt + laborCostMt} seuil={60} colors={colors} fmtFull={fmtFull} accent />
+                    {chargesData.length > 0 ? (
+                      <JaugeCout label="Charges fixes" pct={chargesFixesPct} montant={chargesFixesMt} seuil={20} colors={colors} fmtFull={fmtFull} dernier />
+                    ) : (
+                      <TouchableOpacity style={styles.chargesEmptyRow} onPress={() => router.push('/charges')}>
+                        <Text style={styles.chargesEmptyTxt}>Charges fixes non configurées pour cette période</Text>
+                        <Text style={styles.chargesEmptyLink}>Configurer ›</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+
+                <View style={styles.messageCard}>
+                  {primeCostPct > 60 ? (
+                    <Text style={styles.messageBad}>
+                      ⚠ Coût primaire à {primeCostPct.toFixed(1)}% — au-dessus du seuil de 60%, surveillez vos coûts de matière première et de personnel
+                    </Text>
+                  ) : (
+                    <Text style={styles.messageOk}>
+                      ✅ Coût primaire à {primeCostPct.toFixed(1)}% — sous le seuil de 60%, structure de coûts saine
+                    </Text>
+                  )}
+                </View>
+              </>
+            )
+          )}
+
+          {/* Pilier 7 — Comportement clients */}
+          {pilier === 'clients' && (
+            caPeriode <= 0 ? (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyIcon}>🛵</Text>
+                <Text style={styles.emptyTxt}>Aucune donnée de vente sur cette période</Text>
+              </View>
+            ) : (
+              <>
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitre}>Livraison vs sur place</Text>
+                  <View style={styles.resultCard}>
+                    <View style={styles.resultRow}>
+                      <Text style={styles.resultLabel}>🛵 Livraison (Yango/Glovo)</Text>
+                      <Text style={[styles.resultValue, { color: '#EF9F27' }]}>
+                        {fmtFull(livraisonMt)} ({pctLivraison.toFixed(0)}%)
+                      </Text>
+                    </View>
+                    <View style={[styles.resultRow, { borderBottomWidth: 0 }]}>
+                      <Text style={styles.resultLabel}>🍽️ Sur place / autres canaux</Text>
+                      <Text style={[styles.resultValue, { color: '#185FA5' }]}>
+                        {fmtFull(surPlaceMt)} ({(100 - pctLivraison).toFixed(0)}%)
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {!isToday && dataMixCanaux.length > 0 && (
+                  <View style={styles.graphCard}>
+                    <Text style={styles.graphTitre}>🥧 Mix des canaux de vente — {titrePeriode()}</Text>
+                    <View style={styles.pieContainer}>
+                      <VictoryPie
+                        data={dataMixCanaux}
+                        width={220}
+                        height={170}
+                        colorScale={PIE_COLORS}
+                        innerRadius={45}
+                        labels={() => ''}
+                      />
+                      <View style={styles.pieLegend}>
+                        {dataMixCanaux.map((d, i) => (
+                          <View key={i} style={styles.pieLegendItem}>
+                            <View style={[styles.legendeColor, { backgroundColor: PIE_COLORS[i] }]} />
+                            <View>
+                              <Text style={styles.pieLegendLabel}>{d.x}</Text>
+                              <Text style={styles.pieLegendValue}>{fmtFull(d.y)}</Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {isToday && dataCamembert.length > 0 && (
+                  <View style={styles.graphCard}>
+                    <Text style={styles.graphTitre}>🥧 Répartition des canaux de vente</Text>
+                    <View style={styles.pieContainer}>
+                      <VictoryPie
+                        data={dataCamembert}
+                        width={220}
+                        height={170}
+                        colorScale={PIE_COLORS}
+                        innerRadius={45}
+                        labels={() => ''}
+                      />
+                      <View style={styles.pieLegend}>
+                        {dataCamembert.map((d, i) => (
+                          <View key={i} style={styles.pieLegendItem}>
+                            <View style={[styles.legendeColor, { backgroundColor: PIE_COLORS[i] }]} />
+                            <View>
+                              <Text style={styles.pieLegendLabel}>{d.x}</Text>
+                              <Text style={styles.pieLegendValue}>{fmtFull(d.y)}</Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  </View>
+                )}
+              </>
+            )
+          )}
+
+          {/* Pilier 9 — Alertes */}
+          {pilier === 'alertes' && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitre}>Alertes — {titrePeriode()}</Text>
+              {calculerAlertes().map((a, i) => {
+                const c = ALERTE_COLORS[a.type]
+                return (
+                  <View key={i} style={[styles.alerteCard, { backgroundColor: c.bg, borderColor: c.border }]}>
+                    <Text style={styles.alerteIcon}>{a.icon}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.alerteTitre, { color: c.txt }]}>{a.titre}</Text>
+                      <Text style={styles.alerteMsg}>{a.message}</Text>
+                    </View>
+                  </View>
+                )
+              })}
+            </View>
+          )}
+
+          {/* Pilier Litiges — carte récap */}
+          {pilier === 'litiges' && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitre}>Litiges & écarts</Text>
+              <View style={styles.litigesCard}>
+                <Text style={styles.litigesIcon}>⚖️</Text>
+                <Text style={styles.litigesTxt}>
+                  Le rapport complet des litiges (avis clients, Yango, Glovo, points non faits, écarts de caisse)
+                  est disponible dans l&apos;écran dédié, avec filtres par période et export PDF.
+                </Text>
+                <TouchableOpacity style={styles.litigesBtn} onPress={() => router.push('/litiges')}>
+                  <Text style={styles.litigesBtnTxt}>Voir le rapport complet ›</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           )}
 
           <View style={{ height: 30 }} />
@@ -708,6 +1025,36 @@ export default function DashboardScreen() {
   )
 }
 
+function JaugeCout({ label, pct, montant, seuil, colors, fmtFull, accent, dernier }) {
+  const ok = pct <= seuil
+  const couleur = accent ? (ok ? '#3B6D11' : '#A32D2D') : (ok ? '#3B6D11' : '#BA7517')
+  const largeur = Math.min(pct, 100)
+  return (
+    <View style={[jaugeStyles.row, dernier && { borderBottomWidth: 0 }]}>
+      <View style={jaugeStyles.head}>
+        <Text style={[jaugeStyles.label, { color: colors.text }]}>{label}</Text>
+        <Text style={[jaugeStyles.value, { color: couleur }]}>
+          {pct.toFixed(1)}% · {fmtFull(montant)}
+        </Text>
+      </View>
+      <View style={[jaugeStyles.barBg, { backgroundColor: colors.bg }]}>
+        <View style={[jaugeStyles.barFill, { width: `${largeur}%`, backgroundColor: couleur }]} />
+      </View>
+      <Text style={[jaugeStyles.seuil, { color: colors.textMuted }]}>Seuil indicatif : {seuil}%</Text>
+    </View>
+  )
+}
+
+const jaugeStyles = StyleSheet.create({
+  row: { paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#88888830' },
+  head: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  label: { fontSize: 13, fontWeight: '600' },
+  value: { fontSize: 12, fontWeight: '600' },
+  barBg: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  barFill: { height: 8, borderRadius: 4 },
+  seuil: { fontSize: 10, marginTop: 4 },
+})
+
 function makeStyles(colors) { return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
@@ -762,9 +1109,9 @@ function makeStyles(colors) { return StyleSheet.create({
   legendeItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendeColor: { width: 12, height: 12, borderRadius: 3 },
   legendeTxt: { fontSize: 11, color: colors.textMuted },
-  pieContainer: { flexDirection: 'row', alignItems: 'center' },
-  pieLegend: { flex: 1, paddingLeft: 8 },
-  pieLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  pieContainer: { alignItems: 'center' },
+  pieLegend: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 10, marginTop: 8 },
+  pieLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: '45%', marginBottom: 4 },
   pieLegendLabel: { fontSize: 11, fontWeight: '600', color: colors.text },
   pieLegendValue: { fontSize: 10, color: colors.textMuted },
   section: { marginBottom: 14 },
@@ -781,7 +1128,7 @@ function makeStyles(colors) { return StyleSheet.create({
     alignItems: 'center', paddingVertical: 7,
     borderBottomWidth: 0.5, borderBottomColor: colors.bg
   },
-  resultLabel: { fontSize: 13, color: colors.textMuted },
+  resultLabel: { fontSize: 12, color: colors.textMuted, flex: 1, paddingRight: 8 },
   resultValue: { fontSize: 13, fontWeight: '500', color: colors.text },
   dateSmall: { fontSize: 10, color: '#aaa', marginTop: 2 },
   messageCard: {
@@ -820,4 +1167,37 @@ function makeStyles(colors) { return StyleSheet.create({
   modalCancelTxt: { fontSize: 14, color: colors.textMuted },
   modalConfirm: { flex: 2, padding: 14, borderRadius: 12, backgroundColor: '#EF9F27', alignItems: 'center' },
   modalConfirmTxt: { fontSize: 14, fontWeight: '600', color: '#412402' },
+
+  pillsBar: { backgroundColor: colors.bg, maxHeight: 44 },
+  pill: {
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, marginRight: 8, marginVertical: 6,
+    backgroundColor: colors.surface, borderWidth: 0.5, borderColor: colors.borderLight
+  },
+  pillActive: { backgroundColor: '#EF9F27', borderColor: '#EF9F27' },
+  pillTxt: { fontSize: 12, fontWeight: '500', color: colors.textMuted },
+  pillTxtActive: { color: '#412402', fontWeight: '700' },
+
+  chargesEmptyRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 12,
+  },
+  chargesEmptyTxt: { fontSize: 12, color: colors.textMuted, flex: 1, marginRight: 8 },
+  chargesEmptyLink: { fontSize: 12, fontWeight: '600', color: '#EF9F27' },
+
+  alerteCard: {
+    flexDirection: 'row', gap: 12, alignItems: 'flex-start',
+    borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 10
+  },
+  alerteIcon: { fontSize: 20 },
+  alerteTitre: { fontSize: 13, fontWeight: '700', marginBottom: 3 },
+  alerteMsg: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
+
+  litigesCard: {
+    backgroundColor: colors.surface, borderRadius: 14, padding: 18,
+    borderWidth: 0.5, borderColor: colors.borderLight, alignItems: 'center'
+  },
+  litigesIcon: { fontSize: 32, marginBottom: 10 },
+  litigesTxt: { fontSize: 13, color: colors.textMuted, textAlign: 'center', lineHeight: 20, marginBottom: 14 },
+  litigesBtn: { backgroundColor: '#EF9F27', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 24 },
+  litigesBtnTxt: { fontSize: 13, fontWeight: '700', color: '#412402' },
 }) }

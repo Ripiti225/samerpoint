@@ -45,7 +45,7 @@ const PERIODES = [
   { label: '📅 Période', key: 'custom' },
 ]
 
-const ONGLETS = ['Dashboard', 'Travailleurs', 'Présences', 'Salaires', 'Congés', 'Archivés']
+const ONGLETS = ['Dashboard', 'Travailleurs', 'Présences', 'Salaires', 'Archivés']
 const MOTIFS_ARCHIVE = ['Démission', 'Renvoi', 'Fin de contrat', 'Autre']
 
 export default function RHScreen() {
@@ -101,16 +101,6 @@ export default function RHScreen() {
   const [restoTransfertId, setRestoTransfertId] = useState(null)
   const [savingTransfert, setSavingTransfert] = useState(false)
 
-  // Congés & Permissions
-  const [conges, setConges] = useState([])
-  const [loadingConges, setLoadingConges] = useState(false)
-  const [modalConge, setModalConge] = useState(false)
-  const [editingConge, setEditingConge] = useState(null)
-  const [formConge, setFormConge] = useState({ type: 'conge', travailleur_id: '', travailleur_nom: '', date_debut: '', date_fin: '', motif: '' })
-  const [savingConge, setSavingConge] = useState(false)
-  // null = calendrier caché, 'debut'/'fin' = calendrier inline affiché pour ce champ
-  const [dateCongeChamp, setDateCongeChamp] = useState(null)
-
   useEffect(() => { chargerRestaurants() }, [])
   useEffect(() => {
     if (restoSelectionne) chargerDonnees()
@@ -123,17 +113,12 @@ export default function RHScreen() {
 
   useEffect(() => {
     if (!restoSelectionne) return
-    if (onglet === 'Congés') chargerConges()
     if (onglet === 'Archivés') chargerArchives()
   }, [restoSelectionne, onglet])
 
-  // Fermer le modal congé au démontage pour éviter le crash iOS (modal visible + composant démonté)
   const isMountedRef = useRef(true)
   useEffect(() => {
-    return () => {
-      isMountedRef.current = false
-      setModalConge(false)
-    }
+    return () => { isMountedRef.current = false }
   }, [])
 
   async function chargerRestaurants() {
@@ -387,7 +372,7 @@ export default function RHScreen() {
                   style: 'destructive',
                   onPress: async () => {
                     await supabase.from('presences').delete().eq('travailleur_id', trav.id)
-                    await supabase.from('permissions_conges').delete().eq('travailleur_id', trav.id)
+                    await supabase.from('demandes').delete().eq('travailleur_id', trav.id)
                     await supabase.from('documents_travailleurs').delete().eq('travailleur_id', trav.id)
                     await supabase.from('travailleurs').delete().eq('id', trav.id)
                     chargerArchives()
@@ -455,69 +440,6 @@ export default function RHScreen() {
       Alert.alert('Erreur', "Impossible d'uploader le fichier")
     }
     setUploadingPapier(false)
-  }
-
-  async function chargerConges() {
-    if (!restoSelectionne) return
-    setLoadingConges(true)
-    const { data } = await supabase
-      .from('permissions_conges')
-      .select('*')
-      .eq('restaurant_id', restoSelectionne.id)
-      .order('date_debut', { ascending: false })
-    if (!isMountedRef.current) return
-    setConges(data || [])
-    setLoadingConges(false)
-  }
-
-  async function sauvegarderConge() {
-    if (!formConge.travailleur_id || !formConge.date_debut || !formConge.date_fin) {
-      Alert.alert('Erreur', 'Travailleur et dates obligatoires')
-      return
-    }
-    setSavingConge(true)
-    if (editingConge) {
-      await supabase.from('permissions_conges').update({
-        type: formConge.type,
-        date_debut: formConge.date_debut,
-        date_fin: formConge.date_fin,
-        motif: formConge.motif || null,
-      }).eq('id', editingConge.id)
-    } else {
-      await supabase.from('permissions_conges').insert({
-        restaurant_id: restoSelectionne.id,
-        travailleur_id: formConge.travailleur_id,
-        travailleur_nom: formConge.travailleur_nom,
-        type: formConge.type,
-        date_debut: formConge.date_debut,
-        date_fin: formConge.date_fin,
-        motif: formConge.motif || null,
-        created_by: 'rh',
-      })
-    }
-    setSavingConge(false)
-    setModalConge(false)
-    setEditingConge(null)
-    setFormConge({ type: 'conge', travailleur_id: '', travailleur_nom: '', date_debut: '', date_fin: '', motif: '' })
-    chargerConges()
-    Alert.alert('Succès', editingConge ? 'Modifié !' : 'Congé / permission enregistré !')
-  }
-
-  async function supprimerConge(conge) {
-    Alert.alert('Confirmer', 'Supprimer cette entrée ?', [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: async () => {
-        await supabase.from('permissions_conges').delete().eq('id', conge.id)
-        chargerConges()
-      }}
-    ])
-  }
-
-  function getStatutConge(conge) {
-    const today = new Date().toISOString().split('T')[0]
-    if (conge.date_fin < today) return { label: 'Terminé', bg: '#F1EFE8', text: '#666' }
-    if (conge.date_debut > today) return { label: 'À venir', bg: '#E6F1FB', text: '#185FA5' }
-    return { label: 'En cours', bg: '#EAF3DE', text: '#3B6D11' }
   }
 
   async function exporterExcel() {
@@ -1078,82 +1000,6 @@ export default function RHScreen() {
     )
   }
 
-  // ─── CONGÉS & PERMISSIONS ──────────────────────────────────
-  function renderConges() {
-    return (
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <TouchableOpacity
-          style={styles.addTravBtn}
-          onPress={() => {
-            setFormConge({ type: 'conge', travailleur_id: '', travailleur_nom: '', date_debut: '', date_fin: '', motif: '' })
-            setEditingConge(null)
-            setModalConge(true)
-          }}
-        >
-          <Text style={styles.addTravTxt}>+ Ajouter congé / permission</Text>
-        </TouchableOpacity>
-
-        {loadingConges ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color="#185FA5" />
-          </View>
-        ) : conges.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyIcon}>🏖️</Text>
-            <Text style={styles.emptyTxt}>Aucun congé ou permission enregistré</Text>
-          </View>
-        ) : (
-          conges.map((c) => {
-            const statut = getStatutConge(c)
-            return (
-              <View key={c.id} style={styles.congeCard}>
-                <View style={styles.congeTop}>
-                  <View style={[styles.congeTypeBadge, { backgroundColor: c.type === 'conge' ? '#EEEDFE' : '#FAEEDA' }]}>
-                    <Text style={[styles.congeTypeTxt, { color: c.type === 'conge' ? '#3C3489' : '#854F0B' }]}>
-                      {c.type === 'conge' ? '🏖️ Congé' : '📋 Permission'}
-                    </Text>
-                  </View>
-                  <View style={[styles.congeStatutBadge, { backgroundColor: statut.bg }]}>
-                    <Text style={[styles.congeStatutTxt, { color: statut.text }]}>{statut.label}</Text>
-                  </View>
-                </View>
-                <Text style={styles.congeNom}>{c.travailleur_nom}</Text>
-                <Text style={styles.congeDates}>{formatDate(c.date_debut)} → {formatDate(c.date_fin)}</Text>
-                {c.motif ? <Text style={styles.congeMotif}>"{c.motif}"</Text> : null}
-                <View style={styles.congeActions}>
-                  <TouchableOpacity
-                    style={styles.congeEditBtn}
-                    onPress={() => {
-                      setFormConge({
-                        type: c.type,
-                        travailleur_id: c.travailleur_id,
-                        travailleur_nom: c.travailleur_nom,
-                        date_debut: c.date_debut,
-                        date_fin: c.date_fin,
-                        motif: c.motif || '',
-                      })
-                      setEditingConge(c)
-                      setModalConge(true)
-                    }}
-                  >
-                    <Text style={styles.congeEditTxt}>✏️ Modifier</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.congeDeleteBtn}
-                    onPress={() => supprimerConge(c)}
-                  >
-                    <Text style={styles.congeDeleteTxt}>🗑 Supprimer</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )
-          })
-        )}
-        <View style={{ height: 30 }} />
-      </ScrollView>
-    )
-  }
-
   // ─── ARCHIVÉS ──────────────────────────────────────────────
   function renderArchives() {
     if (loadingArchives) return (
@@ -1288,142 +1134,6 @@ export default function RHScreen() {
                     onPress={() => { setModalArchiveAction(false); setTravailleurAction(null) }}
                   >
                     <Text style={styles.modalCancelTxt}>Annuler</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={{ height: 30 }} />
-              </ScrollView>
-            </KeyboardAvoidingView>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-    )
-  }
-
-  function renderModalConge() {
-    return (
-      <Modal visible={modalConge} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.modalOverlay}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-              <ScrollView style={styles.modal} showsVerticalScrollIndicator={false}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitre}>
-                    {editingConge ? 'Modifier' : 'Nouveau congé / permission'}
-                  </Text>
-                  <TouchableOpacity onPress={() => { setModalConge(false); setEditingConge(null) }}>
-                    <Text style={styles.modalClose}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <Text style={styles.modalLabel}>Type</Text>
-                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
-                  {[{ key: 'conge', label: '🏖️ Congé' }, { key: 'permission', label: '📋 Permission' }].map(t => (
-                    <TouchableOpacity
-                      key={t.key}
-                      style={[styles.contratChoix, formConge.type === t.key && styles.contratChoixActive]}
-                      onPress={() => setFormConge(p => ({ ...p, type: t.key }))}
-                    >
-                      <Text style={[styles.contratChoixTxt, formConge.type === t.key && styles.contratChoixTxtActive]}>
-                        {t.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <Text style={styles.modalLabel}>Travailleur</Text>
-                {!editingConge ? (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
-                    {travailleurs.map(t => (
-                      <TouchableOpacity
-                        key={t.id}
-                        style={[styles.travChoixBtn, formConge.travailleur_id === t.id && styles.travChoixBtnActive]}
-                        onPress={() => setFormConge(p => ({ ...p, travailleur_id: t.id, travailleur_nom: t.nom }))}
-                      >
-                        <Text style={[styles.travChoixTxt, formConge.travailleur_id === t.id && styles.travChoixTxtActive]}>
-                          {t.nom}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                ) : (
-                  <View style={[styles.modalInput, { marginBottom: 14, paddingVertical: 14 }]}>
-                    <Text style={{ color: colors.text }}>{formConge.travailleur_nom}</Text>
-                  </View>
-                )}
-
-                <Text style={styles.modalLabel}>Dates</Text>
-                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10, alignItems: 'center' }}>
-                  <TouchableOpacity
-                    style={[styles.contratChoix, { flex: 1 }, dateCongeChamp === 'debut' && styles.contratChoixActive]}
-                    onPress={() => setDateCongeChamp(dateCongeChamp === 'debut' ? null : 'debut')}
-                  >
-                    <Text style={[styles.contratChoixTxt, formConge.date_debut && { color: colors.text, fontWeight: '600' }, dateCongeChamp === 'debut' && { color: '#fff' }]}>
-                      {formConge.date_debut ? formatDate(formConge.date_debut) : '📅 Début'}
-                    </Text>
-                  </TouchableOpacity>
-                  <Text style={{ color: colors.textMuted }}>→</Text>
-                  <TouchableOpacity
-                    style={[styles.contratChoix, { flex: 1 }, dateCongeChamp === 'fin' && styles.contratChoixActive]}
-                    onPress={() => setDateCongeChamp(dateCongeChamp === 'fin' ? null : 'fin')}
-                  >
-                    <Text style={[styles.contratChoixTxt, formConge.date_fin && { color: colors.text, fontWeight: '600' }, dateCongeChamp === 'fin' && { color: '#fff' }]}>
-                      {formConge.date_fin ? formatDate(formConge.date_fin) : '📅 Fin'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                {dateCongeChamp !== null && (
-                  <View style={{ marginBottom: 14 }}>
-                    <Text style={styles.calInlineTitre}>
-                      {dateCongeChamp === 'debut' ? '📅 Sélectionner la date de début' : '📅 Sélectionner la date de fin'}
-                    </Text>
-                    <Calendar
-                      onDayPress={day => {
-                        setFormConge(p => ({
-                          ...p,
-                          [dateCongeChamp === 'debut' ? 'date_debut' : 'date_fin']: day.dateString,
-                        }))
-                        setDateCongeChamp(null)
-                      }}
-                      markedDates={{
-                        ...(formConge.date_debut ? { [formConge.date_debut]: { selected: true, selectedColor: '#185FA5' } } : {}),
-                        ...(formConge.date_fin ? { [formConge.date_fin]: { selected: true, selectedColor: '#3B6D11' } } : {}),
-                      }}
-                      theme={{
-                        selectedDayBackgroundColor: dateCongeChamp === 'debut' ? '#185FA5' : '#3B6D11',
-                        todayTextColor: '#185FA5',
-                        arrowColor: '#185FA5',
-                        monthTextColor: colors.text,
-                        dayTextColor: colors.text,
-                        textDisabledColor: '#ccc',
-                      }}
-                    />
-                  </View>
-                )}
-
-                <Text style={styles.modalLabel}>Motif (optionnel)</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="Ex: Voyage famille, Maladie..."
-                  value={formConge.motif}
-                  onChangeText={v => setFormConge(p => ({ ...p, motif: v }))}
-                  placeholderTextColor="#bbb"
-                />
-
-                <View style={styles.modalBtns}>
-                  <TouchableOpacity
-                    style={styles.modalCancel}
-                    onPress={() => { setModalConge(false); setEditingConge(null) }}
-                  >
-                    <Text style={styles.modalCancelTxt}>Annuler</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.modalConfirm, savingConge && { opacity: 0.6 }]}
-                    onPress={sauvegarderConge}
-                    disabled={savingConge}
-                  >
-                    <Text style={styles.modalConfirmTxt}>
-                      {savingConge ? 'Enregistrement...' : 'Enregistrer'}
-                    </Text>
                   </TouchableOpacity>
                 </View>
                 <View style={{ height: 30 }} />
@@ -1888,7 +1598,7 @@ export default function RHScreen() {
         ))}
       </ScrollView>
 
-      {onglet !== 'Congés' && onglet !== 'Archivés' && (
+      {onglet !== 'Archivés' && (
         <View style={styles.periodeBanner}>
           <Text style={styles.periodeBannerTxt}>📅 {titrePeriode()}</Text>
           <Text style={styles.periodeBannerSub}>{presences.length} enregistrement(s)</Text>
@@ -1918,7 +1628,6 @@ export default function RHScreen() {
           {onglet === 'Travailleurs' && renderTravailleurs()}
           {onglet === 'Présences' && renderPresences()}
           {onglet === 'Salaires' && renderSalaires()}
-          {onglet === 'Congés' && renderConges()}
           {onglet === 'Archivés' && renderArchives()}
         </View>
       )}
@@ -1927,7 +1636,6 @@ export default function RHScreen() {
       {renderModalTransfert()}
       {renderModalFormTravailleur()}
       {renderModalCalendrier()}
-      {renderModalConge()}
       {renderModalArchiveAction()}
     </SafeAreaView>
   )

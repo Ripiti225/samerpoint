@@ -96,7 +96,8 @@ function formDateDefaut(periodeKey, dateUnique) {
 export default function LitigesScreen() {
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
-  const { userNom, userId } = useApp()
+  const { userNom, userId, roleActif, restaurantId } = useApp()
+  const isGerant = roleActif === 'gerant'
 
   // ── Restaurant ──────────────────────────────────────────────
   const [restaurants, setRestaurants] = useState([])
@@ -173,9 +174,16 @@ export default function LitigesScreen() {
     const { data } = await supabase.from('restaurants').select('*').order('nom')
     setRestaurants(data || [])
     if (data?.length) {
-      setRestoSelectionne(data[0])
-      chargerDatesAvec(data[0].id)
-      chargerUtilisateurs(data[0].id)
+      if (isGerant && restaurantId) {
+        const monResto = data.find(r => r.id === restaurantId) || data[0]
+        setRestoSelectionne(monResto)
+        chargerDatesAvec(monResto.id)
+        chargerUtilisateurs(monResto.id)
+      } else {
+        setRestoSelectionne(data[0])
+        chargerDatesAvec(data[0].id)
+        chargerUtilisateurs(data[0].id)
+      }
     }
   }
 
@@ -1310,12 +1318,20 @@ export default function LitigesScreen() {
 
       {/* Restaurant */}
       <View style={styles.restoRow}>
-        <TouchableOpacity style={styles.restoBtn} onPress={() => setShowRestoPicker(true)}>
-          <Text style={styles.restoTxt} numberOfLines={1}>
-            {modeGlobal ? '🌐 Tous les restaurants' : '🏪 ' + (restoSelectionne?.nom || 'Restaurant...')}
-          </Text>
-          <Text style={styles.restoArrow}>▾</Text>
-        </TouchableOpacity>
+        {isGerant ? (
+          <View style={styles.restoBtn}>
+            <Text style={styles.restoTxt} numberOfLines={1}>
+              🏪 {restoSelectionne?.nom || '...'}
+            </Text>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.restoBtn} onPress={() => setShowRestoPicker(true)}>
+            <Text style={styles.restoTxt} numberOfLines={1}>
+              {modeGlobal ? '🌐 Tous les restaurants' : '🏪 ' + (restoSelectionne?.nom || 'Restaurant...')}
+            </Text>
+            <Text style={styles.restoArrow}>▾</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Sélecteur de période */}
@@ -1407,13 +1423,15 @@ export default function LitigesScreen() {
           <TouchableOpacity activeOpacity={1} style={styles.pickerBox}>
             <Text style={styles.pickerTitre}>Sélectionner un restaurant</Text>
             <ScrollView>
-              {/* Option "Tous les restaurants" */}
-              <TouchableOpacity
-                style={[styles.pickerLigne, modeGlobal && styles.pickerLigneActive, { borderBottomWidth: 1, borderBottomColor: '#e0e0e0' }]}
-                onPress={() => { setModeGlobal(true); setRestoSelectionne(null); setShowRestoPicker(false) }}
-              >
-                <Text style={[styles.pickerLigneTxt, modeGlobal && { color: '#534AB7', fontWeight: '700' }]}>🌐 Tous les restaurants</Text>
-              </TouchableOpacity>
+              {/* Option "Tous les restaurants" — masquée pour le gérant */}
+              {!isGerant && (
+                <TouchableOpacity
+                  style={[styles.pickerLigne, modeGlobal && styles.pickerLigneActive, { borderBottomWidth: 1, borderBottomColor: '#e0e0e0' }]}
+                  onPress={() => { setModeGlobal(true); setRestoSelectionne(null); setShowRestoPicker(false) }}
+                >
+                  <Text style={[styles.pickerLigneTxt, modeGlobal && { color: '#534AB7', fontWeight: '700' }]}>🌐 Tous les restaurants</Text>
+                </TouchableOpacity>
+              )}
               {restaurants.map(r => (
                 <TouchableOpacity key={r.id}
                   style={[styles.pickerLigne, !modeGlobal && restoSelectionne?.id === r.id && styles.pickerLigneActive]}

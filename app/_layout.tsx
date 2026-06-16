@@ -185,6 +185,8 @@ export default function RootLayout() {
         <Stack.Screen name="deductions-gerant" />
         <Stack.Screen name="selectionner-journee" />
         <Stack.Screen name="credits-fournisseurs" />
+        <Stack.Screen name="demandes" />
+        <Stack.Screen name="demandes-admin" />
         <Stack.Screen name="(tabs)" />
       </Stack>
       </NotificationsProvider>

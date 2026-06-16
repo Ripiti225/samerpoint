@@ -69,6 +69,10 @@ export default function ModifierPointScreen() {
   const [fournGerant, setFournGerant] = useState([])
   const [loadingGerant, setLoadingGerant] = useState(false)
   const [subGerant, setSubGerant] = useState('A')
+  // Déplacement de shift
+  const [showMoveShift, setShowMoveShift] = useState(null)
+  const [moveDateCible, setMoveDateCible] = useState('')
+  const [deplacement, setDeplacement] = useState(false)
 
   useEffect(() => { chargerRestaurants() }, [])
 
@@ -364,6 +368,102 @@ export default function ModifierPointScreen() {
     }
   }
 
+  async function deplacerShift(shift, dateCible) {
+    setDeplacement(true)
+    try {
+      // Chercher le point cible
+      const { data: pointCible, error: errCible } = await supabase
+        .from('points').select('*')
+        .eq('restaurant_id', selectedResto.id)
+        .eq('date', dateCible)
+        .single()
+
+      if (errCible || !pointCible) {
+        Alert.alert('Erreur', `Aucun point trouvé pour le ${dateCible} dans ce restaurant. Créez d'abord le point pour cette date.`)
+        return
+      }
+
+      if (pointCible.id === shift.point_id) {
+        Alert.alert('Erreur', 'Le shift est déjà sur ce point.')
+        return
+      }
+
+      // 1. Déplacer le record points_shifts
+      const { error: errShift } = await supabase.from('points_shifts')
+        .update({ point_id: pointCible.id, date: dateCible })
+        .eq('id', shift.id)
+      if (errShift) throw errShift
+
+      // 2. Déplacer les dépenses caissier
+      if (shift.caissier_nom) {
+        await supabase.from('depenses')
+          .update({ point_id: pointCible.id })
+          .eq('point_id', shift.point_id)
+          .eq('saisi_par', 'caissier')
+          .eq('caissier_nom', shift.caissier_nom)
+      }
+
+      // 3. Déplacer les transactions fournisseurs caissier
+      if (shift.caissier_id) {
+        await supabase.from('transactions_fournisseurs')
+          .update({ point_id: pointCible.id })
+          .eq('point_id', shift.point_id)
+          .eq('saisi_par', 'caissier')
+          .eq('caissier_id', shift.caissier_id)
+      } else if (shift.caissier_nom) {
+        await supabase.from('transactions_fournisseurs')
+          .update({ point_id: pointCible.id })
+          .eq('point_id', shift.point_id)
+          .eq('saisi_par', 'caissier')
+          .eq('caissier_nom', shift.caissier_nom)
+      }
+
+      // 4. Déplacer les présences
+      if (shift.caissier_id) {
+        await supabase.from('presences')
+          .update({ point_id: pointCible.id, date: dateCible })
+          .eq('point_id', shift.point_id)
+          .eq('caissier_id', shift.caissier_id)
+      }
+
+      // 5. Déplacer inventaires_shifts
+      if (shift.caissier_id) {
+        await supabase.from('inventaires_shifts')
+          .update({ point_id: pointCible.id })
+          .eq('point_id', shift.point_id)
+          .eq('caissier_id', shift.caissier_id)
+      }
+
+      // 6. Recalculer vente_total sur le point source (point courant)
+      const { data: shiftsSource } = await supabase
+        .from('points_shifts').select('vente_shift').eq('point_id', shift.point_id)
+      const totalSource = (shiftsSource || []).reduce((s, r) => s + (r.vente_shift || 0), 0)
+      await supabase.from('points').update({ vente_total: totalSource }).eq('id', shift.point_id)
+
+      // 7. Recalculer vente_total sur le point cible
+      const { data: shiftsCible } = await supabase
+        .from('points_shifts').select('vente_shift').eq('point_id', pointCible.id)
+      const totalCible = (shiftsCible || []).reduce((s, r) => s + (r.vente_shift || 0), 0)
+      await supabase.from('points').update({ vente_total: totalCible }).eq('id', pointCible.id)
+
+      journaliser('deplacement_shift', {
+        caissier: shift.caissier_nom,
+        date_source: selectedDate, date_cible: dateCible,
+        vente_shift: shift.vente_shift,
+        point_source_valide: !!point?.valide, point_cible_valide: !!pointCible?.valide,
+      }, { pointId: shift.point_id }).catch(() => {})
+
+      setShowMoveShift(null)
+      setMoveDateCible('')
+      await chargerPoint(selectedResto.id, selectedDate)
+      afficherToast(`✅ Shift déplacé vers le ${dateCible} — Total point mis à jour`)
+    } catch (err) {
+      Alert.alert('Erreur', err.message || String(err))
+    } finally {
+      setDeplacement(false)
+    }
+  }
+
   function toggleSelShift(id) {
     setShiftsSelectionnes(prev => {
       const next = new Set(prev)
@@ -609,6 +709,9 @@ export default function ModifierPointScreen() {
                           : initShiftEdit(s)
                         }>
                           <Text style={styles.editBtnTxt}>{isEditing ? '✕' : '✏️'}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.moveBtn} onPress={() => { setShowMoveShift(s); setMoveDateCible('') }}>
+                          <Text style={styles.moveBtnTxt}>📅</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.supprimerBtn} onPress={() => setConfirmSupprShift(s)}>
                           <Text style={styles.supprimerBtnTxt}>🗑️</Text>
@@ -1955,6 +2058,55 @@ export default function ModifierPointScreen() {
         </View>
       </Modal>
 
+      {/* Modal déplacement de shift */}
+      <Modal visible={!!showMoveShift} transparent animationType="slide">
+        <View style={styles.confirmOverlay}>
+          <View style={[styles.confirmBox, { maxHeight: '80%' }]}>
+            <Text style={styles.confirmTitre}>📅 Déplacer ce shift</Text>
+            <Text style={[styles.confirmMsg, { marginBottom: 8 }]}>
+              {showMoveShift?.caissier_nom ? `👤 ${showMoveShift.caissier_nom}\n` : ''}
+              {showMoveShift ? `⏰ ${showMoveShift.heure_debut} → ${showMoveShift.heure_fin}` : ''}
+              {'\n\n'}Choisissez la date cible :
+              {point?.valide ? '\n\n⚠️ Le point source est validé — la modification sera quand même effectuée.' : ''}
+            </Text>
+            <Calendar
+              onDayPress={day => setMoveDateCible(day.dateString)}
+              markedDates={{
+                ...(moveDateCible ? { [moveDateCible]: { selected: true, selectedColor: '#534AB7' } } : {}),
+                ...(selectedDate ? { [selectedDate]: { marked: true, dotColor: '#EF9F27' } } : {}),
+              }}
+              maxDate={new Date().toISOString().split('T')[0]}
+              theme={{
+                selectedDayBackgroundColor: '#534AB7',
+                todayTextColor: '#534AB7',
+                arrowColor: '#534AB7',
+              }}
+              style={{ borderRadius: 12, marginBottom: 16 }}
+            />
+            {moveDateCible ? (
+              <Text style={{ fontSize: 13, color: '#534AB7', fontWeight: '600', textAlign: 'center', marginBottom: 12 }}>
+                Date sélectionnée : {moveDateCible}
+              </Text>
+            ) : null}
+            <View style={styles.confirmBtns}>
+              <TouchableOpacity style={styles.confirmCancel} onPress={() => { setShowMoveShift(null); setMoveDateCible('') }} disabled={deplacement}>
+                <Text style={styles.confirmCancelTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmOk, { backgroundColor: moveDateCible ? '#534AB7' : '#ccc' }, deplacement && { opacity: 0.6 }]}
+                onPress={() => moveDateCible && deplacerShift(showMoveShift, moveDateCible)}
+                disabled={!moveDateCible || deplacement}
+              >
+                {deplacement
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={styles.confirmOkTxt}>📅 Déplacer</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Modal confirmation sauvegarde ventes */}
       <Modal visible={!!confirmSauvegarder} transparent animationType="fade">
         <View style={styles.confirmOverlay}>
@@ -2078,6 +2230,8 @@ function makeStyles(colors) { return StyleSheet.create({
   btnSupprimerSelTxt: { fontSize: 15, fontWeight: '600', color: '#fff' },
   editBtn: { backgroundColor: '#E6F1FB', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 0.5, borderColor: '#B8D4F5' },
   editBtnTxt: { fontSize: 11, color: '#185FA5', fontWeight: '500' },
+  moveBtn: { backgroundColor: '#EEF0FF', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 0.5, borderColor: '#C5C8F5' },
+  moveBtnTxt: { fontSize: 11, color: '#534AB7', fontWeight: '500' },
   shiftCardEditing: { borderColor: '#185FA5', borderWidth: 1.5, backgroundColor: '#F5F8FF' },
   shiftEditPanel: { marginTop: 12, paddingTop: 12, borderTopWidth: 0.5, borderTopColor: '#eee' },
   shiftVenteCalc: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, backgroundColor: '#FFF8ED', borderRadius: 10, padding: 10 },

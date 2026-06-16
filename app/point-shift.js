@@ -301,22 +301,23 @@ export default function PointShiftScreen() {
     setShiftDetail(shift)
     setShiftDetailData({ depenses: [], fournisseurs: [], presences: [], inventaire: null, loading: true })
 
-    const [depRes, txRes, presRes, invRes] = await Promise.all([
-      supabase.from('depenses')
-        .select('*')
-        .eq('point_id', shift.point_id)
-        .eq('saisi_par', 'caissier')
-        .order('created_at'),
-      supabase.from('transactions_fournisseurs')
-        .select('*, fournisseurs(nom)')
-        .eq('point_id', shift.point_id)
-        .eq('saisi_par', 'caissier'),
-      shift.caissier_id
-        ? supabase.from('presences')
-            .select('*, travailleurs(nom, poste)')
-            .eq('point_id', shift.point_id)
-            .eq('caissier_id', shift.caissier_id)
-        : Promise.resolve({ data: [] }),
+    let depQ = supabase.from('depenses')
+      .select('*')
+      .eq('point_id', shift.point_id)
+      .eq('saisi_par', 'caissier')
+      .order('created_at')
+    if (shift.caissier_nom) depQ = depQ.eq('caissier_nom', shift.caissier_nom)
+
+    // caissier_id n'est jamais sauvegardé dans transactions_fournisseurs → filtrer par caissier_nom
+    let txQ = supabase.from('transactions_fournisseurs')
+      .select('*, fournisseurs(nom)')
+      .eq('point_id', shift.point_id)
+      .eq('saisi_par', 'caissier')
+    if (shift.caissier_nom) txQ = txQ.eq('caissier_nom', shift.caissier_nom)
+
+    const [depRes, txRes, invRes] = await Promise.all([
+      depQ,
+      txQ,
       shift.caissier_id
         ? supabase.from('inventaires_shifts')
             .select(`
@@ -334,10 +335,27 @@ export default function PointShiftScreen() {
         : Promise.resolve({ data: null }),
     ])
 
+    // Présences : select('*') sans jointure FK (travailleur_nom est dénormalisé dans la table)
+    // Essayer d'abord par caissier_id, sinon par point_id seul
+    let presData = []
+    if (shift.caissier_id) {
+      const presById = await supabase.from('presences')
+        .select('*')
+        .eq('point_id', shift.point_id)
+        .eq('caissier_id', shift.caissier_id)
+      presData = presById.data || []
+    }
+    if (presData.length === 0) {
+      const presByPoint = await supabase.from('presences')
+        .select('*')
+        .eq('point_id', shift.point_id)
+      presData = presByPoint.data || []
+    }
+
     setShiftDetailData({
       depenses: depRes.data || [],
       fournisseurs: txRes.data || [],
-      presences: presRes.data || [],
+      presences: presData,
       inventaire: invRes.data || null,
       loading: false,
     })
@@ -1371,33 +1389,30 @@ export default function PointShiftScreen() {
                     {shiftDetailData.presences.map((p, i) => (
                       <View key={p.id || i} style={[styles.detailRow, i === shiftDetailData.presences.length - 1 && { borderBottomWidth: 0 }]}>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.detailLabel}>{p.travailleurs?.nom || 'Travailleur'}</Text>
-                          {p.travailleurs?.poste && (
-                            <Text style={{ fontSize: 10, color: '#aaa', marginTop: 2 }}>{p.travailleurs.poste}</Text>
-                          )}
+                          <Text style={styles.detailLabel}>{p.travailleur_nom || 'Travailleur'}</Text>
                         </View>
                         <View style={{ alignItems: 'flex-end', gap: 4 }}>
                           <View style={[styles.shiftValideBadge, {
-                            backgroundColor: p.statut === 'present' ? '#EAF3DE' : '#FAECE7'
+                            backgroundColor: ['present', 'Présent', 'présent'].includes(p.statut) ? '#EAF3DE' : '#FAECE7'
                           }]}>
                             <Text style={{
                               fontSize: 11, fontWeight: '500',
-                              color: p.statut === 'present' ? '#3B6D11' : '#A32D2D'
+                              color: ['present', 'Présent', 'présent'].includes(p.statut) ? '#3B6D11' : '#A32D2D'
                             }}>
-                              {p.statut === 'present' ? '✅ Présent' : '❌ Absent'}
+                              {['present', 'Présent', 'présent'].includes(p.statut) ? '✅ Présent' : `❌ ${p.statut || 'Absent'}`}
                             </Text>
                           </View>
-                          {p.montant_paie > 0 && (
-                            <Text style={[styles.detailVal, { fontSize: 12 }]}>{fmt(p.montant_paie)}</Text>
+                          {(p.paye || 0) > 0 && (
+                            <Text style={[styles.detailVal, { fontSize: 12 }]}>{fmt(p.paye)}</Text>
                           )}
                         </View>
                       </View>
                     ))}
-                    {shiftDetailData.presences.some(p => p.montant_paie > 0) && (
+                    {shiftDetailData.presences.some(p => (p.paye || 0) > 0) && (
                       <View style={[styles.detailRow, { borderBottomWidth: 0, marginTop: 8, borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10 }]}>
                         <Text style={[styles.detailLabel, { fontWeight: '700', color: '#1a1a1a' }]}>Total paies</Text>
                         <Text style={[styles.detailVal, { fontWeight: '700' }]}>
-                          {fmt(shiftDetailData.presences.reduce((s, p) => s + (p.montant_paie || 0), 0))}
+                          {fmt(shiftDetailData.presences.reduce((s, p) => s + (p.paye || 0), 0))}
                         </Text>
                       </View>
                     )}

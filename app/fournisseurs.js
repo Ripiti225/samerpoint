@@ -69,6 +69,49 @@ export default function FournisseursScreen() {
       return
     }
 
+    // Source de vérité pour le crédit du jour = reste de la transaction la plus récente
+    // par DATE DE JOURNÉE (points.date), en excluant le point courant.
+    // Priorité quand même date : gerant_caissier > gerant > caissier.
+    // Garde-fou : si reste < 0 mais credit_actuel >= 0 → incohérence historique → fallback credit_actuel.
+    {
+      const sourcePrio = { gerant_caissier: 3, gerant: 2, caissier: 1 }
+      const fournIdsAll = (fourn || []).map(f => f.id)
+      const fournCreditActuel = {}
+      ;(fourn || []).forEach(f => { fournCreditActuel[f.id] = f.credit_actuel || 0 })
+      // Filtre par fournisseur_id (robust même si restaurant_id=NULL sur les transactions)
+      let prevQ = supabase
+        .from('transactions_fournisseurs')
+        .select('fournisseur_id, reste, saisi_par, point_id')
+        .in('fournisseur_id', fournIdsAll)
+      if (pointId) prevQ = prevQ.neq('point_id', pointId)
+      const { data: prevTrans } = await prevQ
+
+      // Récupérer les dates des points séparément (évite la jointure qui échoue silencieusement)
+      const prevPointIds = [...new Set((prevTrans || []).map(t => t.point_id).filter(Boolean))]
+      const { data: prevPoints } = prevPointIds.length
+        ? await supabase.from('points').select('id, date').in('id', prevPointIds)
+        : { data: [] }
+      const prevDateByPoint = {}
+      ;(prevPoints || []).forEach(p => { prevDateByPoint[p.id] = p.date })
+
+      const prevMap = {}
+      ;(prevTrans || []).forEach(t => {
+        const date = prevDateByPoint[t.point_id] || ''
+        const ex = prevMap[t.fournisseur_id]
+        const tp = sourcePrio[t.saisi_par] || 0
+        const ep = ex ? (sourcePrio[ex.saisi_par] || 0) : -1
+        if (!ex || date > ex.date || (date === ex.date && tp > ep)) {
+          prevMap[t.fournisseur_id] = { reste: t.reste, date, saisi_par: t.saisi_par }
+        }
+      })
+      Object.entries(prevMap).forEach(([id, info]) => {
+        // Si reste négatif alors que credit_actuel >= 0 : incohérence de données historiques
+        // → utiliser credit_actuel (source de vérité corrigée par le gérant ou le bouton Fix)
+        const ca = fournCreditActuel[id] || 0
+        credits[id] = (info.reste < 0 && ca >= 0) ? ca : info.reste
+      })
+    }
+
     if (trans && trans.length > 0) {
       // Dédupliquer : préférer la saisie gérant
       const priorite = { gerant: 3, caissier: 2 }
@@ -83,9 +126,14 @@ export default function FournisseursScreen() {
       // Filtrer selon le rôle courant : ne jamais mélanger les transactions caissier
       // dans le contexte du gérant, ni l'inverse — chaque shift est indépendant
       const estCaissier = roleActif === 'caissier'
-      const transactionsPropres = Object.values(dedup).filter(t =>
-        estCaissier ? t.saisi_par === 'caissier' : t.saisi_par === 'gerant'
-      )
+      const transactionsPropres = Object.values(dedup).filter(t => {
+        if (!estCaissier) return t.saisi_par === 'gerant'
+        if (t.saisi_par !== 'caissier') return false
+        // Pour les caissiers : ne restaurer que les transactions du caissier courant
+        if (userId && t.caissier_id) return t.caissier_id === userId
+        if (userNom && t.caissier_nom) return t.caissier_nom === userNom
+        return true
+      })
 
       // Marquer "Validé" uniquement pour les transactions du rôle courant
       setValidatedIds(new Set(transactionsPropres.map(t => t.fournisseur_id)))
@@ -97,20 +145,34 @@ export default function FournisseursScreen() {
         credits[t.fournisseur_id] = (t.reste || 0) - (t.facture || 0) + (t.paye || 0)
       })
 
-      // Restaurer fournisseursJour uniquement sur rechargement de page (contexte vide)
-      // et uniquement avec les transactions du rôle courant — jamais les transactions
-      // d'un autre caissier dont le shift est déjà validé et clôturé
-      if (Object.keys(fournisseursJour).length === 0 && transactionsPropres.length > 0) {
-        const restored = {}
-        transactionsPropres.forEach(t => {
-          restored[t.fournisseur_id] = {
-            facture: String(t.facture ?? ''),
-            paye: String(t.paye ?? ''),
-            hasPhoto: !!t.photo_url,
-            photoUri: t.photo_url || null,
-          }
+      // Restaurer les transactions déjà validées du rôle courant dans fournisseursJour
+      // — uniquement pour les fournisseurs dont l'entrée locale est encore vide, afin de :
+      // 1) ne jamais écraser une saisie en cours (en mémoire) de l'utilisateur
+      // 2) ne jamais mélanger les transactions d'un autre caissier dont le shift est clôturé
+      // Une vérification par fournisseur (plutôt que sur l'objet entier) est nécessaire car
+      // après une validation, l'entrée locale est remise à vide puis persistée en session —
+      // un objet "non vide" ne signifiait donc pas forcément "déjà restauré".
+      if (transactionsPropres.length > 0) {
+        setFournisseursJour(prev => {
+          let changed = false
+          const merged = { ...prev }
+          transactionsPropres.forEach(t => {
+            const existing = merged[t.fournisseur_id]
+            // Seuls facture/payé sont remis à vide après validation (la photo est conservée) —
+            // ne se baser que sur eux pour décider si une restauration est nécessaire.
+            const estVide = !existing || (!existing.facture && !existing.paye)
+            if (estVide) {
+              merged[t.fournisseur_id] = {
+                facture: String(t.facture ?? ''),
+                paye: String(t.paye ?? ''),
+                hasPhoto: !!t.photo_url,
+                photoUri: t.photo_url || null,
+              }
+              changed = true
+            }
+          })
+          return changed ? merged : prev
         })
-        setFournisseursJour(restored)
       }
     }
 
@@ -186,7 +248,10 @@ export default function FournisseursScreen() {
     const ok = await saveOneTransactionFournisseur(pointId, f.id, t, credit, saisiPar, userNom, restaurantId, userId, f.nom)
     if (ok) {
       const nouveauReste = credit + (parseFloat(t.facture) || 0) - (parseFloat(t.paye) || 0)
-      await supabase.from('fournisseurs').update({ credit_actuel: nouveauReste }).eq('id', f.id)
+      // Ne mettre à jour credit_actuel que pour le gérant — les caissiers ne doivent pas écraser le solde officiel
+      if (saisiPar !== 'caissier') {
+        await supabase.from('fournisseurs').update({ credit_actuel: nouveauReste }).eq('id', f.id)
+      }
       // Motif spécifique par rôle pour permettre la déduplication lors de la validation du shift caissier
       const motifPrefix = saisiPar === 'caissier'
         ? `caissier|${today}|`
@@ -218,7 +283,9 @@ export default function FournisseursScreen() {
         setFournisseurs(prev => prev.map(item =>
           item.id === f.id ? { ...item, credit_actuel: updatedFourn.credit_actuel } : item
         ))
-        setCreditsVeille(prev => ({ ...prev, [f.id]: updatedFourn.credit_actuel }))
+        // Garder creditsVeille au crédit d'origine (avant la transaction du jour)
+        // — évite le double-comptage si le gérant corrige et re-valide sur le même point
+        setCreditsVeille(prev => ({ ...prev, [f.id]: credit }))
         setFournisseursJour(prev => ({
           ...prev,
           [f.id]: { facture: '', paye: '', hasPhoto: prev[f.id]?.hasPhoto || false, photoUri: prev[f.id]?.photoUri || null },
