@@ -173,6 +173,25 @@ BEGIN
 END;
 $$;
 
+-- ── 8. RLS sur les tables créées ci-dessus (secure-by-default) ──────
+--    Aligne sur le motif de l'app : RLS ON + politique permissive `allow_all`
+--    (ALL pour le rôle public). Idempotent. NB : ceci aligne mais ne durcit
+--    pas — la clé anon garde un accès total (cf. note sécurité).
+DO $$
+DECLARE t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    'erreurs_client','inventaires_shifts','inventaire_lignes','entrees_shift',
+    'litiges_responsables','verifications_stock'
+  ]
+  LOOP
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
+    EXECUTE format('DROP POLICY IF EXISTS allow_all ON %I', t);
+    EXECUTE format('CREATE POLICY allow_all ON %I FOR ALL TO public USING (true) WITH CHECK (true)', t);
+  END LOOP;
+END $$;
+
+
 -- =====================================================================
 --  FIN — vérifie le message « Success. No rows returned » après le Run.
 -- =====================================================================
