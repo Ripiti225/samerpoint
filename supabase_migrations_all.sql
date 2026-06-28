@@ -124,6 +124,17 @@ CREATE INDEX IF NOT EXISTS idx_verif_stock_lot        ON verifications_stock (lo
 
 -- ── 7. RPC atomique upsert transaction fournisseur ──────────────────
 --    (lib/api.js saveOneTransactionFournisseur — sinon fallback non atomique)
+-- Supprime d'abord TOUTE version existante (évite un doublon de surcharge qui
+-- rendrait l'appel RPC ambigu — erreur PGRST203). Rejouable sans risque.
+DO $$
+DECLARE r RECORD;
+BEGIN
+  FOR r IN SELECT oid::regprocedure::text AS sig FROM pg_proc WHERE proname = 'upsert_transaction_fournisseur'
+  LOOP
+    EXECUTE 'DROP FUNCTION ' || r.sig;
+  END LOOP;
+END $$;
+
 CREATE OR REPLACE FUNCTION upsert_transaction_fournisseur(
   p_point_id        UUID,
   p_fournisseur_id  UUID,
