@@ -401,10 +401,18 @@ export default function PointShiftScreen() {
         await supabase.from('presences').delete()
           .eq('point_id', shift.point_id).eq('caissier_id', shift.caissier_id)
       }
-      await supabase.from('depenses').delete()
+      // Scoper au caissier du shift supprimé : ne pas effacer les dépenses /
+      // transactions des AUTRES caissiers du même point.
+      let delDep = supabase.from('depenses').delete()
         .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
-      await supabase.from('transactions_fournisseurs').delete()
+      let delTx = supabase.from('transactions_fournisseurs').delete()
         .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
+      if (shift.caissier_nom) {
+        delDep = delDep.eq('caissier_nom', shift.caissier_nom)
+        delTx = delTx.eq('caissier_nom', shift.caissier_nom)
+      }
+      await delDep
+      await delTx
       await supabase.from('points_shifts').delete().eq('id', shift.id)
 
       setConfirmSupprShift(null)
@@ -439,16 +447,24 @@ export default function PointShiftScreen() {
         return
       }
 
+      // Suppression scopée par caissier de chaque shift : ne pas toucher aux
+      // dépenses / transactions des autres caissiers d'un même point.
       for (const shift of selectedShifts) {
         if (shift.caissier_id) {
           await supabase.from('presences').delete()
             .eq('point_id', shift.point_id).eq('caissier_id', shift.caissier_id)
         }
+        let delDep = supabase.from('depenses').delete()
+          .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
+        let delTx = supabase.from('transactions_fournisseurs').delete()
+          .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
+        if (shift.caissier_nom) {
+          delDep = delDep.eq('caissier_nom', shift.caissier_nom)
+          delTx = delTx.eq('caissier_nom', shift.caissier_nom)
+        }
+        await delDep
+        await delTx
       }
-      await supabase.from('depenses').delete()
-        .in('point_id', pointIds).eq('saisi_par', 'caissier')
-      await supabase.from('transactions_fournisseurs').delete()
-        .in('point_id', pointIds).eq('saisi_par', 'caissier')
       await supabase.from('points_shifts').delete().in('id', shiftIds)
 
       setModeSelection(false)

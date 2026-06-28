@@ -29,7 +29,7 @@ import { useTheme } from '../context/ThemeContext'
 import { getRestaurants, getUtilisateurs, getUtilisateursGlobaux } from '../lib/api'
 import { SPRINGS } from '../lib/animations'
 
-const ROLES_GLOBAUX = ['manager', 'rh', 'directeur']
+const ROLES_GLOBAUX = ['manager', 'rh', 'directeur', 'verificateur']
 
 // ─── Bouton PIN animé ────────────────────────────────────────
 function PinButton({ label, onPress, disabled, colors }) {
@@ -119,6 +119,24 @@ function PinPadModule({
   const shakeStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: shakeX.value }],
   }))
+
+  // Web : permettre de taper le code au clavier physique (chiffres + retour arrière)
+  // sans avoir à cliquer sur les boutons à l'écran.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || bloque) return
+    function onKey(e) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      if (e.key >= '0' && e.key <= '9') {
+        appuyerChiffre(e.key)
+        e.preventDefault()
+      } else if (e.key === 'Backspace' || e.key === 'Delete') {
+        supprimer()
+        e.preventDefault()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [bloque, appuyerChiffre, supprimer])
 
   return (
     <View style={styles.pinContainer}>
@@ -425,6 +443,8 @@ export default function LoginScreen() {
       router.replace({ pathname: '/accueil', params: { userId: selected.id, nom: selected.nom, role: selected.role } })
     } else if (selected.role === 'rh') {
       router.replace({ pathname: '/accueil', params: { userId: selected.id, nom: selected.nom, role: selected.role } })
+    } else if (selected.role === 'verificateur') {
+      router.replace({ pathname: '/verificateur', params: { userId: selected.id, nom: selected.nom, role: selected.role } })
     } else if (selected.role === 'gerant') {
       router.replace({ pathname: '/choix-date', params: { userId: selected.id, nom: selected.nom, role: selected.role } })
     } else {
@@ -435,6 +455,8 @@ export default function LoginScreen() {
   function getRoleLabel(role) {
     if (role === 'manager') return '👑 Manager'
     if (role === 'rh') return '🧑‍💼 RH'
+    if (role === 'directeur') return '🏛️ Directeur'
+    if (role === 'verificateur') return '🔍 Vérificateur'
     if (role === 'gerant') return '🔑 Gérant'
     return '💼 Caissier'
   }
@@ -442,6 +464,7 @@ export default function LoginScreen() {
   function getRoleCouleur(role) {
     if (role === 'manager') return '#5B52C8'
     if (role === 'rh') return '#185FA5'
+    if (role === 'verificateur') return '#0E8A6B'
     if (role === 'gerant') return '#F0A020'
     return '#888'
   }
@@ -449,6 +472,7 @@ export default function LoginScreen() {
   function getRoleBg(role) {
     if (role === 'manager') return '#ECEAFF'
     if (role === 'rh') return '#E6F1FB'
+    if (role === 'verificateur') return '#DEF3EC'
     if (role === 'gerant') return '#FEF0DA'
     return '#f5f5f5'
   }

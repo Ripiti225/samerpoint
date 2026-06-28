@@ -232,6 +232,23 @@ export default function RecapPointScreen() {
       )
       return
     }
+
+    // Vente machine obligatoire : le montant doit être saisi (même 0 est un montant valide).
+    if (ventesJour.venteMachine === '' || ventesJour.venteMachine == null) {
+      Alert.alert(
+        '❌ Vente machine manquante',
+        "Le montant de la vente machine est obligatoire avant de valider le point (saisissez 0 s'il n'y a pas eu de vente machine)."
+      )
+      return
+    }
+    // Photo de la vente machine toujours obligatoire.
+    if (!ventesJour.photoVenteMachine) {
+      Alert.alert(
+        '📷 Photo manquante',
+        'La photo de la vente machine est obligatoire avant de valider le point.\n\nAjoutez-la dans le module Ventes.'
+      )
+      return
+    }
     const yangoCseCumul = cumulShifts ? cumulShifts.yangoCse : (parseFloat(ventesJour.yangoCse) || 0)
     const glovoCseCumul = cumulShifts ? cumulShifts.glovoCse : (parseFloat(ventesJour.glovoCse) || 0)
 

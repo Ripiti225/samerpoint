@@ -112,6 +112,7 @@ export default function AccueilScreen() {
     { icon: '💳', titre: 'Crédits fournisseurs', sous: 'Crédit, avances & paiements', route: '/credits-fournisseurs', bloque: false },
     { icon: '⚖️', titre: 'Litiges', sous: 'Écarts, avis & réclamations', route: '/litiges', bloque: false },
     { icon: '🔍', titre: 'Vérification', sous: 'Photos & points à vérifier', route: '/verification', bloque: false },
+    { icon: '📦', titre: 'Vérifications stock', sous: 'Comptages des vérificateurs', route: '/recap-verifications', bloque: false },
     { icon: '📊', titre: 'Rapports hebdo', sous: 'Synthèse automatique semaine', route: '/rapports', bloque: false },
     { icon: '👤', titre: 'Stats caissiers', sous: 'Performance par caissier', route: '/stats-caissiers', bloque: false },
     { icon: '📋', titre: 'Journal activité', sous: 'Historique des actions', route: '/journal', bloque: false },
@@ -122,6 +123,7 @@ export default function AccueilScreen() {
   const menuRH = [
     { icon: '🧑‍💼', titre: 'Ressources Humaines', sous: 'Présences & salaires', route: '/rh', bloque: false },
     { icon: '📋', titre: 'Demandes', sous: 'Valider permissions & congés', route: '/demandes-admin', bloque: false },
+    { icon: '📦', titre: 'Vérifications stock', sous: 'Comptages des vérificateurs', route: '/recap-verifications', bloque: false },
     { icon: '👥', titre: 'Équipe globale', sous: 'Tous les travailleurs', route: '/equipe', bloque: false },
     { icon: '📲', titre: 'Contacts', sous: 'Contacts équipe', route: '/contacts', bloque: false },
     { icon: '💳', titre: 'Charges du mois', sous: 'Saisir les charges', route: '/charges', bloque: false },

@@ -688,20 +688,18 @@ export default function VentesScreen() {
                   {/* Photo vente machine */}
                   {(!bloque || isManager) && (
                     <View style={[styles.photoBlock,
-                      parseFloat(ventesJour.venteMachine) > 0 && !ventesJour.photoVenteMachine && styles.photoBlockRequired
+                      !ventesJour.photoVenteMachine && styles.photoBlockRequired
                     ]}>
                       <View style={styles.photoBlockHeader}>
                         <Text style={styles.photoBlockLabel}>
                           📷 Photo vente machine
-                          {parseFloat(ventesJour.venteMachine) > 0 && (
-                            <Text style={{ color: '#A32D2D' }}> *</Text>
-                          )}
+                          <Text style={{ color: '#A32D2D' }}> *</Text>
                         </Text>
                         {ventesJour.photoVenteMachine ? (
                           <View style={styles.photoBadgeOk}><Text style={styles.photoBadgeOkTxt}>✅ OK</Text></View>
-                        ) : parseFloat(ventesJour.venteMachine) > 0 ? (
+                        ) : (
                           <View style={styles.photoBadgeReq}><Text style={styles.photoBadgeReqTxt}>⚠️ Requis</Text></View>
-                        ) : null}
+                        )}
                       </View>
                       {ventesJour.photoVenteMachine && (
                         <Image source={{ uri: ventesJour.photoVenteMachine }} style={styles.photoPreview} resizeMode="cover" />

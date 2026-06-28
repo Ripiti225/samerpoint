@@ -60,7 +60,9 @@
       "router": {},
       "eas": {
         "projectId": "1f840fa7-6f32-4302-a82f-4d8f258e96f6"
-      }
+      },
+      "supabaseUrl": "https://wlwotzxnzowbkbfcpnyi.supabase.co",
+      "supabaseKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indsd290enhuem93YmtiZmNwbnlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NjQ1OTEsImV4cCI6MjA5MTQ0MDU5MX0.nioXBAKA05_zRIyTpJmV_d4JY5mCYueOt5cKIlL-NNk"
     },
     "owner": "ripiti225"
   }
