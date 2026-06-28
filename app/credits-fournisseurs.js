@@ -164,68 +164,94 @@ export default function CreditsFournisseursScreen() {
     setLoadingHisto(false)
   }
 
-  // ── Recalcul de la chaîne de crédit ──────────────────────────────────────
+  // ── Cœur du recalcul (réutilisable, 1 fournisseur) ───────────────────────
+  // Préserve le crédit d'OUVERTURE (avant la 1ʳᵉ transaction) : si creditDepart
+  // n'est pas fourni, il est back-calculé depuis la 1ʳᵉ transaction (reste − facture
+  // + payé), ce qui laisse ce montant inchangé et recalcule seulement la suite.
+  async function recalcChaineFournisseur(fournId, creditDepart) {
+    const { data: trans, error: transErr } = await supabase
+      .from('transactions_fournisseurs')
+      .select('id, facture, paye, reste, created_at, point_id')
+      .eq('fournisseur_id', fournId)
+    if (transErr) throw transErr
+    if (!trans || trans.length === 0) return null
+
+    const pointIds = [...new Set(trans.map(t => t.point_id).filter(Boolean))]
+    const { data: points, error: pointsErr } = await supabase
+      .from('points').select('id, date').in('id', pointIds)
+    if (pointsErr) throw pointsErr
+    const dateByPoint = {}
+    ;(points || []).forEach(p => { dateByPoint[p.id] = p.date })
+
+    // Tri par date de journée ASC, puis created_at ASC
+    const sorted = [...trans].sort((a, b) => {
+      const da = dateByPoint[a.point_id] || a.created_at
+      const db = dateByPoint[b.point_id] || b.created_at
+      if (da !== db) return da < db ? -1 : 1
+      return a.created_at < b.created_at ? -1 : 1
+    })
+
+    let prevReste = creditDepart !== undefined && creditDepart !== null
+      ? creditDepart
+      : (sorted[0].reste || 0) - (sorted[0].facture || 0) + (sorted[0].paye || 0)
+
+    for (const t of sorted) {
+      const newReste = prevReste + (t.facture || 0) - (t.paye || 0)
+      if (newReste !== t.reste) {
+        const { error: updErr } = await supabase.from('transactions_fournisseurs')
+          .update({ reste: newReste }).eq('id', t.id)
+        if (updErr) throw updErr
+      }
+      prevReste = newReste
+    }
+
+    const { error: fournErr } = await supabase.from('fournisseurs')
+      .update({ credit_actuel: prevReste }).eq('id', fournId)
+    if (fournErr) throw fournErr
+    return prevReste
+  }
+
+  // ── Recalcul d'UN fournisseur (depuis le modal historique) ───────────────
   async function repairerChaine(creditDepart) {
     if (!fournHisto) return
     setRepairError(null)
     setRepairing(true)
     setShowRepairModal(false)
     try {
-      // Récupérer toutes les transactions
-      const { data: trans, error: transErr } = await supabase
-        .from('transactions_fournisseurs')
-        .select('id, facture, paye, reste, created_at, point_id')
-        .eq('fournisseur_id', fournHisto.id)
-
-      if (transErr) throw transErr
-      if (!trans || trans.length === 0) { setRepairing(false); return }
-
-      // Récupérer les dates des points associés
-      const pointIds = [...new Set(trans.map(t => t.point_id).filter(Boolean))]
-      const { data: points, error: pointsErr } = await supabase
-        .from('points').select('id, date').in('id', pointIds)
-      if (pointsErr) throw pointsErr
-      const dateByPoint = {}
-      ;(points || []).forEach(p => { dateByPoint[p.id] = p.date })
-
-      // Trier par date de journée ASC, puis created_at ASC dans la même journée
-      const sorted = [...trans].sort((a, b) => {
-        const da = dateByPoint[a.point_id] || a.created_at
-        const db = dateByPoint[b.point_id] || b.created_at
-        if (da !== db) return da < db ? -1 : 1
-        return a.created_at < b.created_at ? -1 : 1
-      })
-
-      // Crédit de départ : saisi par l'utilisateur ou back-calculé depuis la première transaction
-      let prevReste = creditDepart !== undefined && creditDepart !== null
-        ? creditDepart
-        : (sorted[0].reste || 0) - (sorted[0].facture || 0) + (sorted[0].paye || 0)
-
-      for (const t of sorted) {
-        const credit = prevReste
-        const newReste = credit + (t.facture || 0) - (t.paye || 0)
-        if (newReste !== t.reste) {
-          const { error: updErr } = await supabase.from('transactions_fournisseurs')
-            .update({ reste: newReste })
-            .eq('id', t.id)
-          if (updErr) throw updErr
-        }
-        prevReste = newReste
-      }
-
-      // Mettre à jour credit_actuel avec le dernier reste calculé
-      const { error: fournErr } = await supabase.from('fournisseurs')
-        .update({ credit_actuel: prevReste })
-        .eq('id', fournHisto.id)
-      if (fournErr) throw fournErr
-
-      // Recharger l'historique et la liste
+      await recalcChaineFournisseur(fournHisto.id, creditDepart)
       await chargerHistorique(fournHisto)
       await charger()
     } catch (err) {
       setRepairError(err?.message || 'Impossible de recalculer')
     }
     setRepairing(false)
+  }
+
+  // ── Fix TOUT : recalcule la chaîne de tous les fournisseurs affichés ─────
+  function confirmerFixTous() {
+    if (repairing) return
+    Alert.alert(
+      '🔧 Fix tout',
+      `Recalculer la chaîne de crédit de ${fournisseurs.length} fournisseur(s) ?\n\nLe crédit d'ouverture (avant la 1ʳᵉ transaction) de chacun est conservé ; seule la suite est recalculée.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        { text: '🔧 Recalculer tout', onPress: repairerTous },
+      ]
+    )
+  }
+
+  async function repairerTous() {
+    setRepairing(true)
+    let ok = 0, erreurs = 0
+    for (const f of fournisseurs) {
+      try {
+        const r = await recalcChaineFournisseur(f.id)
+        if (r !== null) ok++
+      } catch { erreurs++ }
+    }
+    await charger()
+    setRepairing(false)
+    Alert.alert('✅ Fix terminé', `${ok} fournisseur(s) recalculé(s)${erreurs ? ` — ${erreurs} en erreur` : ''}.`)
   }
 
   // ── Données export ───────────────────────────────────────────────────────
@@ -611,6 +637,15 @@ ${mouvements.map(m => {
           )}
         </View>
       </View>
+
+      {/* Fix tout — recalcule la chaîne de crédit de tous les fournisseurs */}
+      {peutModifier && (
+        <TouchableOpacity style={styles.fixAllBtn} onPress={confirmerFixTous} disabled={repairing}>
+          <Text style={styles.fixAllTxt}>
+            {repairing ? '🔧 Recalcul en cours…' : '🔧 Fix tout — recalculer tous les crédits'}
+          </Text>
+        </TouchableOpacity>
+      )}
 
       {/* KPIs */}
       <View style={styles.kpiRow}>
@@ -1141,6 +1176,8 @@ function makeStyles(colors) { return StyleSheet.create({
   headerSub: { fontSize: 10, color: '#854F0B', textAlign: 'center' },
   exportBtn: { backgroundColor: '#BA7517', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   exportBtnTxt: { fontSize: 11, color: '#FAEEDA', fontWeight: '600' },
+  fixAllBtn: { backgroundColor: '#EEF3FB', borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: 11, alignItems: 'center' },
+  fixAllTxt: { fontSize: 13, fontWeight: '700', color: '#185FA5' },
   loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   kpiRow: { flexDirection: 'row', backgroundColor: colors.surface, padding: 14, borderBottomWidth: 0.5, borderBottomColor: colors.border },
   kpiBox: { flex: 1, alignItems: 'center' },
