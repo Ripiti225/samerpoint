@@ -65,7 +65,7 @@ export default function VerificationScreen() {
 
   async function chargerRestaurants() {
     setLoading(true)
-    const { data, error } = await supabase.from('restaurants').select('*').order('nom')
+    const { data, error } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation').order('nom')
     if (error) { setLoading(false); return }
     const restos = data || []
     setRestaurants(restos)
@@ -1003,6 +1003,33 @@ export default function VerificationScreen() {
                           <Text style={{ fontSize: 12, color: '#A32D2D', fontWeight: '600' }}>
                             ⚠️ Aucune explication fournie
                           </Text>
+                        </View>
+                      ) : null}
+                      {Array.isArray(p?.ecart_responsables) && p.ecart_responsables.length > 0 ? (
+                        <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: '#ddd' }}>
+                          <Text style={[styles.recapLabel, { marginBottom: 6 }]}>👤 Responsables du {ecart != null && ecart > 0 ? 'surplus' : 'manquant'} :</Text>
+                          {p.ecart_responsables.map((r, i) => (
+                            <View key={i} style={styles.recapRow}>
+                              <Text style={styles.recapLabel}>{r.nom}</Text>
+                              <Text style={[styles.recapVal, { color: '#A32D2D', fontWeight: '700' }]}>{fmt(r.montant)}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      ) : null}
+                      {Array.isArray(p?.ecart_photos) && p.ecart_photos.length > 0 ? (
+                        <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: '#ddd' }}>
+                          <Text style={[styles.recapLabel, { marginBottom: 8 }]}>📷 Photos justificatives :</Text>
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                            {p.ecart_photos.map((uri, i) => (
+                              <TouchableOpacity
+                                key={i}
+                                onPress={() => ouvriGalerie(p.ecart_photos.map((u, j) => ({ uri: u, label: `Justificatif ${j + 1}` })))}
+                                activeOpacity={0.85}
+                              >
+                                <Image source={{ uri }} style={{ width: 80, height: 80, borderRadius: 8 }} />
+                              </TouchableOpacity>
+                            ))}
+                          </View>
                         </View>
                       ) : null}
                       {p?.photo_vente_machine ? (

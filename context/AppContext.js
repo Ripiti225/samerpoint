@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { Platform } from 'react-native'
+import { Alert, Platform } from 'react-native'
 import { COEFFICIENTS, depensesVides } from '../lib/constants'
 
 const AppContext = createContext()
 
 const SESSION_KEY = 'samerpoint_session'
-const SESSION_MAX_AGE = 8 * 60 * 60 * 1000
+const SESSION_MAX_AGE = 24 * 60 * 60 * 1000
 
 let _sessionLoggedInAt = null
 
@@ -96,6 +96,8 @@ export function AppProvider({ children }) {
     espece_shifts: 0,
     venteMachine: '',
     explicacionEcartMachine: '',
+    ecartResponsables: [],
+    ecartPhotos: [],
     photoVenteMachine: null,
     photo_yango_cse: null,
     photo_glovo_cse: null,
@@ -219,6 +221,21 @@ export function AppProvider({ children }) {
 
   // ─── Reset données du jour — appelé UNIQUEMENT après validation du shift ───
   function resetJour() {
+    if (!pointValide) {
+      Alert.alert(
+        '⚠️ Point non validé',
+        "Le point de ce jour n'a pas encore été validé. Remettre à zéro effacera toutes les données saisies. Continuer quand même ?",
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Remettre à zéro', style: 'destructive', onPress: _execResetJour },
+        ]
+      )
+      return
+    }
+    _execResetJour()
+  }
+
+  function _execResetJour() {
     _sessionLoggedInAt = Date.now()
     setPointId(null)
     setDateJour(null)
@@ -246,6 +263,8 @@ export function AppProvider({ children }) {
       espece_shifts: 0,
       venteMachine: '',
       explicacionEcartMachine: '',
+      ecartResponsables: [],
+      ecartPhotos: [],
       photoVenteMachine: null,
       photo_yango_cse: null,
       photo_glovo_cse: null,
@@ -258,7 +277,6 @@ export function AppProvider({ children }) {
       photo_retour: null,
     })
   }
-
   // ─── Déconnexion — conserve les données opérationnelles, efface le rôle ─────
   // userId/userNom sont INTENTIONNELLEMENT conservés pour que login.js puisse
   // détecter "même utilisateur" (memeUtilisateur) et ne pas appeler resetJour().

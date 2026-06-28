@@ -123,7 +123,7 @@ export default function RHScreen() {
   }, [])
 
   async function chargerRestaurants() {
-    const { data } = await supabase.from('restaurants').select('*').order('nom')
+    const { data } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation').order('nom')
     setRestaurants(data || [])
     if (data && data.length > 0) setRestoSelectionne(data[0])
   }
@@ -504,6 +504,23 @@ export default function RHScreen() {
     setExporting(false)
   }
 
+  // Dédupliquer par (travailleur_id, point_id) pour compter 1 jour par travailleur
+  // Présent dans n'importe quel shift = présent pour la journée
+  // Les paies sont sommées sur tous les shifts (un travailleur peut être payé par shift)
+  function dedupPresences(pres) {
+    const map = {}
+    pres.forEach(p => {
+      const key = `${p.travailleur_id}|${p.point_id}`
+      if (!map[key]) {
+        map[key] = { ...p, paye: parseFloat(p.paye) || 0 }
+      } else {
+        if (p.statut === 'Présent') map[key].statut = 'Présent'
+        map[key].paye = (map[key].paye || 0) + (parseFloat(p.paye) || 0)
+      }
+    })
+    return Object.values(map)
+  }
+
   function statsParTravailleur() {
     const stats = {}
     travailleurs.forEach(t => {
@@ -514,7 +531,7 @@ export default function RHScreen() {
         totalPaye: 0, jours: 0,
       }
     })
-    presences.forEach(p => {
+    dedupPresences(presences).forEach(p => {
       if (!stats[p.travailleur_id]) {
         stats[p.travailleur_id] = {
           id: p.travailleur_id, nom: p.travailleur_nom, poste: '',
@@ -551,7 +568,7 @@ export default function RHScreen() {
   }
 
   function statsTravailleurDetail() {
-    const pres = presencesTravailleur
+    const pres = dedupPresences(presencesTravailleur)
     let present = 0, absent = 0, repos = 0, conge = 0, malade = 0, permission = 0, totalPaye = 0
     pres.forEach(p => {
       if (p.statut === 'Présent') { present++; totalPaye += (p.paye || 0) }
@@ -804,7 +821,7 @@ export default function RHScreen() {
   // ─── PRESENCES ─────────────────────────────────────────────
   function renderPresences() {
     const parDate = {}
-    presences.forEach(p => {
+    dedupPresences(presences).forEach(p => {
       if (!parDate[p.date]) parDate[p.date] = []
       parDate[p.date].push(p)
     })

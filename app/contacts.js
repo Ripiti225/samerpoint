@@ -43,7 +43,7 @@ export default function ContactsScreen() {
   useEffect(() => { if (restoSelectionne) chargerContacts() }, [restoSelectionne])
 
   async function chargerRestaurants() {
-    const { data } = await supabase.from('restaurants').select('*').order('nom')
+    const { data } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation').order('nom')
     setRestaurants(data || [])
     if (isGerant && restaurantId) {
       const monResto = (data || []).find(r => r.id === restaurantId)

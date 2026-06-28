@@ -42,7 +42,9 @@ export default function CreditsFournisseursScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors])
 
   const isGerant = roleActif === 'gerant'
+  const isRH = roleActif === 'rh'
   const peutModifier = roleActif === 'manager' || roleActif === 'directeur'
+  const peutVoirRestaurants = peutModifier || isRH
 
   const [restaurants, setRestaurants] = useState([])
   const [restoFilter, setRestoFilter] = useState(() => _restoFilterCache)
@@ -94,7 +96,7 @@ export default function CreditsFournisseursScreen() {
     setLoading(true)
     try {
       let restos = []
-      if (peutModifier) {
+      if (peutVoirRestaurants) {
         const { data } = await supabase.from('restaurants').select('id, nom').order('nom')
         restos = data || []
         setRestaurants(restos)
@@ -485,7 +487,7 @@ ${mouvements.map(m => {
         <View style={styles.cardHeader}>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardNom}>{f.nom}</Text>
-            {peutModifier && f.restaurant_nom ? (
+            {peutVoirRestaurants && f.restaurant_nom ? (
               <Text style={styles.cardResto}>{f.restaurant_nom}</Text>
             ) : null}
           </View>
@@ -627,7 +629,7 @@ ${mouvements.map(m => {
       </View>
 
       {/* Sélecteur restaurant */}
-      {peutModifier && restaurants.length > 0 && (
+      {peutVoirRestaurants && restaurants.length > 0 && (
         <TouchableOpacity style={styles.restoSelector} onPress={() => setShowRestoPicker(true)}>
           <Text style={styles.restoSelectorIcon}>🏪</Text>
           <Text style={styles.restoSelectorTxt} numberOfLines={1}>

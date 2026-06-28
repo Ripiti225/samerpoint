@@ -21,11 +21,13 @@
       },
       "package": "com.samer.app",
       "versionCode": 10,
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.READ_EXTERNAL_STORAGE"
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "web": {},
@@ -46,6 +48,12 @@
           "cameraPermission": "Samtrackly a besoin d'accéder à votre caméra pour les photos."
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "color": "#EF9F27"
+        }
+      ],
       "expo-web-browser"
     ],
     "extra": {
@@ -53,6 +61,7 @@
       "eas": {
         "projectId": "1f840fa7-6f32-4302-a82f-4d8f258e96f6"
       }
-    }
+    },
+    "owner": "ripiti225"
   }
 }

@@ -24,7 +24,7 @@ export default function VentesScreen() {
     pointId, pointValide, estBloque,
     ventesJour, setVentesJour,
     resteEspeces, fc, beneficeSC,
-    roleActif, restaurantId,
+    roleActif, restaurantId, dateJour,
   } = useApp()
 
   const { prendrePhoto, choisirPhoto } = usePhoto()
@@ -37,6 +37,8 @@ export default function VentesScreen() {
   const [photosAlertVisible, setPhotosAlertVisible] = useState(false)
   const [chargementShifts, setChargementShifts] = useState(false)
   const [cumulShifts, setCumulShifts] = useState(null)
+  const [travailleursEquipe, setTravailleursEquipe] = useState([])
+  const [showResponsablePicker, setShowResponsablePicker] = useState(false)
   const isGerant = roleActif === 'gerant'
   const isManager = roleActif === 'manager'
   const bloque = estBloque(pointValide)
@@ -44,6 +46,18 @@ export default function VentesScreen() {
   useEffect(() => {
     if ((isGerant || isManager) && pointId) chargerCumulShifts()
   }, [pointId])
+
+  // Responsables possibles d'un manquant — uniquement caissiers et gérants du restaurant
+  useEffect(() => {
+    if (!restaurantId) return
+    supabase.from('utilisateurs')
+      .select('id, nom, role')
+      .eq('restaurant_id', restaurantId)
+      .in('role', ['caissier', 'gerant'])
+      .eq('actif', true)
+      .order('nom')
+      .then(({ data }) => setTravailleursEquipe(data || []))
+  }, [restaurantId])
 
   async function chargerCumulShifts() {
     setChargementShifts(true)
@@ -137,6 +151,45 @@ export default function VentesScreen() {
 
   function fmt(n) { return Math.round(n).toLocaleString('fr-FR') + ' FCFA' }
 
+  // ─── Responsables d'un manquant (répartition du montant) ───────────────────
+  function ajouterResponsable(trav) {
+    if (bloque && !isManager) return
+    setVentesJour(prev => {
+      const liste = prev.ecartResponsables || []
+      if (liste.some(r => r.travailleur_id === trav.id)) return prev // déjà désigné
+      return { ...prev, ecartResponsables: [...liste, { travailleur_id: trav.id, nom: trav.nom, role: trav.role || null, montant: '' }] }
+    })
+    setShowResponsablePicker(false)
+  }
+
+  function modifierMontantResponsable(travailleurId, montant) {
+    if (bloque && !isManager) return
+    setVentesJour(prev => ({
+      ...prev,
+      ecartResponsables: (prev.ecartResponsables || []).map(r =>
+        r.travailleur_id === travailleurId ? { ...r, montant } : r
+      ),
+    }))
+  }
+
+  function retirerResponsable(travailleurId) {
+    if (bloque && !isManager) return
+    setVentesJour(prev => ({
+      ...prev,
+      ecartResponsables: (prev.ecartResponsables || []).filter(r => r.travailleur_id !== travailleurId),
+    }))
+  }
+
+  function ajouterPhotoEcart(url) {
+    if (!url) return
+    setVentesJour(prev => ({ ...prev, ecartPhotos: [...(prev.ecartPhotos || []), url] }))
+  }
+
+  function retirerPhotoEcart(index) {
+    if (bloque && !isManager) return
+    setVentesJour(prev => ({ ...prev, ecartPhotos: (prev.ecartPhotos || []).filter((_, i) => i !== index) }))
+  }
+
   function verifierPhotosObligatoires() {
     const manquantes = []
     if (parseFloat(ventesJour.yangoTab) > 0 && !ventesJour.photo_yango_tab) manquantes.push('Yango TAB')
@@ -156,7 +209,21 @@ export default function VentesScreen() {
     if (ventesJour.venteMachine !== '') {
       updates.vente_machine = parseFloat(ventesJour.venteMachine) || 0
       const venteTheo = cumulShifts?.venteTotal || 0
-      updates.ecart_caisse = venteTheo - (parseFloat(ventesJour.venteMachine) || 0)
+      const ecart = venteTheo - (parseFloat(ventesJour.venteMachine) || 0)
+      updates.ecart_caisse = ecart
+      // Écart (manquant ou surplus) : responsables imputés + photos justificatives
+      if (ecart !== 0) {
+        updates.ecart_responsables = (ventesJour.ecartResponsables || []).map(r => ({
+          travailleur_id: r.travailleur_id,
+          nom: r.nom,
+          montant: parseFloat(r.montant) || 0,
+        }))
+        updates.ecart_photos = ventesJour.ecartPhotos || []
+      } else {
+        // Plus d'écart → on purge d'éventuelles données obsolètes
+        updates.ecart_responsables = []
+        updates.ecart_photos = []
+      }
     }
     if (ventesJour.explicacionEcartMachine) {
       updates.explication_ecart_machine = ventesJour.explicacionEcartMachine
@@ -164,6 +231,33 @@ export default function VentesScreen() {
     if (Object.keys(updates).length > 0) {
       await supabase.from('points').update(updates).eq('id', pointId)
     }
+    await syncLitigesResponsables()
+  }
+
+  // Réplique les responsables de l'écart dans la table relationnelle litiges_responsables
+  // (delete + insert pour ce point → pas de doublon). Silencieux si la table n'existe pas.
+  async function syncLitigesResponsables() {
+    if (!pointId) return
+    try {
+      await supabase.from('litiges_responsables').delete().eq('point_id', pointId)
+      const venteTheo = cumulShifts?.venteTotal || 0
+      const ecart = venteTheo - (parseFloat(ventesJour.venteMachine) || 0)
+      if (ventesJour.venteMachine === '' || ecart === 0) return
+      const type = ecart < 0 ? 'manquant' : 'surplus'
+      const lignes = (ventesJour.ecartResponsables || [])
+        .filter(r => (parseFloat(r.montant) || 0) > 0)
+        .map(r => ({
+          point_id: pointId,
+          restaurant_id: restaurantId || null,
+          date: dateJour || new Date().toISOString().split('T')[0],
+          responsable_id: r.travailleur_id || null,
+          responsable_nom: r.nom || null,
+          role: r.role || null,
+          montant: parseFloat(r.montant) || 0,
+          type,
+        }))
+      if (lignes.length > 0) await supabase.from('litiges_responsables').insert(lignes)
+    } catch (_) { /* table pas encore créée — ignoré */ }
   }
 
   async function allerAuRecap() {
@@ -171,13 +265,32 @@ export default function VentesScreen() {
     if (!isManager) {
       // Vérifier explication écart machine obligatoire
       if (cumulShifts && ventesJour.venteMachine !== '') {
-        const ecart = Math.abs(cumulShifts.venteTotal - (parseFloat(ventesJour.venteMachine) || 0))
+        const ecartSigne = cumulShifts.venteTotal - (parseFloat(ventesJour.venteMachine) || 0)
+        const ecart = Math.abs(ecartSigne)
         if (ecart > 0 && (ventesJour.explicacionEcartMachine || '').trim().length < 10) {
           Alert.alert(
             'Explication requise',
             'Un écart a été détecté entre la vente théorique et la vente machine.\n\nVeuillez saisir une explication d\'au moins 10 caractères avant de continuer.'
           )
           return
+        }
+        // Écart (manquant ou surplus) : la répartition doit couvrir tout l'écart
+        if (ecart > 0) {
+          const libelle = ecartSigne < 0 ? 'manquant' : 'surplus'
+          const responsables = ventesJour.ecartResponsables || []
+          const totalImpute = responsables.reduce((s, r) => s + (parseFloat(r.montant) || 0), 0)
+          if (responsables.length === 0) {
+            Alert.alert('Responsable requis', `Un ${libelle} a été détecté.\n\nDésignez au moins un responsable et imputez-lui un montant avant de continuer.`)
+            return
+          }
+          if (responsables.some(r => !(parseFloat(r.montant) > 0))) {
+            Alert.alert('Montant manquant', 'Chaque responsable doit avoir un montant supérieur à 0.')
+            return
+          }
+          if (Math.round(totalImpute) !== Math.round(ecart)) {
+            Alert.alert('Répartition incomplète', `La somme imputée aux responsables (${fmt(totalImpute)}) doit être égale au ${libelle} total (${fmt(ecart)}).`)
+            return
+          }
         }
       }
       const manquantes = verifierPhotosObligatoires()
@@ -635,7 +748,7 @@ export default function VentesScreen() {
                     <View style={styles.explicacionCard}>
                       <Text style={styles.explicacionLabel}>📝 Explication obligatoire</Text>
                       <Text style={styles.explicacionSub}>
-                        Justifiez l'écart avant de continuer (min. 10 caractères)
+                        Justifiez l&apos;écart avant de continuer (min. 10 caractères)
                       </Text>
                       <TextInput
                         style={styles.explicacionInput}
@@ -657,6 +770,89 @@ export default function VentesScreen() {
                       })()}
                     </View>
                   )}
+
+                  {/* Écart (manquant ou surplus) — responsables imputés + photos justificatives */}
+                  {ventesJour.venteMachine !== '' && cumulShifts && (!bloque || isManager) && (() => {
+                    const ecart = cumulShifts.venteTotal - (parseFloat(ventesJour.venteMachine) || 0)
+                    if (ecart === 0) return null
+                    const estManquant = ecart < 0
+                    const libelle = estManquant ? 'manquant' : 'surplus'
+                    const montantEcart = Math.abs(ecart)
+                    const responsables = ventesJour.ecartResponsables || []
+                    const totalImpute = responsables.reduce((s, r) => s + (parseFloat(r.montant) || 0), 0)
+                    const reste = montantEcart - totalImpute
+                    const complet = Math.round(reste) === 0
+                    const photos = ventesJour.ecartPhotos || []
+                    const dejaChoisis = new Set(responsables.map(r => r.travailleur_id))
+                    const dispo = travailleursEquipe.filter(t => !dejaChoisis.has(t.id))
+                    return (
+                      <View style={styles.responsablesCard}>
+                        <Text style={styles.explicacionLabel}>👤 Responsables du {libelle}</Text>
+                        <Text style={styles.explicacionSub}>
+                          Répartissez le {libelle} de {fmt(montantEcart)} entre les responsables.
+                        </Text>
+
+                        {responsables.map(r => (
+                          <View key={r.travailleur_id} style={styles.respRow}>
+                            <Text style={styles.respNom} numberOfLines={1}>{r.nom}</Text>
+                            <TextInput
+                              style={styles.respMontantInput}
+                              value={String(r.montant ?? '')}
+                              onChangeText={v => modifierMontantResponsable(r.travailleur_id, v.replace(/[^0-9]/g, ''))}
+                              placeholder="Montant"
+                              placeholderTextColor="#bbb"
+                              keyboardType="numeric"
+                              editable={!bloque || isManager}
+                            />
+                            {(!bloque || isManager) && (
+                              <TouchableOpacity onPress={() => retirerResponsable(r.travailleur_id)} style={styles.respDelBtn}>
+                                <Text style={styles.respDelTxt}>✕</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        ))}
+
+                        {(!bloque || isManager) && dispo.length > 0 && (
+                          <TouchableOpacity style={styles.respAddBtn} onPress={() => setShowResponsablePicker(true)}>
+                            <Text style={styles.respAddTxt}>+ Ajouter un responsable</Text>
+                          </TouchableOpacity>
+                        )}
+
+                        <View style={[styles.respRecap, { backgroundColor: complet ? '#EAF3DE' : '#FAECE7' }]}>
+                          <Text style={[styles.respRecapTxt, { color: complet ? '#3B6D11' : '#A32D2D' }]}>
+                            {complet
+                              ? `✅ Réparti : ${fmt(totalImpute)} / ${fmt(montantEcart)}`
+                              : `Réparti : ${fmt(totalImpute)} / ${fmt(montantEcart)} — reste ${fmt(reste)}`}
+                          </Text>
+                        </View>
+
+                        {/* Photos justificatives (une ou plusieurs) */}
+                        <Text style={[styles.explicacionLabel, { marginTop: 14 }]}>📷 Photos justificatives</Text>
+                        <Text style={styles.explicacionSub}>Optionnel — ajoutez une ou plusieurs photos.</Text>
+                        <View style={styles.respPhotosRow}>
+                          {photos.map((uri, i) => (
+                            <View key={i} style={styles.respPhotoThumb}>
+                              <Image source={{ uri }} style={styles.respPhotoImg} resizeMode="cover" />
+                              {(!bloque || isManager) && (
+                                <TouchableOpacity style={styles.respPhotoDel} onPress={() => retirerPhotoEcart(i)}>
+                                  <Text style={styles.respPhotoDelTxt}>✕</Text>
+                                </TouchableOpacity>
+                              )}
+                            </View>
+                          ))}
+                          {(!bloque || isManager) && (
+                            <TouchableOpacity
+                              style={styles.respPhotoAdd}
+                              disabled={uploading}
+                              onPress={() => gererPhoto(ajouterPhotoEcart, 'ecart-manquant')}
+                            >
+                              <Text style={styles.respPhotoAddTxt}>{uploading ? '…' : '＋'}</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+                    )
+                  })()}
                 </View>
               </>
             )}
@@ -722,6 +918,35 @@ export default function VentesScreen() {
                 <Text style={styles.confirmOkTxt}>Continuer quand même</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Sélecteur de responsable (équipe active) */}
+      <Modal visible={showResponsablePicker} transparent animationType="fade" onRequestClose={() => setShowResponsablePicker(false)}>
+        <View style={styles.confirmOverlay}>
+          <View style={styles.pickerBox}>
+            <Text style={styles.confirmTitre}>👤 Choisir un responsable</Text>
+            {(() => {
+              const dejaChoisis = new Set((ventesJour.ecartResponsables || []).map(r => r.travailleur_id))
+              const dispo = travailleursEquipe.filter(t => !dejaChoisis.has(t.id))
+              if (dispo.length === 0) {
+                return <Text style={styles.confirmMsg}>Aucun autre travailleur disponible.</Text>
+              }
+              return (
+                <ScrollView style={{ maxHeight: 320 }}>
+                  {dispo.map(t => (
+                    <TouchableOpacity key={t.id} style={styles.pickerRow} onPress={() => ajouterResponsable(t)}>
+                      <Text style={styles.pickerNom}>{t.nom}</Text>
+                      {t.role ? <Text style={styles.pickerPoste}>{t.role === 'gerant' ? 'Gérant' : 'Caissier'}</Text> : null}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )
+            })()}
+            <TouchableOpacity style={[styles.confirmCancel, { marginTop: 12 }]} onPress={() => setShowResponsablePicker(false)}>
+              <Text style={styles.confirmCancelTxt}>Fermer</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -900,6 +1125,37 @@ function makeStyles(colors) { return StyleSheet.create({
     fontSize: 13, color: '#333', minHeight: 70, textAlignVertical: 'top',
     borderWidth: 1, borderColor: '#EF9F27'
   },
+  // ── Responsables du manquant ──
+  responsablesCard: {
+    backgroundColor: '#FBE9E7', borderRadius: 12, padding: 14,
+    marginTop: 10, borderWidth: 1, borderColor: '#A32D2D'
+  },
+  respRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  respNom: { flex: 1, fontSize: 13, fontWeight: '600', color: '#333' },
+  respMontantInput: {
+    width: 110, backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8,
+    fontSize: 13, color: '#333', borderWidth: 1, borderColor: '#E0A3A3', textAlign: 'right'
+  },
+  respDelBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#F5C6C0', alignItems: 'center', justifyContent: 'center' },
+  respDelTxt: { fontSize: 14, color: '#A32D2D', fontWeight: '700' },
+  respAddBtn: { paddingVertical: 8, alignItems: 'center', marginBottom: 6 },
+  respAddTxt: { fontSize: 13, fontWeight: '600', color: '#185FA5' },
+  respRecap: { borderRadius: 8, paddingVertical: 8, paddingHorizontal: 10, marginTop: 4 },
+  respRecapTxt: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
+  respPhotosRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  respPhotoThumb: { width: 64, height: 64, borderRadius: 8, overflow: 'hidden', position: 'relative' },
+  respPhotoImg: { width: '100%', height: '100%' },
+  respPhotoDel: { position: 'absolute', top: 2, right: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+  respPhotoDelTxt: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  respPhotoAdd: { width: 64, height: 64, borderRadius: 8, borderWidth: 1.5, borderColor: '#A32D2D', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+  respPhotoAddTxt: { fontSize: 26, color: '#A32D2D', fontWeight: '300' },
+  pickerBox: {
+    backgroundColor: colors.surface, borderRadius: 18,
+    padding: 20, width: '100%', maxWidth: 380
+  },
+  pickerRow: { paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: colors.border },
+  pickerNom: { fontSize: 15, fontWeight: '600', color: colors.text },
+  pickerPoste: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   // ── Bénéfice SC ──
   beneficeCard: {
     backgroundColor: colors.surface, borderRadius: 14, padding: 14,

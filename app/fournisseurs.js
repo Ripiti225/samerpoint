@@ -32,6 +32,7 @@ export default function FournisseursScreen() {
   const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState(null)
   const [validatedIds, setValidatedIds] = useState(new Set())
+  const [savedAmounts, setSavedAmounts] = useState({})
   const today = new Date().toISOString().split('T')[0]
 
   useEffect(() => {
@@ -243,6 +244,27 @@ export default function FournisseursScreen() {
       return
     }
     setSavingId(f.id)
+    const factureAmount = parseFloat(t.facture) || 0
+    if (factureAmount > 0) {
+      const saisiParCourant = roleActif === 'caissier' ? 'caissier' : 'gerant'
+      const { data: existants } = await supabase
+        .from('transactions_fournisseurs')
+        .select('caissier_nom, saisi_par')
+        .eq('point_id', pointId)
+        .eq('fournisseur_id', f.id)
+        .eq('facture', factureAmount)
+      const doublon = (existants || []).find(tx => {
+        const isOwn = tx.saisi_par === saisiParCourant &&
+          (saisiParCourant === 'gerant' || tx.caissier_nom === userNom)
+        return !isOwn
+      })
+      if (doublon) {
+        const parQui = doublon.caissier_nom ? ` par ${doublon.caissier_nom}` : ''
+        Alert.alert('🚫 Facture en double', `Une facture de ${fmt(factureAmount)} pour "${f.nom}" a déjà été enregistrée aujourd'hui${parQui}.`)
+        setSavingId(null)
+        return
+      }
+    }
     const credit = creditVeille(f.id)
     const saisiPar = roleActif === 'caissier' ? 'caissier' : 'gerant'
     const ok = await saveOneTransactionFournisseur(pointId, f.id, t, credit, saisiPar, userNom, restaurantId, userId, f.nom)
@@ -294,6 +316,7 @@ export default function FournisseursScreen() {
     }
     setSavingId(null)
     setValidatedIds(prev => new Set([...prev, f.id]))
+    setSavedAmounts(prev => ({ ...prev, [f.id]: { facture: factureAmount, paye: parseFloat(t.paye) || 0 } }))
   }
 
   if (loading) {
@@ -480,23 +503,32 @@ export default function FournisseursScreen() {
 
                             {/* Bouton Valider individuel */}
                             {(hasActivity || credit !== 0) && (
-                              <TouchableOpacity
-                                style={[
-                                  styles.validerBtn,
-                                  validatedIds.has(f.id) && styles.validerBtnDone,
-                                  savingId === f.id && { opacity: 0.6 },
-                                ]}
-                                onPress={() => validerFournisseur(f)}
-                                disabled={savingId === f.id}
-                              >
-                                <Text style={[styles.validerBtnTxt, validatedIds.has(f.id) && styles.validerBtnTxtDone]}>
-                                  {savingId === f.id
-                                    ? 'Enregistrement...'
-                                    : validatedIds.has(f.id)
-                                    ? '✅ Validé'
-                                    : '✅ Valider'}
-                                </Text>
-                              </TouchableOpacity>
+                              <>
+                                <TouchableOpacity
+                                  style={[
+                                    styles.validerBtn,
+                                    validatedIds.has(f.id) && styles.validerBtnDone,
+                                    savingId === f.id && { opacity: 0.6 },
+                                  ]}
+                                  onPress={() => validerFournisseur(f)}
+                                  disabled={savingId === f.id}
+                                >
+                                  <Text style={[styles.validerBtnTxt, validatedIds.has(f.id) && styles.validerBtnTxtDone]}>
+                                    {savingId === f.id
+                                      ? 'Enregistrement...'
+                                      : validatedIds.has(f.id)
+                                      ? '✅ Validé'
+                                      : '✅ Valider'}
+                                  </Text>
+                                </TouchableOpacity>
+                                {validatedIds.has(f.id) && savedAmounts[f.id] && (savedAmounts[f.id].facture > 0 || savedAmounts[f.id].paye > 0) && (
+                                  <Text style={styles.savedAmountTxt}>
+                                    {savedAmounts[f.id].facture > 0 ? `Facture : ${fmt(savedAmounts[f.id].facture)}` : ''}
+                                    {savedAmounts[f.id].facture > 0 && savedAmounts[f.id].paye > 0 ? '  •  ' : ''}
+                                    {savedAmounts[f.id].paye > 0 ? `Payé : ${fmt(savedAmounts[f.id].paye)}` : ''}
+                                  </Text>
+                                )}
+                              </>
                             )}
                           </>
                         )}
@@ -615,4 +647,5 @@ function makeStyles(colors) { return StyleSheet.create({
   validerBtnDone: { backgroundColor: '#EAF3DE' },
   validerBtnTxt: { fontSize: 13, fontWeight: '600', color: '#412402' },
   validerBtnTxtDone: { color: '#3B6D11' },
+  savedAmountTxt: { fontSize: 11, color: colors.textMuted, textAlign: 'center', marginTop: 4 },
 }) }

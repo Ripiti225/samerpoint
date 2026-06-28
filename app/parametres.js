@@ -95,14 +95,14 @@ export default function ParametresScreen() {
   }
 
   async function chargerTousRestaurants() {
-    const { data } = await supabase.from('restaurants').select('*').order('nom')
+    const { data } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation').order('nom')
     setTousRestaurants(data || [])
   }
 
   async function chargerDonnees() {
     setLoading(true)
     if (sectionActive === 'restaurants') {
-      const { data } = await supabase.from('restaurants').select('*').order('nom')
+      const { data } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation, pin').order('nom')
       setRestaurants(data || [])
       setTousRestaurants(data || [])
     }

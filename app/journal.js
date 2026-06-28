@@ -13,6 +13,7 @@ import {
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { ACTION_LABELS, chargerJournal } from '../lib/journal'
+import { supabase } from '../lib/supabase'
 
 function formatHeure(dateStr) {
   if (!dateStr) return '—'
@@ -41,6 +42,7 @@ const FILTRES = [
   { key: 'shift_sauvegarde', label: '⏱️ Shifts' },
   { key: 'depenses_sauvegardees', label: '📋 Dépenses' },
   { key: 'inventaire_sauvegarde', label: '📦 Inventaire' },
+  { key: '__erreurs__', label: '⚠️ Erreurs' },
 ]
 
 export default function JournalScreen() {
@@ -49,20 +51,43 @@ export default function JournalScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors])
 
   const [entries, setEntries] = useState([])
+  const [erreurs, setErreurs] = useState([])
+  const [nbErreursDuJour, setNbErreursDuJour] = useState(0)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [filtreAction, setFiltreAction] = useState(null)
+
+  const modeErreurs = filtreAction === '__erreurs__'
 
   useEffect(() => { charger() }, [filtreAction, restaurantId])
 
   async function charger() {
     setLoading(true)
     try {
-      const data = await chargerJournal({ restaurantId, limite: 100, action: filtreAction })
-      setEntries(data)
+      if (modeErreurs) {
+        const { data } = await supabase
+          .from('erreurs_client')
+          .select('id, contexte, message, details, meta, created_at')
+          .order('created_at', { ascending: false })
+          .limit(200)
+        setErreurs(data || [])
+      } else {
+        const data = await chargerJournal({ restaurantId, limite: 100, action: filtreAction })
+        setEntries(data)
+      }
     } catch (_) {}
     setLoading(false)
   }
+
+  // Compter les erreurs d'aujourd'hui pour le badge
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0]
+    supabase.from('erreurs_client')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', today)
+      .then(({ count }) => setNbErreursDuJour(count || 0))
+      .catch(() => {})
+  }, [])
 
   async function onRefresh() {
     setRefreshing(true)
@@ -96,7 +121,7 @@ export default function JournalScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Text style={styles.backTxt}>← Retour</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitre}>Journal d'activité</Text>
+        <Text style={styles.headerTitre}>{"Journal d'activité"}</Text>
         <Text style={styles.headerSub}>Historique de toutes les actions</Text>
       </View>
 
@@ -105,11 +130,12 @@ export default function JournalScreen() {
         {FILTRES.map(f => (
           <TouchableOpacity
             key={String(f.key)}
-            style={[styles.filtreBtn, filtreAction === f.key && styles.filtreBtnActif]}
+            style={[styles.filtreBtn, filtreAction === f.key && styles.filtreBtnActif, f.key === '__erreurs__' && styles.filtreBtnErreur, f.key === '__erreurs__' && filtreAction === f.key && styles.filtreBtnErreurActif]}
             onPress={() => setFiltreAction(f.key)}
           >
             <Text style={[styles.filtreTxt, filtreAction === f.key && styles.filtreTxtActif]}>
               {f.label}
+              {f.key === '__erreurs__' && nbErreursDuJour > 0 ? ` (${nbErreursDuJour})` : ''}
             </Text>
           </TouchableOpacity>
         ))}
@@ -125,10 +151,30 @@ export default function JournalScreen() {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         >
-          {grouped.length === 0 ? (
+          {modeErreurs ? (
+            erreurs.length === 0 ? (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyIcon}>✅</Text>
+                <Text style={styles.emptyTxt}>Aucune erreur enregistrée</Text>
+              </View>
+            ) : (
+              erreurs.map((e, i) => (
+                <View key={e.id || i} style={styles.erreurRow}>
+                  <View style={styles.erreurHeader}>
+                    <Text style={styles.erreurContexte}>⚠️ {e.contexte}</Text>
+                    <Text style={styles.erreurTime}>{formatRelative(e.created_at)}</Text>
+                  </View>
+                  <Text style={styles.erreurMsg}>{e.message}</Text>
+                  {e.details ? <Text style={styles.erreurDetails}>{e.details}</Text> : null}
+                  {e.meta ? <Text style={styles.erreurMeta}>{JSON.stringify(e.meta)}</Text> : null}
+                  <Text style={styles.erreurHeure}>{formatHeure(e.created_at)}</Text>
+                </View>
+              ))
+            )
+          ) : grouped.length === 0 ? (
             <View style={styles.emptyBox}>
               <Text style={styles.emptyIcon}>📋</Text>
-              <Text style={styles.emptyTxt}>Aucune activité enregistrée</Text>
+              <Text style={styles.emptyTxt}>{"Aucune activité enregistrée"}</Text>
             </View>
           ) : (
             grouped.map(([date, items]) => (
@@ -223,5 +269,17 @@ function makeStyles(colors) {
     detailsBox: { marginTop: 8, backgroundColor: colors.surfaceAlt, borderRadius: 8, padding: 10 },
     detailLine: { fontSize: 12, color: colors.textSecondary, marginBottom: 3 },
     detailTime: { fontSize: 10, color: colors.textMuted, marginTop: 6 },
+
+    filtreBtnErreur: { borderWidth: 1, borderColor: '#E57373' },
+    filtreBtnErreurActif: { backgroundColor: '#C62828' },
+
+    erreurRow: { marginHorizontal: 12, marginBottom: 8, backgroundColor: '#FFF5F5', borderRadius: 10, padding: 12, borderLeftWidth: 3, borderLeftColor: '#E57373' },
+    erreurHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+    erreurContexte: { fontSize: 13, fontWeight: '700', color: '#C62828', flex: 1 },
+    erreurTime: { fontSize: 11, color: '#999' },
+    erreurMsg: { fontSize: 13, color: '#333', marginBottom: 4 },
+    erreurDetails: { fontSize: 11, color: '#666', fontStyle: 'italic', marginBottom: 2 },
+    erreurMeta: { fontSize: 10, color: '#999', fontFamily: 'monospace' },
+    erreurHeure: { fontSize: 10, color: '#bbb', marginTop: 6 },
   })
 }

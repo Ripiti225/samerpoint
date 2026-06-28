@@ -77,7 +77,7 @@ export default function ModifierPointScreen() {
   useEffect(() => { chargerRestaurants() }, [])
 
   async function chargerRestaurants() {
-    const { data } = await supabase.from('restaurants').select('*').order('nom')
+    const { data } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation').order('nom')
     setRestaurants(data || [])
   }
 
