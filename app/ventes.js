@@ -84,10 +84,12 @@ export default function VentesScreen() {
       }
       setCumulShifts(cumul)
 
-      // Charger le FC de la veille depuis le dernier point validé
-      const { data: pointPrec } = await supabase
+      // Charger le FC de la veille depuis le dernier point validé.
+      // Fond reporté = reste_fc (calculé sur les ventes) + ajustement_fond (corrections d'écart
+      // déposées sur ce jour via la régularisation des litiges).
+      const queteFcVeille = (cols) => supabase
         .from('points')
-        .select('reste_fc')
+        .select(cols)
         .eq('restaurant_id', restaurantId)
         .eq('valide', true)
         .neq('id', pointId)
@@ -95,7 +97,11 @@ export default function VentesScreen() {
         .limit(1)
         .single()
 
-      const fcVeille = pointPrec?.reste_fc || 0
+      let { data: pointPrec, error: errFc } = await queteFcVeille('reste_fc, ajustement_fond')
+      // Fallback si la colonne ajustement_fond n'est pas encore créée en DB
+      if (errFc) ({ data: pointPrec } = await queteFcVeille('reste_fc'))
+
+      const fcVeille = (pointPrec?.reste_fc || 0) + (pointPrec?.ajustement_fond || 0)
 
       setVentesJour(prev => ({
         ...prev,

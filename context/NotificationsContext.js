@@ -24,6 +24,9 @@ const ROUTE_MAP = {
   point_valide: 'verification',
   shift_valide: 'gerant-caissier',
   correction_demandee: 'recap-point',
+  explication_machine_validee: 'recap-point',
+  explication_machine_refusee: 'recap-point',
+  explication_machine_annulee: 'recap-point',
   nouveau_document: 'documents',
   nouveau_travailleur: 'rh',
 }

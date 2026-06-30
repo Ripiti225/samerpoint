@@ -131,6 +131,7 @@ export default function LitigesScreen() {
 
   // ── Volet 1 — écarts ────────────────────────────────────────
   const [ecartsListe, setEcartsListe] = useState([])
+  const [expandedEcart, setExpandedEcart] = useState(null)  // date du jour déplié en vue période
 
   // ── Responsables des écarts (table litiges_responsables) ────
   const [responsablesListe, setResponsablesListe] = useState([])
@@ -342,6 +343,18 @@ export default function LitigesScreen() {
 
     setRegulSaving(true)
     try {
+      // Ajustement du fond de caisse : manquant retrouvé → +FC ; surplus expliqué → −FC.
+      // La correction s'applique au FOND ACTUEL (dernière journée validée), pas au jour
+      // ancien de l'écart : l'argent bouge physiquement aujourd'hui, on ne réécrit pas l'historique.
+      const deltaFc = sens === 'manquant' ? Math.round(montant) : -Math.round(montant)
+
+      // Journée cible qui porte la correction de fond = dernier point validé du resto.
+      const { data: cible } = await supabase.from('points')
+        .select('id, ajustement_fond')
+        .eq('restaurant_id', restoSelectionne.id).eq('valide', true)
+        .order('date', { ascending: false }).limit(1).single()
+      const cibleId = cible?.id || item.id   // fallback : le jour de l'écart lui-même
+
       const record = {
         sens,
         montant: Math.round(montant),
@@ -350,13 +363,28 @@ export default function LitigesScreen() {
         par_id: userId || null,
         par_nom: userNom || null,
         created_at: new Date().toISOString(),
+        fond_point_id: cibleId,  // point qui a reçu la correction de fond (pour le reverse)
       }
       const nouvelles = [...(item.regularisations || []), record]
-      // Ajustement du fond de caisse : manquant retrouvé → +FC ; surplus expliqué → −FC
-      const deltaFc = sens === 'manquant' ? record.montant : -record.montant
-      const { error } = await supabase.from('points')
-        .update({ ecart_regularisations: nouvelles, reste_fc: (item.resteFc || 0) + deltaFc })
-        .eq('id', item.id)
+
+      // L'écart (explication / responsabilité) reste attaché au jour de l'écart.
+      // La correction de fond (ajustement_fond) atterrit sur la journée cible.
+      let error
+      if (cibleId === item.id) {
+        // Même ligne : un seul update combiné
+        ;({ error } = await supabase.from('points')
+          .update({ ecart_regularisations: nouvelles, ajustement_fond: (cible?.ajustement_fond || 0) + deltaFc })
+          .eq('id', item.id))
+      } else {
+        ;({ error } = await supabase.from('points')
+          .update({ ecart_regularisations: nouvelles })
+          .eq('id', item.id))
+        if (!error) {
+          ;({ error } = await supabase.from('points')
+            .update({ ajustement_fond: (cible?.ajustement_fond || 0) + deltaFc })
+            .eq('id', cibleId))
+        }
+      }
       if (error) { Alert.alert('Erreur', "L'enregistrement a échoué. Réessayez."); return }
       setRegulPoint(null)
       await chargerEcarts()
@@ -370,16 +398,30 @@ export default function LitigesScreen() {
     if (!r) return
     Alert.alert(
       'Supprimer cette régularisation ?',
-      `Le montant de ${fmt(r.montant)} sera réintégré dans l'écart et le fond de caisse sera recalculé.`,
+      `Le montant de ${fmt(r.montant)} sera réintégré dans l'écart et le fond actuel sera recalculé.`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
           text: 'Supprimer', style: 'destructive', onPress: async () => {
             const nouvelles = item.regularisations.filter((_, i) => i !== index)
             const deltaFc = r.sens === 'manquant' ? -(r.montant || 0) : (r.montant || 0) // inverse de l'ajout
+            // Retire l'explication/responsabilité du jour de l'écart
             await supabase.from('points')
-              .update({ ecart_regularisations: nouvelles, reste_fc: (item.resteFc || 0) + deltaFc })
+              .update({ ecart_regularisations: nouvelles })
               .eq('id', item.id)
+            if (r.fond_point_id) {
+              // Nouveau format : la correction de fond vit sur la journée cible → reverse là-bas
+              const { data: pf } = await supabase.from('points')
+                .select('ajustement_fond').eq('id', r.fond_point_id).single()
+              await supabase.from('points')
+                .update({ ajustement_fond: (pf?.ajustement_fond || 0) + deltaFc })
+                .eq('id', r.fond_point_id)
+            } else {
+              // Régularisation héritée (ancien code) : la correction avait modifié reste_fc du jour
+              await supabase.from('points')
+                .update({ reste_fc: (item.resteFc || 0) + deltaFc })
+                .eq('id', item.id)
+            }
             await chargerEcarts()
           },
         },
@@ -1131,6 +1173,85 @@ export default function LitigesScreen() {
     )
   }
 
+  // Détails d'un écart : explication du gérant + régularisations + bouton annuler/réduire.
+  // Partagé entre la vue 1 jour et les lignes dépliées de la vue période.
+  function renderEcartDetails(item) {
+    return (
+      <>
+        {/* Explication du gérant (saisie côté Ventes) — aide à décider l'annulation */}
+        {item.ecartBrut !== 0 && (item.explication || item.responsablesEcart.length > 0 || item.photosEcart.length > 0) && (
+          <View style={styles.explicGerantCard}>
+            <Text style={styles.explicGerantTitre}>📝 Explication du gérant</Text>
+            {item.explication ? (
+              <Text style={styles.explicGerantTxt}>"{item.explication}"</Text>
+            ) : (
+              <Text style={styles.explicGerantVide}>Aucune explication écrite.</Text>
+            )}
+            {item.responsablesEcart.length > 0 && (
+              <View style={{ marginTop: 8 }}>
+                <Text style={styles.explicGerantSousTitre}>👤 Responsables désignés</Text>
+                {item.responsablesEcart.map((r, i) => (
+                  <View key={i} style={styles.explicRespRow}>
+                    <Text style={styles.explicRespNom}>{r.nom}</Text>
+                    <Text style={styles.explicRespMontant}>{fmt(r.montant)}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            {item.photosEcart.length > 0 && (
+              <View style={{ marginTop: 8 }}>
+                <Text style={styles.explicGerantSousTitre}>📷 Photos justificatives</Text>
+                <View style={styles.regulPhotosRow}>
+                  {item.photosEcart.map((uri, i) => (
+                    <Image key={i} source={{ uri }} style={styles.regulPhotoThumb} resizeMode="cover" />
+                  ))}
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Régularisations existantes */}
+        {item.regularisations.length > 0 && (
+          <View style={{ marginTop: 12, gap: 8 }}>
+            {item.regularisations.map((r, i) => (
+              <View key={i} style={styles.regulCard}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={styles.regulCardTitre}>
+                    {r.sens === 'manquant' ? '📉 Manquant justifié' : '📈 Surplus justifié'} · {fmt(r.montant)}
+                  </Text>
+                  {peutRegulariser && (
+                    <TouchableOpacity onPress={() => supprimerRegularisation(item, i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Text style={styles.regulDelTxt}>✕</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {r.motif ? <Text style={styles.regulMotif}>{r.motif}</Text> : null}
+                {Array.isArray(r.photos) && r.photos.length > 0 && (
+                  <View style={styles.regulPhotosRow}>
+                    {r.photos.map((uri, j) => (
+                      <Image key={j} source={{ uri }} style={styles.regulPhotoThumb} resizeMode="cover" />
+                    ))}
+                  </View>
+                )}
+                <Text style={styles.regulMeta}>
+                  {r.par_nom || '—'} · {r.created_at ? new Date(r.created_at).toLocaleDateString('fr-FR') : ''}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Bouton régulariser (manager/directeur, écart non nul) */}
+        {peutRegulariser && item.ecart !== 0 && (
+          <TouchableOpacity style={styles.regulBtn} onPress={() => ouvrirRegularisation(item)}>
+            <Text style={styles.regulBtnTxt}>🛠️ Annuler / Réduire l'écart</Text>
+          </TouchableOpacity>
+        )}
+      </>
+    )
+  }
+
   // ── Render volets ────────────────────────────────────────────
   function renderEcarts() {
     if (!ecartsListe.length) {
@@ -1176,76 +1297,7 @@ export default function LitigesScreen() {
             )}
           </View>
 
-          {/* Explication du gérant (saisie côté Ventes) — aide à décider l'annulation */}
-          {item.ecartBrut !== 0 && (item.explication || item.responsablesEcart.length > 0 || item.photosEcart.length > 0) && (
-            <View style={styles.explicGerantCard}>
-              <Text style={styles.explicGerantTitre}>📝 Explication du gérant</Text>
-              {item.explication ? (
-                <Text style={styles.explicGerantTxt}>"{item.explication}"</Text>
-              ) : (
-                <Text style={styles.explicGerantVide}>Aucune explication écrite.</Text>
-              )}
-              {item.responsablesEcart.length > 0 && (
-                <View style={{ marginTop: 8 }}>
-                  <Text style={styles.explicGerantSousTitre}>👤 Responsables désignés</Text>
-                  {item.responsablesEcart.map((r, i) => (
-                    <View key={i} style={styles.explicRespRow}>
-                      <Text style={styles.explicRespNom}>{r.nom}</Text>
-                      <Text style={styles.explicRespMontant}>{fmt(r.montant)}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-              {item.photosEcart.length > 0 && (
-                <View style={{ marginTop: 8 }}>
-                  <Text style={styles.explicGerantSousTitre}>📷 Photos justificatives</Text>
-                  <View style={styles.regulPhotosRow}>
-                    {item.photosEcart.map((uri, i) => (
-                      <Image key={i} source={{ uri }} style={styles.regulPhotoThumb} resizeMode="cover" />
-                    ))}
-                  </View>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Régularisations existantes */}
-          {item.regularisations.length > 0 && (
-            <View style={{ marginTop: 12, gap: 8 }}>
-              {item.regularisations.map((r, i) => (
-                <View key={i} style={styles.regulCard}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={styles.regulCardTitre}>
-                      {r.sens === 'manquant' ? '📉 Manquant justifié' : '📈 Surplus justifié'} · {fmt(r.montant)}
-                    </Text>
-                    {peutRegulariser && (
-                      <TouchableOpacity onPress={() => supprimerRegularisation(item, i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                        <Text style={styles.regulDelTxt}>✕</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                  {r.motif ? <Text style={styles.regulMotif}>{r.motif}</Text> : null}
-                  {Array.isArray(r.photos) && r.photos.length > 0 && (
-                    <View style={styles.regulPhotosRow}>
-                      {r.photos.map((uri, j) => (
-                        <Image key={j} source={{ uri }} style={styles.regulPhotoThumb} resizeMode="cover" />
-                      ))}
-                    </View>
-                  )}
-                  <Text style={styles.regulMeta}>
-                    {r.par_nom || '—'} · {r.created_at ? new Date(r.created_at).toLocaleDateString('fr-FR') : ''}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Bouton régulariser (manager/directeur, écart non nul) */}
-          {peutRegulariser && item.ecart !== 0 && (
-            <TouchableOpacity style={styles.regulBtn} onPress={() => ouvrirRegularisation(item)}>
-              <Text style={styles.regulBtnTxt}>🛠️ Annuler / Réduire l'écart</Text>
-            </TouchableOpacity>
-          )}
+          {renderEcartDetails(item)}
         </View>
       )
     }
@@ -1260,13 +1312,28 @@ export default function LitigesScreen() {
         </View>
         {ecartsListe.map(j => {
           const cj = j.ecart > 0 ? '#C62828' : j.ecart < 0 ? '#F57F17' : '#2E7D32'
+          const ouvert = expandedEcart === j.date
+          // Indices qu'il y a quelque chose à consulter / traiter sur ce jour
+          const aDetails = j.ecartBrut !== 0 && (j.explication || j.responsablesEcart.length > 0 || j.photosEcart.length > 0 || j.regularisations.length > 0 || (peutRegulariser && j.ecart !== 0))
           return (
-            <View key={j.date} style={styles.ligneCard}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.ligneNom}>{j.date}</Text>
-                <Text style={styles.ligneSous}>Machine {fmtShort(j.venteMachine)} — Shifts {fmtShort(j.cumulShifts)} ({j.nbShifts})</Text>
-              </View>
-              <Text style={[styles.montantTxt, { color: cj }]}>{j.ecart > 0 ? '+' : ''}{fmtShort(j.ecart)}</Text>
+            <View key={j.date}>
+              <TouchableOpacity
+                style={[styles.ligneCard, ouvert && styles.ligneCardActive]}
+                onPress={() => aDetails && setExpandedEcart(ouvert ? null : j.date)}
+                activeOpacity={aDetails ? 0.6 : 1}
+              >
+                {aDetails && <Text style={styles.ligneChevron}>{ouvert ? '▾' : '▸'}</Text>}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.ligneNom}>{j.date}</Text>
+                  <Text style={styles.ligneSous}>Machine {fmtShort(j.venteMachine)} — Shifts {fmtShort(j.cumulShifts)} ({j.nbShifts})</Text>
+                </View>
+                <Text style={[styles.montantTxt, { color: cj }]}>{j.ecart > 0 ? '+' : ''}{fmtShort(j.ecart)}</Text>
+              </TouchableOpacity>
+              {ouvert && (
+                <View style={styles.ligneDetails}>
+                  {renderEcartDetails(j)}
+                </View>
+              )}
             </View>
           )
         })}
@@ -2003,8 +2070,8 @@ export default function LitigesScreen() {
                       </Text>
                       <Text style={styles.regulInfoSub}>
                         {sens === 'manquant'
-                          ? 'Le montant justifié sera ajouté au fond de caisse (argent retrouvé).'
-                          : 'Le montant justifié sera retiré du fond de caisse.'}
+                          ? 'Le montant justifié sera ajouté au fond actuel (argent retrouvé aujourd’hui).'
+                          : 'Le montant justifié sera retiré du fond actuel (argent restitué aujourd’hui).'}
                       </Text>
                     </View>
 
@@ -2211,6 +2278,12 @@ function makeStyles(colors) { return StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: colors.surface, borderRadius: 12, padding: 14,
     borderWidth: 0.5, borderColor: colors.borderLight,
+  },
+  ligneCardActive: { borderColor: '#534AB7', borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
+  ligneChevron: { fontSize: 13, color: '#534AB7', marginRight: 8, fontWeight: '700' },
+  ligneDetails: {
+    backgroundColor: colors.surface, borderColor: '#534AB7', borderWidth: 0.5, borderTopWidth: 0,
+    borderBottomLeftRadius: 12, borderBottomRightRadius: 12, padding: 14, marginBottom: 2,
   },
   ligneNom: { fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: 2 },
   ligneCmd: { fontSize: 12, color: '#185FA5', fontWeight: '500', marginBottom: 2 },
