@@ -31,6 +31,10 @@ const SECTIONS = [
   { key: 'fournisseurs', label: '🧾 Fournisseurs' },
 ]
 
+// Rôles créés ici sans restaurant (accès global). On ne touche pas à RH ni
+// directeur : leur comportement existant reste inchangé.
+const ROLES_GLOBAUX = ['manager', 'verificateur']
+
 export default function ParametresScreen() {
   const { isManager } = useApp()
   const { colors, isDark, mode, setThemeMode } = useTheme()
@@ -95,14 +99,14 @@ export default function ParametresScreen() {
   }
 
   async function chargerTousRestaurants() {
-    const { data } = await supabase.from('restaurants').select('*').order('nom')
+    const { data } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation').order('nom')
     setTousRestaurants(data || [])
   }
 
   async function chargerDonnees() {
     setLoading(true)
     if (sectionActive === 'restaurants') {
-      const { data } = await supabase.from('restaurants').select('*').order('nom')
+      const { data } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation, pin').order('nom')
       setRestaurants(data || [])
       setTousRestaurants(data || [])
     }
@@ -250,8 +254,8 @@ export default function ParametresScreen() {
           Alert.alert('Erreur', 'Le PIN doit avoir 4 chiffres')
           setLoading(false); return
         }
-        const estManagerOuAdmin = form.role === 'manager'
-        if (!form.restaurant_id && !estManagerOuAdmin) {
+        const estGlobal = ROLES_GLOBAUX.includes(form.role)
+        if (!form.restaurant_id && !estGlobal) {
           Alert.alert('Erreur', 'Choisissez un restaurant pour ce rôle')
           setLoading(false); return
         }
@@ -261,7 +265,7 @@ export default function ParametresScreen() {
               nom: form.nom,
               role: form.role,
               pin: form.pin,
-              restaurant_id: estManagerOuAdmin ? null : form.restaurant_id,
+              restaurant_id: estGlobal ? null : form.restaurant_id,
             })
             .eq('id', data.id)
           if (error) throw error
@@ -272,7 +276,7 @@ export default function ParametresScreen() {
               role: form.role || 'caissier',
               pin: form.pin,
               actif: true,
-              restaurant_id: estManagerOuAdmin ? null : form.restaurant_id,
+              restaurant_id: estGlobal ? null : form.restaurant_id,
             })
           if (error) throw error
         }
@@ -818,7 +822,7 @@ export default function ParametresScreen() {
   // ─── CONTENU MODAL ─────────────────────────────────────────
   function renderModalContent() {
     const { type } = modal
-    const estManager = form.role === 'manager'
+    const estGlobal = ROLES_GLOBAUX.includes(form.role)
 
     if (type === 'restaurant') return (
       <>
@@ -1082,7 +1086,7 @@ export default function ParametresScreen() {
 
         <Text style={styles.modalLabel}>Rôle</Text>
         <View style={styles.contratRow}>
-          {['caissier', 'gerant', 'manager'].map(r => (
+          {['caissier', 'gerant', 'manager', 'verificateur'].map(r => (
             <TouchableOpacity
               key={r}
               style={[styles.contratBtn, form.role === r && styles.contratBtnSelected]}
@@ -1093,10 +1097,10 @@ export default function ParametresScreen() {
           ))}
         </View>
 
-        {estManager ? (
+        {estGlobal ? (
           <View style={styles.infoBox}>
             <Text style={styles.infoTxt}>
-              ℹ️ Le Manager a accès à tous les restaurants — pas besoin de choisir un restaurant spécifique.
+              ℹ️ Ce rôle a un accès global à tous les restaurants — pas besoin de choisir un restaurant spécifique.
             </Text>
           </View>
         ) : (

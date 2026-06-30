@@ -68,7 +68,7 @@ export default function DocumentsScreen() {
   }, [restoSelectionne])
 
   async function chargerRestaurants() {
-    const { data } = await supabase.from('restaurants').select('*').order('nom')
+    const { data } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation').order('nom')
     setRestaurants(data || [])
     if (data && data.length > 0) setRestoSelectionne(data[0])
   }

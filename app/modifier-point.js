@@ -77,7 +77,7 @@ export default function ModifierPointScreen() {
   useEffect(() => { chargerRestaurants() }, [])
 
   async function chargerRestaurants() {
-    const { data } = await supabase.from('restaurants').select('*').order('nom')
+    const { data } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation').order('nom')
     setRestaurants(data || [])
   }
 
@@ -970,6 +970,10 @@ export default function ModifierPointScreen() {
       reste_especes: resteEspeces(),
       reste_fc: fc(),
       benefice_sc: beneficeSC(),
+      // NE PAS écrire ajustement_fond ici : reste_fc est 100% dérivé des ventes, et
+      // ajustement_fond porte les corrections d'écart (régularisations) déposées sur ce
+      // jour. Le laisser intact garantit qu'une ré-édition des ventes n'efface jamais une
+      // régularisation de fond. Le fond reporté = reste_fc + ajustement_fond.
     }).eq('id', point.id)
     setLoading(false)
     if (error) {

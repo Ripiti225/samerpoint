@@ -20,6 +20,7 @@ import { useTheme } from '../context/ThemeContext'
 import { journaliser } from '../lib/journal'
 import { TYPES_DEMANDE } from '../lib/constants'
 import { creerNotification } from '../lib/notificationsInterne'
+import { envoyerNotifDemandeStatut } from '../lib/notifications'
 import { supabase } from '../lib/supabase'
 
 const STATUT_CONFIG = {
@@ -61,6 +62,8 @@ export default function DemandesAdminScreen() {
   // Modal déclin
   const [showDeclineModal, setShowDeclineModal] = useState(false)
   const [demandeEnCours, setDemandeEnCours] = useState(null)
+  const [showMontantModal, setShowMontantModal] = useState(false)
+  const [montantAlloue, setMontantAlloue] = useState('')
   const [motifDecline, setMotifDecline] = useState('')
   const [saving, setSaving] = useState(false)
   // Modal confirmation annulation
@@ -91,25 +94,54 @@ export default function DemandesAdminScreen() {
     setLoading(false)
   }
 
-  async function valider(d) {
+  // Une demande financière exige un montant alloué à la validation
+  function estFinanciere(d) {
+    return !!TYPES_DEMANDE.find(t => t.label === d.type)?.necessiteMontant
+  }
+
+  function demanderValidation(d) {
+    if (saving) return
+    if (estFinanciere(d)) {
+      setDemandeEnCours(d)
+      setMontantAlloue(d.montant != null ? String(Math.round(d.montant)) : '')
+      setShowMontantModal(true)
+      return
+    }
+    valider(d, null)
+  }
+
+  async function confirmerValidation() {
+    if (!(parseFloat(montantAlloue) > 0)) {
+      return Alert.alert('Montant requis', 'Saisissez le montant alloué (supérieur à 0).')
+    }
+    await valider(demandeEnCours, parseFloat(montantAlloue))
+    setShowMontantModal(false)
+    setMontantAlloue('')
+  }
+
+  async function valider(d, montantAlloueVal = null) {
     if (saving) return
     setSaving(true)
-    await supabase.from('demandes').update({
+    const maj = {
       statut: 'validee',
       traite_par_id: userId,
       traite_par_nom: userNom,
       traite_at: new Date().toISOString(),
-    }).eq('id', d.id)
+    }
+    if (montantAlloueVal != null) maj.montant_alloue = montantAlloueVal
+    await supabase.from('demandes').update(maj).eq('id', d.id)
+    const sufMontant = montantAlloueVal != null ? ` — ${Math.round(montantAlloueVal).toLocaleString('fr-FR')} FCFA alloués` : ''
     creerNotification({
       type: 'demande_validee',
       titre: 'Demande validée',
-      message: `✅ ${d.type} pour ${d.travailleur_nom} — validée`,
+      message: `✅ ${d.type} pour ${d.travailleur_nom} — validée${sufMontant}`,
       restaurant_id: d.restaurant_id,
       cible_user_id: d.cree_par_id,
       created_by: userId,
       screen: 'demandes',
     }).catch(() => {})
-    journaliser({ action: 'demande_validee', details: `${d.type} pour ${d.travailleur_nom}`, userId, restaurantId: d.restaurant_id }).catch(() => {})
+    envoyerNotifDemandeStatut(d.travailleur_nom, d.type, 'validee', d.cree_par_id).catch(() => {})
+    journaliser({ action: 'demande_validee', details: `${d.type} pour ${d.travailleur_nom}${sufMontant}`, userId, restaurantId: d.restaurant_id }).catch(() => {})
     setSaving(false)
     charger()
   }
@@ -139,6 +171,7 @@ export default function DemandesAdminScreen() {
       created_by: userId,
       screen: 'demandes',
     }).catch(() => {})
+    envoyerNotifDemandeStatut(demandeEnCours.travailleur_nom, demandeEnCours.type, 'declinee', demandeEnCours.cree_par_id).catch(() => {})
     journaliser({ action: 'demande_declinee', details: `${demandeEnCours.type} — motif: ${motifDecline.trim()}`, userId, restaurantId: demandeEnCours.restaurant_id }).catch(() => {})
     setSaving(false)
     setShowDeclineModal(false)
@@ -241,9 +274,15 @@ export default function DemandesAdminScreen() {
                   {d.date_debut && (
                     <Text style={styles.cardDates}>📅 {fmtDate(d.date_debut)} → {fmtDate(d.date_fin)}</Text>
                   )}
+                  {d.montant > 0 && (
+                    <Text style={styles.cardMontant}>💰 Montant demandé : {Math.round(d.montant).toLocaleString('fr-FR')} FCFA</Text>
+                  )}
                   {d.description ? <Text style={styles.cardDesc}>"{d.description}"</Text> : null}
                   <Text style={styles.cardMeta}>Le {fmtDate(d.created_at?.split('T')[0])}</Text>
 
+                  {d.statut === 'validee' && d.montant_alloue > 0 && (
+                    <Text style={styles.cardMontant}>✅ Montant alloué : {Math.round(d.montant_alloue).toLocaleString('fr-FR')} FCFA</Text>
+                  )}
                   {d.statut === 'validee' && d.traite_par_nom && (
                     <Text style={styles.cardMeta}>✅ Validé par {d.traite_par_nom}</Text>
                   )}
@@ -260,7 +299,7 @@ export default function DemandesAdminScreen() {
                   {/* Actions */}
                   {d.statut === 'en_attente' && (
                     <View style={styles.actions}>
-                      <TouchableOpacity style={styles.btnValider} onPress={() => valider(d)} disabled={saving}>
+                      <TouchableOpacity style={styles.btnValider} onPress={() => demanderValidation(d)} disabled={saving}>
                         <Text style={styles.btnValiderTxt}>✅ Valider</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.btnDecliner} onPress={() => ouvrirDeclin(d)} disabled={saving}>
@@ -373,6 +412,46 @@ export default function DemandesAdminScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      {/* Modal montant alloué (validation d'une demande financière) */}
+      <Modal visible={showMontantModal} transparent animationType="slide">
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
+              <View style={styles.declineModal}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitre}>Montant alloué</Text>
+                  <TouchableOpacity onPress={() => { setShowMontantModal(false); setMontantAlloue('') }}>
+                    <Text style={styles.modalClose}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+                {demandeEnCours && (
+                  <Text style={styles.declineInfo}>
+                    {demandeEnCours.type} — {demandeEnCours.travailleur_nom}
+                    {demandeEnCours.montant > 0 ? ` · demandé ${Math.round(demandeEnCours.montant).toLocaleString('fr-FR')} FCFA` : ''}
+                  </Text>
+                )}
+                <TextInput
+                  style={[styles.input, { color: colors.text, borderColor: colors.border }]}
+                  placeholder="Montant accordé (FCFA)"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="numeric"
+                  value={montantAlloue}
+                  onChangeText={v => setMontantAlloue(v.replace(/[^0-9]/g, ''))}
+                  autoFocus
+                />
+                <TouchableOpacity
+                  style={[styles.btnValider, { paddingVertical: 13 }, (!(parseFloat(montantAlloue) > 0) || saving) && { opacity: 0.5 }]}
+                  onPress={confirmerValidation}
+                  disabled={!(parseFloat(montantAlloue) > 0) || saving}
+                >
+                  <Text style={styles.btnValiderTxt}>{saving ? 'Validation...' : '✅ Valider la demande'}</Text>
+                </TouchableOpacity>
+              </View>
+            </KeyboardAvoidingView>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -405,6 +484,7 @@ function makeStyles(colors) {
     cardResto: { fontSize: 13, color: colors.textMuted, marginBottom: 2 },
     cardGerant: { fontSize: 13, color: colors.textMuted, marginBottom: 2 },
     cardDates: { fontSize: 13, color: colors.textMuted, marginBottom: 4 },
+    cardMontant: { fontSize: 13, color: '#3B6D11', fontWeight: '700', marginBottom: 4 },
     cardDesc: { fontSize: 13, color: colors.textMuted, fontStyle: 'italic', marginBottom: 4 },
     cardMeta: { fontSize: 12, color: colors.textMuted, marginTop: 4 },
     declineBox: { backgroundColor: '#FAECE7', borderRadius: 8, padding: 10, marginTop: 8 },
@@ -427,6 +507,7 @@ function makeStyles(colors) {
     modalTitre: { fontSize: 18, fontWeight: '700', color: colors.text },
     modalClose: { fontSize: 20, color: colors.textMuted, padding: 4 },
     declineInfo: { fontSize: 14, color: colors.textMuted, marginBottom: 12, fontStyle: 'italic' },
+    input: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 15, marginBottom: 16, backgroundColor: colors.background },
     textArea: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 14, minHeight: 100, textAlignVertical: 'top', marginBottom: 16, backgroundColor: colors.background },
     btnDeclinerConfirm: { backgroundColor: '#993C1D', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
     btnDeclinerConfirmTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },

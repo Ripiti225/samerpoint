@@ -239,6 +239,15 @@ export default function InventaireScreen() {
   function ecartPoulet()  { const r = pouletReel(); return r == null ? null : r - pouletTh() }
   function oblgPoulet()   { return pouletInit() > 0 || pouletEnt() > 0 }
 
+  // Pâte de poulet (po7) — entrée AUTO = entrée poulet ÷ 10 ; sortie saisie par le caissier
+  function pateInit()  { return getInit('po7') }
+  function pateEnt()   { return pouletEnt() / 10 }
+  function pateSort()  { return getSort('po7') }
+  function pateTh()    { return pateInit() + pateEnt() - pateSort() }
+  function pateReel()  { const r = getReel('po7'); return r !== '' ? parseFloat(r) || 0 : null }
+  function ecartPate() { const r = pateReel(); return r == null ? null : r - pateTh() }
+  function oblgPate()  { return pateInit() > 0 || pateEnt() > 0 }
+
   // Fromage
   const catFromage = CATEGORIES.find(c => c.nom === 'Fromage & Pizzas')
   function fromageInit()  { return getInit('f10') }
@@ -291,6 +300,7 @@ export default function InventaireScreen() {
   function totalMontant() {
     let t = 0
     const eP = ecartPoulet(); if (eP !== null) t += montantDeduit(eP, 8000, 'po_total')
+    const ePate = ecartPate(); if (ePate !== null) t += montantDeduit(ePate, 1000, 'po7')
     const eF = ecartFromage(); if (eF !== null) t += montantDeduit(eF, 5, 'f_total')
     const eG = ecartGlace();  if (eG !== null) t += montantDeduit(eG, 6000, 'g3')
     const eFr = ecartFrites(); if (eFr !== null) t += montantDeduit(eFr, 2500, 'fr3')
@@ -304,7 +314,7 @@ export default function InventaireScreen() {
 
   function nbEcarts() {
     let n = 0
-    const specials = [ecartPoulet(), ecartFromage(), ecartGlace(), ecartFrites()]
+    const specials = [ecartPoulet(), ecartPate(), ecartFromage(), ecartGlace(), ecartFrites()]
     specials.forEach(e => { if (e !== null && Math.abs(e) > 0.01) n++ })
     CATEGORIES.forEach(cat => cat.produits.forEach(p => {
       if (EXCLUS.has(p.id) || p.auto || p.noAlert || p.boules) return
@@ -317,6 +327,7 @@ export default function InventaireScreen() {
   function prodsMandatairesManquants() {
     const m = []
     if (oblgPoulet()  && getReel('po8') === '') m.push('Total Poulet')
+    if (oblgPate()    && getReel('po7') === '') m.push('Pâte de poulet')
     if (oblgFromage() && getReel('f10') === '')  m.push('Total Fromage')
     if (oblgGlace()   && getReel('g3')  === '')  m.push('Pot de glace')
     if (oblgFrites()  && getReel('fr3') === '')  m.push('Sachets frites')
@@ -359,6 +370,19 @@ export default function InventaireScreen() {
         ;[['po2','Pané'],['po3','Rôti'],['po4','Braisé'],['po5','Désossé'],['po6','Cuisses']].forEach(([id, nom]) => {
           if (getSort(id) > 0) lignes.push({ inventaire_id: inventaireId, produit_id: id, produit_nom: nom,
             stock_initial: 0, entrees: 0, sorties: getSort(id), stock_reel: null, ecart: 0, montant_deduit: 0 })
+        })
+      }
+
+      // Pâte de poulet (po7) — entrée auto = poulet ÷ 10, sortie manuelle
+      if (pateInit() > 0 || getReel('po7') !== '' || pateSort() > 0 || pateEnt() > 0) {
+        const ePate = ecartPate() ?? 0
+        lignes.push({
+          inventaire_id: inventaireId, produit_id: 'po7', produit_nom: 'Pâte de poulet',
+          stock_initial: pateInit(), entrees: pateEnt(), sorties: pateSort(),
+          stock_reel: pateReel(), ecart: ePate,
+          nombre_explique: parseFloat(explications['po7']?.nombre) || null,
+          explication: explications['po7']?.texte || null,
+          montant_deduit: montantDeduit(ePate, 1000, 'po7'),
         })
       }
 
@@ -1047,6 +1071,47 @@ export default function InventaireScreen() {
           {eP !== null && !hasEcart && <View style={[styles.ecartRow, styles.ecartOk]}><Text style={styles.ecartValOk}>✅ Aucun écart poulets</Text></View>}
           {hasEcart && renderEcart('po_total', eP, 8000, 'poulet(s)')}
         </View>
+        {renderPateSection()}
+      </View>
+    )
+  }
+
+  function renderPateSection() {
+    const ePate = ecartPate()
+    const hasEcart = ePate !== null && Math.abs(ePate) > 0.01
+    const oblg = oblgPate()
+    const entAuto = Math.round(pateEnt() * 100) / 100
+    return (
+      <View style={[styles.sectionCard, hasEcart && styles.sectionCardAlert]}>
+        <Text style={styles.sectionTitle}>🍗 Pâte de poulet</Text>
+        <Text style={styles.pateHint}>Entrée automatique : 10 poulets = 1 pâte</Text>
+        <View style={styles.resumeRow}>
+          <Text style={styles.resumeLabel}>Stock initial</Text>
+          <View style={styles.resumeReadOnly}><Text style={styles.resumeReadOnlyTxt}>{pateInit()}</Text></View>
+        </View>
+        <View style={styles.resumeRow}>
+          <Text style={styles.resumeLabel}>Entrées (auto)</Text>
+          <View style={styles.resumeReadOnly}>
+            <Text style={[styles.resumeReadOnlyTxt, { color: '#185FA5', fontWeight: '600' }]}>{entAuto}</Text>
+          </View>
+        </View>
+        <View style={styles.resumeRow}>
+          <Text style={styles.resumeLabel}>Sorties</Text>
+          <TextInput style={[styles.resumeInput, isValide ? styles.fieldReadOnly : styles.fieldEdit]}
+            value={stocks['po7']?.sorties || ''} onChangeText={v => setField('po7', 'sorties', v)}
+            keyboardType="decimal-pad" placeholder="0" placeholderTextColor="#ccc" editable={!isValide} />
+        </View>
+        <View style={[styles.resumeRow, styles.resumeTotalRow]}>
+          <Text style={styles.resumeTotalLabel}>Stock réel</Text>
+          <TextInput
+            style={[styles.resumeInput, isValide ? styles.fieldReadOnly : styles.fieldEdit,
+              oblg && getReel('po7') === '' && !isValide && { borderColor: '#EF9F27', borderWidth: 1 }]}
+            value={stocks['po7']?.stockReel || ''} onChangeText={v => setField('po7', 'stockReel', v)}
+            keyboardType="decimal-pad" placeholder={oblg ? 'requis' : '0'}
+            placeholderTextColor={oblg ? '#EF9F27' : '#ccc'} editable={!isValide} />
+        </View>
+        {ePate !== null && !hasEcart && <View style={[styles.ecartRow, styles.ecartOk]}><Text style={styles.ecartValOk}>✅ Aucun écart pâte</Text></View>}
+        {hasEcart && renderEcart('po7', ePate, 1000, 'pâte(s)')}
       </View>
     )
   }
@@ -1243,6 +1308,7 @@ function makeStyles(colors) { return StyleSheet.create({
   sectionCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: colors.borderLight },
   sectionCardAlert: { borderColor: '#F09595', backgroundColor: '#FCEBEB' },
   sectionTitle: { fontSize: 13, fontWeight: '700', color: '#412402', marginBottom: 10 },
+  pateHint: { fontSize: 11, color: '#185FA5', marginTop: -6, marginBottom: 10, fontStyle: 'italic' },
   resumeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   resumeLabel: { fontSize: 13, color: colors.textSecondary, flex: 1 },
   resumeInput: { width: 90, backgroundColor: colors.inputBg, borderRadius: 8, padding: 8, fontSize: 13, textAlign: 'center', color: colors.text },

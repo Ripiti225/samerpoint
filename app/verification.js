@@ -15,6 +15,35 @@ import { creerNotification } from '../lib/notificationsInterne'
 
 const { width: SW } = Dimensions.get('window')
 
+// Décision du manager sur l'explication d'écart « vente machine ».
+// Sert à la fois au badge affiché et au contenu de la notification gérant.
+const STATUT_MACHINE = {
+  validee: {
+    label: '✅ Explication validée',
+    box: { backgroundColor: '#EAF3DE', borderColor: '#3B6D11' },
+    txt: '#3B6D11',
+    titreNotif: '✅ Explication validée',
+    msgNotif: (d) => `L'écart de vente machine du ${d} a été validé par le manager. Aucune correction nécessaire.`,
+    confirm: 'Valider cette explication ? Le gérant sera notifié.',
+  },
+  refusee: {
+    label: '❌ Explication refusée',
+    box: { backgroundColor: '#FCEBEB', borderColor: '#A32D2D' },
+    txt: '#A32D2D',
+    titreNotif: '❌ Explication refusée',
+    msgNotif: (d) => `L'écart de vente machine du ${d} a été refusé par le manager. Merci de corriger ou de fournir une nouvelle explication.`,
+    confirm: 'Refuser cette explication ? Le gérant sera notifié.',
+  },
+  annulee: {
+    label: '🚫 Écart annulé',
+    box: { backgroundColor: '#F1EFE8', borderColor: '#854F0B' },
+    txt: '#854F0B',
+    titreNotif: '🚫 Écart annulé',
+    msgNotif: (d) => `L'écart de vente machine du ${d} a été annulé par le manager : il n'est plus pris en compte.`,
+    confirm: 'Annuler cet écart ? Il ne sera plus pris en compte et le gérant sera notifié.',
+  },
+}
+
 export default function VerificationScreen() {
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
@@ -44,6 +73,12 @@ export default function VerificationScreen() {
   const [motifCorrection, setMotifCorrection] = useState('')
   const [savingCorrection, setSavingCorrection] = useState(false)
   const [errorCorrection, setErrorCorrection] = useState('')
+  // Décision manager sur l'explication d'écart « vente machine »
+  const [statuantMachine, setStatuantMachine] = useState(false)
+  // Annulation d'écart (régularise le fond, même mécanique que Litiges)
+  const [modalAnnulerMachine, setModalAnnulerMachine] = useState(null)
+  const [annulerMontant, setAnnulerMontant] = useState('')
+  const [annulerSaving, setAnnulerSaving] = useState(false)
   // Galerie photos zoom
   const [galeriePhotos, setGaleriePhotos] = useState([])
   const [galerieIndex, setGalerieIndex] = useState(0)
@@ -65,7 +100,7 @@ export default function VerificationScreen() {
 
   async function chargerRestaurants() {
     setLoading(true)
-    const { data, error } = await supabase.from('restaurants').select('*').order('nom')
+    const { data, error } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation').order('nom')
     if (error) { setLoading(false); return }
     const restos = data || []
     setRestaurants(restos)
@@ -367,6 +402,178 @@ export default function VerificationScreen() {
       setErrorCorrection(err?.message || 'Erreur inattendue')
     } finally {
       setSavingCorrection(false)
+    }
+  }
+
+  function confirmerStatutMachine(statut) {
+    const cfg = STATUT_MACHINE[statut]
+    if (!cfg || statuantMachine) return
+    Alert.alert(cfg.titreNotif, cfg.confirm, [
+      { text: 'Retour', style: 'cancel' },
+      { text: 'Confirmer', onPress: () => statuerExplicationMachine(statut) },
+    ])
+  }
+
+  async function statuerExplicationMachine(statut) {
+    if (!pointSelectionne) return
+    const cfg = STATUT_MACHINE[statut]
+    if (!cfg) return
+    setStatuantMachine(true)
+    const maj = {
+      explication_machine_statut: statut,
+      explication_machine_statut_par: userNom || roleActif || 'Manager',
+      explication_machine_statut_at: new Date().toISOString(),
+    }
+    try {
+      const { error } = await supabase.from('points').update(maj).eq('id', pointSelectionne.id)
+      if (error) {
+        // Colonnes pas encore créées en base (migration SQL non exécutée) :
+        // on notifie quand même le gérant, mais le statut n'est pas mémorisé.
+        console.warn('Statut explication machine non persisté :', error.message)
+      } else {
+        setPointSelectionne(prev => prev ? { ...prev, ...maj } : prev)
+        setPoints(prev => prev.map(p => p.id === pointSelectionne.id ? { ...p, ...maj } : p))
+      }
+
+      creerNotification({
+        type: `explication_machine_${statut}`,
+        titre: cfg.titreNotif,
+        message: cfg.msgNotif(formatDate(pointSelectionne.date)),
+        restaurant_id: pointSelectionne.restaurant_id,
+        cible_role: ['gerant'],
+        created_by: userId || null,
+        screen: 'recap-point',
+      }).catch(() => {})
+
+      journaliser('statut_explication_machine', {
+        point_id: pointSelectionne.id,
+        statut,
+      }, { par: userNom || roleActif }).catch(() => {})
+
+      Alert.alert(
+        cfg.titreNotif,
+        error
+          ? 'Décision envoyée au gérant.\n(Statut non mémorisé — la migration SQL doit être exécutée.)'
+          : 'Décision enregistrée. Le gérant a été notifié.'
+      )
+    } catch (e) {
+      Alert.alert('Erreur', e?.message || 'Action impossible')
+    } finally {
+      setStatuantMachine(false)
+    }
+  }
+
+  // Ouvre le modal d'annulation : calcule sens + écart restant (déduction faite
+  // des régularisations déjà posées dans Litiges, pour ne pas doubler).
+  function ouvrirAnnulerMachine() {
+    const p = pointSelectionne
+    if (!p) return
+    const cumulShifts = (detailPoint?.shifts || []).reduce((s, sh) => s + (sh.vente_shift || 0), 0)
+    const venteMachine = p.vente_machine || 0
+    const ecartBrut = venteMachine - cumulShifts // convention Litiges (signe opposé à l'écart affiché)
+    const sens = ecartBrut > 0 ? 'manquant' : 'surplus'
+    const reguls = Array.isArray(p.ecart_regularisations) ? p.ecart_regularisations : []
+    const totalRegul = reguls.reduce((s, r) => s + (parseFloat(r.montant) || 0), 0)
+    let ecartEff = ecartBrut
+    if (ecartBrut < 0) ecartEff = Math.min(0, ecartBrut + totalRegul)
+    else if (ecartBrut > 0) ecartEff = Math.max(0, ecartBrut - totalRegul)
+    const restant = Math.round(Math.abs(ecartEff))
+    setAnnulerMontant(restant ? String(restant) : '')
+    setModalAnnulerMachine({
+      sens,
+      restant,
+      explication: (p.explication_ecart_machine || '').trim(),
+      photos: Array.isArray(p.ecart_photos) ? p.ecart_photos : [],
+      regulsExistantes: reguls,
+    })
+  }
+
+  // Confirme l'annulation : écrit une régularisation + ajuste ajustement_fond sur
+  // le dernier point validé — réplique exacte de enregistrerRegularisation() (litiges.js).
+  async function confirmerAnnulationMachine() {
+    const p = pointSelectionne
+    const ctx = modalAnnulerMachine
+    if (!p || !ctx) return
+    const montant = Math.round(parseFloat(annulerMontant) || 0)
+    if (montant <= 0) { Alert.alert('Montant invalide', 'Saisissez un montant supérieur à 0.'); return }
+    if (montant > ctx.restant) {
+      Alert.alert('Montant trop élevé', `Vous ne pouvez annuler que ${fmt(ctx.restant)} maximum sur cet écart.`)
+      return
+    }
+    setAnnulerSaving(true)
+    try {
+      // Sens identique à Litiges : manquant régularisé → fond +montant ; surplus → fond −montant.
+      const deltaFc = ctx.sens === 'manquant' ? montant : -montant
+
+      // La correction de fond atterrit sur le dernier point validé du resto (« fond actuel »),
+      // jamais sur le jour de l'écart : l'argent bouge aujourd'hui, on ne réécrit pas l'historique.
+      const { data: cible } = await supabase.from('points')
+        .select('id, ajustement_fond')
+        .eq('restaurant_id', p.restaurant_id).eq('valide', true)
+        .order('date', { ascending: false }).limit(1).single()
+      const cibleId = cible?.id || p.id
+
+      const record = {
+        sens: ctx.sens,
+        montant,
+        motif: ctx.explication || 'Écart annulé par le manager (vérification)',
+        photos: ctx.photos,
+        par_id: userId || null,
+        par_nom: userNom || null,
+        created_at: new Date().toISOString(),
+        fond_point_id: cibleId, // point qui a reçu la correction (pour le reverse depuis Litiges)
+        source: 'verification',
+      }
+      const nouvelles = [...ctx.regulsExistantes, record]
+      const statutMaj = {
+        explication_machine_statut: 'annulee',
+        explication_machine_statut_par: userNom || roleActif || 'Manager',
+        explication_machine_statut_at: new Date().toISOString(),
+      }
+
+      let error
+      if (cibleId === p.id) {
+        ;({ error } = await supabase.from('points').update({
+          ecart_regularisations: nouvelles,
+          ajustement_fond: (cible?.ajustement_fond || 0) + deltaFc,
+          ...statutMaj,
+        }).eq('id', p.id))
+      } else {
+        ;({ error } = await supabase.from('points').update({
+          ecart_regularisations: nouvelles, ...statutMaj,
+        }).eq('id', p.id))
+        if (!error) {
+          ;({ error } = await supabase.from('points').update({
+            ajustement_fond: (cible?.ajustement_fond || 0) + deltaFc,
+          }).eq('id', cibleId))
+        }
+      }
+      if (error) { Alert.alert('Erreur', "L'enregistrement a échoué. Réessayez."); return }
+
+      setPointSelectionne(prev => prev ? { ...prev, ...statutMaj, ecart_regularisations: nouvelles } : prev)
+      setPoints(prev => prev.map(pt => pt.id === p.id ? { ...pt, ...statutMaj, ecart_regularisations: nouvelles } : pt))
+
+      creerNotification({
+        type: 'explication_machine_annulee',
+        titre: '🚫 Écart annulé',
+        message: `L'écart de vente machine du ${formatDate(p.date)} (${ctx.sens}) a été annulé par le manager : ${fmt(montant)} neutralisé sur le fond.`,
+        restaurant_id: p.restaurant_id,
+        cible_role: ['gerant'],
+        created_by: userId || null,
+        screen: 'recap-point',
+      }).catch(() => {})
+
+      journaliser('annulation_ecart_machine', {
+        point_id: p.id, sens: ctx.sens, montant, fond_point_id: cibleId,
+      }, { par: userNom || roleActif }).catch(() => {})
+
+      setModalAnnulerMachine(null)
+      setAnnulerMontant('')
+      Alert.alert('🚫 Écart annulé', `${fmt(montant)} neutralisé sur le fond. Le gérant a été notifié.\n\nRéversible depuis l'écran Litiges.`)
+    } catch (e) {
+      Alert.alert('Erreur', e?.message || 'Action impossible')
+    } finally {
+      setAnnulerSaving(false)
     }
   }
 
@@ -765,15 +972,24 @@ export default function VerificationScreen() {
                           <Text style={[styles.recapVal, { color: '#534AB7' }]}>{fmt(p.fc_veille)}</Text>
                         </View>
                       )}
-                      {(p?.fc_compte || 0) > 0 && (
+                      {/* Fond reçu : fond_recu (Modifier le point) sinon fc_compte (validation gérant) */}
+                      {((p?.fond_recu || 0) || (p?.fc_compte || 0)) > 0 && (
                         <View style={styles.recapRow}>
-                          <Text style={styles.recapLabel}>Fc reçu</Text>
-                          <Text style={[styles.recapVal, { color: '#534AB7' }]}>{fmt(p.fc_compte)}</Text>
+                          <Text style={styles.recapLabel}>Fond reçu</Text>
+                          <Text style={[styles.recapVal, { color: '#534AB7' }]}>{fmt((p?.fond_recu || 0) || (p?.fc_compte || 0))}</Text>
+                        </View>
+                      )}
+                      {(p?.ajustement_fond || 0) !== 0 && (
+                        <View style={styles.recapRow}>
+                          <Text style={styles.recapLabel}>Ajustement écart</Text>
+                          <Text style={[styles.recapVal, { color: (p.ajustement_fond || 0) >= 0 ? '#2E7D32' : '#C62828' }]}>
+                            {(p.ajustement_fond || 0) > 0 ? '+' : ''}{fmt(p.ajustement_fond)}
+                          </Text>
                         </View>
                       )}
                       <View style={[styles.recapRow, styles.recapRowTotal]}>
                         <Text style={[styles.recapLabel, { fontWeight: '700' }]}>Reste + Fc</Text>
-                        <Text style={[styles.recapVal, { color: '#534AB7', fontWeight: '700' }]}>{fmt(p?.reste_fc || 0)}</Text>
+                        <Text style={[styles.recapVal, { color: '#534AB7', fontWeight: '700' }]}>{fmt((p?.reste_fc || 0) + (p?.ajustement_fond || 0))}</Text>
                       </View>
 
                       <View style={styles.recapSep} />
@@ -962,6 +1178,10 @@ export default function VerificationScreen() {
                 const venteTheo = detailPoint.shifts.reduce((s, sh) => s + (sh.vente_shift || 0), 0)
                 if (venteMachine == null && !p?.explication_ecart_machine) return null
                 const ecart = venteMachine != null ? venteTheo - venteMachine : null
+                // Régularisations déjà posées sur cet écart (partagées avec l'écran Litiges)
+                const regulsMachine = Array.isArray(p?.ecart_regularisations) ? p.ecart_regularisations : []
+                const totalRegulMachine = regulsMachine.reduce((s, r) => s + (parseFloat(r?.montant) || 0), 0)
+                const resteMachine = Math.max(0, Math.round((ecart != null ? Math.abs(ecart) : 0) - totalRegulMachine))
                 return (
                   <View style={{ marginBottom: 14 }}>
                     <Text style={styles.sectionTitre}>📊 Vente machine</Text>
@@ -991,6 +1211,19 @@ export default function VerificationScreen() {
                           )}
                         </View>
                       )}
+                      {totalRegulMachine > 0 && (
+                        <View style={styles.machineRegulRecap}>
+                          <View style={styles.machineRegulRow}>
+                            <Text style={styles.machineRegulLabel}>Déjà régularisé</Text>
+                            <Text style={[styles.machineRegulVal, { color: '#3B6D11' }]}>{fmt(totalRegulMachine)}</Text>
+                          </View>
+                          <View style={styles.machineRegulRow}>
+                            <Text style={styles.machineRegulLabel}>Reste à régulariser</Text>
+                            <Text style={[styles.machineRegulVal, { color: resteMachine > 0 ? '#A32D2D' : '#3B6D11' }]}>{fmt(resteMachine)}</Text>
+                          </View>
+                          <Text style={styles.machineRegulNote}>{"Détail et réversion dans l'écran Litiges."}</Text>
+                        </View>
+                      )}
                       {p?.explication_ecart_machine ? (
                         <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: '#ddd' }}>
                           <Text style={[styles.recapLabel, { marginBottom: 6 }]}>📝 Explication :</Text>
@@ -1003,6 +1236,33 @@ export default function VerificationScreen() {
                           <Text style={{ fontSize: 12, color: '#A32D2D', fontWeight: '600' }}>
                             ⚠️ Aucune explication fournie
                           </Text>
+                        </View>
+                      ) : null}
+                      {Array.isArray(p?.ecart_responsables) && p.ecart_responsables.length > 0 ? (
+                        <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: '#ddd' }}>
+                          <Text style={[styles.recapLabel, { marginBottom: 6 }]}>👤 Responsables du {ecart != null && ecart > 0 ? 'surplus' : 'manquant'} :</Text>
+                          {p.ecart_responsables.map((r, i) => (
+                            <View key={i} style={styles.recapRow}>
+                              <Text style={styles.recapLabel}>{r.nom}</Text>
+                              <Text style={[styles.recapVal, { color: '#A32D2D', fontWeight: '700' }]}>{fmt(r.montant)}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      ) : null}
+                      {Array.isArray(p?.ecart_photos) && p.ecart_photos.length > 0 ? (
+                        <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: '#ddd' }}>
+                          <Text style={[styles.recapLabel, { marginBottom: 8 }]}>📷 Photos justificatives :</Text>
+                          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                            {p.ecart_photos.map((uri, i) => (
+                              <TouchableOpacity
+                                key={i}
+                                onPress={() => ouvriGalerie(p.ecart_photos.map((u, j) => ({ uri: u, label: `Justificatif ${j + 1}` })))}
+                                activeOpacity={0.85}
+                              >
+                                <Image source={{ uri }} style={{ width: 80, height: 80, borderRadius: 8 }} />
+                              </TouchableOpacity>
+                            ))}
+                          </View>
                         </View>
                       ) : null}
                       {p?.photo_vente_machine ? (
@@ -1023,6 +1283,49 @@ export default function VerificationScreen() {
                       ) : (
                         <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: '#ddd' }}>
                           <Text style={{ fontSize: 12, color: '#aaa' }}>📷 Aucune photo de caisse enregistrée</Text>
+                        </View>
+                      )}
+
+                      {/* Décision manager sur l'explication (seulement s'il y a un écart) */}
+                      {ecart != null && ecart !== 0 && (
+                        <View style={styles.machineDecisionBox}>
+                          {p?.explication_machine_statut && STATUT_MACHINE[p.explication_machine_statut] ? (
+                            <View style={[styles.machineStatutBadge, STATUT_MACHINE[p.explication_machine_statut].box]}>
+                              <Text style={[styles.machineStatutTxt, { color: STATUT_MACHINE[p.explication_machine_statut].txt }]}>
+                                {STATUT_MACHINE[p.explication_machine_statut].label}
+                                {p.explication_machine_statut_par ? ` — ${p.explication_machine_statut_par}` : ''}
+                              </Text>
+                            </View>
+                          ) : (
+                            <Text style={styles.machineDecisionHint}>{"Décision sur l'explication :"}</Text>
+                          )}
+                          <View style={styles.machineBtnRow}>
+                            <TouchableOpacity
+                              style={[styles.machineBtn, styles.machineBtnValider, statuantMachine && { opacity: 0.5 }]}
+                              onPress={() => confirmerStatutMachine('validee')}
+                              disabled={statuantMachine}
+                              activeOpacity={0.85}
+                            >
+                              <Text style={styles.machineBtnTxt}>✅ Valider</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.machineBtn, styles.machineBtnRefuser, statuantMachine && { opacity: 0.5 }]}
+                              onPress={() => confirmerStatutMachine('refusee')}
+                              disabled={statuantMachine}
+                              activeOpacity={0.85}
+                            >
+                              <Text style={styles.machineBtnTxt}>❌ Refuser</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.machineBtn, styles.machineBtnAnnuler, statuantMachine && { opacity: 0.5 }]}
+                              onPress={ouvrirAnnulerMachine}
+                              disabled={statuantMachine}
+                              activeOpacity={0.85}
+                            >
+                              <Text style={styles.machineBtnTxt}>🚫 Annuler</Text>
+                            </TouchableOpacity>
+                          </View>
+                          <Text style={styles.machineDecisionNote}>Le gérant est notifié. « Annuler » régularise aussi le fond.</Text>
                         </View>
                       )}
                     </View>
@@ -2084,6 +2387,71 @@ export default function VerificationScreen() {
       </Modal>
 
       {/* ══════════════════════════════════════════
+          MODAL ANNULER ÉCART (régularise le fond)
+      ══════════════════════════════════════════ */}
+      <Modal visible={modalAnnulerMachine != null} animationType="fade" transparent onRequestClose={() => setModalAnnulerMachine(null)}>
+        <View style={styles.annulerOverlay}>
+          <View style={styles.annulerCard}>
+            <Text style={styles.annulerTitre}>{"🚫 Annuler l'écart"}</Text>
+            {modalAnnulerMachine && (
+              <>
+                <View style={[styles.annulerSensBadge, { backgroundColor: modalAnnulerMachine.sens === 'manquant' ? '#FCEBEB' : '#FAEEDA' }]}>
+                  <Text style={[styles.annulerSensTxt, { color: modalAnnulerMachine.sens === 'manquant' ? '#A32D2D' : '#854F0B' }]}>
+                    {modalAnnulerMachine.sens === 'manquant' ? 'Manquant' : 'Surplus'} — reste {fmt(modalAnnulerMachine.restant)}
+                  </Text>
+                </View>
+
+                <Text style={styles.annulerEffet}>
+                  {modalAnnulerMachine.sens === 'manquant'
+                    ? '→ Le fond actuel sera AUGMENTÉ du montant annulé.'
+                    : '→ Le fond actuel sera DIMINUÉ du montant annulé.'}
+                </Text>
+
+                {modalAnnulerMachine.restant <= 0 ? (
+                  <Text style={styles.annulerDejaTxt}>✅ Cet écart est déjà entièrement régularisé.</Text>
+                ) : (
+                  <>
+                    <Text style={styles.annulerLabel}>Montant à annuler</Text>
+                    <TextInput
+                      style={styles.annulerInput}
+                      keyboardType="numeric"
+                      value={annulerMontant}
+                      onChangeText={setAnnulerMontant}
+                      placeholder={String(modalAnnulerMachine.restant)}
+                      placeholderTextColor="#bbb"
+                    />
+                    <Text style={styles.annulerHint}>{`Max ${fmt(modalAnnulerMachine.restant)} — justificatif repris de l'explication du gérant.`}</Text>
+                    {modalAnnulerMachine.explication ? (
+                      <Text style={styles.annulerExplication} numberOfLines={3}>📝 {modalAnnulerMachine.explication}</Text>
+                    ) : null}
+                  </>
+                )}
+
+                <View style={styles.annulerBtnRow}>
+                  <TouchableOpacity
+                    style={[styles.annulerBtn, styles.annulerBtnCancel]}
+                    onPress={() => setModalAnnulerMachine(null)}
+                    disabled={annulerSaving}
+                  >
+                    <Text style={styles.annulerBtnCancelTxt}>Retour</Text>
+                  </TouchableOpacity>
+                  {modalAnnulerMachine.restant > 0 && (
+                    <TouchableOpacity
+                      style={[styles.annulerBtn, styles.annulerBtnConfirm, annulerSaving && { opacity: 0.5 }]}
+                      onPress={confirmerAnnulationMachine}
+                      disabled={annulerSaving}
+                    >
+                      <Text style={styles.annulerBtnConfirmTxt}>{annulerSaving ? '...' : 'Confirmer'}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ══════════════════════════════════════════
           MODAL DEMANDE DE CORRECTION
       ══════════════════════════════════════════ */}
       <Modal visible={modalCorrection} animationType="slide" presentationStyle="pageSheet">
@@ -2362,6 +2730,41 @@ function makeStyles(colors) { return StyleSheet.create({
   correctionCharCount: { fontSize: 10, color: '#bbb', textAlign: 'right', marginTop: 4, marginBottom: 6 },
   correctionConfirmBtn: { backgroundColor: '#854F0B', borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 16 },
   correctionConfirmTxt: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  // ─── Décision « vente machine » ───
+  machineDecisionBox: { marginTop: 12, paddingTop: 12, borderTopWidth: 0.5, borderTopColor: '#ddd' },
+  machineDecisionHint: { fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: 8 },
+  machineStatutBadge: { borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 10, alignSelf: 'flex-start' },
+  machineStatutTxt: { fontSize: 13, fontWeight: '700' },
+  machineBtnRow: { flexDirection: 'row', gap: 8 },
+  machineBtn: { flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  machineBtnValider: { backgroundColor: '#3B6D11' },
+  machineBtnRefuser: { backgroundColor: '#A32D2D' },
+  machineBtnAnnuler: { backgroundColor: '#854F0B' },
+  machineBtnTxt: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  machineDecisionNote: { fontSize: 11, color: colors.textMuted, textAlign: 'center', marginTop: 8 },
+  machineRegulRecap: { marginTop: 8, backgroundColor: '#F3F7EE', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#DDEBCB' },
+  machineRegulRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 },
+  machineRegulLabel: { fontSize: 12, color: colors.text },
+  machineRegulVal: { fontSize: 13, fontWeight: '700' },
+  machineRegulNote: { fontSize: 10, color: colors.textMuted, marginTop: 4 },
+  // ─── Modal « Annuler l'écart » ───
+  annulerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 },
+  annulerCard: { backgroundColor: colors.surface, borderRadius: 18, padding: 20 },
+  annulerTitre: { fontSize: 17, fontWeight: '800', color: colors.text, marginBottom: 12, textAlign: 'center' },
+  annulerSensBadge: { alignSelf: 'center', borderRadius: 10, paddingVertical: 6, paddingHorizontal: 14, marginBottom: 10 },
+  annulerSensTxt: { fontSize: 13, fontWeight: '700' },
+  annulerEffet: { fontSize: 12, color: colors.textMuted, textAlign: 'center', marginBottom: 14 },
+  annulerDejaTxt: { fontSize: 13, color: '#3B6D11', textAlign: 'center', marginVertical: 10, fontWeight: '600' },
+  annulerLabel: { fontSize: 12, fontWeight: '700', color: colors.text, marginBottom: 6 },
+  annulerInput: { borderRadius: 12, padding: 14, fontSize: 18, fontWeight: '700', color: colors.text, borderWidth: 1.5, borderColor: colors.border, textAlign: 'center' },
+  annulerHint: { fontSize: 11, color: colors.textMuted, marginTop: 6 },
+  annulerExplication: { fontSize: 12, color: '#444', fontStyle: 'italic', marginTop: 8, backgroundColor: '#f7f7f7', borderRadius: 8, padding: 8 },
+  annulerBtnRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  annulerBtn: { flex: 1, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
+  annulerBtnCancel: { backgroundColor: '#eee' },
+  annulerBtnCancelTxt: { fontSize: 14, fontWeight: '600', color: '#555' },
+  annulerBtnConfirm: { backgroundColor: '#854F0B' },
+  annulerBtnConfirmTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
   // ─── Inventaire Résumé global ───
   invResumeCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 0.5, borderColor: colors.border },
   invResumeRow: { flexDirection: 'row', gap: 10 },

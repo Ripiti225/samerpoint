@@ -295,7 +295,7 @@ export default function DashboardGlobalScreen() {
   // ---- Pilier 7 — Comportement clients (consolidé) ----
   function montantLivraisonResto(restId) {
     return (points[restId] || []).reduce((sum, p) =>
-      sum + (p.yango_tab || 0) + (p.glovo_tab || 0), 0)
+      sum + (p.yango_cse || 0) + (p.glovo_cse || 0), 0)
   }
   const livraisonGlobalMt = restosVus.reduce((sum, r) => sum + montantLivraisonResto(r.id), 0)
   const surPlaceGlobalMt = Math.max(caGlobal - livraisonGlobalMt, 0)
@@ -308,8 +308,8 @@ export default function DashboardGlobalScreen() {
     return allPointsFlat.reduce((sum, p) => sum + (parseFloat(p[champ]) || 0), 0)
   }
   const dataMixCanauxGlobal = [
-    { x: 'Yango', y: sommeChamp('yango_tab') },
-    { x: 'Glovo', y: sommeChamp('glovo_tab') },
+    { x: 'Yango', y: sommeChamp('yango_cse') },
+    { x: 'Glovo', y: sommeChamp('glovo_cse') },
     { x: 'Wave', y: sommeChamp('wave') },
     { x: 'OM', y: sommeChamp('om') },
     { x: 'Djamo', y: sommeChamp('djamo') },

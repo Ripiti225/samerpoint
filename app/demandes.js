@@ -60,6 +60,7 @@ import { useTheme } from '../context/ThemeContext'
 import { journaliser } from '../lib/journal'
 import { TYPES_DEMANDE } from '../lib/constants'
 import { creerNotification } from '../lib/notificationsInterne'
+import { envoyerNotifDemandeNouvelle } from '../lib/notifications'
 import { supabase } from '../lib/supabase'
 
 const STATUT_CONFIG = {
@@ -91,6 +92,7 @@ export default function DemandesScreen() {
   const [formType, setFormType] = useState(null)        // TYPES_DEMANDE item
   const [formTrav, setFormTrav] = useState(null)        // { id, nom }
   const [formDesc, setFormDesc] = useState('')
+  const [formMontant, setFormMontant] = useState('')
   const [formDateDebut, setFormDateDebut] = useState('')
   const [formDateFin, setFormDateFin] = useState('')
   const [dateChamp, setDateChamp] = useState(null)      // 'debut' | 'fin' | null
@@ -114,6 +116,7 @@ export default function DemandesScreen() {
     setFormType(null)
     setFormTrav(null)
     setFormDesc('')
+    setFormMontant('')
     setFormDateDebut('')
     setFormDateFin('')
     setDateChamp(null)
@@ -128,6 +131,9 @@ export default function DemandesScreen() {
     if (formType.necessiteDates && formDateFin < formDateDebut) {
       return Alert.alert('Erreur', 'La date de fin doit être après la date de début')
     }
+    if (formType.necessiteMontant && !(parseFloat(formMontant) > 0)) {
+      return Alert.alert('Montant requis', 'Saisissez le montant demandé (supérieur à 0) pour ce type de demande.')
+    }
     setSaving(true)
     const { error } = await supabase.from('demandes').insert({
       restaurant_id: restaurantId,
@@ -137,6 +143,7 @@ export default function DemandesScreen() {
       necessite_dates: formType.necessiteDates,
       date_debut: formType.necessiteDates ? formDateDebut : null,
       date_fin: formType.necessiteDates ? formDateFin : null,
+      montant: formType.necessiteMontant ? (parseFloat(formMontant) || 0) : null,
       description: formDesc.trim() || null,
       statut: 'en_attente',
       cree_par_id: userId,
@@ -151,10 +158,11 @@ export default function DemandesScreen() {
       titre: 'Nouvelle demande',
       message: `${formType.icon} ${formType.label} pour ${formTrav.nom} — ${restaurantNom}`,
       restaurant_id: restaurantId,
-      cible_role: ['directeur', 'rh'],
+      cible_role: ['directeur', 'rh', 'manager'],
       created_by: userId,
       screen: 'demandes-admin',
     }).catch(() => {})
+    envoyerNotifDemandeNouvelle(formTrav.nom, `${formType.icon} ${formType.label}`, restaurantId).catch(() => {})
     journaliser({ action: 'demande_creee', details: `${formType.label} pour ${formTrav.nom}`, userId, restaurantId }).catch(() => {})
     setSaving(false)
     setShowModal(false)
@@ -213,11 +221,17 @@ export default function DemandesScreen() {
                 {d.date_debut && (
                   <Text style={styles.cardDates}>📅 {fmtDate(d.date_debut)} → {fmtDate(d.date_fin)}</Text>
                 )}
+                {d.montant > 0 && (
+                  <Text style={styles.cardMontant}>💰 Montant demandé : {Math.round(d.montant).toLocaleString('fr-FR')} FCFA</Text>
+                )}
                 {d.description ? <Text style={styles.cardDesc}>"{d.description}"</Text> : null}
                 <Text style={styles.cardMeta}>
                   Soumis le {fmtDate(d.created_at?.split('T')[0])}
                   {d.cree_par_nom ? ` par ${d.cree_par_nom}` : ''}
                 </Text>
+                {d.statut === 'validee' && d.montant_alloue > 0 && (
+                  <Text style={styles.cardMontant}>✅ Montant alloué : {Math.round(d.montant_alloue).toLocaleString('fr-FR')} FCFA</Text>
+                )}
                 {d.statut === 'validee' && d.traite_par_nom && (
                   <Text style={styles.cardMeta}>✅ Validé par {d.traite_par_nom}</Text>
                 )}
@@ -330,6 +344,21 @@ export default function DemandesScreen() {
                     </>
                   )}
 
+                  {/* Montant — seulement pour les demandes financières */}
+                  {formType?.necessiteMontant && (
+                    <>
+                      <Text style={styles.label}>Montant demandé (FCFA)</Text>
+                      <TextInput
+                        style={[styles.input, { color: colors.text, borderColor: colors.border }]}
+                        placeholder="Ex : 50000"
+                        placeholderTextColor={colors.textMuted}
+                        keyboardType="numeric"
+                        value={formMontant}
+                        onChangeText={v => setFormMontant(v.replace(/[^0-9]/g, ''))}
+                      />
+                    </>
+                  )}
+
                   {/* Description */}
                   <Text style={styles.label}>Description (optionnelle)</Text>
                   <TextInput
@@ -380,6 +409,7 @@ function makeStyles(colors) {
     statutTxt: { fontSize: 12, fontWeight: '600' },
     cardTrav: { fontSize: 14, color: colors.text, fontWeight: '600', marginBottom: 4 },
     cardDates: { fontSize: 13, color: colors.textMuted, marginBottom: 4 },
+    cardMontant: { fontSize: 13, color: '#3B6D11', fontWeight: '700', marginBottom: 4 },
     cardDesc: { fontSize: 13, color: colors.textMuted, fontStyle: 'italic', marginBottom: 4 },
     cardMeta: { fontSize: 12, color: colors.textMuted, marginTop: 4 },
     declineBox: { backgroundColor: '#FAECE7', borderRadius: 8, padding: 10, marginTop: 8 },
@@ -403,6 +433,7 @@ function makeStyles(colors) {
     dateBtn: { flex: 1, backgroundColor: colors.background, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
     dateBtnActive: { backgroundColor: '#534AB7', borderColor: '#534AB7' },
     dateBtnTxt: { fontSize: 13, color: colors.textMuted, fontWeight: '500' },
+    input: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 15, marginBottom: 16, backgroundColor: colors.background },
     textArea: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 14, minHeight: 80, textAlignVertical: 'top', marginBottom: 16, backgroundColor: colors.background },
     submitBtn: { backgroundColor: '#534AB7', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
     submitBtnTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },

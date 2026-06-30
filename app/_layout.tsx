@@ -1,3 +1,4 @@
+import '../lib/webAlert' // remplace Alert.alert (no-op sur web) par window.alert/confirm
 import * as Notifications from 'expo-notifications'
 import { router, Stack, useSegments } from 'expo-router'
 import { useEffect, useRef } from 'react'

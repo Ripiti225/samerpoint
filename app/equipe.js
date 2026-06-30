@@ -63,7 +63,7 @@ export default function EquipeScreen() {
 
   async function chargerEquipe() {
     setLoading(true)
-    const { data: restos } = await supabase.from('restaurants').select('*').order('nom')
+    const { data: restos } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation').order('nom')
     setRestaurants(restos || [])
 
     const { data } = await supabase
@@ -187,10 +187,17 @@ export default function EquipeScreen() {
             </View>
           </View>
         </View>
-        <View style={[styles.actifBadge, { backgroundColor: inactif ? '#FAECE7' : '#EAF3DE' }]}>
-          <Text style={[styles.actifTxt, { color: inactif ? '#993C1D' : '#3B6D11' }]}>
-            {inactif ? 'Inactif' : 'Actif'}
-          </Text>
+        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+          <View style={[styles.actifBadge, { backgroundColor: inactif ? '#FAECE7' : '#EAF3DE' }]}>
+            <Text style={[styles.actifTxt, { color: inactif ? '#993C1D' : '#3B6D11' }]}>
+              {inactif ? 'Inactif' : 'Actif'}
+            </Text>
+          </View>
+          {t.date_embauche ? (
+            <Text style={styles.travDateDebut}>
+              📅 {new Date(t.date_embauche).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </Text>
+          ) : null}
         </View>
       </TouchableOpacity>
     )
@@ -368,6 +375,15 @@ export default function EquipeScreen() {
                       {travProfil?.statut === 'archive' ? 'Archivé' : travProfil?.actif ? 'Actif' : 'Inactif'}
                     </Text>
                   </View>
+                  {travProfil?.date_embauche ? (
+                    <View style={styles.carteRow}>
+                      <Text style={styles.carteRowIcon}>📅</Text>
+                      <Text style={styles.carteRowLabel}>{"Date d'embauche"}</Text>
+                      <Text style={styles.carteRowVal}>
+                        {new Date(travProfil.date_embauche).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
 
                 <View style={styles.carteDivider} />
@@ -474,6 +490,7 @@ function makeStyles(colors) { return StyleSheet.create({
   travPoste: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   travContact: { fontSize: 11, color: colors.primary, marginTop: 2 },
   travBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 },
+  travDateDebut: { fontSize: 11, color: colors.textMuted, marginTop: 4 },
   restoBadge: { backgroundColor: colors.surfaceAlt, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, alignSelf: 'flex-start' },
   restoTxt: { fontSize: 10, color: colors.textSecondary },
   idBadge: { backgroundColor: colors.primaryLight, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, alignSelf: 'flex-start' },

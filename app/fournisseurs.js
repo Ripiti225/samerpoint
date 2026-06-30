@@ -32,6 +32,7 @@ export default function FournisseursScreen() {
   const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState(null)
   const [validatedIds, setValidatedIds] = useState(new Set())
+  const [savedAmounts, setSavedAmounts] = useState({})
   const today = new Date().toISOString().split('T')[0]
 
   useEffect(() => {
@@ -235,14 +236,28 @@ export default function FournisseursScreen() {
     }
   }
 
-  async function validerFournisseur(f) {
-    if (!pointId) { Alert.alert('Erreur', 'Aucun point actif'); return }
+  // Sauvegarde d'un fournisseur (cœur, sans Alert). Retourne { ok, raison, skip }.
+  async function saveFournisseur(f) {
     const t = getTransaction(f.id)
-    if (parseFloat(t.facture) > 0 && !t.photoUri) {
-      Alert.alert('Photo manquante', `Ajoutez une photo de la facture pour "${f.nom}" avant de valider.`)
-      return
+    const factureAmount = parseFloat(t.facture) || 0
+    const payeAmount = parseFloat(t.paye) || 0
+    if (!factureAmount && !payeAmount) return { ok: true, skip: true }
+    if (factureAmount > 0 && !t.photoUri) return { ok: false, raison: 'photo' }
+    if (factureAmount > 0) {
+      const saisiParCourant = roleActif === 'caissier' ? 'caissier' : 'gerant'
+      const { data: existants } = await supabase
+        .from('transactions_fournisseurs')
+        .select('caissier_nom, saisi_par')
+        .eq('point_id', pointId)
+        .eq('fournisseur_id', f.id)
+        .eq('facture', factureAmount)
+      const doublon = (existants || []).find(tx => {
+        const isOwn = tx.saisi_par === saisiParCourant &&
+          (saisiParCourant === 'gerant' || tx.caissier_nom === userNom)
+        return !isOwn
+      })
+      if (doublon) return { ok: false, raison: 'doublon' }
     }
-    setSavingId(f.id)
     const credit = creditVeille(f.id)
     const saisiPar = roleActif === 'caissier' ? 'caissier' : 'gerant'
     const ok = await saveOneTransactionFournisseur(pointId, f.id, t, credit, saisiPar, userNom, restaurantId, userId, f.nom)
@@ -291,9 +306,104 @@ export default function FournisseursScreen() {
           [f.id]: { facture: '', paye: '', hasPhoto: prev[f.id]?.hasPhoto || false, photoUri: prev[f.id]?.photoUri || null },
         }))
       }
+    } else {
+      return { ok: false, raison: 'erreur' }
+    }
+    setValidatedIds(prev => new Set([...prev, f.id]))
+    setSavedAmounts(prev => ({ ...prev, [f.id]: { facture: factureAmount, paye: payeAmount } }))
+    return { ok: true }
+  }
+
+  // Enregistrement global : sauvegarde en une fois tous les fournisseurs saisis.
+  async function enregistrerTout() {
+    if (!pointId) { Alert.alert('Erreur', 'Aucun point actif'); return }
+    const aSauver = fournisseurs.filter(f => {
+      const t = getTransaction(f.id)
+      return (parseFloat(t.facture) || 0) > 0 || (parseFloat(t.paye) || 0) > 0
+    })
+    if (aSauver.length === 0) {
+      Alert.alert('Rien à enregistrer', 'Saisissez au moins une facture ou un paiement.')
+      return
+    }
+    // Photos obligatoires pour les factures > 0
+    const sansPhoto = aSauver.filter(f => {
+      const t = getTransaction(f.id)
+      return (parseFloat(t.facture) || 0) > 0 && !t.photoUri
+    })
+    if (sansPhoto.length) {
+      Alert.alert('Photo manquante', `Ajoutez une photo de la facture pour :\n${sansPhoto.map(f => `• ${f.nom}`).join('\n')}`)
+      return
+    }
+    setSavingId('ALL')
+    let nbOk = 0
+    const doublons = []
+    for (const f of aSauver) {
+      const r = await saveFournisseur(f)
+      if (r.ok && !r.skip) nbOk++
+      else if (r.raison === 'doublon') doublons.push(f.nom)
     }
     setSavingId(null)
-    setValidatedIds(prev => new Set([...prev, f.id]))
+    let msg = `${nbOk} fournisseur(s) enregistré(s).`
+    if (doublons.length) msg += `\n\n🚫 Ignorés (facture en double) : ${doublons.join(', ')}.`
+    Alert.alert('✅ Enregistrement terminé', msg)
+  }
+
+  // Suppression volontaire d'une transaction fournisseur déjà enregistrée sur ce point.
+  // Le crédit revient au solde d'avant la transaction (creditVeille).
+  async function supprimerFournisseur(f) {
+    if (!pointId) { Alert.alert('Erreur', 'Aucun point actif'); return }
+    Alert.alert(
+      'Supprimer la transaction ?',
+      `Annuler la facture/paiement enregistré pour "${f.nom}" sur ce point ?\n\nLe crédit reviendra au solde précédent.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: '🗑 Supprimer', style: 'destructive',
+          onPress: async () => {
+            setSavingId(f.id)
+            const saisiPar = roleActif === 'caissier' ? 'caissier' : 'gerant'
+
+            // 1) Supprimer la transaction du point pour ce fournisseur / rôle courant
+            let delQ = supabase.from('transactions_fournisseurs')
+              .delete()
+              .eq('point_id', pointId)
+              .eq('fournisseur_id', f.id)
+              .eq('saisi_par', saisiPar)
+            if (saisiPar === 'caissier') {
+              if (userId) delQ = delQ.eq('caissier_id', userId)
+              else if (userNom) delQ = delQ.eq('caissier_nom', userNom)
+            }
+            await delQ
+
+            // 2) Rétablir credit_actuel au solde d'avant (gérant uniquement)
+            const creditAvant = creditVeille(f.id)
+            if (saisiPar !== 'caissier') {
+              await supabase.from('fournisseurs').update({ credit_actuel: creditAvant }).eq('id', f.id)
+              setFournisseurs(prev => prev.map(item =>
+                item.id === f.id ? { ...item, credit_actuel: creditAvant } : item
+              ))
+            }
+
+            // 3) Supprimer les lignes d'historique de cette transaction
+            const motifPrefix = saisiPar === 'caissier' ? `caissier|${today}|` : `Journée du ${dateJour || today}: `
+            await supabase.from('historique_credit_fournisseurs')
+              .delete()
+              .eq('fournisseur_id', f.id)
+              .eq('restaurant_id', restaurantId)
+              .like('motif', `${motifPrefix}%`)
+
+            // 4) Réinitialiser l'état local
+            setValidatedIds(prev => { const n = new Set(prev); n.delete(f.id); return n })
+            setSavedAmounts(prev => { const n = { ...prev }; delete n[f.id]; return n })
+            setFournisseursJour(prev => ({
+              ...prev,
+              [f.id]: { facture: '', paye: '', hasPhoto: false, photoUri: null },
+            }))
+            setSavingId(null)
+          },
+        },
+      ]
+    )
   }
 
   if (loading) {
@@ -478,25 +588,27 @@ export default function FournisseursScreen() {
                               <Text style={styles.photoWarning}>⚠️ Photo de la facture obligatoire</Text>
                             )}
 
-                            {/* Bouton Valider individuel */}
-                            {(hasActivity || credit !== 0) && (
-                              <TouchableOpacity
-                                style={[
-                                  styles.validerBtn,
-                                  validatedIds.has(f.id) && styles.validerBtnDone,
-                                  savingId === f.id && { opacity: 0.6 },
-                                ]}
-                                onPress={() => validerFournisseur(f)}
-                                disabled={savingId === f.id}
-                              >
-                                <Text style={[styles.validerBtnTxt, validatedIds.has(f.id) && styles.validerBtnTxtDone]}>
-                                  {savingId === f.id
-                                    ? 'Enregistrement...'
-                                    : validatedIds.has(f.id)
-                                    ? '✅ Validé'
-                                    : '✅ Valider'}
-                                </Text>
-                              </TouchableOpacity>
+                            {/* Statut + suppression — l'enregistrement se fait via le bouton global en bas */}
+                            {validatedIds.has(f.id) && (
+                              <>
+                                <View style={[styles.validerBtn, styles.validerBtnDone]}>
+                                  <Text style={styles.validerBtnTxtDone}>✅ Enregistré</Text>
+                                </View>
+                                {savedAmounts[f.id] && (savedAmounts[f.id].facture > 0 || savedAmounts[f.id].paye > 0) && (
+                                  <Text style={styles.savedAmountTxt}>
+                                    {savedAmounts[f.id].facture > 0 ? `Facture : ${fmt(savedAmounts[f.id].facture)}` : ''}
+                                    {savedAmounts[f.id].facture > 0 && savedAmounts[f.id].paye > 0 ? '  •  ' : ''}
+                                    {savedAmounts[f.id].paye > 0 ? `Payé : ${fmt(savedAmounts[f.id].paye)}` : ''}
+                                  </Text>
+                                )}
+                                <TouchableOpacity
+                                  style={styles.supprimerBtn}
+                                  onPress={() => supprimerFournisseur(f)}
+                                  disabled={!!savingId}
+                                >
+                                  <Text style={styles.supprimerBtnTxt}>🗑 Supprimer la transaction</Text>
+                                </TouchableOpacity>
+                              </>
                             )}
                           </>
                         )}
@@ -555,6 +667,20 @@ export default function FournisseursScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
+      {/* Enregistrement global — une seule sauvegarde pour tous les fournisseurs */}
+      {!estBloque(pointValide) && (
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={[styles.enregistrerBtn, savingId === 'ALL' && { opacity: 0.6 }]}
+            onPress={enregistrerTout}
+            disabled={savingId === 'ALL'}
+          >
+            <Text style={styles.enregistrerBtnTxt}>
+              {savingId === 'ALL' ? 'Enregistrement…' : '💾 Enregistrer'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   )
 }
@@ -615,4 +741,10 @@ function makeStyles(colors) { return StyleSheet.create({
   validerBtnDone: { backgroundColor: '#EAF3DE' },
   validerBtnTxt: { fontSize: 13, fontWeight: '600', color: '#412402' },
   validerBtnTxtDone: { color: '#3B6D11' },
+  savedAmountTxt: { fontSize: 11, color: colors.textMuted, textAlign: 'center', marginTop: 4 },
+  supprimerBtn: { marginTop: 8, backgroundColor: '#FAECE7', borderRadius: 10, padding: 9, alignItems: 'center', borderWidth: 0.5, borderColor: '#E0A99B' },
+  supprimerBtnTxt: { fontSize: 12, fontWeight: '600', color: '#A32D2D' },
+  footer: { backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border, padding: 12 },
+  enregistrerBtn: { backgroundColor: '#3B6D11', borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
+  enregistrerBtnTxt: { fontSize: 16, fontWeight: '700', color: '#fff' },
 }) }

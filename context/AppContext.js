@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { Platform } from 'react-native'
+import { Alert, Platform } from 'react-native'
 import { COEFFICIENTS, depensesVides } from '../lib/constants'
 
 const AppContext = createContext()
 
 const SESSION_KEY = 'samerpoint_session'
-const SESSION_MAX_AGE = 8 * 60 * 60 * 1000
+const SESSION_MAX_AGE = 24 * 60 * 60 * 1000
 
 let _sessionLoggedInAt = null
 
@@ -96,6 +96,8 @@ export function AppProvider({ children }) {
     espece_shifts: 0,
     venteMachine: '',
     explicacionEcartMachine: '',
+    ecartResponsables: [],
+    ecartPhotos: [],
     photoVenteMachine: null,
     photo_yango_cse: null,
     photo_glovo_cse: null,
@@ -217,8 +219,58 @@ export function AppProvider({ children }) {
     )
   }
 
+  // Y a-t-il un VRAI brouillon non enregistré en mémoire ? On exclut les champs
+  // ventes auto-remplis depuis les shifts (yangoCse, glovoCse, wave, om, djamo,
+  // kdo, retour, fcVeille, espece_shifts) qui ne sont pas des saisies de l'utilisateur.
+  function aDonneesSaisies() {
+    const v = ventesJour || {}
+    const champsSaisis = ['venteMachine', 'fc_recu', 'yangoTab', 'glovoTab', 'yangoNbCommandes', 'glovoNbCommandes']
+    const ventesRemplies =
+      (Array.isArray(v.sequences) && v.sequences.length > 0) ||
+      (Array.isArray(v.ecartResponsables) && v.ecartResponsables.length > 0) ||
+      (Array.isArray(v.ecartPhotos) && v.ecartPhotos.length > 0) ||
+      (v.explicacionEcartMachine || '').trim() !== '' ||
+      champsSaisis.some(k => v[k] != null && String(v[k]).trim() !== '')
+
+    const depRemplies = [depensesJour, depensesGerantCaisse].some(d =>
+      Object.values(d || {}).some(arr =>
+        Array.isArray(arr) && arr.some(l => (parseFloat(l?.montant) || 0) > 0 || (l?.description || '').trim() !== '')))
+
+    const fourRemplis = [fournisseursJour, fournisseursGerantCaisse].some(f =>
+      Object.values(f || {}).some(t =>
+        (parseFloat(t?.facture) || 0) > 0 || (parseFloat(t?.montant_facture) || 0) > 0 || (parseFloat(t?.paye) || 0) > 0))
+
+    const presRemplies = Object.keys(presencesJour || {}).length > 0
+    const paiesRemplies =
+      Object.values(paiesJour || {}).some(m => (parseFloat(m) || 0) > 0) ||
+      (Array.isArray(paiesGerantCaisse) && paiesGerantCaisse.some(p => (parseFloat(p?.montant) || 0) > 0))
+    const invRempli =
+      Object.keys(inventaireJour || {}).length > 0 ||
+      Object.keys(stocksParShift || {}).length > 0 ||
+      (Array.isArray(shiftsJour) && shiftsJour.length > 0)
+    const livRemplies = Object.values(livraisonsJour || {}).some(arr => Array.isArray(arr) && arr.length > 0)
+
+    return ventesRemplies || depRemplies || fourRemplis || presRemplies || paiesRemplies || invRempli || livRemplies
+  }
+
   // ─── Reset données du jour — appelé UNIQUEMENT après validation du shift ───
   function resetJour() {
+    // Confirmation SEULEMENT s'il y a un vrai brouillon non enregistré (sinon reset silencieux).
+    if (!pointValide && aDonneesSaisies()) {
+      Alert.alert(
+        '⚠️ Point non validé',
+        "Le point de ce jour n'a pas encore été validé. Remettre à zéro effacera toutes les données saisies. Continuer quand même ?",
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Remettre à zéro', style: 'destructive', onPress: _execResetJour },
+        ]
+      )
+      return
+    }
+    _execResetJour()
+  }
+
+  function _execResetJour() {
     _sessionLoggedInAt = Date.now()
     setPointId(null)
     setDateJour(null)
@@ -246,6 +298,8 @@ export function AppProvider({ children }) {
       espece_shifts: 0,
       venteMachine: '',
       explicacionEcartMachine: '',
+      ecartResponsables: [],
+      ecartPhotos: [],
       photoVenteMachine: null,
       photo_yango_cse: null,
       photo_glovo_cse: null,
@@ -258,7 +312,6 @@ export function AppProvider({ children }) {
       photo_retour: null,
     })
   }
-
   // ─── Déconnexion — conserve les données opérationnelles, efface le rôle ─────
   // userId/userNom sont INTENTIONNELLEMENT conservés pour que login.js puisse
   // détecter "même utilisateur" (memeUtilisateur) et ne pas appeler resetJour().

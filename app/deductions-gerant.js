@@ -171,6 +171,35 @@ export default function DeductionsGerantScreen() {
           : (fournisseursList.find(f => f.id === fournId)?.credit_veille ?? 0)
         const nouveauCredit = creditVeille + facture - paye
 
+        // Doublon caissier : un caissier a-t-il déjà saisi cette facture aujourd'hui ?
+        // Contrôle effectué AVANT toute écriture pour éviter un état partiel
+        // (crédit/historique modifiés sans transaction correspondante).
+        if (facture > 0) {
+          const { data: doublonCaissier } = await supabase
+            .from('transactions_fournisseurs')
+            .select('caissier_nom, saisi_par')
+            .eq('point_id', pointId)
+            .eq('fournisseur_id', fournId)
+            .eq('facture', facture)
+            .neq('saisi_par', 'gerant_caissier')
+            .limit(1)
+          if (doublonCaissier?.length > 0) {
+            const nomFourn = data?.nom || fournisseursList.find(f => f.id === fournId)?.nom || 'ce fournisseur'
+            const parQui = doublonCaissier[0].caissier_nom ? ` par ${doublonCaissier[0].caissier_nom}` : ''
+            const confirmeDoublon = await new Promise(resolve =>
+              Alert.alert(
+                '🚫 Facture en double',
+                `Une facture de ${fmt(facture)} pour "${nomFourn}" a déjà été enregistrée aujourd'hui${parQui}.\n\nEnregistrer quand même ?`,
+                [
+                  { text: 'Annuler', style: 'cancel', onPress: () => resolve(false) },
+                  { text: 'Enregistrer quand même', style: 'destructive', onPress: () => resolve(true) },
+                ]
+              )
+            )
+            if (!confirmeDoublon) continue
+          }
+        }
+
         // Vérifier si une entrée existe déjà pour ce fournisseur aujourd'hui (filtré par restaurant)
         const { data: existant } = await supabase
           .from('historique_credit_fournisseurs')

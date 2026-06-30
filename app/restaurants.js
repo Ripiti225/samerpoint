@@ -24,7 +24,7 @@ export default function RestaurantsScreen() {
 
   async function chargerRestaurants() {
     setLoading(true)
-    const { data } = await supabase.from('restaurants').select('*').order('nom')
+    const { data } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation').order('nom')
     setRestos(data || [])
 
     const statsData = {}
