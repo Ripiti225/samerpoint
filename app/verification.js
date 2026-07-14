@@ -6,6 +6,7 @@ import {
 } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import { supabase } from '../lib/supabase'
+import { annulerDeductionInventaire } from '../lib/api'
 import { useApp } from '../context/AppContext'
 import { genererPdfPoint, genererPdfEcarts } from '../lib/generatePdf'
 import { CATEGORIES_INVENTAIRE } from '../lib/constants'
@@ -65,6 +66,7 @@ export default function VerificationScreen() {
   const [onglet, setOnglet] = useState('point')
   const [modalInventaire, setModalInventaire] = useState(false)
   const [detailInventaire, setDetailInventaire] = useState(null)
+  const [annulDeducSaving, setAnnulDeducSaving] = useState(null)  // id de la ligne en cours d'annulation
   const [loadingInventaire, setLoadingInventaire] = useState(false)
   const [generatingEcartsPdf, setGeneratingEcartsPdf] = useState(false)
   // Déverrouillage / correction
@@ -295,8 +297,9 @@ export default function VerificationScreen() {
         .select(`
           id, caissier_id, type_shift, heure_debut, heure_fin, montant_a_deduire, valide, created_at,
           inventaire_lignes(
-            produit_id, produit_nom, stock_initial, entrees, sorties,
-            stock_reel, ecart, nombre_explique, explication, montant_deduit
+            id, produit_id, produit_nom, stock_initial, entrees, sorties,
+            stock_reel, ecart, nombre_explique, explication, montant_deduit,
+            deduction_annulee, montant_deduit_annule
           )
         `)
         .eq('point_id', point.id)
@@ -339,6 +342,35 @@ export default function VerificationScreen() {
       useNouveauFormat: shiftsNouveauFormat.length > 0,
     })
     setLoadingInventaire(false)
+  }
+
+  // Annule DÉFINITIVEMENT la déduction d'inventaire d'un produit (manager/directeur).
+  function confirmerAnnulationDeduction(ligne) {
+    if (!ligne?.id || annulDeducSaving) return
+    const faire = async () => {
+      setAnnulDeducSaving(ligne.id)
+      try {
+        await annulerDeductionInventaire({
+          ligneId: ligne.id,
+          inventaireId: ligne.inventaireId,
+          pointId: pointSelectionne?.id,
+          par: userNom || roleActif || 'Manager',
+        })
+        await ouvrirInventaire(pointSelectionne)  // recharge le détail à jour
+      } catch (e) {
+        Alert.alert('Erreur', e?.message || "Impossible d'annuler la déduction")
+      } finally {
+        setAnnulDeducSaving(null)
+      }
+    }
+    Alert.alert(
+      'Annuler la déduction ?',
+      `La déduction de ${fmt(ligne.montantDeduit)} sur « ${ligne.produit_nom} » sera annulée définitivement et retirée du total à déduire.`,
+      [
+        { text: 'Retour', style: 'cancel' },
+        { text: 'Annuler la déduction', style: 'destructive', onPress: faire },
+      ]
+    )
   }
 
   function voirPhoto(uri, label) {
@@ -2093,6 +2125,7 @@ export default function VerificationScreen() {
                     const montantDeduit = l.montant_deduit != null ? l.montant_deduit : diffInexpliquee * prix
                     toutesLignesEcart.push({
                       ...l, ecart, nombreExplique, diffInexpliquee, prix, montantDeduit,
+                      inventaireId: shift.id,
                       caissierNom: shift.caissierNom, shiftLabel: shift.shiftLabel,
                       heureDebut: shift.heure_debut, heureFin: shift.heure_fin,
                     })
@@ -2237,6 +2270,24 @@ export default function VerificationScreen() {
                               {e.montantDeduit > 0 ? fmt(e.montantDeduit) : '0 FCFA ✅'}
                             </Text>
                           </View>
+
+                          {e.deduction_annulee ? (
+                            <View style={styles.deducAnnuleeBadge}>
+                              <Text style={styles.deducAnnuleeTxt}>
+                                🚫 Déduction annulée{e.montant_deduit_annule > 0 ? ` (${fmt(e.montant_deduit_annule)})` : ''}
+                              </Text>
+                            </View>
+                          ) : (e.montantDeduit > 0 && e.id && (
+                            <TouchableOpacity
+                              style={[styles.annulDeducBtn, annulDeducSaving === e.id && { opacity: 0.6 }]}
+                              onPress={() => confirmerAnnulationDeduction(e)}
+                              disabled={!!annulDeducSaving}
+                            >
+                              {annulDeducSaving === e.id
+                                ? <ActivityIndicator color="#A32D2D" size="small" />
+                                : <Text style={styles.annulDeducBtnTxt}>🚫 Annuler la déduction de ce produit</Text>}
+                            </TouchableOpacity>
+                          ))}
 
                           {(e.caissierNom || e.heureDebut) && (
                             <View style={styles.invFicheCaissier}>
@@ -2785,6 +2836,10 @@ function makeStyles(colors) { return StyleSheet.create({
   invFicheExplicationTxt: { fontSize: 12, color: '#444', fontStyle: 'italic', lineHeight: 18 },
   invFicheCaissier: { marginTop: 10, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: '#f0f0f0', gap: 4 },
   invFicheCaissierTxt: { fontSize: 11, color: colors.textMuted },
+  annulDeducBtn: { marginTop: 10, backgroundColor: '#FCEBEB', borderWidth: 1, borderColor: '#F09595', borderRadius: 8, paddingVertical: 10, alignItems: 'center', justifyContent: 'center', minHeight: 40 },
+  annulDeducBtnTxt: { color: '#A32D2D', fontWeight: '700', fontSize: 13 },
+  deducAnnuleeBadge: { marginTop: 10, backgroundColor: '#EFEFEF', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
+  deducAnnuleeTxt: { color: colors.textMuted, fontWeight: '600', fontSize: 12, textDecorationLine: 'line-through' },
   // ─── Bilan financier ───
   invBilanCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: colors.border },
   invBilanRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5' },

@@ -30,7 +30,9 @@
         "android.permission.POST_NOTIFICATIONS"
       ]
     },
-    "web": {},
+    "web": {
+  "output": "single"
+},
     "plugins": [
       "expo-router",
       [

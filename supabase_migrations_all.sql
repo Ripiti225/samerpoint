@@ -192,6 +192,65 @@ BEGIN
 END $$;
 
 
+-- ── 9. Annulation d'une déduction d'inventaire (par produit) ────────
+--    (manager/directeur — écrans app/verification.js et app/litiges.js)
+--    On remet montant_deduit à 0 et on garde une trace ; les totaux
+--    consommés en aval (inventaires_shifts.montant_a_deduire,
+--    points.montant_inventaire) sont décrémentés côté app.
+ALTER TABLE inventaire_lignes ADD COLUMN IF NOT EXISTS deduction_annulee      boolean DEFAULT false;
+ALTER TABLE inventaire_lignes ADD COLUMN IF NOT EXISTS deduction_annulee_par  text;
+ALTER TABLE inventaire_lignes ADD COLUMN IF NOT EXISTS deduction_annulee_at   timestamptz;
+ALTER TABLE inventaire_lignes ADD COLUMN IF NOT EXISTS montant_deduit_annule  numeric;
+
+
+-- ── 10. Demandes d'explication (workflow avec suivi + rappel J+3) ────
+--    Écrans app/demandes-explication.js (gérant) et
+--    app/demandes-explication-admin.js (manager/rh/directeur, 2 onglets).
+--    Détail complet + bloc pg_cron dans supabase_demandes_explication.sql.
+CREATE TABLE IF NOT EXISTS demandes_explication (
+  id                     uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  restaurant_id          uuid REFERENCES restaurants(id),
+  travailleur_id         uuid REFERENCES travailleurs(id),
+  travailleur_nom        text,
+  motif                  text NOT NULL,
+  description            text,
+  statut                 text DEFAULT 'en_attente_acceptation',
+  numero                 int  DEFAULT 1,
+  relance_de             uuid REFERENCES demandes_explication(id),
+  cree_par_id            uuid REFERENCES utilisateurs(id),
+  cree_par_nom           text,
+  cree_par_role          text,
+  accepte_par_id         uuid REFERENCES utilisateurs(id),
+  accepte_par_nom        text,
+  accepte_at             timestamptz,
+  refuse_par_nom         text,
+  refus_motif            text,
+  refuse_at              timestamptz,
+  envoyee_par_id         uuid REFERENCES utilisateurs(id),
+  envoyee_par_nom        text,
+  envoyee_at             timestamptz,
+  rappel_envoye_at       timestamptz,
+  reponse_recuperee_par  text,
+  reponse_recuperee_at   timestamptz,
+  reponse_note           text,
+  annule_par_nom         text,
+  annule_at              timestamptz,
+  created_at             timestamptz DEFAULT now()
+);
+ALTER TABLE demandes_explication ADD COLUMN IF NOT EXISTS numero           int  DEFAULT 1;
+ALTER TABLE demandes_explication ADD COLUMN IF NOT EXISTS relance_de       uuid REFERENCES demandes_explication(id);
+ALTER TABLE demandes_explication ADD COLUMN IF NOT EXISTS rappel_envoye_at timestamptz;
+ALTER TABLE demandes_explication ADD COLUMN IF NOT EXISTS cree_par_role    text;
+ALTER TABLE demandes_explication ADD COLUMN IF NOT EXISTS reponse_fichier_url  text;
+ALTER TABLE demandes_explication ADD COLUMN IF NOT EXISTS reponse_fichier_type text;
+ALTER TABLE demandes_explication ADD COLUMN IF NOT EXISTS reponse_uploadee_at  timestamptz;
+CREATE INDEX IF NOT EXISTS idx_demandes_explication_resto  ON demandes_explication(restaurant_id);
+CREATE INDEX IF NOT EXISTS idx_demandes_explication_statut ON demandes_explication(statut);
+ALTER TABLE demandes_explication ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS allow_all ON demandes_explication;
+CREATE POLICY allow_all ON demandes_explication FOR ALL TO public USING (true) WITH CHECK (true);
+
+
 -- =====================================================================
 --  FIN — vérifie le message « Success. No rows returned » après le Run.
 -- =====================================================================

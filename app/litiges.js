@@ -6,12 +6,12 @@ import {
   TouchableOpacity, View,
 } from 'react-native'
 import { Calendar } from 'react-native-calendars'
-import * as Print from 'expo-print'
-import * as Sharing from 'expo-sharing'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { CATEGORIES_INVENTAIRE } from '../lib/constants'
 import { supabase } from '../lib/supabase'
+import { annulerDeductionInventaire } from '../lib/api'
+import { exporterPdf } from '../lib/pdfDocuments'
 import { usePhoto } from '../lib/usePhoto'
 
 function fmt(n) { return Math.round(n || 0).toLocaleString('fr-FR') + ' FCFA' }
@@ -148,6 +148,7 @@ export default function LitigesScreen() {
 
   // ── Volet 2 — inventaire ────────────────────────────────────
   const [inventaireShifts, setInventaireShifts] = useState([])
+  const [annulDeducSaving, setAnnulDeducSaving] = useState(null)  // id de la ligne en cours d'annulation
 
   // ── Volet 3 — avis clients ──────────────────────────────────
   const [avisClients, setAvisClients] = useState([])
@@ -434,7 +435,7 @@ export default function LitigesScreen() {
 
     const { data: shifts } = await supabase
       .from('inventaires_shifts')
-      .select('id, caissier_id, type_shift, montant_a_deduire, date')
+      .select('id, point_id, caissier_id, type_shift, montant_a_deduire, date')
       .eq('restaurant_id', restoSelectionne.id)
       .gte('date', debut).lte('date', fin)
       .eq('valide', true)
@@ -453,7 +454,7 @@ export default function LitigesScreen() {
     const shiftIds = shifts.map(s => s.id)
     const { data: lignes } = await supabase
       .from('inventaire_lignes')
-      .select('inventaire_id, produit_id, produit_nom, montant_deduit')
+      .select('id, inventaire_id, produit_id, produit_nom, montant_deduit')
       .in('inventaire_id', shiftIds)
       .gt('montant_deduit', 0)
 
@@ -468,6 +469,35 @@ export default function LitigesScreen() {
       caissier_nom: nomById[s.caissier_id] || 'Caissier',
       lignes: lignesByShift[s.id] || [],
     })))
+  }
+
+  // Annule DÉFINITIVEMENT la déduction d'inventaire d'un produit (manager/directeur).
+  function confirmerAnnulationDeductionLitige(ligne, inv) {
+    if (!ligne?.id || annulDeducSaving) return
+    const faire = async () => {
+      setAnnulDeducSaving(ligne.id)
+      try {
+        await annulerDeductionInventaire({
+          ligneId: ligne.id,
+          inventaireId: inv.id,
+          pointId: inv.point_id,
+          par: userNom || roleActif || 'Manager',
+        })
+        await chargerInventaire()  // recharge la liste à jour
+      } catch (e) {
+        Alert.alert('Erreur', e?.message || "Impossible d'annuler la déduction")
+      } finally {
+        setAnnulDeducSaving(null)
+      }
+    }
+    Alert.alert(
+      'Annuler la déduction ?',
+      `La déduction de ${fmt(ligne.montant_deduit)} sur « ${ligne.produit_nom} » sera annulée définitivement et retirée du total à déduire.`,
+      [
+        { text: 'Retour', style: 'cancel' },
+        { text: 'Annuler la déduction', style: 'destructive', onPress: faire },
+      ]
+    )
   }
 
   async function chargerAvis() {
@@ -617,7 +647,8 @@ export default function LitigesScreen() {
         ;(users || []).forEach(u => { nomById[u.id] = u.nom })
         const shiftIds = invShifts.map(s => s.id)
         const { data: lignes } = await supabase
-          .from('inventaire_lignes').select('inventaire_id, produit_id, produit_nom, montant_deduit')
+          .from('inventaire_lignes')
+          .select('inventaire_id, produit_id, produit_nom, montant_deduit, explication, nombre_explique, ecart')
           .in('inventaire_id', shiftIds).gt('montant_deduit', 0)
         const lignesByShift = {}
         ;(lignes || []).forEach(l => {
@@ -641,12 +672,49 @@ export default function LitigesScreen() {
       const yangoTotal = (yango || []).reduce((s, x) => s + (x.montant || 0), 0)
       const glovoTotal = (glovo || []).reduce((s, x) => s + (x.montant || 0), 0)
 
+      // Contacts manquants (litige si taux > 20%) — même calcul que chargerEcartContacts
+      const { data: ptsContact } = await supabase
+        .from('points').select('id, date, yango_nb_commandes, glovo_nb_commandes')
+        .eq('restaurant_id', resto.id).gte('date', debut).lte('date', fin)
+        .order('date', { ascending: false })
+      let contacts = []
+      let contactTotal = 0
+      if (ptsContact?.length) {
+        const pIds = ptsContact.map(p => p.id)
+        const { data: cmds } = await supabase
+          .from('commandes').select('point_id, contact_client').in('point_id', pIds)
+        const contactsByPoint = {}
+        ;(cmds || []).forEach(c => {
+          if (c.contact_client && c.contact_client.trim() !== '') {
+            contactsByPoint[c.point_id] = (contactsByPoint[c.point_id] || 0) + 1
+          }
+        })
+        contacts = ptsContact.map(p => {
+          const nbCommandes = (p.yango_nb_commandes || 0) + (p.glovo_nb_commandes || 0)
+          const nbContacts = contactsByPoint[p.id] || 0
+          const ecart = nbCommandes - nbContacts
+          const taux = nbCommandes > 0 ? Math.round((ecart / nbCommandes) * 1000) / 10 : 0
+          const litige = taux > 20 ? ecart * 500 : 0
+          return { date: p.date, nbCommandes, nbContacts, ecart, taux, litige }
+        }).filter(r => r.litige > 0)
+        contactTotal = contacts.reduce((s, r) => s + r.litige, 0)
+      }
+
+      // Point pas fait
+      const { data: pasFait } = await supabase
+        .from('litiges_point_pas_fait').select('*')
+        .eq('restaurant_id', resto.id).gte('date', debut).lte('date', fin)
+        .order('date', { ascending: false })
+      const pasFaitTotal = (pasFait || []).reduce((s, x) => s + (x.montant || 0), 0)
+
       return {
         restaurant: resto, ecartTotal, invTotal, invEnriched,
         avis: avis || [], avisTotal,
         yango: yango || [], yangoTotal,
         glovo: glovo || [], glovoTotal,
-        total: ecartTotal + invTotal + avisTotal + yangoTotal + glovoTotal,
+        contacts, contactTotal,
+        pasFait: pasFait || [], pasFaitTotal,
+        total: ecartTotal + invTotal + avisTotal + yangoTotal + glovoTotal + contactTotal + pasFaitTotal,
       }
     }))
 
@@ -691,7 +759,7 @@ export default function LitigesScreen() {
           <span class="resto-tot ${tc}">${d.total > 0 ? '+' : ''}${Math.round(d.total).toLocaleString('fr-FR')} FCFA</span>
         </div>`
 
-        const vide = !d.ecartTotal && !d.invTotal && !d.avis.length && !d.yango.length && !d.glovo.length
+        const vide = !d.ecartTotal && !d.invTotal && !d.avis.length && !d.yango.length && !d.glovo.length && !d.contactTotal && !d.pasFaitTotal
         if (vide) {
           html += `<div class="volet"><span class="ok">✅ Aucun litige sur la période</span></div>`
         }
@@ -711,6 +779,9 @@ export default function LitigesScreen() {
             inv.lignes.forEach(l => { const c = PRODUIT_TO_CAT[l.produit_id] || l.produit_nom; parCat[c] = (parCat[c] || 0) + (l.montant_deduit || 0) })
             const cats = Object.entries(parCat).filter(([, v]) => v > 0).map(([c, v]) => `${c} : ${Math.round(v).toLocaleString('fr-FR')} FCFA`).join(' · ')
             html += `<div class="item"><strong>${inv.caissier_nom} — ${sl}</strong>${cats ? ' — ' + cats : ''}</div>`
+            inv.lignes.filter(l => l.explication).forEach(l => {
+              html += `<div class="item">💬 <strong>${l.produit_nom}</strong> : ${l.explication}</div>`
+            })
           })
           html += `</div>`
         }
@@ -751,6 +822,20 @@ export default function LitigesScreen() {
           html += `</div>`
         }
 
+        // Contacts manquants
+        if (d.contactTotal > 0) {
+          html += `<div class="volet"><div class="volet-h"><span>📞 Contacts manquants</span><span class="r">−${Math.round(d.contactTotal).toLocaleString('fr-FR')} FCFA</span></div>`
+          d.contacts.forEach(c => {
+            html += `<div class="item">📅 ${c.date} — ${c.ecart} manquant${c.ecart > 1 ? 's' : ''} (${c.nbContacts}/${c.nbCommandes} · ${c.taux}%) <span class="r"><strong>−${Math.round(c.litige).toLocaleString('fr-FR')} FCFA</strong></span></div>`
+          })
+          html += `</div>`
+        }
+
+        // Point pas fait
+        if (d.pasFaitTotal > 0) {
+          html += `<div class="volet"><div class="volet-h"><span>🚫 Point pas fait</span><span class="r">−${Math.round(d.pasFaitTotal).toLocaleString('fr-FR')} FCFA</span></div></div>`
+        }
+
         html += `</div>` // .resto
       }
 
@@ -763,12 +848,7 @@ export default function LitigesScreen() {
       })
       html += `<div class="recap-l gt"><span>TOTAL GLOBAL</span><span style="color:${gtc}">${grandTotal > 0 ? '+' : ''}${Math.round(grandTotal).toLocaleString('fr-FR')} FCFA</span></div></div></body></html>`
 
-      const { uri } = await Print.printToFileAsync({ html })
-      await Sharing.shareAsync(uri, {
-        mimeType: 'application/pdf',
-        dialogTitle: 'Partager le rapport litiges',
-        UTI: 'com.adobe.pdf',
-      })
+      await exporterPdf(html, `rapport_litiges_${periode.replace(/\s+/g, '_')}.pdf`, 'Partager le rapport litiges')
     } catch (e) {
       Alert.alert('Erreur PDF', e.message || 'Impossible de générer le PDF')
     } finally {
@@ -811,7 +891,7 @@ export default function LitigesScreen() {
         {/* Un card par restaurant */}
         {donneesGlobales.map(d => {
           const tc = d.total > 0 ? '#C62828' : d.total < 0 ? '#2E7D32' : colors.textMuted
-          const vide = !d.ecartTotal && !d.invTotal && !d.avis.length && !d.yango.length && !d.glovo.length
+          const vide = !d.ecartTotal && !d.invTotal && !d.avis.length && !d.yango.length && !d.glovo.length && !d.contactTotal && !d.pasFaitTotal
           return (
             <View key={d.restaurant.id} style={styles.restoGlobalCard}>
               {/* Header restaurant */}
@@ -835,12 +915,25 @@ export default function LitigesScreen() {
                       </Text>
                     </View>
                   )}
-                  {/* Inventaire */}
+                  {/* Inventaire + explication des manquants */}
                   {d.invTotal > 0 && (
-                    <View style={styles.globalVoletRow}>
-                      <Text style={styles.globalVoletLabel}>📦 Inventaire</Text>
-                      <Text style={[styles.globalVoletVal, { color: '#C62828' }]}>−{fmtShort(d.invTotal)}</Text>
-                    </View>
+                    <>
+                      <View style={styles.globalVoletRow}>
+                        <Text style={styles.globalVoletLabel}>📦 Inventaire</Text>
+                        <Text style={[styles.globalVoletVal, { color: '#C62828' }]}>−{fmtShort(d.invTotal)}</Text>
+                      </View>
+                      {d.invEnriched.flatMap(inv => inv.lignes).map((l, li) => (
+                        <View key={'inv' + li} style={styles.globalItem}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.globalItemTxt} numberOfLines={2}>
+                              📦 {l.produit_nom}
+                              {l.explication ? <Text style={styles.globalItemCmd}> — {l.explication}</Text> : null}
+                            </Text>
+                          </View>
+                          <Text style={[styles.globalItemMontant, { color: '#C62828' }]}>−{fmtShort(l.montant_deduit)}</Text>
+                        </View>
+                      ))}
+                    </>
                   )}
                   {/* Avis */}
                   {d.avis.map(a => {
@@ -896,6 +989,33 @@ export default function LitigesScreen() {
                       </View>
                     )
                   })}
+                  {/* Contacts manquants */}
+                  {d.contactTotal > 0 && (
+                    <>
+                      <View style={styles.globalVoletRow}>
+                        <Text style={styles.globalVoletLabel}>📞 Contacts manquants</Text>
+                        <Text style={[styles.globalVoletVal, { color: '#C62828' }]}>−{fmtShort(d.contactTotal)}</Text>
+                      </View>
+                      {d.contacts.map((c, ci) => (
+                        <View key={'ct' + ci} style={styles.globalItem}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.globalItemTxt} numberOfLines={2}>
+                              📅 {c.date} — {c.ecart} manquant{c.ecart > 1 ? 's' : ''}
+                              <Text style={styles.globalItemCmd}> ({c.nbContacts}/{c.nbCommandes} · {c.taux}%)</Text>
+                            </Text>
+                          </View>
+                          <Text style={[styles.globalItemMontant, { color: '#C62828' }]}>−{fmtShort(c.litige)}</Text>
+                        </View>
+                      ))}
+                    </>
+                  )}
+                  {/* Point pas fait */}
+                  {d.pasFaitTotal > 0 && (
+                    <View style={styles.globalVoletRow}>
+                      <Text style={styles.globalVoletLabel}>🚫 Point pas fait</Text>
+                      <Text style={[styles.globalVoletVal, { color: '#C62828' }]}>−{fmtShort(d.pasFaitTotal)}</Text>
+                    </View>
+                  )}
                 </View>
               )}
             </View>
@@ -1442,16 +1562,40 @@ export default function LitigesScreen() {
                 </View>
                 <Text style={[styles.montantTxt, { color: '#C62828' }]}>−{fmtShort(inv.montant_a_deduire)}</Text>
               </View>
-              {/* Détail par catégorie */}
-              {catEntries.length > 0 && (
-                <View style={styles.catDetail}>
-                  {catEntries.map(([cat, montant]) => (
-                    <View key={cat} style={styles.catLigne}>
-                      <Text style={styles.catNom}>{cat}</Text>
-                      <Text style={styles.catMontant}>{fmtShort(montant)} FCFA</Text>
-                    </View>
-                  ))}
-                </View>
+              {/* Détail : par produit (manager → bouton Annuler) ou par catégorie (lecture seule) */}
+              {peutRegulariser ? (
+                inv.lignes.length > 0 && (
+                  <View style={styles.catDetail}>
+                    {inv.lignes.map(l => (
+                      <View key={l.id} style={styles.prodLigne}>
+                        <View style={{ flex: 1, paddingRight: 8 }}>
+                          <Text style={styles.catNom}>{l.produit_nom}</Text>
+                          <Text style={[styles.catMontant, { color: '#C62828' }]}>−{fmtShort(l.montant_deduit)} FCFA</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[styles.annulDeducBtnSm, annulDeducSaving === l.id && { opacity: 0.6 }]}
+                          onPress={() => confirmerAnnulationDeductionLitige(l, inv)}
+                          disabled={!!annulDeducSaving}
+                        >
+                          {annulDeducSaving === l.id
+                            ? <ActivityIndicator color="#A32D2D" size="small" />
+                            : <Text style={styles.annulDeducBtnSmTxt}>🚫 Annuler</Text>}
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                )
+              ) : (
+                catEntries.length > 0 && (
+                  <View style={styles.catDetail}>
+                    {catEntries.map(([cat, montant]) => (
+                      <View key={cat} style={styles.catLigne}>
+                        <Text style={styles.catNom}>{cat}</Text>
+                        <Text style={styles.catMontant}>{fmtShort(montant)} FCFA</Text>
+                      </View>
+                    ))}
+                  </View>
+                )
               )}
             </View>
           )
@@ -2299,6 +2443,9 @@ function makeStyles(colors) { return StyleSheet.create({
   catLigne: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   catNom: { fontSize: 12, color: colors.textSecondary, flex: 1 },
   catMontant: { fontSize: 12, fontWeight: '700', color: '#C62828' },
+  prodLigne: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
+  annulDeducBtnSm: { backgroundColor: '#FCEBEB', borderWidth: 1, borderColor: '#F09595', borderRadius: 7, paddingVertical: 6, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', minWidth: 78, minHeight: 32 },
+  annulDeducBtnSmTxt: { color: '#A32D2D', fontWeight: '700', fontSize: 12 },
 
   emptyBox: { paddingVertical: 40, alignItems: 'center', gap: 8 },
   emptyTxt: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },

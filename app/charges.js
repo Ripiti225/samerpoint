@@ -531,7 +531,7 @@ export default function ChargesScreen() {
       {/* Modal ajout/édition charge */}
       <Modal visible={modalCharge} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
             <View style={{ flex: 1 }} />
           </TouchableWithoutFeedback>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>

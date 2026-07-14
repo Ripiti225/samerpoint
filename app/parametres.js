@@ -1399,7 +1399,7 @@ export default function ParametresScreen() {
       </Modal>
 
       <Modal visible={modal.visible} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
           <View style={styles.modalOverlay}>
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

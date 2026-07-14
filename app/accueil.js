@@ -104,11 +104,13 @@ export default function AccueilScreen() {
     { icon: '📊', titre: 'Dashboard global', sous: 'Classement & stats', route: '/dashboard-global', bloque: false },
     { icon: '✏️', titre: 'Modifier un point', sous: 'Choisir restaurant + date', route: '/modifier-point', bloque: false },
     { icon: '📦', titre: 'Modifier inventaire', sous: 'Choisir restaurant + date', route: '/modifier-inventaire', bloque: false },
+    { icon: '📉', titre: 'Gestion de stock', sous: 'Sorties par produit · resto & période', route: '/gestion-stock', bloque: false },
     { icon: '👥', titre: 'Équipe globale', sous: 'Tous les travailleurs', route: '/equipe', bloque: false },
     { icon: '🧑‍💼', titre: 'Ressources Humaines', sous: 'Présences & salaires', route: '/rh', bloque: false },
     { icon: '💳', titre: 'Charges du mois', sous: 'Saisir & voir bénéfice réel', route: '/charges', bloque: false },
     { icon: '📁', titre: 'Documents', sous: 'Documents administratifs', route: '/documents', bloque: false },
     { icon: '📋', titre: 'Demandes', sous: 'Permissions, congés & réclamations', route: '/demandes-admin', bloque: false },
+    { icon: '📨', titre: "Demandes d'explication", sous: 'Suivi & relances travailleurs', route: '/demandes-explication-admin', bloque: false },
     { icon: '💳', titre: 'Crédits fournisseurs', sous: 'Crédit, avances & paiements', route: '/credits-fournisseurs', bloque: false },
     { icon: '⚖️', titre: 'Litiges', sous: 'Écarts, avis & réclamations', route: '/litiges', bloque: false },
     { icon: '🔍', titre: 'Vérification', sous: 'Photos & points à vérifier', route: '/verification', bloque: false },
@@ -123,6 +125,7 @@ export default function AccueilScreen() {
   const menuRH = [
     { icon: '🧑‍💼', titre: 'Ressources Humaines', sous: 'Présences & salaires', route: '/rh', bloque: false },
     { icon: '📋', titre: 'Demandes', sous: 'Valider permissions & congés', route: '/demandes-admin', bloque: false },
+    { icon: '📨', titre: "Demandes d'explication", sous: 'Suivi & relances travailleurs', route: '/demandes-explication-admin', bloque: false },
     { icon: '📦', titre: 'Vérifications stock', sous: 'Comptages des vérificateurs', route: '/recap-verifications', bloque: false },
     { icon: '👥', titre: 'Équipe globale', sous: 'Tous les travailleurs', route: '/equipe', bloque: false },
     { icon: '📲', titre: 'Contacts', sous: 'Contacts équipe', route: '/contacts', bloque: false },
@@ -140,6 +143,7 @@ export default function AccueilScreen() {
     { icon: '💸', titre: 'Déductions Gérant', sous: 'Fournisseurs, marché, divers', route: '/deductions-gerant', bloque: false },
     { icon: '💳', titre: 'Crédits fournisseurs', sous: 'Crédit, avances & paiements', route: '/credits-fournisseurs', bloque: false },
     { icon: '📋', titre: 'Demandes', sous: 'Permissions & congés travailleurs', route: '/demandes', bloque: false },
+    { icon: '📨', titre: "Demandes d'explication", sous: 'Demander une explication', route: '/demandes-explication', bloque: false },
     { icon: '📲', titre: 'Contacts', sous: 'SMS & WhatsApp équipe', route: '/contacts', bloque: false },
   ]
 

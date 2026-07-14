@@ -224,7 +224,7 @@ export default function LivraisonsScreen() {
 
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
             <View style={{ flex: 1 }} />
           </TouchableWithoutFeedback>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>

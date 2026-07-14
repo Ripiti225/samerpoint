@@ -1090,7 +1090,7 @@ export default function RHScreen() {
     if (!travailleurAction) return null
     return (
       <Modal visible={modalArchiveAction} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
           <View style={styles.modalOverlay}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
               <ScrollView style={styles.modal} showsVerticalScrollIndicator={false}>
@@ -1374,7 +1374,7 @@ export default function RHScreen() {
     const canSave = formTravailleur.nom.trim() && formTravailleur.poste.trim()
     return (
       <Modal visible={modalFormTravailleur} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
           <View style={styles.modalOverlay}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
               <ScrollView style={styles.modal} showsVerticalScrollIndicator={false}>

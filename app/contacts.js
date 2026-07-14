@@ -345,7 +345,7 @@ export default function ContactsScreen() {
 
       {/* Modal composer message */}
       <Modal visible={modalVisible} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
           <View style={styles.modalOverlay}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
               <View style={styles.modal}>
