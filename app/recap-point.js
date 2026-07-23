@@ -417,7 +417,7 @@ export default function RecapPointScreen() {
     if (ok) {
       setPointValide(true)
       // Notifier les directeurs en arrière-plan — ne bloque jamais la validation
-      envoyerNotifValidation(dateJour, restaurantId, pointId).catch(() => {})
+      envoyerNotifValidation(dateJour, restaurantId, pointId, restaurantNom).catch(() => {})
       creerNotification({
         type: 'point_valide',
         titre: '✅ Point validé',
