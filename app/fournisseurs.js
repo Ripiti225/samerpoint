@@ -168,6 +168,7 @@ export default function FournisseursScreen() {
                 paye: String(t.paye ?? ''),
                 hasPhoto: !!t.photo_url,
                 photoUri: t.photo_url || null,
+                saved: true,
               }
               changed = true
             }
@@ -263,10 +264,9 @@ export default function FournisseursScreen() {
     const ok = await saveOneTransactionFournisseur(pointId, f.id, t, credit, saisiPar, userNom, restaurantId, userId, f.nom)
     if (ok) {
       const nouveauReste = credit + (parseFloat(t.facture) || 0) - (parseFloat(t.paye) || 0)
-      // Ne mettre à jour credit_actuel que pour le gérant — les caissiers ne doivent pas écraser le solde officiel
-      if (saisiPar !== 'caissier') {
-        await supabase.from('fournisseurs').update({ credit_actuel: nouveauReste }).eq('id', f.id)
-      }
+      // credit_actuel mis à jour pour TOUTE saisie (gérant ET caissier) : le solde officiel
+      // doit toujours refléter la dernière transaction (plus de blocage caissier).
+      await supabase.from('fournisseurs').update({ credit_actuel: nouveauReste }).eq('id', f.id)
       // Motif spécifique par rôle pour permettre la déduplication lors de la validation du shift caissier
       const motifPrefix = saisiPar === 'caissier'
         ? `caissier|${today}|`
@@ -301,9 +301,17 @@ export default function FournisseursScreen() {
         // Garder creditsVeille au crédit d'origine (avant la transaction du jour)
         // — évite le double-comptage si le gérant corrige et re-valide sur le même point
         setCreditsVeille(prev => ({ ...prev, [f.id]: credit }))
+        // Conserver les montants à l'écran (verrouillés) au lieu de les vider.
+        // Le marqueur `saved` évite qu'ils soient ré-enregistrés (ex. à la validation
+        // du shift caissier → sinon doublon).
         setFournisseursJour(prev => ({
           ...prev,
-          [f.id]: { facture: '', paye: '', hasPhoto: prev[f.id]?.hasPhoto || false, photoUri: prev[f.id]?.photoUri || null },
+          [f.id]: {
+            facture: t.facture, paye: t.paye,
+            hasPhoto: prev[f.id]?.hasPhoto || !!t.photoUri,
+            photoUri: prev[f.id]?.photoUri || t.photoUri || null,
+            saved: true,
+          },
         }))
       }
     } else {
@@ -319,6 +327,7 @@ export default function FournisseursScreen() {
     if (!pointId) { Alert.alert('Erreur', 'Aucun point actif'); return }
     const aSauver = fournisseurs.filter(f => {
       const t = getTransaction(f.id)
+      if (t.saved) return false // déjà enregistré → ne pas ré-enregistrer
       return (parseFloat(t.facture) || 0) > 0 || (parseFloat(t.paye) || 0) > 0
     })
     if (aSauver.length === 0) {
@@ -375,14 +384,13 @@ export default function FournisseursScreen() {
             }
             await delQ
 
-            // 2) Rétablir credit_actuel au solde d'avant (gérant uniquement)
+            // 2) Rétablir credit_actuel au solde d'avant (gérant ET caissier) : la suppression
+            // d'une transaction doit toujours ramener le solde officiel à sa valeur précédente.
             const creditAvant = creditVeille(f.id)
-            if (saisiPar !== 'caissier') {
-              await supabase.from('fournisseurs').update({ credit_actuel: creditAvant }).eq('id', f.id)
-              setFournisseurs(prev => prev.map(item =>
-                item.id === f.id ? { ...item, credit_actuel: creditAvant } : item
-              ))
-            }
+            await supabase.from('fournisseurs').update({ credit_actuel: creditAvant }).eq('id', f.id)
+            setFournisseurs(prev => prev.map(item =>
+              item.id === f.id ? { ...item, credit_actuel: creditAvant } : item
+            ))
 
             // 3) Supprimer les lignes d'historique de cette transaction
             const motifPrefix = saisiPar === 'caissier' ? `caissier|${today}|` : `Journée du ${dateJour || today}: `
@@ -520,9 +528,10 @@ export default function FournisseursScreen() {
                                   Facture {parseFloat(t.facture) > 0 && !t.photoUri ? '⚠️' : ''}
                                 </Text>
                                 <TextInput
-                                  style={styles.input}
+                                  style={[styles.input, t.saved && styles.inputLocked]}
                                   value={t.facture}
                                   onChangeText={v => setTransaction(f.id, 'facture', v)}
+                                  editable={!t.saved}
                                   keyboardType="numeric"
                                   placeholder="0"
                                   placeholderTextColor="#bbb"
@@ -533,9 +542,10 @@ export default function FournisseursScreen() {
                                   Payé
                                 </Text>
                                 <TextInput
-                                  style={[styles.input, { backgroundColor: '#FAEEDA' }]}
+                                  style={[styles.input, { backgroundColor: '#FAEEDA' }, t.saved && styles.inputLocked]}
                                   value={t.paye}
                                   onChangeText={v => setTransaction(f.id, 'paye', v)}
+                                  editable={!t.saved}
                                   keyboardType="numeric"
                                   placeholder="0"
                                   placeholderTextColor="#bbb"
@@ -722,6 +732,7 @@ function makeStyles(colors) { return StyleSheet.create({
   inputBox: { flex: 1, alignItems: 'center' },
   inputLabel: { fontSize: 10, color: colors.textMuted, marginBottom: 4 },
   input: { width: '100%', backgroundColor: colors.inputBg, borderRadius: 8, padding: 8, fontSize: 13, textAlign: 'center', color: colors.text },
+  inputLocked: { opacity: 0.55 },
   resteVal: { fontSize: 13, fontWeight: '600', marginTop: 8 },
   readOnly: { fontSize: 13, fontWeight: '500', color: colors.text, marginTop: 8 },
   photoRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 4 },

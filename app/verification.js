@@ -13,6 +13,7 @@ import { CATEGORIES_INVENTAIRE } from '../lib/constants'
 import { useTheme } from '../context/ThemeContext'
 import { journaliser } from '../lib/journal'
 import { creerNotification } from '../lib/notificationsInterne'
+import { envoyerNotifFactureCorrigee } from '../lib/notifications'
 
 const { width: SW } = Dimensions.get('window')
 
@@ -81,6 +82,12 @@ export default function VerificationScreen() {
   const [modalAnnulerMachine, setModalAnnulerMachine] = useState(null)
   const [annulerMontant, setAnnulerMontant] = useState('')
   const [annulerSaving, setAnnulerSaving] = useState(false)
+  // Correction de facture fournisseur (montant saisi ≠ photo)
+  const [corrFacture, setCorrFacture] = useState(null) // la transaction ciblée
+  const [corrMontant, setCorrMontant] = useState('')
+  const [corrRaison, setCorrRaison] = useState('')
+  const [corrSaving, setCorrSaving] = useState(false)
+  const [corrError, setCorrError] = useState('')
   // Galerie photos zoom
   const [galeriePhotos, setGaleriePhotos] = useState([])
   const [galerieIndex, setGalerieIndex] = useState(0)
@@ -379,6 +386,111 @@ export default function VerificationScreen() {
     setModalPhoto(true)
   }
 
+  // ── Correction de facture fournisseur ────────────────────────────────
+  function ouvrirCorrectionFacture(t) {
+    setCorrFacture(t)
+    setCorrMontant('')
+    setCorrRaison('')
+    setCorrError('')
+  }
+  function fermerCorrectionFacture() {
+    setCorrFacture(null)
+    setCorrMontant('')
+    setCorrRaison('')
+    setCorrError('')
+  }
+  async function sauvegarderCorrectionFacture() {
+    const t = corrFacture
+    if (!t) return
+    const nouveau = Math.round(parseFloat(corrMontant) || 0)
+    const ancien = Math.round(parseFloat(t.facture) || 0)
+    if (nouveau < 0) { setCorrError('Le montant ne peut pas être négatif.'); return }
+    if (nouveau === ancien) { setCorrError('Le nouveau montant est identique à l’ancien.'); return }
+    if (!corrRaison.trim()) { setCorrError('La raison est obligatoire.'); return }
+    setCorrSaving(true)
+    setCorrError('')
+    try {
+      // On garde le TOUT PREMIER montant d'origine (ré-correction possible).
+      const original = (t.facture_original == null) ? ancien : t.facture_original
+      const ancienReste = parseFloat(t.reste) || 0
+      // Seule la facture change → reste = ancienReste + (nouvelle − ancienne). Pas d'impact sur le fond.
+      const nouveauReste = ancienReste + (nouveau - ancien)
+      const nowIso = new Date().toISOString()
+
+      const { error } = await supabase.from('transactions_fournisseurs').update({
+        facture: nouveau,
+        reste: nouveauReste,
+        facture_original: original,
+        facture_corrigee_par: userId || null,
+        facture_corrigee_par_nom: userNom || roleActif || null,
+        facture_corrigee_at: nowIso,
+        facture_correction_raison: corrRaison.trim(),
+      }).eq('id', t.id)
+      if (error) { setCorrError(error.message); setCorrSaving(false); return }
+
+      // Solde fournisseur — recalcul simple : si c'est la transaction la plus
+      // récente du fournisseur, on met à jour son crédit actuel.
+      try {
+        const { data: derniere } = await supabase
+          .from('transactions_fournisseurs')
+          .select('id')
+          .eq('fournisseur_id', t.fournisseur_id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (derniere && derniere.id === t.id) {
+          await supabase.from('fournisseurs').update({ credit_actuel: nouveauReste }).eq('id', t.fournisseur_id)
+        }
+      } catch (_) { /* created_at absent : on ignore, la transaction reste corrigée */ }
+
+      const nomFourn = t.fournisseurs?.nom || 'Fournisseur'
+      const dateTxt = pointSelectionne?.date ? formatDate(pointSelectionne.date) : ''
+      // Notif in-app (cloche) — screen null : purement informatif, le gérant
+      // n'a pas accès à l'écran Vérification (pas de navigation morte).
+      creerNotification({
+        type: 'facture_corrigee',
+        titre: '✏️ Facture corrigée',
+        message: `${nomFourn} — facture ${fmt(ancien)} → ${fmt(nouveau)}${dateTxt ? ` (${dateTxt})` : ''}. Raison : ${corrRaison.trim()}`,
+        restaurant_id: pointSelectionne.restaurant_id,
+        cible_role: ['gerant'],
+        created_by: userId || null,
+        screen: null,
+      }).catch(() => {})
+      // Push Expo hors-app vers le(s) gérant(s) du resto (app native).
+      envoyerNotifFactureCorrigee(nomFourn, ancien, nouveau, pointSelectionne.restaurant_id).catch(() => {})
+
+      journaliser('correction_facture_fournisseur', {
+        point_id: pointSelectionne.id,
+        fournisseur_id: t.fournisseur_id,
+        fournisseur: nomFourn,
+        ancienne_facture: ancien,
+        nouvelle_facture: nouveau,
+        raison: corrRaison.trim(),
+      }, { par: userNom || roleActif }).catch(() => {})
+
+      // MAJ locale immédiate (badge + montant) sans recharger tout le point.
+      setDetailPoint(prev => prev && ({
+        ...prev,
+        fournisseurs: prev.fournisseurs.map(f => f.id === t.id ? {
+          ...f,
+          facture: nouveau,
+          reste: nouveauReste,
+          facture_original: original,
+          facture_corrigee_par_nom: userNom || roleActif || null,
+          facture_corrigee_at: nowIso,
+          facture_correction_raison: corrRaison.trim(),
+        } : f),
+      }))
+
+      fermerCorrectionFacture()
+      Alert.alert('✅ Facture corrigée', `Nouveau montant : ${fmt(nouveau)}.\nLe gérant a été notifié.`)
+    } catch (e) {
+      setCorrError(e?.message || 'Erreur inattendue')
+    } finally {
+      setCorrSaving(false)
+    }
+  }
+
   function toggleSection(section) {
     setSectionsSelectionnees(prev =>
       prev.includes(section) ? prev.filter(s => s !== section) : [...prev, section]
@@ -643,13 +755,6 @@ export default function VerificationScreen() {
     setShowGalerie(true)
   }
 
-  function formatAuteur(caissierNom) {
-    if (!caissierNom) return null
-    const parts = caissierNom.trim().split(' ')
-    if (parts.length < 2) return caissierNom
-    return parts[0] + ' ' + parts[1][0] + '.'
-  }
-
   function getToutesPhotos() {
     if (!detailPoint) return []
     const photos = []
@@ -671,6 +776,26 @@ export default function VerificationScreen() {
   }
 
   // ─── Vignette photo ──────────────────────────────────────────
+  // Bloc « corriger la facture » — affiché uniquement sur une VRAIE
+  // transaction_fournisseurs (pas les entrées draft/historique du gérant).
+  function LigneCorrigerFacture({ f }) {
+    const estTransaction = !!f?.id && (detailPoint?.fournisseurs || []).some(tx => tx.id === f.id)
+    if (!estTransaction || (parseFloat(f.facture) || 0) <= 0) return null
+    const corrige = !!f.facture_corrigee_at
+    return (
+      <View style={{ marginTop: 5 }}>
+        {corrige && (
+          <Text style={styles.factCorrBadge}>
+            {`✏️ Corrigé : ${fmt(parseFloat(f.facture_original) || 0)} → ${fmt(parseFloat(f.facture) || 0)}${f.facture_corrigee_par_nom ? ` · ${f.facture_corrigee_par_nom}` : ''}`}
+          </Text>
+        )}
+        <TouchableOpacity style={styles.factCorrBtn} onPress={() => ouvrirCorrectionFacture(f)} activeOpacity={0.8}>
+          <Text style={styles.factCorrBtnTxt}>{corrige ? '✏️ Re-corriger la facture' : '✏️ Corriger la facture'}</Text>
+        </TouchableOpacity>
+      </View>
+    )
+  }
+
   function PhotoVignette({ uri, label, montant, onPress }) {
     const aPhoto = !!uri
     return (
@@ -1424,6 +1549,7 @@ export default function VerificationScreen() {
                                   Facture: {fmt(f.facture || 0)} — Payé: {fmt(f.paye || 0)}
                                 </Text>
                                 {reste > 0 && <Text style={[styles.listSub, { color: '#A32D2D' }]}>Reste dû: {fmt(reste)}</Text>}
+                                <LigneCorrigerFacture f={f} />
                               </View>
                               <View style={styles.listRight}>
                                 <View style={{ alignItems: 'flex-end' }}>
@@ -1522,6 +1648,7 @@ export default function VerificationScreen() {
                                     📦 {detailPoint.invParFournisseur[f.fournisseur_id].map(l => `${l.produit_nom} — ${l.entrees}`).join(' / ')}
                                   </Text>
                                 )}
+                                <LigneCorrigerFacture f={f} />
                               </View>
                               <View style={styles.listRight}>
                                 <View style={{ alignItems: 'flex-end' }}>
@@ -2503,6 +2630,72 @@ export default function VerificationScreen() {
       </Modal>
 
       {/* ══════════════════════════════════════════
+          MODAL CORRECTION FACTURE FOURNISSEUR
+      ══════════════════════════════════════════ */}
+      <Modal visible={corrFacture != null} animationType="fade" transparent onRequestClose={fermerCorrectionFacture}>
+        <View style={styles.annulerOverlay}>
+          <View style={styles.annulerCard}>
+            <Text style={styles.annulerTitre}>✏️ Corriger la facture</Text>
+            {corrFacture && (
+              <>
+                <Text style={styles.corrFourn}>{corrFacture.fournisseurs?.nom || 'Fournisseur'}</Text>
+                <Text style={styles.corrAncien}>Montant saisi : {fmt(parseFloat(corrFacture.facture) || 0)}</Text>
+
+                {corrFacture.photo_url ? (
+                  <TouchableOpacity onPress={() => voirPhoto(corrFacture.photo_url, corrFacture.fournisseurs?.nom)} activeOpacity={0.85}>
+                    <Image source={{ uri: corrFacture.photo_url }} style={styles.corrPhoto} resizeMode="cover" />
+                    <Text style={styles.corrPhotoHint}>Toucher pour agrandir la facture</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={styles.corrPhotoHint}>Aucune photo de facture enregistrée</Text>
+                )}
+
+                <Text style={styles.annulerLabel}>Nouveau montant (d’après la facture)</Text>
+                <TextInput
+                  style={styles.annulerInput}
+                  keyboardType="numeric"
+                  value={corrMontant}
+                  onChangeText={setCorrMontant}
+                  placeholder={String(Math.round(parseFloat(corrFacture.facture) || 0))}
+                  placeholderTextColor="#bbb"
+                />
+
+                <Text style={[styles.annulerLabel, { marginTop: 12 }]}>Raison de la correction</Text>
+                <TextInput
+                  style={[styles.annulerInput, styles.corrRaisonInput]}
+                  value={corrRaison}
+                  onChangeText={setCorrRaison}
+                  placeholder="Ex. La facture indique 10 000, saisi 12 000"
+                  placeholderTextColor="#bbb"
+                  multiline
+                />
+
+                <Text style={styles.annulerHint}>Le gérant sera notifié. Sans impact sur le fond ; le solde du fournisseur est recalculé.</Text>
+                {corrError ? <Text style={styles.corrError}>{corrError}</Text> : null}
+
+                <View style={styles.annulerBtnRow}>
+                  <TouchableOpacity
+                    style={[styles.annulerBtn, styles.annulerBtnCancel]}
+                    onPress={fermerCorrectionFacture}
+                    disabled={corrSaving}
+                  >
+                    <Text style={styles.annulerBtnCancelTxt}>Retour</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.annulerBtn, styles.annulerBtnConfirm, corrSaving && { opacity: 0.5 }]}
+                    onPress={sauvegarderCorrectionFacture}
+                    disabled={corrSaving}
+                  >
+                    <Text style={styles.annulerBtnConfirmTxt}>{corrSaving ? '...' : 'Corriger'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ══════════════════════════════════════════
           MODAL DEMANDE DE CORRECTION
       ══════════════════════════════════════════ */}
       <Modal visible={modalCorrection} animationType="slide" presentationStyle="pageSheet">
@@ -2816,6 +3009,16 @@ function makeStyles(colors) { return StyleSheet.create({
   annulerBtnCancelTxt: { fontSize: 14, fontWeight: '600', color: '#555' },
   annulerBtnConfirm: { backgroundColor: '#854F0B' },
   annulerBtnConfirmTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  // Correction de facture fournisseur
+  corrFourn: { fontSize: 15, fontWeight: '800', color: colors.text, textAlign: 'center' },
+  corrAncien: { fontSize: 12, color: colors.textMuted, textAlign: 'center', marginTop: 2, marginBottom: 10 },
+  corrPhoto: { width: '100%', height: 150, borderRadius: 12, backgroundColor: colors.background, marginBottom: 4 },
+  corrPhotoHint: { fontSize: 11, color: colors.textMuted, textAlign: 'center', marginBottom: 12 },
+  corrRaisonInput: { fontSize: 14, fontWeight: '500', textAlign: 'left', minHeight: 60, textAlignVertical: 'top' },
+  corrError: { fontSize: 12, color: '#A32D2D', fontWeight: '600', marginTop: 8, textAlign: 'center' },
+  factCorrBadge: { fontSize: 11, color: '#854F0B', fontWeight: '700', marginBottom: 3 },
+  factCorrBtn: { alignSelf: 'flex-start', backgroundColor: '#E8F0FE', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, marginTop: 1 },
+  factCorrBtnTxt: { fontSize: 12, color: '#1B4B9E', fontWeight: '700' },
   // ─── Inventaire Résumé global ───
   invResumeCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 0.5, borderColor: colors.border },
   invResumeRow: { flexDirection: 'row', gap: 10 },

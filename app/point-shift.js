@@ -189,7 +189,7 @@ export default function PointShiftScreen() {
     dateJour,
     depensesJour, fournisseursJour,
     userId, userNom, resetJour,
-    totalDepenses, totalFournisseurs,
+    totalDepenses, totalFournisseurs, fournisseursNonEnregistres,
   } = useApp()
 
   const { prendrePhoto, choisirPhoto } = usePhoto()
@@ -245,13 +245,22 @@ export default function PointShiftScreen() {
   const [shiftDetail, setShiftDetail] = useState(null)
   const [shiftDetailData, setShiftDetailData] = useState({ depenses: [], fournisseurs: [], presences: [], inventaire: null, loading: false })
   const [photoPleinEcranUrl, setPhotoPleinEcranUrl] = useState(null)
+  const [fournNoms, setFournNoms] = useState({})
 
   useEffect(() => {
     if (isGerant || isManager || isDirecteur) chargerShiftsGerant()
     else setLoading(false)
     verifierHeure()
     if (isCaissier && pointId && userId) chargerStatutInventaire()
+    if (isCaissier && restaurantId) chargerFournNoms()
   }, [])
+
+  async function chargerFournNoms() {
+    const { data } = await supabase.from('fournisseurs').select('id, nom').eq('restaurant_id', restaurantId)
+    const map = {}
+    ;(data || []).forEach(f => { map[f.id] = f.nom })
+    setFournNoms(map)
+  }
 
   async function chargerStatutInventaire() {
     const { data } = await supabase
@@ -516,6 +525,12 @@ export default function PointShiftScreen() {
     if (parseFloat(wave) > 0 && !photoWave) manquantes.push('Wave')
     if (parseFloat(djamo) > 0 && !photoDjamo) manquantes.push('Djamo')
     if (parseFloat(om) > 0 && !photoOm) manquantes.push('Orange Money')
+    // Factures fournisseurs sans photo : même exigence que côté gérant (obligatoire).
+    Object.entries(fournisseursJour || {}).forEach(([id, t]) => {
+      if ((parseFloat(t?.facture) || 0) > 0 && !t?.photoUri) {
+        manquantes.push(`Facture ${fournNoms[id] || 'fournisseur'}`)
+      }
+    })
     return manquantes
   }
 
@@ -554,6 +569,17 @@ export default function PointShiftScreen() {
   function validerShift() {
     if (!heureDebut || !heureFin) {
       Alert.alert('Erreur', 'Veuillez indiquer les heures de début et de fin du shift')
+      return
+    }
+    // Bloquer s'il reste des saisies fournisseurs non enregistrées (elles n'ont pas eu
+    // de photo obligatoire et ne comptent pas dans la vente tant qu'elles ne sont pas enregistrées).
+    const nonEnr = fournisseursNonEnregistres()
+    if (nonEnr.length > 0) {
+      const noms = nonEnr.map(id => fournNoms[id] || 'fournisseur').join(', ')
+      Alert.alert(
+        '⚠️ Saisies fournisseurs non enregistrées',
+        `Vous avez des saisies non enregistrées pour :\n\n${noms}\n\nRetournez dans Fournisseurs pour les enregistrer (photo obligatoire) ou les supprimer avant de valider.`
+      )
       return
     }
     if (isCaissier && !inventaireCaissierOk) {

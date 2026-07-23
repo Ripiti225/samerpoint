@@ -246,12 +246,14 @@ export default function DeductionsGerantScreen() {
           modified_by: userId || null,
         })
         // Enregistrer dans transactions_fournisseurs (source de vérité crédit veille)
+        // ⚠️ NE PAS inclure modified_by : cette colonne n'existe pas sur cette table
+        // et faisait échouer silencieusement TOUTES les insertions de déduction gérant.
         await supabase.from('transactions_fournisseurs')
           .delete()
           .eq('point_id', pointId)
           .eq('fournisseur_id', fournId)
           .eq('saisi_par', 'gerant_caissier')
-        await supabase.from('transactions_fournisseurs').insert({
+        const { error: txErr } = await supabase.from('transactions_fournisseurs').insert({
           point_id: pointId,
           fournisseur_id: fournId,
           fournisseur_nom: fournisseursList.find(f => f.id === fournId)?.nom || null,
@@ -262,8 +264,8 @@ export default function DeductionsGerantScreen() {
           reste: nouveauCredit,
           saisi_par: 'gerant_caissier',
           caissier_nom: userNom || null,
-          modified_by: userId || null,
         })
+        if (txErr) throw txErr
         // Synchroniser fournisseurs_restaurants si la table a un credit_actuel
         supabase.from('fournisseurs_restaurants')
           .update({ credit_actuel: nouveauCredit })

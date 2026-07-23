@@ -51,6 +51,7 @@ export default function RecapPointScreen() {
     totalDepensesGerantCaisse,
     inventaireTermine,
     restaurantId, restaurantNom, userId,
+    fournisseursNonEnregistres,
   } = useApp()
 
   const isGerant = roleActif === 'gerant'
@@ -224,6 +225,17 @@ export default function RecapPointScreen() {
   }
 
   function valider() {
+    // Bloquer s'il reste des saisies fournisseurs (Saisir Ventes) non enregistrées :
+    // elles n'ont pas eu de photo obligatoire et ne comptent pas tant qu'elles ne sont pas enregistrées.
+    const nonEnrFour = fournisseursNonEnregistres()
+    if (nonEnrFour.length > 0) {
+      Alert.alert(
+        '⚠️ Saisies fournisseurs non enregistrées',
+        `Vous avez ${nonEnrFour.length} saisie(s) fournisseur non enregistrée(s).\n\nRetournez dans Fournisseurs pour les enregistrer (photo obligatoire) ou les supprimer avant de valider le point.`
+      )
+      return
+    }
+
     const invOk = inventaireTermine || inventairesShifts.some(s => s.valide)
     if (!invOk) {
       Alert.alert(
