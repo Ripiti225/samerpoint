@@ -6,7 +6,7 @@ import {
 } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import { supabase } from '../lib/supabase'
-import { annulerDeductionInventaire } from '../lib/api'
+import { annulerDeductionInventaire, deciderEcartInventaire } from '../lib/api'
 import { useApp } from '../context/AppContext'
 import { genererPdfPoint, genererPdfEcarts } from '../lib/generatePdf'
 import { CATEGORIES_INVENTAIRE } from '../lib/constants'
@@ -68,6 +68,10 @@ export default function VerificationScreen() {
   const [modalInventaire, setModalInventaire] = useState(false)
   const [detailInventaire, setDetailInventaire] = useState(null)
   const [annulDeducSaving, setAnnulDeducSaving] = useState(null)  // id de la ligne en cours d'annulation
+  // Décision manager sur un écart inventaire expliqué (validee / refusee)
+  const [decisionInv, setDecisionInv] = useState(null)  // { ...ligneEcart } ou null
+  const [qteAcceptee, setQteAcceptee] = useState('')
+  const [decisionSaving, setDecisionSaving] = useState(false)
   const [loadingInventaire, setLoadingInventaire] = useState(false)
   const [generatingEcartsPdf, setGeneratingEcartsPdf] = useState(false)
   // Déverrouillage / correction
@@ -306,7 +310,8 @@ export default function VerificationScreen() {
           inventaire_lignes(
             id, produit_id, produit_nom, stock_initial, entrees, sorties,
             stock_reel, ecart, nombre_explique, explication, montant_deduit,
-            deduction_annulee, montant_deduit_annule
+            deduction_annulee, montant_deduit_annule,
+            explication_statut, quantite_acceptee, explication_decidee_par, explication_decidee_at
           )
         `)
         .eq('point_id', point.id)
@@ -378,6 +383,53 @@ export default function VerificationScreen() {
         { text: 'Annuler la déduction', style: 'destructive', onPress: faire },
       ]
     )
+  }
+
+  // ── Décision manager sur un écart inventaire expliqué ────────────────
+  function ouvrirDecisionInv(e) {
+    setDecisionInv(e)
+    const defaut = e.quantite_acceptee != null ? e.quantite_acceptee : (e.nombreExplique || 0)
+    setQteAcceptee(defaut ? String(defaut) : '')
+  }
+
+  async function enregistrerDecisionInv(statut) {
+    const e = decisionInv
+    if (!e || decisionSaving) return
+    const ecartAbs = Math.abs(e.ecart || 0)
+    const prix = e.prix || 0
+    const qAcc = statut === 'validee'
+      ? Math.max(0, Math.min(ecartAbs, parseFloat(qteAcceptee) || 0))
+      : 0
+    const nouveauMontant = Math.round(Math.max(0, ecartAbs - qAcc) * prix)
+    setDecisionSaving(true)
+    try {
+      await deciderEcartInventaire({
+        ligneId: e.id,
+        inventaireId: e.inventaireId,
+        pointId: pointSelectionne?.id,
+        statut,
+        quantiteAcceptee: qAcc,
+        nouveauMontant,
+        par: userNom || roleActif || 'Manager',
+      })
+      creerNotification({
+        type: `ecart_inventaire_${statut}`,
+        titre: statut === 'validee' ? '✅ Écart inventaire validé' : '❌ Écart inventaire refusé',
+        message: statut === 'validee'
+          ? `${e.produit_nom} : explication acceptée (${qAcc} justifié) — déduction ${fmt(nouveauMontant)}.`
+          : `${e.produit_nom} : explication refusée — déduction pleine de ${fmt(nouveauMontant)}.`,
+        restaurant_id: pointSelectionne?.restaurant_id,
+        cible_role: ['gerant'],
+        created_by: userId || null,
+        screen: null,
+      }).catch(() => {})
+      setDecisionInv(null)
+      await ouvrirInventaire(pointSelectionne)
+    } catch (err) {
+      Alert.alert('Erreur', err?.message || 'Décision impossible')
+    } finally {
+      setDecisionSaving(false)
+    }
   }
 
   function voirPhoto(uri, label) {
@@ -2398,7 +2450,38 @@ export default function VerificationScreen() {
                             </Text>
                           </View>
 
-                          {e.deduction_annulee ? (
+                          {e.explication_statut ? (
+                            <View style={styles.decisionInvBox}>
+                              {e.explication_statut === 'en_attente' ? (
+                                <>
+                                  <Text style={styles.decisionInvPending}>⏳ Explication en attente de votre décision</Text>
+                                  {peutVoirEcarts && e.id && (
+                                    <TouchableOpacity style={styles.decisionInvBtn} onPress={() => ouvrirDecisionInv(e)}>
+                                      <Text style={styles.decisionInvBtnTxt}>⚖️ Valider / Refuser l'explication</Text>
+                                    </TouchableOpacity>
+                                  )}
+                                </>
+                              ) : e.explication_statut === 'validee' ? (
+                                <>
+                                  <Text style={[styles.decisionInvStatut, { color: '#3B6D11' }]}>
+                                    ✅ Explication validée{e.quantite_acceptee != null ? ` · accepté ${e.quantite_acceptee}` : ''} · déduit {fmt(e.montantDeduit)}
+                                  </Text>
+                                  {peutVoirEcarts && e.id && (
+                                    <TouchableOpacity onPress={() => ouvrirDecisionInv(e)}><Text style={styles.decisionInvModifier}>✏️ Modifier la décision</Text></TouchableOpacity>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  <Text style={[styles.decisionInvStatut, { color: '#A32D2D' }]}>
+                                    ❌ Explication refusée · déduction pleine {fmt(e.montantDeduit)}
+                                  </Text>
+                                  {peutVoirEcarts && e.id && (
+                                    <TouchableOpacity onPress={() => ouvrirDecisionInv(e)}><Text style={styles.decisionInvModifier}>✏️ Modifier la décision</Text></TouchableOpacity>
+                                  )}
+                                </>
+                              )}
+                            </View>
+                          ) : e.deduction_annulee ? (
                             <View style={styles.deducAnnuleeBadge}>
                               <Text style={styles.deducAnnuleeTxt}>
                                 🚫 Déduction annulée{e.montant_deduit_annule > 0 ? ` (${fmt(e.montant_deduit_annule)})` : ''}
@@ -2625,6 +2708,66 @@ export default function VerificationScreen() {
                 </View>
               </>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ══════════════════════════════════════════
+          MODAL DÉCISION ÉCART INVENTAIRE (valider/refuser explication)
+      ══════════════════════════════════════════ */}
+      <Modal visible={decisionInv != null} animationType="fade" transparent onRequestClose={() => setDecisionInv(null)}>
+        <View style={styles.annulerOverlay}>
+          <View style={styles.annulerCard}>
+            <Text style={styles.annulerTitre}>⚖️ Décision sur l'écart</Text>
+            {decisionInv && (() => {
+              const ecartAbs = Math.abs(decisionInv.ecart || 0)
+              const prix = decisionInv.prix || 0
+              const qAcc = Math.max(0, Math.min(ecartAbs, parseFloat(qteAcceptee) || 0))
+              const montantValide = Math.round(Math.max(0, ecartAbs - qAcc) * prix)
+              const montantRefuse = Math.round(ecartAbs * prix)
+              return (
+                <>
+                  <Text style={styles.decisionModalNom}>{decisionInv.produit_nom}</Text>
+                  <View style={styles.decisionModalInfo}>
+                    <Text style={styles.decisionModalInfoTxt}>Écart : {ecartAbs.toFixed(2)}  ·  Prix unitaire : {fmt(prix)}</Text>
+                    {decisionInv.nombreExplique > 0 && (
+                      <Text style={styles.decisionModalInfoTxt}>Quantité expliquée par le caissier : {decisionInv.nombreExplique}</Text>
+                    )}
+                    {!!decisionInv.explication && (
+                      <Text style={styles.decisionModalExpl}>💬 "{decisionInv.explication}"</Text>
+                    )}
+                  </View>
+
+                  <Text style={styles.annulerLabel}>Quantité acceptée (justifiée)</Text>
+                  <TextInput
+                    style={styles.annulerInput}
+                    keyboardType="numeric"
+                    value={qteAcceptee}
+                    onChangeText={setQteAcceptee}
+                    placeholder="0"
+                    placeholderTextColor="#bbb"
+                  />
+                  <Text style={styles.annulerHint}>{`Max ${ecartAbs.toFixed(2)} — accepter tout l'écart = déduction 0`}</Text>
+
+                  <View style={styles.decisionPreviewRow}>
+                    <Text style={styles.decisionPreviewTxt}>→ Si validé : déduction <Text style={{ fontWeight: '800', color: '#3B6D11' }}>{fmt(montantValide)}</Text></Text>
+                    <Text style={styles.decisionPreviewTxt}>→ Si refusé : déduction <Text style={{ fontWeight: '800', color: '#A32D2D' }}>{fmt(montantRefuse)}</Text></Text>
+                  </View>
+
+                  <View style={styles.annulerBtnRow}>
+                    <TouchableOpacity style={[styles.annulerBtn, styles.annulerBtnCancel]} onPress={() => setDecisionInv(null)} disabled={decisionSaving}>
+                      <Text style={styles.annulerBtnCancelTxt}>Retour</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.annulerBtn, { backgroundColor: '#C62828' }, decisionSaving && { opacity: 0.5 }]} onPress={() => enregistrerDecisionInv('refusee')} disabled={decisionSaving}>
+                      <Text style={styles.annulerBtnConfirmTxt}>❌ Refuser</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.annulerBtn, { backgroundColor: '#2E7D32' }, decisionSaving && { opacity: 0.5 }]} onPress={() => enregistrerDecisionInv('validee')} disabled={decisionSaving}>
+                      <Text style={styles.annulerBtnConfirmTxt}>{decisionSaving ? '...' : '✅ Valider'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )
+            })()}
           </View>
         </View>
       </Modal>
@@ -3043,6 +3186,18 @@ function makeStyles(colors) { return StyleSheet.create({
   annulDeducBtnTxt: { color: '#A32D2D', fontWeight: '700', fontSize: 13 },
   deducAnnuleeBadge: { marginTop: 10, backgroundColor: '#EFEFEF', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
   deducAnnuleeTxt: { color: colors.textMuted, fontWeight: '600', fontSize: 12, textDecorationLine: 'line-through' },
+  decisionInvBox: { marginTop: 10, backgroundColor: '#FFF9EC', borderWidth: 1, borderColor: '#F0D28A', borderRadius: 8, padding: 10 },
+  decisionInvPending: { color: '#854F0B', fontWeight: '700', fontSize: 12, textAlign: 'center', marginBottom: 8 },
+  decisionInvBtn: { backgroundColor: '#EF9F27', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
+  decisionInvBtnTxt: { color: '#412402', fontWeight: '800', fontSize: 13 },
+  decisionInvStatut: { fontWeight: '700', fontSize: 12, textAlign: 'center' },
+  decisionInvModifier: { color: '#185FA5', fontWeight: '600', fontSize: 12, textAlign: 'center', marginTop: 6 },
+  decisionModalNom: { fontSize: 15, fontWeight: '800', color: colors.text, textAlign: 'center', marginBottom: 8 },
+  decisionModalInfo: { backgroundColor: '#F7F7F7', borderRadius: 8, padding: 10, marginBottom: 12 },
+  decisionModalInfoTxt: { fontSize: 12, color: colors.textMuted, marginBottom: 2 },
+  decisionModalExpl: { fontSize: 12, color: '#185FA5', marginTop: 4, fontStyle: 'italic' },
+  decisionPreviewRow: { marginTop: 10, gap: 4 },
+  decisionPreviewTxt: { fontSize: 12, color: colors.text },
   // ─── Bilan financier ───
   invBilanCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: colors.border },
   invBilanRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5' },

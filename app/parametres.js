@@ -20,20 +20,23 @@ import {
     View
 } from 'react-native'
 import { useApp } from '../context/AppContext'
+import { creerNotification } from '../lib/notificationsInterne'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
 import { connecterOneDrive, deconnecterOneDrive, estatConnecte } from '../lib/onedrive'
+import { ROLES_GLOBAUX } from '../lib/constants'
+import {
+  TUILES, ROLES_CONFIGURABLES, LABELS_ROLES, ACCES_DEFAUT,
+  chargerAccesConfig, enregistrerAccesRole,
+} from '../lib/menus'
 
 const SECTIONS = [
   { key: 'restaurants', label: '🏪 Restaurants' },
   { key: 'travailleurs', label: '👥 Travailleurs' },
   { key: 'utilisateurs', label: '🔑 Utilisateurs' },
   { key: 'fournisseurs', label: '🧾 Fournisseurs' },
+  { key: 'roles', label: '🔐 Rôles & accès' },
 ]
-
-// Rôles créés ici sans restaurant (accès global). On ne touche pas à RH ni
-// directeur : leur comportement existant reste inchangé.
-const ROLES_GLOBAUX = ['manager', 'verificateur']
 
 export default function ParametresScreen() {
   const { isManager } = useApp()
@@ -64,6 +67,10 @@ export default function ParametresScreen() {
   const [ajoutDocVisible, setAjoutDocVisible] = useState(false)
   const [formDoc, setFormDoc] = useState({ type_document: 'CNI', description: '' })
   const [uploadingDoc, setUploadingDoc] = useState(false)
+  // Rôles & accès
+  const [roleConfigActif, setRoleConfigActif] = useState('gerant')
+  const [accesRoles, setAccesRoles] = useState(ACCES_DEFAUT)
+  const [savingRoles, setSavingRoles] = useState(false)
 
   useEffect(() => { chargerTousRestaurants() }, [])
   useEffect(() => { chargerDonnees() }, [sectionActive])
@@ -122,7 +129,36 @@ export default function ParametresScreen() {
       const { data } = await supabase.from('fournisseurs').select('*, restaurants(nom)').order('nom')
       setFournisseurs(data || [])
     }
+    if (sectionActive === 'roles') {
+      const cfg = await chargerAccesConfig()
+      setAccesRoles(cfg)
+    }
     setLoading(false)
+  }
+
+  // ─── Rôles & accès ─────────────────────────────────────────
+  function toggleTuileRole(id) {
+    setAccesRoles(prev => {
+      const cur = prev[roleConfigActif] || []
+      const next = cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id]
+      return { ...prev, [roleConfigActif]: next }
+    })
+  }
+
+  function restaurerDefautRole() {
+    setAccesRoles(prev => ({ ...prev, [roleConfigActif]: [...(ACCES_DEFAUT[roleConfigActif] || [])] }))
+  }
+
+  async function sauvegarderRole() {
+    setSavingRoles(true)
+    try {
+      const ordonnes = await enregistrerAccesRole(roleConfigActif, accesRoles[roleConfigActif] || [])
+      setAccesRoles(prev => ({ ...prev, [roleConfigActif]: ordonnes }))
+      Alert.alert('✅ Enregistré', `Accès du rôle « ${roleConfigActif} » mis à jour. Les utilisateurs verront le changement à leur prochaine ouverture de l'app.`)
+    } catch (e) {
+      Alert.alert('Erreur', e?.message || "Impossible d'enregistrer les accès.")
+    }
+    setSavingRoles(false)
   }
 
   async function ouvrirModal(type, data = null, defaults = {}) {
@@ -241,6 +277,20 @@ export default function ParametresScreen() {
               statut: 'actif',
             })
           if (error) throw error
+          // Notifier l'ajout (comme l'écran RH) — manager + directeur.
+          let restoNom = restaurants.find(r => r.id === form.restaurant_id)?.nom || ''
+          if (!restoNom && form.restaurant_id) {
+            const { data: r } = await supabase.from('restaurants').select('nom').eq('id', form.restaurant_id).maybeSingle()
+            restoNom = r?.nom || ''
+          }
+          creerNotification({
+            type: 'nouveau_travailleur',
+            titre: '👤 Nouveau travailleur',
+            message: `${form.nom}${restoNom ? ` ajouté à ${restoNom}` : ' ajouté'}`,
+            restaurant_id: form.restaurant_id || null,
+            cible_role: ['manager', 'directeur'],
+            screen: 'rh',
+          }).catch(() => {})
         }
       }
 
@@ -437,6 +487,14 @@ export default function ParametresScreen() {
         description: formDoc.description || null,
       })
       if (!error) {
+        creerNotification({
+          type: 'nouveau_document',
+          titre: '📄 Document travailleur',
+          message: `${formDoc.type_document} ajouté${modal.data?.nom ? ` — ${modal.data.nom}` : ''}`,
+          restaurant_id: modal.data?.restaurant_id || null,
+          cible_role: ['manager', 'directeur'],
+          screen: 'rh',
+        }).catch(() => {})
         setAjoutDocVisible(false)
         setFormDoc({ type_document: 'CNI', description: '' })
         chargerDocsTravailleur(modal.data.id)
@@ -1242,6 +1300,87 @@ export default function ParametresScreen() {
     )
   }
 
+  // ─── RENDU RÔLES & ACCÈS ───────────────────────────────────
+  function renderRoles() {
+    const ids = accesRoles[roleConfigActif] || []
+    const actives = new Set(ids)
+    const admin = TUILES.filter(t => t.admin)
+    const ops = TUILES.filter(t => !t.admin)
+
+    const renderTuile = (t) => {
+      const on = actives.has(t.id)
+      return (
+        <TouchableOpacity
+          key={t.id}
+          style={[styles.roleTuileRow, on && styles.roleTuileRowOn]}
+          activeOpacity={0.7}
+          onPress={() => toggleTuileRole(t.id)}
+        >
+          <Text style={styles.roleTuileIcon}>{t.icon}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.roleTuileTitre}>{t.titre}</Text>
+            <Text style={styles.roleTuileSous} numberOfLines={1}>{t.sous}</Text>
+          </View>
+          {/* Switch purement visuel : c'est la ligne qui bascule (évite le
+              double toggle web où l'input + la propagation s'annulent). */}
+          <View pointerEvents="none">
+            <Switch
+              value={on}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={colors.surface}
+            />
+          </View>
+        </TouchableOpacity>
+      )
+    }
+
+    return (
+      <>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtreBar} contentContainerStyle={{ paddingHorizontal: 2, paddingBottom: 10 }}>
+          {ROLES_CONFIGURABLES.map(r => (
+            <TouchableOpacity
+              key={r}
+              style={[styles.filtrePill, roleConfigActif === r && styles.filtrePillActive]}
+              onPress={() => setRoleConfigActif(r)}
+            >
+              <Text style={[styles.filtrePillTxt, roleConfigActif === r && styles.filtrePillTxtActive]}>
+                {LABELS_ROLES[r] || r}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <View style={styles.infoBox}>
+          <Text style={styles.infoTxt}>
+            👑 Manager & 🏢 Directeur ont accès à tout (non modifiable). 🔍 Vérificateur a son écran dédié. Coche/décoche ce que « {roleConfigActif} » voit sur son accueil.
+          </Text>
+        </View>
+
+        <View style={styles.roleHeaderRow}>
+          <Text style={styles.roleCountTxt}>{ids.length} tuile{ids.length > 1 ? 's' : ''} activée{ids.length > 1 ? 's' : ''}</Text>
+          <TouchableOpacity onPress={restaurerDefautRole}>
+            <Text style={styles.roleResetTxt}>↩︎ Valeurs par défaut</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.separateur}>Administration</Text>
+        {admin.map(renderTuile)}
+        <Text style={styles.separateur}>Opérations (shift)</Text>
+        {ops.map(renderTuile)}
+
+        <TouchableOpacity
+          style={[styles.saveRoleBtn, savingRoles && { opacity: 0.6 }]}
+          onPress={sauvegarderRole}
+          disabled={savingRoles}
+        >
+          <Text style={styles.saveRoleTxt}>
+            {savingRoles ? '⏳ Enregistrement…' : `💾 Enregistrer les accès — ${roleConfigActif}`}
+          </Text>
+        </TouchableOpacity>
+      </>
+    )
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -1272,8 +1411,10 @@ export default function ParametresScreen() {
         {sectionActive === 'travailleurs' && renderTravailleurs()}
         {sectionActive === 'utilisateurs' && renderUtilisateurs()}
         {sectionActive === 'fournisseurs' && renderFournisseurs()}
+        {sectionActive === 'roles' && renderRoles()}
 
-        {/* ── Apparence ── */}
+        {/* ── Apparence (masquée sur l'onglet Rôles pour rester focalisé) ── */}
+        {sectionActive !== 'roles' && (<>
         <View style={styles.section}>
           <Text style={styles.sectionTitreApp}>Apparence</Text>
           <View style={styles.row}>
@@ -1314,6 +1455,7 @@ export default function ParametresScreen() {
             ) : null}
           </TouchableOpacity>
         </View>
+        </>)}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -1626,6 +1768,24 @@ function makeStyles(colors) { return StyleSheet.create({
   autoBtnActif: { backgroundColor: colors.primaryLight },
   autoBtnTxt: { fontSize: 13, color: colors.textMuted },
   autoBtnTxtActif: { color: colors.primary, fontWeight: '600' },
+  // Rôles & accès
+  roleHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, marginBottom: 6 },
+  roleCountTxt: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
+  roleResetTxt: { fontSize: 12, color: colors.primary, fontWeight: '600' },
+  roleTuileRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: colors.surface, borderRadius: 12, padding: 12, marginBottom: 8,
+    borderWidth: 1, borderColor: colors.borderLight,
+  },
+  roleTuileRowOn: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
+  roleTuileIcon: { fontSize: 22 },
+  roleTuileTitre: { fontSize: 14, fontWeight: '600', color: colors.text },
+  roleTuileSous: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  saveRoleBtn: {
+    marginTop: 16, marginBottom: 8, padding: 15, borderRadius: 14,
+    backgroundColor: colors.primary, alignItems: 'center',
+  },
+  saveRoleTxt: { fontSize: 15, fontWeight: '700', color: '#fff' },
   // Onglets travailleur
   ongletRow: { flexDirection: 'row', marginBottom: 16, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
   ongletBtn: { flex: 1, padding: 10, alignItems: 'center', backgroundColor: colors.surfaceAlt },

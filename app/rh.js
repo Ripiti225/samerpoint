@@ -1,5 +1,5 @@
 import * as DocumentPicker from 'expo-document-picker'
-import * as FileSystem from 'expo-file-system'
+import * as FileSystem from 'expo-file-system/legacy'
 import * as ImagePicker from 'expo-image-picker'
 import { router } from 'expo-router'
 import * as Sharing from 'expo-sharing'
@@ -251,6 +251,14 @@ export default function RHScreen() {
       await supabase.from('travailleurs')
         .update({ nom: formTravailleur.nom, ...champsCommunsUpdate })
         .eq('id', travailleurEdition.id)
+      creerNotification({
+        type: 'travailleur_modifie',
+        titre: '✏️ Travailleur modifié',
+        message: `${formTravailleur.nom} — ${restoSelectionne.nom}`,
+        restaurant_id: restoSelectionne.id,
+        cible_role: ['manager', 'directeur'],
+        screen: 'rh',
+      }).catch(() => {})
     } else {
       const { data: ins } = await supabase.from('travailleurs').insert({
         nom: formTravailleur.nom,
@@ -280,6 +288,14 @@ export default function RHScreen() {
           description: p.fichier_type,
         }))
       )
+      creerNotification({
+        type: 'nouveau_document',
+        titre: '📄 Document(s) travailleur',
+        message: `${papiersDraft.length} document(s) ajouté(s) — ${formTravailleur.nom}`,
+        restaurant_id: restoSelectionne?.id || null,
+        cible_role: ['manager', 'directeur'],
+        screen: 'rh',
+      }).catch(() => {})
     }
     setPapiersDraft([])
     setSavingTravailleur(false)
@@ -319,6 +335,14 @@ export default function RHScreen() {
       archived_at: new Date().toISOString(),
       archive_motif: motifFinal,
     }).eq('id', travailleurAction.id)
+    creerNotification({
+      type: 'travailleur_archive',
+      titre: '📦 Travailleur archivé',
+      message: `${travailleurAction.nom} archivé (${motifFinal})`,
+      restaurant_id: travailleurAction.restaurant_id || restoSelectionne?.id || null,
+      cible_role: ['manager', 'directeur'],
+      screen: 'rh',
+    }).catch(() => {})
     setSavingArchive(false)
     setModalArchiveAction(false)
     setTravailleurAction(null)
@@ -340,6 +364,14 @@ export default function RHScreen() {
     setModalTravailleur(false)
     chargerDonnees()
     const restoNom = restaurants.find(r => r.id === restoTransfertId)?.nom || ''
+    creerNotification({
+      type: 'travailleur_transfere',
+      titre: '🔀 Travailleur transféré',
+      message: `${travailleurSelectionne.nom} transféré vers ${restoNom}`,
+      restaurant_id: restoTransfertId,
+      cible_role: ['manager', 'directeur'],
+      screen: 'rh',
+    }).catch(() => {})
     Alert.alert('Transféré', `${travailleurSelectionne.nom} a été transféré vers ${restoNom}.`)
   }
 
@@ -350,6 +382,14 @@ export default function RHScreen() {
       archived_at: null,
       archive_motif: null,
     }).eq('id', trav.id)
+    creerNotification({
+      type: 'travailleur_reactive',
+      titre: '♻️ Travailleur réactivé',
+      message: `${trav.nom} réactivé`,
+      restaurant_id: trav.restaurant_id || null,
+      cible_role: ['manager', 'directeur'],
+      screen: 'rh',
+    }).catch(() => {})
     chargerArchives()
     Alert.alert('Réactivé', `${trav.nom} a été réactivé.`)
   }
@@ -377,6 +417,14 @@ export default function RHScreen() {
                     await supabase.from('demandes').delete().eq('travailleur_id', trav.id)
                     await supabase.from('documents_travailleurs').delete().eq('travailleur_id', trav.id)
                     await supabase.from('travailleurs').delete().eq('id', trav.id)
+                    creerNotification({
+                      type: 'travailleur_supprime',
+                      titre: '🗑️ Travailleur supprimé',
+                      message: `${trav.nom} supprimé définitivement`,
+                      restaurant_id: trav.restaurant_id || null,
+                      cible_role: ['manager', 'directeur'],
+                      screen: 'rh',
+                    }).catch(() => {})
                     chargerArchives()
                     Alert.alert('Supprimé', `${trav.nom} a été supprimé définitivement.`)
                   },

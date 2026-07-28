@@ -223,6 +223,16 @@ export default function VerificateurScreen() {
       restaurant_id: resto.id, comptes: lignes.length, ecarts: avecEcart.length, pct,
     }, { par: userNom || roleActif }).catch(() => {})
 
+    // Notifier manager + directeur de la vérification de stock enregistrée.
+    creerNotification({
+      type: 'verification_stock',
+      titre: '🔍 Vérification de stock',
+      message: `${userNom || 'Vérificateur'}${resto.nom ? ` — ${resto.nom}` : ''} : ${lignes.length} produit(s) comptés, ${avecEcart.length} écart(s) (${pct}%)`,
+      restaurant_id: resto.id,
+      cible_role: ['manager', 'directeur'],
+      screen: null,
+    }).catch(() => {})
+
     // Seuil atteint → demande d'explication + notification RH
     if (ratio >= SEUIL_ECART) {
       await creerDemandeRH(avecEcart, lignes.length, pct, date)

@@ -41,6 +41,13 @@ const TYPES_AVIS = [
   { key: 'mauvais', label: '👎 Mauvais avis', montant: 1000, couleur: '#C62828' },
   { key: 'bon', label: '👍 Bon avis', montant: -500, couleur: '#2E7D32' },
 ]
+// Canal du client à l'origine de l'avis
+const CANAUX_AVIS = [
+  { key: 'sur_place', label: '🍽️ Sur place', court: 'Sur place', couleur: '#185FA5' },
+  { key: 'yango', label: 'Yango', court: 'Yango', couleur: '#EF9F27' },
+  { key: 'glovo', label: 'Glovo', court: 'Glovo', couleur: '#2E7D32' },
+]
+function canalAvis(key) { return CANAUX_AVIS.find(c => c.key === key) }
 const TYPES_YANGO = [
   { key: 'tape_moins', label: 'Tapé −', couleur: '#C62828' },
   { key: 'tape_plus', label: 'Tapé +', couleur: '#2E7D32' },
@@ -153,7 +160,7 @@ export default function LitigesScreen() {
   // ── Volet 3 — avis clients ──────────────────────────────────
   const [avisClients, setAvisClients] = useState([])
   const [showFormAvis, setShowFormAvis] = useState(false)
-  const [formAvis, setFormAvis] = useState({ type: 'mauvais', notes: '', numero_commande: '', date_saisie: TODAY, id: null })
+  const [formAvis, setFormAvis] = useState({ type: 'mauvais', canal: 'sur_place', notes: '', numero_commande: '', date_saisie: TODAY, id: null })
 
   // ── Volet 4 — Yango ─────────────────────────────────────────
   const [litigesYango, setLitigesYango] = useState([])
@@ -792,8 +799,9 @@ export default function LitigesScreen() {
           html += `<div class="volet"><div class="volet-h"><span>👁 Avis clients (${d.avis.length})</span><span class="${ac}">${d.avisTotal > 0 ? '+' : ''}${Math.round(d.avisTotal).toLocaleString('fr-FR')} FCFA</span></div>`
           d.avis.forEach(a => {
             const tl = TYPES_AVIS.find(t => t.key === a.type)?.label || a.type
+            const cn = a.canal ? ` · <strong style="color:${canalAvis(a.canal)?.couleur || '#555'}">📍 ${canalAvis(a.canal)?.court || a.canal}</strong>` : ''
             const mc = a.montant > 0 ? 'r' : 'g'
-            html += `<div class="item">${a.numero_commande ? `<span class="cmd">#${a.numero_commande}</span> — ` : ''}${tl}${a.notes ? ` — ${a.notes}` : ''} <span class="${mc}"><strong>${a.montant > 0 ? '+' : ''}${Math.round(a.montant).toLocaleString('fr-FR')} FCFA</strong></span></div>`
+            html += `<div class="item">${a.numero_commande ? `<span class="cmd">#${a.numero_commande}</span> — ` : ''}${tl}${cn}${a.notes ? ` — ${a.notes}` : ''} <span class="${mc}"><strong>${a.montant > 0 ? '+' : ''}${Math.round(a.montant).toLocaleString('fr-FR')} FCFA</strong></span></div>`
           })
           html += `</div>`
         }
@@ -943,6 +951,7 @@ export default function LitigesScreen() {
                         <View style={{ flex: 1 }}>
                           <Text style={styles.globalItemTxt} numberOfLines={2}>
                             {type?.label || a.type}
+                            {a.canal ? <Text style={{ color: canalAvis(a.canal)?.couleur }}> · 📍{canalAvis(a.canal)?.court || a.canal}</Text> : null}
                             {a.numero_commande ? <Text style={styles.globalItemCmd}> #{a.numero_commande}</Text> : null}
                             {a.notes ? ` — ${a.notes}` : ''}
                           </Text>
@@ -1041,32 +1050,27 @@ export default function LitigesScreen() {
     setSaving(true)
     const montant = formAvis.type === 'bon' ? -500 : 1000
     const dateToSave = formAvis.date_saisie || TODAY
-    let err
-    if (formAvis.id) {
-      const { error } = await supabase.from('litiges_avis_clients').update({
-        type: formAvis.type, montant,
-        notes: formAvis.notes || null,
-        numero_commande: formAvis.numero_commande || null,
-        date: dateToSave,
-        responsable_id: formAvis.responsable_id || null,
-        responsable_nom: formAvis.responsable_nom || null,
-      }).eq('id', formAvis.id)
-      err = error
-    } else {
-      const { error } = await supabase.from('litiges_avis_clients').insert({
-        restaurant_id: restoSelectionne.id,
-        date: dateToSave,
-        type: formAvis.type, montant,
-        notes: formAvis.notes || null,
-        numero_commande: formAvis.numero_commande || null,
-        created_by: userNom || userId,
-        responsable_id: formAvis.responsable_id || null,
-        responsable_nom: formAvis.responsable_nom || null,
-      })
-      err = error
+    const champs = {
+      type: formAvis.type, montant,
+      canal: formAvis.canal || 'sur_place',
+      notes: formAvis.notes || null,
+      numero_commande: formAvis.numero_commande || null,
+      date: dateToSave,
+      responsable_id: formAvis.responsable_id || null,
+      responsable_nom: formAvis.responsable_nom || null,
+    }
+    const run = (payload) => formAvis.id
+      ? supabase.from('litiges_avis_clients').update(payload).eq('id', formAvis.id)
+      : supabase.from('litiges_avis_clients').insert({ ...payload, restaurant_id: restoSelectionne.id, created_by: userNom || userId })
+
+    let { error } = await run(champs)
+    // Repli si la colonne `canal` n'existe pas encore en base (migration non jouée)
+    if (error && /canal/i.test(error.message || '')) {
+      const { canal: _omit, ...sansCanal } = champs
+      ;({ error } = await run(sansCanal))
     }
     setSaving(false)
-    if (err) { setSaveError(err.message); return }
+    if (error) { setSaveError(error.message); return }
     setSaveError(null)
     setShowFormAvis(false)
     chargerAvis()
@@ -1195,11 +1199,11 @@ export default function LitigesScreen() {
 
   function ouvrirAddAvis() {
     setSaving(false)
-    setFormAvis({ type: 'mauvais', notes: '', numero_commande: '', date_saisie: formDateDefaut(periodeKey, dateUnique), responsable_id: null, responsable_nom: '', id: null })
+    setFormAvis({ type: 'mauvais', canal: 'sur_place', notes: '', numero_commande: '', date_saisie: formDateDefaut(periodeKey, dateUnique), responsable_id: null, responsable_nom: '', id: null })
     setShowFormAvis(true)
   }
   function ouvrirEditAvis(a) {
-    setFormAvis({ type: a.type, notes: a.notes || '', numero_commande: a.numero_commande || '', date_saisie: a.date || TODAY, responsable_id: a.responsable_id || null, responsable_nom: a.responsable_nom || '', id: a.id })
+    setFormAvis({ type: a.type, canal: a.canal || 'sur_place', notes: a.notes || '', numero_commande: a.numero_commande || '', date_saisie: a.date || TODAY, responsable_id: a.responsable_id || null, responsable_nom: a.responsable_nom || '', id: a.id })
     setShowFormAvis(true)
   }
   function ouvrirAddYango() {
@@ -1621,6 +1625,7 @@ export default function LitigesScreen() {
             <View key={a.id} style={styles.ligneCard}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.ligneNom, { color: type?.couleur || colors.text }]}>{type?.label || a.type}</Text>
+                {a.canal ? <Text style={[styles.ligneSous, { color: canalAvis(a.canal)?.couleur || colors.textMuted, fontWeight: '600' }]}>📍 {canalAvis(a.canal)?.court || a.canal}</Text> : null}
                 {a.responsable_nom ? <Text style={styles.ligneSous}>👤 {a.responsable_nom}</Text> : null}
                 {a.numero_commande ? <Text style={styles.ligneCmd}>🔖 Cmd #{a.numero_commande}</Text> : null}
                 {multiJour && a.date ? <Text style={styles.ligneSous}>📅 {a.date}</Text> : null}
@@ -2002,6 +2007,21 @@ export default function LitigesScreen() {
                   </Text>
                 </TouchableOpacity>
               ))}
+            </View>
+
+            <Text style={styles.formLabel}>Canal du client</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+              {CANAUX_AVIS.map(c => {
+                const actif = (formAvis.canal || 'sur_place') === c.key
+                return (
+                  <TouchableOpacity key={c.key}
+                    style={[styles.typeBtn, { flex: 1 }, actif && { backgroundColor: c.couleur, borderColor: c.couleur }]}
+                    onPress={() => setFormAvis(p => ({ ...p, canal: c.key }))}
+                  >
+                    <Text style={[styles.typeBtnTxt, actif && { color: '#fff' }]}>{c.label}</Text>
+                  </TouchableOpacity>
+                )
+              })}
             </View>
 
             <Text style={styles.formLabel}>N° de commande (optionnel)</Text>

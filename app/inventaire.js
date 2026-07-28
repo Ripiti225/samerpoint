@@ -289,12 +289,20 @@ export default function InventaireScreen() {
   }
   function oblgProduit(id) { return getInit(id) > 0 || getEnt(id) > 0 }
 
-  // Montant déduit pour un écart
+  // Un écart est "expliqué" si le caissier a saisi un nombre > 0 OU un texte.
+  function aExplicationKey(key) {
+    const exp = explications[key]
+    return !!(exp && (((exp.texte || '').trim()) || (parseFloat(exp.nombre) || 0) > 0))
+  }
+
+  // Montant déduit pour un écart.
+  // ⚠️ Si l'écart est EXPLIQUÉ, on ne déduit rien pour l'instant : il passe
+  // « en attente » de validation manager (Vérification inventaire). Le manager
+  // tranchera la quantité acceptée et la déduction sera recalculée à ce moment.
   function montantDeduit(ecartVal, prix, key) {
     if (ecartVal == null || Math.abs(ecartVal) < 0.01) return 0
-    const nb = parseFloat(explications[key]?.nombre || '') || 0
-    const diff = Math.max(0, Math.abs(ecartVal) - nb)
-    return Math.round(diff * (prix || 0))
+    if (aExplicationKey(key)) return 0
+    return Math.round(Math.abs(ecartVal) * (prix || 0))
   }
 
   function totalMontant() {
@@ -471,8 +479,19 @@ export default function InventaireScreen() {
         })
       }
 
+      // Écarts EXPLIQUÉS → statut « en_attente » (validation manager requise).
+      lignes.forEach(l => {
+        const aExpl = ((l.explication || '').trim()) || (l.nombre_explique != null && l.nombre_explique > 0)
+        if (aExpl && Math.abs(l.ecart || 0) > 0.01) l.explication_statut = 'en_attente'
+      })
+
       if (lignes.length > 0) {
-        const { error } = await supabase.from('inventaire_lignes').insert(lignes)
+        let { error } = await supabase.from('inventaire_lignes').insert(lignes)
+        // Repli si la colonne explication_statut n'existe pas encore en base.
+        if (error && /explication_statut/i.test(error.message || '')) {
+          const lignesSansStatut = lignes.map(({ explication_statut, ...r }) => r)
+          ;({ error } = await supabase.from('inventaire_lignes').insert(lignesSansStatut))
+        }
         if (error) throw new Error(error.message)
       }
 
