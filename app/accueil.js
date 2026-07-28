@@ -13,9 +13,11 @@ import { useApp } from '../context/AppContext'
 import { useNotifications } from '../context/NotificationsContext'
 import { useTheme } from '../context/ThemeContext'
 import { enregistrerTokenDirecteur } from '../lib/notifications'
+import { pushSupporte, etatPermissionPush, synchroniserWebPush, activerNotificationsPush } from '../lib/webPush'
 import SignatureFooter from '../components/SignatureFooter'
 import { supabase } from '../lib/supabase'
 import { SPRINGS, staggerDelay } from '../lib/animations'
+import { tuilesPourRole, chargerAccesConfig, ACCES_DEFAUT } from '../lib/menus'
 
 function MenuCard({ item, index }) {
   const { colors } = useTheme()
@@ -55,6 +57,8 @@ export default function AccueilScreen() {
     userId, restaurantId,
   } = useApp()
   const [nbCorrections, setNbCorrections] = useState(0)
+  const [pushEtat, setPushEtat] = useState('unsupported')
+  const [pushMsg, setPushMsg] = useState('')
 
   const { colors, isDark, toggleTheme } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
@@ -81,6 +85,36 @@ export default function AccueilScreen() {
     }
   }, [roleEffectif, userId])
 
+  // Web Push (PWA) : à chaque connexion, si la permission est déjà accordée,
+  // on ré-abonne et on rafraîchit le mapping user_id/restaurant_id de cet
+  // appareil (essentiel sur le tel du resto où gérant/caissier alternent).
+  useEffect(() => {
+    if (!userId || !roleEffectif) return
+    const etat = etatPermissionPush()
+    setPushEtat(etat)
+    if (etat === 'granted') {
+      synchroniserWebPush({ userId, restaurantId, role: roleEffectif })
+    }
+  }, [userId, roleEffectif, restaurantId])
+
+  async function activerPush() {
+    setPushMsg('')
+    const res = await activerNotificationsPush({ userId, restaurantId, role: roleEffectif })
+    if (res === 'granted') {
+      setPushEtat('granted')
+      setPushMsg('✅ Alertes activées sur ce téléphone.')
+    } else if (res === 'denied') {
+      setPushEtat('denied')
+      setPushMsg('Notifications refusées. Réactivez-les dans les réglages du téléphone.')
+    } else if (res === 'ios-standalone-requis') {
+      setPushMsg("Sur iPhone : ajoutez d'abord l'app à l'écran d'accueil (Partager → « Sur l'écran d'accueil »), puis rouvrez-la depuis son icône.")
+    } else if (res === 'unsupported') {
+      setPushMsg('Ce navigateur ne supporte pas les notifications.')
+    } else {
+      setPushMsg("Impossible d'activer les alertes pour le moment.")
+    }
+  }
+
   // Gérant : charger les corrections en attente
   useEffect(() => {
     if (roleEffectif === 'gerant' && restaurantId) {
@@ -99,62 +133,26 @@ export default function AccueilScreen() {
   const isCaissier = roleEffectif === 'caissier'
   const isRH = roleEffectif === 'rh'
 
-  const menuManager = [
-    { icon: '🏪', titre: 'Tous les restaurants', sous: 'Vue globale', route: '/restaurants', bloque: false },
-    { icon: '📊', titre: 'Dashboard global', sous: 'Classement & stats', route: '/dashboard-global', bloque: false },
-    { icon: '✏️', titre: 'Modifier un point', sous: 'Choisir restaurant + date', route: '/modifier-point', bloque: false },
-    { icon: '📦', titre: 'Modifier inventaire', sous: 'Choisir restaurant + date', route: '/modifier-inventaire', bloque: false },
-    { icon: '📉', titre: 'Gestion de stock', sous: 'Sorties par produit · resto & période', route: '/gestion-stock', bloque: false },
-    { icon: '👥', titre: 'Équipe globale', sous: 'Tous les travailleurs', route: '/equipe', bloque: false },
-    { icon: '🧑‍💼', titre: 'Ressources Humaines', sous: 'Présences & salaires', route: '/rh', bloque: false },
-    { icon: '💳', titre: 'Charges du mois', sous: 'Saisir & voir bénéfice réel', route: '/charges', bloque: false },
-    { icon: '📁', titre: 'Documents', sous: 'Documents administratifs', route: '/documents', bloque: false },
-    { icon: '📋', titre: 'Demandes', sous: 'Permissions, congés & réclamations', route: '/demandes-admin', bloque: false },
-    { icon: '📨', titre: "Demandes d'explication", sous: 'Suivi & relances travailleurs', route: '/demandes-explication-admin', bloque: false },
-    { icon: '💳', titre: 'Crédits fournisseurs', sous: 'Crédit, avances & paiements', route: '/credits-fournisseurs', bloque: false },
-    { icon: '⚖️', titre: 'Litiges', sous: 'Écarts, avis & réclamations', route: '/litiges', bloque: false },
-    { icon: '🔍', titre: 'Vérification', sous: 'Photos & points à vérifier', route: '/verification', bloque: false },
-    { icon: '📦', titre: 'Vérifications stock', sous: 'Comptages des vérificateurs', route: '/recap-verifications', bloque: false },
-    { icon: '📊', titre: 'Rapports hebdo', sous: 'Synthèse automatique semaine', route: '/rapports', bloque: false },
-    { icon: '👤', titre: 'Stats caissiers', sous: 'Performance par caissier', route: '/stats-caissiers', bloque: false },
-    { icon: '📋', titre: 'Journal activité', sous: 'Historique des actions', route: '/journal', bloque: false },
-    { icon: '📲', titre: 'Contacts', sous: 'SMS & WhatsApp groupés', route: '/contacts', bloque: false },
-    { icon: '⚙️', titre: 'Paramètres', sous: 'Configuration', route: '/parametres', bloque: false },
-  ]
+  // Config d'accès par rôle, chargée depuis la base (repli sur les défauts).
+  // Manager & directeur ignorent cette config : accès total non configurable.
+  const [accesConfig, setAccesConfig] = useState(ACCES_DEFAUT)
+  useEffect(() => {
+    let vivant = true
+    chargerAccesConfig().then(cfg => { if (vivant) setAccesConfig(cfg) })
+    return () => { vivant = false }
+  }, [])
 
-  const menuRH = [
-    { icon: '🧑‍💼', titre: 'Ressources Humaines', sous: 'Présences & salaires', route: '/rh', bloque: false },
-    { icon: '📋', titre: 'Demandes', sous: 'Valider permissions & congés', route: '/demandes-admin', bloque: false },
-    { icon: '📨', titre: "Demandes d'explication", sous: 'Suivi & relances travailleurs', route: '/demandes-explication-admin', bloque: false },
-    { icon: '📦', titre: 'Vérifications stock', sous: 'Comptages des vérificateurs', route: '/recap-verifications', bloque: false },
-    { icon: '👥', titre: 'Équipe globale', sous: 'Tous les travailleurs', route: '/equipe', bloque: false },
-    { icon: '📲', titre: 'Contacts', sous: 'Contacts équipe', route: '/contacts', bloque: false },
-    { icon: '💳', titre: 'Charges du mois', sous: 'Saisir les charges', route: '/charges', bloque: false },
-    { icon: '📁', titre: 'Documents', sous: 'Ajouter des documents', route: '/documents', bloque: false },
-    { icon: '💳', titre: 'Crédits fournisseurs', sous: 'Crédit, avances & paiements', route: '/credits-fournisseurs', bloque: false },
-  ]
-
-  const menuGerant = [
-    { icon: '💰', titre: 'Saisir les ventes', sous: 'Séquences + photos', route: '/ventes', bloque: estBloque(pointValide) },
-    { icon: '📊', titre: 'Tableau de bord', sous: 'Résultats du jour', route: '/dashboard', bloque: false },
-    { icon: '📁', titre: 'Documents', sous: 'Documents du restaurant', route: '/documents', bloque: false },
-    { icon: '🛵', titre: 'Livraisons', sous: 'Yango, Glovo…', route: '/livraisons', bloque: false },
-    { icon: '👤', titre: 'Espace Caissier', sous: 'Point, dépenses, présences, inventaire…', route: '/gerant-caissier', bloque: false },
-    { icon: '💸', titre: 'Déductions Gérant', sous: 'Fournisseurs, marché, divers', route: '/deductions-gerant', bloque: false },
-    { icon: '💳', titre: 'Crédits fournisseurs', sous: 'Crédit, avances & paiements', route: '/credits-fournisseurs', bloque: false },
-    { icon: '📋', titre: 'Demandes', sous: 'Permissions & congés travailleurs', route: '/demandes', bloque: false },
-    { icon: '📨', titre: "Demandes d'explication", sous: 'Demander une explication', route: '/demandes-explication', bloque: false },
-    { icon: '📲', titre: 'Contacts', sous: 'SMS & WhatsApp équipe', route: '/contacts', bloque: false },
-  ]
-
-  const menuCaissier = [
-    { icon: '⏱️', titre: 'Point / Shift', sous: 'Faire mon point de shift', route: '/point-shift', bloque: false },
-    { icon: '📋', titre: 'Dépenses', sous: 'Marché, paie…', route: '/depenses', bloque: estBloque(pointValide) },
-    { icon: '🧾', titre: 'Fournisseurs', sous: 'Factures & paiements', route: '/fournisseurs', bloque: estBloque(pointValide) },
-    { icon: '📦', titre: 'Inventaire', sous: 'Stock par shift', route: '/inventaire', bloque: false },
-    { icon: '👥', titre: 'Présences', sous: 'Statuts équipe', route: '/presences', bloque: estBloque(pointValide) },
-    { icon: '🛵', titre: 'Livraisons', sous: 'Yango, Glovo…', route: '/livraisons', bloque: false },
-  ]
+  // Construit le menu du rôle actif depuis le catalogue central + la config.
+  const menuItems = useMemo(() => {
+    const tuiles = tuilesPourRole(roleEffectif, accesConfig)
+    return tuiles.map(t => ({
+      icon: t.icon,
+      titre: t.titre,
+      sous: t.sous,
+      route: t.route,
+      bloque: t.verrouSiPointValide ? estBloque(pointValide) : false,
+    }))
+  }, [roleEffectif, accesConfig, pointValide])
 
   function renderMenu(items, titre) {
     return (
@@ -266,6 +264,14 @@ export default function AccueilScreen() {
       </Animated.View>
 
       {/* Bannières */}
+      {pushSupporte() && pushEtat === 'default' && (
+        <TouchableOpacity style={styles.pushBanner} onPress={activerPush}>
+          <Text style={styles.pushBannerTxt}>🔔 Activer les alertes sur ce téléphone</Text>
+          <Text style={styles.pushBannerSous}>{"Pour être prévenu même sans ouvrir l'app"}</Text>
+        </TouchableOpacity>
+      )}
+      {pushMsg ? <Text style={styles.pushMsg}>{pushMsg}</Text> : null}
+
       {pointValide && !isManager && !isDirecteur && !isRH && (
         <View style={styles.valideBanner}>
           <Text style={styles.valideTxt}>✅ Point du jour validé — lecture seule</Text>
@@ -311,20 +317,9 @@ export default function AccueilScreen() {
 
       <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
 
-        {/* ── Manager ── */}
-        {isManager && renderMenu(menuManager, null)}
-
-        {/* ── Directeur : même vue que Manager ── */}
-        {isDirecteur && renderMenu(menuManager, null)}
-
-        {/* ── RH ── */}
-        {isRH && renderMenu(menuRH, null)}
-
-        {/* ── Gérant ── */}
-        {isGerant && renderMenu(menuGerant, null)}
-
-        {/* ── Caissier ── */}
-        {isCaissier && renderMenu(menuCaissier, 'Mon point du jour')}
+        {/* Menu construit depuis le catalogue central + config par rôle.
+            Manager & directeur : accès total. RH/gérant/caissier : configurable. */}
+        {renderMenu(menuItems, isCaissier ? 'Mon point du jour' : null)}
 
         {/* Mode sombre */}
         <View style={styles.themeRow}>
@@ -439,6 +434,16 @@ function makeStyles(colors) { return StyleSheet.create({
   },
   correctionBannerTxt: { fontSize: 13, color: '#7A4800', fontWeight: '700' },
   correctionBannerSub: { fontSize: 11, color: '#7A4800', marginTop: 3 },
+  pushBanner: {
+    backgroundColor: '#E8F0FE', padding: 12, alignItems: 'center',
+    borderBottomWidth: 1, borderBottomColor: '#AFC8F5',
+  },
+  pushBannerTxt: { fontSize: 13, color: '#1B4B9E', fontWeight: '700' },
+  pushBannerSous: { fontSize: 11, color: '#1B4B9E', marginTop: 3, opacity: 0.85 },
+  pushMsg: {
+    fontSize: 12, color: colors.textSecondary || '#666', textAlign: 'center',
+    paddingHorizontal: 18, paddingVertical: 8,
+  },
   managerBanner: {
     backgroundColor: colors.primaryLight, padding: 10, alignItems: 'center',
     borderBottomWidth: 0.5, borderBottomColor: colors.primaryText,

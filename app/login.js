@@ -28,8 +28,7 @@ import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { getRestaurants, getUtilisateurs, getUtilisateursGlobaux } from '../lib/api'
 import { SPRINGS } from '../lib/animations'
-
-const ROLES_GLOBAUX = ['manager', 'rh', 'directeur', 'verificateur']
+import { ROLES_GLOBAUX } from '../lib/constants'
 
 // ─── Bouton PIN animé ────────────────────────────────────────
 function PinButton({ label, onPress, disabled, colors }) {
