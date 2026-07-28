@@ -40,7 +40,9 @@
       "Bash(curl -s '__TRACKED_VAR__/rest/v1/litiges_avis_clients?select=id,type,canal&limit=3' -H 'apikey: __TRACKED_VAR__' -H 'Authorization: Bearer __TRACKED_VAR__')",
       "Bash(curl -s \"http://localhost:8081/index.bundle?platform=web&dev=true\" -o /dev/null -w \"HTTP %{http_code}\\\\n\" --max-time 120)",
       "Bash(curl -s \"http://localhost:8081/index.bundle?platform=web&dev=true\" --max-time 120)",
-      "Bash(git reset *)"
+      "Bash(git reset *)",
+      "Bash(git commit -q -m ' *)",
+      "Bash(git commit -q -m 'chore: .claude/settings.json *)"
     ]
   }
 }
