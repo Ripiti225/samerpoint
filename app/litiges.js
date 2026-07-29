@@ -242,7 +242,7 @@ export default function LitigesScreen() {
       .order('date', { ascending: false })
 
     let { data: pointsData, error } = await filtrer(
-      supabase.from('points').select('id, date, vente_machine, reste_fc, ecart_regularisations, explication_ecart_machine, ecart_responsables, ecart_photos')
+      supabase.from('points').select('id, date, vente_machine, reste_fc, ecart_regularisations, explication_ecart_machine, explication_machine_statut, ecart_responsables, ecart_photos')
     )
     // Fallback si la colonne ecart_regularisations n'est pas encore créée en DB
     if (error) {
@@ -276,6 +276,9 @@ export default function LitigesScreen() {
       let ecart = ecartBrut
       if (ecartBrut < 0) ecart = Math.min(0, ecartBrut + totalRegul)
       else if (ecartBrut > 0) ecart = Math.max(0, ecartBrut - totalRegul)
+      // Écart annulé dans Vérification → neutralisé (écart 0), quel que soit le mode d'annulation.
+      const annule = p.explication_machine_statut === 'annulee'
+      if (annule) ecart = 0
       return {
         id: p.id,
         date: p.date,
@@ -283,6 +286,7 @@ export default function LitigesScreen() {
         cumulShifts,
         ecartBrut,
         ecart,
+        annule,
         regularisations: reguls,
         totalRegul,
         resteFc: p.reste_fc || 0,
@@ -628,7 +632,7 @@ export default function LitigesScreen() {
     const resultats = await Promise.all(restaurants.map(async resto => {
       // Écarts
       const { data: pointsData } = await supabase
-        .from('points').select('id, date, vente_machine')
+        .from('points').select('id, date, vente_machine, explication_machine_statut')
         .eq('restaurant_id', resto.id).gte('date', debut).lte('date', fin)
       let ecartTotal = 0
       if (pointsData?.length) {
@@ -637,7 +641,10 @@ export default function LitigesScreen() {
           .from('points_shifts').select('point_id, vente_shift').in('point_id', ids)
         const byPoint = {}
         ;(shifts || []).forEach(s => { byPoint[s.point_id] = (byPoint[s.point_id] || 0) + (s.vente_shift || 0) })
-        pointsData.forEach(p => { ecartTotal += Math.max(0, (p.vente_machine || 0) - (byPoint[p.id] || 0)) })
+        pointsData.forEach(p => {
+          if (p.explication_machine_statut === 'annulee') return // écart annulé → neutralisé (0)
+          ecartTotal += Math.max(0, (p.vente_machine || 0) - (byPoint[p.id] || 0))
+        })
       }
 
       // Inventaire + détail
@@ -1407,18 +1414,21 @@ export default function LitigesScreen() {
             backgroundColor: item.ecart !== 0 ? (item.ecart > 0 ? '#FFF0F0' : '#FFF8E1') : '#F0FFF4',
             borderColor: c + '44',
           }]}>
-            <Text style={styles.ecartLabel}>{item.totalRegul > 0 ? 'Écart restant' : 'Écart constaté'}</Text>
+            <Text style={styles.ecartLabel}>{item.annule ? '🚫 Écart annulé' : item.totalRegul > 0 ? 'Écart restant' : 'Écart constaté'}</Text>
             <Text style={[styles.ecartValeur, { color: c }]}>{item.ecart > 0 ? '+' : ''}{fmt(item.ecart)}</Text>
             <Text style={[styles.ecartSous, { color: c }]}>
-              {item.ecart > 0 ? 'Machine supérieure aux shifts déclarés'
+              {item.annule ? '🚫 Annulé dans Vérification — non pris en compte'
+                : item.ecart > 0 ? 'Machine supérieure aux shifts déclarés'
                 : item.ecart < 0 ? 'Shifts supérieurs à la machine'
                 : (item.totalRegul > 0 ? '✅ Écart entièrement régularisé' : '✅ Aucun écart — tout est aligné')}
             </Text>
-            {item.totalRegul > 0 && (
+            {item.annule && item.ecartBrut !== 0 ? (
+              <Text style={styles.ecartRegulHint}>Écart initial {item.ecartBrut > 0 ? '+' : ''}{fmt(item.ecartBrut)} · annulé</Text>
+            ) : item.totalRegul > 0 ? (
               <Text style={styles.ecartRegulHint}>
                 Écart initial {item.ecartBrut > 0 ? '+' : ''}{fmt(item.ecartBrut)} · régularisé {fmt(item.totalRegul)}
               </Text>
-            )}
+            ) : null}
           </View>
 
           {renderEcartDetails(item)}
@@ -1448,7 +1458,7 @@ export default function LitigesScreen() {
               >
                 {aDetails && <Text style={styles.ligneChevron}>{ouvert ? '▾' : '▸'}</Text>}
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.ligneNom}>{j.date}</Text>
+                  <Text style={styles.ligneNom}>{j.date}{j.annule ? '  ·  🚫 annulé' : ''}</Text>
                   <Text style={styles.ligneSous}>Machine {fmtShort(j.venteMachine)} — Shifts {fmtShort(j.cumulShifts)} ({j.nbShifts})</Text>
                 </View>
                 <Text style={[styles.montantTxt, { color: cj }]}>{j.ecart > 0 ? '+' : ''}{fmtShort(j.ecart)}</Text>

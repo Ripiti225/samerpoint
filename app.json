@@ -2,7 +2,7 @@
   "expo": {
     "name": "SAMER",
     "slug": "samtrackly",
-    "version": "2.51",
+    "version": "2.52",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -20,7 +20,7 @@
         "backgroundColor": "#EF9F27"
       },
       "package": "com.samer.app",
-      "versionCode": 12,
+      "versionCode": 13,
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.RECORD_AUDIO",
