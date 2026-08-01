@@ -35,8 +35,9 @@ import { useTheme } from '../context/ThemeContext'
 import { CATEGORIES_INVENTAIRE } from '../lib/constants'
 import { journaliser } from '../lib/journal'
 import { creerNotification } from '../lib/notificationsInterne'
-import { envoyerNotifDemandeNouvelle } from '../lib/notifications'
+import { envoyerNotifExplicationNouvelle } from '../lib/notifications'
 import { supabase } from '../lib/supabase'
+import { appliquerComptage } from '../lib/verificationStock'
 
 const SEUIL_ECART = 0.4 // ≥ 40 % des produits comptés en écart → demande au RH
 
@@ -219,8 +220,17 @@ export default function VerificateurScreen() {
       }
     } catch (_) { /* table absente : on continue */ }
 
+    // Le stock compté devient le stock initial de l'inventaire (en cours si
+    // ouvert, sinon le prochain créé). Sans ça le manque physique retomberait
+    // en écart sur le caissier du shift suivant.
+    let report = { cible: 'prochain', statut: 'ok' }
+    try {
+      report = await appliquerComptage({ restaurantId: resto.id, lotId: lot, lignes })
+    } catch (_) { report = { cible: 'prochain', statut: 'erreur' } }
+
     journaliser('verification_stock', {
       restaurant_id: resto.id, comptes: lignes.length, ecarts: avecEcart.length, pct,
+      stock_initial_reporte: report.cible, report_statut: report.statut,
     }, { par: userNom || roleActif }).catch(() => {})
 
     // Notifier manager + directeur de la vérification de stock enregistrée.
@@ -233,32 +243,50 @@ export default function VerificateurScreen() {
       screen: null,
     }).catch(() => {})
 
+    // Ce que devient le stock compté — à dire clairement au vérificateur.
+    const msgReport =
+      report.statut === 'migration'
+        ? '\n\n⚠️ Le stock compté n’a PAS été repris comme stock initial (mise à jour de la base requise).'
+        : report.statut === 'erreur'
+          ? '\n\n⚠️ Le stock compté n’a pas pu être repris comme stock initial.'
+          : report.cible === 'ouvert'
+            ? '\n\n📦 Le stock compté devient le stock initial de l’inventaire en cours.'
+            : '\n\n📦 Le stock compté servira de stock initial au prochain inventaire.'
+
     // Seuil atteint → demande d'explication + notification RH
     if (ratio >= SEUIL_ECART) {
-      await creerDemandeRH(avecEcart, lignes.length, pct, date)
+      const creee = await creerDemandeRH(avecEcart, lignes.length, pct, date)
       setSaving(false)
       Alert.alert(
         '⚠️ Écarts importants',
-        `${avecEcart.length}/${lignes.length} produits comptés présentent un écart (${pct}%).\n\n📨 Une demande d'explication a été créée et le RH a été notifié.`
+        `${avecEcart.length}/${lignes.length} produits comptés présentent un écart (${pct}%).\n\n` +
+        (creee
+          ? "📨 Une demande d'explication a été créée et le RH a été notifié."
+          : "⚠️ La demande d'explication n'a PAS pu être créée. Prévenez le RH ou le manager.") +
+        msgReport
       )
     } else {
       setSaving(false)
       Alert.alert(
         '✅ Comptage enregistré',
-        `${avecEcart.length}/${lignes.length} produits en écart (${pct}%). En dessous du seuil de 40 % — aucune demande envoyée.`
+        `${avecEcart.length}/${lignes.length} produits en écart (${pct}%). En dessous du seuil de 40 % — aucune demande envoyée.${msgReport}`
       )
     }
     setComptes({})
   }
 
+  // Demande d'explication automatique (seuil d'écarts atteint).
+  // Table demandes_explication — celle du workflow accepter → envoyer → relancer,
+  // pas l'ancienne table `demandes` (congés/absences), où elle passait inaperçue.
+  // @returns true si la demande a bien été créée.
   async function creerDemandeRH(avecEcart, nbComptes, pct, date) {
     const caissierNom = refInfo?.caissierNom || 'Caissier'
 
     // Le caissier est un utilisateur : on relie au travailleur homonyme s'il existe.
-    let travailleurId = null
+    let travailleurId = null, travailleurPoste = null
     const { data: trav } = await supabase
-      .from('travailleurs').select('id').eq('restaurant_id', resto.id).ilike('nom', caissierNom).limit(1)
-    if (trav && trav.length) travailleurId = trav[0].id
+      .from('travailleurs').select('id, poste').eq('restaurant_id', resto.id).ilike('nom', caissierNom).limit(1)
+    if (trav && trav.length) { travailleurId = trav[0].id; travailleurPoste = trav[0].poste || null }
 
     const liste = avecEcart
       .map(l => `• ${l.produit_nom} : réel ${l.stock_reel}, compté ${l.stock_compte} (écart ${l.ecart > 0 ? '+' : ''}${l.ecart})`)
@@ -268,29 +296,33 @@ export default function VerificateurScreen() {
       `${avecEcart.length}/${nbComptes} produits comptés présentent un écart (${pct}%).\n\n` +
       `Produits concernés :\n${liste}\n\nMerci de justifier ces écarts.`
 
-    const { error } = await supabase.from('demandes').insert({
+    const { error } = await supabase.from('demandes_explication').insert({
       restaurant_id: resto.id,
       travailleur_id: travailleurId,
       travailleur_nom: caissierNom,
-      type: "Demande d'explication",
-      necessite_dates: false,
+      travailleur_poste: travailleurPoste,
+      motif: `Écarts de stock au comptage (${pct}%)`,
       description,
-      statut: 'en_attente',
+      // Créateur non-admin → passe par l'acceptation d'un admin, comme un gérant.
+      statut: 'en_attente_acceptation',
+      numero: 1,
       cree_par_id: userId || null,
       cree_par_nom: userNom || roleActif || 'Vérificateur',
+      cree_par_role: roleActif || 'verificateur',
     })
-    if (error) return
+    if (error) return false
 
     creerNotification({
-      type: 'demande_nouvelle',
-      titre: "📨 Demande d'explication",
-      message: `Comptage vérificateur — écarts ${pct}% chez ${resto.nom}. Explication à demander à ${caissierNom}.`,
+      type: 'explication_nouvelle',
+      titre: "Demande d'explication",
+      message: `📨 ${caissierNom} — ${resto.nom} · écarts de stock ${pct}% · à accepter`,
       restaurant_id: resto.id,
       cible_role: ['rh', 'directeur', 'manager'],
       created_by: userId || null,
-      screen: 'demandes-admin',
+      screen: 'demandes-explication-admin',
     }).catch(() => {})
-    envoyerNotifDemandeNouvelle(caissierNom, "📨 Demande d'explication", resto.id).catch(() => {})
+    envoyerNotifExplicationNouvelle(caissierNom, resto.id).catch(() => {})
+    return true
   }
 
   return (

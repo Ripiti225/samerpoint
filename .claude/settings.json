@@ -42,7 +42,26 @@
       "Bash(curl -s \"http://localhost:8081/index.bundle?platform=web&dev=true\" --max-time 120)",
       "Bash(git reset *)",
       "Bash(git commit -q -m ' *)",
-      "Bash(git commit -q -m 'chore: .claude/settings.json *)"
+      "Bash(git commit -q -m 'chore: .claude/settings.json *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8081)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(curl -s 'https://wlwotzxnzowbkbfcpnyi.supabase.co/rest/v1/demandes?type=eq.Demande%20d%27explication&select=id,created_at,travailleur_nom,cree_par_nom&order=created_at.desc&limit=5' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indsd290enhuem93YmtiZmNwbnlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NjQ1OTEsImV4cCI6MjA5MTQ0MDU5MX0.nioXBAKA05_zRIyTpJmV_d4JY5mCYueOt5cKIlL-NNk' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indsd290enhuem93YmtiZmNwbnlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NjQ1OTEsImV4cCI6MjA5MTQ0MDU5MX0.nioXBAKA05_zRIyTpJmV_d4JY5mCYueOt5cKIlL-NNk')",
+      "Bash(curl -s 'https://wlwotzxnzowbkbfcpnyi.supabase.co/rest/v1/demandes_explication?select=id,created_at,motif,cree_par_nom,cree_par_role&order=created_at.desc&limit=5' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indsd290enhuem93YmtiZmNwbnlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NjQ1OTEsImV4cCI6MjA5MTQ0MDU5MX0.nioXBAKA05_zRIyTpJmV_d4JY5mCYueOt5cKIlL-NNk' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indsd290enhuem93YmtiZmNwbnlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NjQ1OTEsImV4cCI6MjA5MTQ0MDU5MX0.nioXBAKA05_zRIyTpJmV_d4JY5mCYueOt5cKIlL-NNk')",
+      "Bash(curl -s 'https://wlwotzxnzowbkbfcpnyi.supabase.co/rest/v1/demandes?description=like.Comptage*&select=id,created_at,cree_par_nom' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indsd290enhuem93YmtiZmNwbnlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NjQ1OTEsImV4cCI6MjA5MTQ0MDU5MX0.nioXBAKA05_zRIyTpJmV_d4JY5mCYueOt5cKIlL-NNk' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indsd290enhuem93YmtiZmNwbnlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NjQ1OTEsImV4cCI6MjA5MTQ0MDU5MX0.nioXBAKA05_zRIyTpJmV_d4JY5mCYueOt5cKIlL-NNk')",
+      "Bash(curl -s 'https://wlwotzxnzowbkbfcpnyi.supabase.co/rest/v1/verifications_stock?select=lot_id,date,verificateur_nom,ecart&order=created_at.desc&limit=20' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indsd290enhuem93YmtiZmNwbnlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NjQ1OTEsImV4cCI6MjA5MTQ0MDU5MX0.nioXBAKA05_zRIyTpJmV_d4JY5mCYueOt5cKIlL-NNk' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indsd290enhuem93YmtiZmNwbnlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NjQ1OTEsImV4cCI6MjA5MTQ0MDU5MX0.nioXBAKA05_zRIyTpJmV_d4JY5mCYueOt5cKIlL-NNk')",
+      "Bash(lsof -nP -iTCP:8081 -sTCP:LISTEN)",
+      "Bash(ps -o pid,ppid,etime,command -p 52427)",
+      "Bash(curl -s -o /dev/null http://localhost:8083)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:8083/node_modules/expo-router/entry.bundle?platform=web&dev=true\")",
+      "Bash(ps -o command= -p 52427)",
+      "Bash(break)",
+      "Bash(open http://localhost:8082)",
+      "Bash(git -C /Users/macbookpro/samtrackly status --short)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:8082/index.bundle?platform=web&dev=true\" --max-time 180)",
+      "Bash(curl -s \"http://localhost:8082/\" --max-time 60)",
+      "Bash(curl -s -o /dev/null -w \"ios bundle HTTP:%{http_code} BYTES:%{size_download}\\\\n\" \"http://localhost:8082/index.bundle?platform=ios&dev=true&hot=false&transform.routerRoot=app\" --max-time 300)",
+      "Bash(curl -s \"http://localhost:8082/node_modules/expo-router/entry.bundle?platform=ios&dev=true&hot=false&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable\" --max-time 300 -w \"\\\\nHTTP:%{http_code} BYTES:%{size_download}\\\\n\" -o /tmp/ios_bundle_check.txt)",
+      "Bash(grep -oE \"Unable to resolve[^\\\\\"]{0,80}\" /tmp/ios_bundle_check.txt)"
     ]
   }
 }

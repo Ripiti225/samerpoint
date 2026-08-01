@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Modal,
   Platform,
   SafeAreaView, ScrollView,
@@ -13,6 +12,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native'
+import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { COEFFICIENTS } from '../lib/constants'
@@ -332,7 +332,7 @@ export default function VentesScreen() {
             <View style={styles.photoBadgeReq}><Text style={styles.photoBadgeReqTxt}>⚠️ Requis</Text></View>
           ) : null}
         </View>
-        {uri && <Image source={{ uri }} style={styles.photoPreview} resizeMode="cover" />}
+        {uri && <PhotoJustificatif uri={uri} style={styles.photoPreview} />}
         {(!bloque || isManager) && (
           <TouchableOpacity style={styles.photoBtn} onPress={() => gererPhoto(setter, dossier)} disabled={uploading}>
             {uploading ? (
@@ -708,7 +708,7 @@ export default function VentesScreen() {
                         )}
                       </View>
                       {ventesJour.photoVenteMachine && (
-                        <Image source={{ uri: ventesJour.photoVenteMachine }} style={styles.photoPreview} resizeMode="cover" />
+                        <PhotoJustificatif uri={ventesJour.photoVenteMachine} style={styles.photoPreview} />
                       )}
                       <TouchableOpacity
                         style={styles.photoBtn}
@@ -836,7 +836,7 @@ export default function VentesScreen() {
                         <View style={styles.respPhotosRow}>
                           {photos.map((uri, i) => (
                             <View key={i} style={styles.respPhotoThumb}>
-                              <Image source={{ uri }} style={styles.respPhotoImg} resizeMode="cover" />
+                              <PhotoJustificatif uri={uri} style={styles.respPhotoImg} compact />
                               {(!bloque || isManager) && (
                                 <TouchableOpacity style={styles.respPhotoDel} onPress={() => retirerPhotoEcart(i)}>
                                   <Text style={styles.respPhotoDelTxt}>✕</Text>

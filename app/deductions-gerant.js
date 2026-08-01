@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Modal,
   Platform,
   SafeAreaView, ScrollView,
@@ -13,6 +12,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native'
+import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { CATEGORIES_DEPENSES } from '../lib/constants'
@@ -515,7 +515,7 @@ export default function DeductionsGerantScreen() {
                             ) : null}
                           </View>
                           {data.photoUri && (
-                            <Image source={{ uri: data.photoUri }} style={styles.photoPreview} resizeMode="cover" />
+                            <PhotoJustificatif uri={data.photoUri} style={styles.photoPreview} />
                           )}
                           <TouchableOpacity
                             style={styles.photoBtn}

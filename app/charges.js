@@ -18,6 +18,7 @@ import {
 } from 'react-native'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
+import { calculerLitigeContact, chargerPointsContact } from '../lib/litigeContacts'
 
 const MOIS_NOMS = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -160,9 +161,7 @@ export default function ChargesScreen() {
 
     // Contacts : écart entre nb commandes (points) et contacts pris (commandes)
     let contact = 0
-    const { data: ptsCmds } = await supabase
-      .from('points').select('id, yango_nb_commandes, glovo_nb_commandes')
-      .eq('restaurant_id', restoSelectionne.id).gte('date', debut).lte('date', fin)
+    const ptsCmds = await chargerPointsContact(restoSelectionne.id, debut, fin)
     if (ptsCmds?.length) {
       const ptIds = ptsCmds.map(p => p.id)
       const { data: cmdsContact } = await supabase
@@ -174,11 +173,7 @@ export default function ChargesScreen() {
         }
       })
       ptsCmds.forEach(p => {
-        const nbCmds = (p.yango_nb_commandes || 0) + (p.glovo_nb_commandes || 0)
-        const nbContacts = contactsByPt[p.id] || 0
-        const ecartPt = nbCmds - nbContacts
-        const taux = nbCmds > 0 ? ecartPt / nbCmds : 0
-        if (taux > 0.2) contact += ecartPt * 500
+        contact += calculerLitigeContact(p, contactsByPt[p.id] || 0).litige
       })
     }
 

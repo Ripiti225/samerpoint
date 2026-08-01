@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
     ActivityIndicator,
     Alert,
-    Image,
     Modal,
     Platform,
     SafeAreaView, ScrollView,
@@ -13,11 +12,13 @@ import {
     TouchableOpacity,
     View
 } from 'react-native'
+import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { savePointShiftData } from '../lib/api'
 import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifShiftValide } from '../lib/notifications'
+import { estPhotoValide } from '../lib/photoQueue'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
 
@@ -108,7 +109,7 @@ function PhotoInput({ label, value, setter, dossier, obligatoire, onGererPhoto, 
         ) : null}
       </View>
       {value && (
-        <Image source={{ uri: value }} style={styles.photoPreview} resizeMode="cover" />
+        <PhotoJustificatif uri={value} style={styles.photoPreview} />
       )}
       <TouchableOpacity
         style={styles.photoBtn}
@@ -518,16 +519,19 @@ export default function PointShiftScreen() {
 
   function verifierPhotosManquantes() {
     const manquantes = []
-    if (parseFloat(kdo) > 0 && !photoKdo) manquantes.push('KDO')
-    if (parseFloat(retour) > 0 && !photoRetour) manquantes.push('Retour')
-    if (parseFloat(yangoCse) > 0 && !photoYangoCse) manquantes.push('Yango CSE')
-    if (parseFloat(glovoCse) > 0 && !photoGlovoCse) manquantes.push('Glovo CSE')
-    if (parseFloat(wave) > 0 && !photoWave) manquantes.push('Wave')
-    if (parseFloat(djamo) > 0 && !photoDjamo) manquantes.push('Djamo')
-    if (parseFloat(om) > 0 && !photoOm) manquantes.push('Orange Money')
+    // estPhotoValide au lieu d'un simple test de présence : une URI locale
+    // (`file:///…`) n'est consultable sur aucun autre appareil et ne vaut donc
+    // pas justificatif. Une photo en attente d'envoi reste acceptée.
+    if (parseFloat(kdo) > 0 && !estPhotoValide(photoKdo)) manquantes.push('KDO')
+    if (parseFloat(retour) > 0 && !estPhotoValide(photoRetour)) manquantes.push('Retour')
+    if (parseFloat(yangoCse) > 0 && !estPhotoValide(photoYangoCse)) manquantes.push('Yango CSE')
+    if (parseFloat(glovoCse) > 0 && !estPhotoValide(photoGlovoCse)) manquantes.push('Glovo CSE')
+    if (parseFloat(wave) > 0 && !estPhotoValide(photoWave)) manquantes.push('Wave')
+    if (parseFloat(djamo) > 0 && !estPhotoValide(photoDjamo)) manquantes.push('Djamo')
+    if (parseFloat(om) > 0 && !estPhotoValide(photoOm)) manquantes.push('Orange Money')
     // Factures fournisseurs sans photo : même exigence que côté gérant (obligatoire).
     Object.entries(fournisseursJour || {}).forEach(([id, t]) => {
-      if ((parseFloat(t?.facture) || 0) > 0 && !t?.photoUri) {
+      if ((parseFloat(t?.facture) || 0) > 0 && !estPhotoValide(t?.photoUri)) {
         manquantes.push(`Facture ${fournNoms[id] || 'fournisseur'}`)
       }
     })
@@ -1347,7 +1351,7 @@ export default function PointShiftScreen() {
                           { label: 'Orange Money', url: shiftDetail?.photo_om },
                         ].filter(p => p.url).map((p, i) => (
                           <TouchableOpacity key={i} style={styles.photoThumb} onPress={() => setPhotoPleinEcranUrl(p.url)}>
-                            <Image source={{ uri: p.url }} style={styles.photoThumbImg} resizeMode="cover" />
+                            <PhotoJustificatif uri={p.url} style={styles.photoThumbImg} compact />
                             <Text style={styles.photoThumbLabel}>{p.label}</Text>
                           </TouchableOpacity>
                         ))}
@@ -1559,8 +1563,8 @@ export default function PointShiftScreen() {
             <Text style={styles.photoPleinEcranCloseTxt}>✕</Text>
           </TouchableOpacity>
           {photoPleinEcranUrl && (
-            <Image
-              source={{ uri: photoPleinEcranUrl }}
+            <PhotoJustificatif
+              uri={photoPleinEcranUrl}
               style={styles.photoPleinEcranImg}
               resizeMode="contain"
             />

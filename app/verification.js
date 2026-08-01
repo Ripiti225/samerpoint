@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet,
   SafeAreaView, ScrollView, ActivityIndicator,
-  Modal, Image, Alert, RefreshControl, Dimensions, FlatList, TextInput,
+  Modal, Alert, RefreshControl, Dimensions, FlatList, TextInput,
 } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import { supabase } from '../lib/supabase'
@@ -12,8 +12,11 @@ import { genererPdfPoint, genererPdfEcarts } from '../lib/generatePdf'
 import { CATEGORIES_INVENTAIRE } from '../lib/constants'
 import { useTheme } from '../context/ThemeContext'
 import { journaliser } from '../lib/journal'
+import { calculerLitigeContact, corrigerNbCommandes } from '../lib/litigeContacts'
 import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifFactureCorrigee } from '../lib/notifications'
+import PhotoJustificatif, { photoConsultable } from '../components/PhotoJustificatif'
+import { estPhotoEnAttente } from '../lib/photoQueue'
 
 const { width: SW } = Dimensions.get('window')
 
@@ -86,6 +89,14 @@ export default function VerificationScreen() {
   const [modalAnnulerMachine, setModalAnnulerMachine] = useState(null)
   const [annulerMontant, setAnnulerMontant] = useState('')
   const [annulerSaving, setAnnulerSaving] = useState(false)
+  // Correction du nombre de commandes Yango/Glovo saisi par le gérant
+  // (il sert au litige « contacts » — une faute de frappe crée un faux litige)
+  const [corrCmdOuvert, setCorrCmdOuvert] = useState(false)
+  const [corrCmdYango, setCorrCmdYango] = useState('')
+  const [corrCmdGlovo, setCorrCmdGlovo] = useState('')
+  const [corrCmdMotif, setCorrCmdMotif] = useState('')
+  const [corrCmdSaving, setCorrCmdSaving] = useState(false)
+  const [corrCmdError, setCorrCmdError] = useState('')
   // Correction de facture fournisseur (montant saisi ≠ photo)
   const [corrFacture, setCorrFacture] = useState(null) // la transaction ciblée
   const [corrMontant, setCorrMontant] = useState('')
@@ -198,6 +209,11 @@ export default function VerificationScreen() {
         contactsParPartenaire[c.partenaire] = (contactsParPartenaire[c.partenaire] || 0) + 1
       }
     })
+    // Total des contacts pris — base du litige « contacts ». Compté comme dans
+    // Litiges/Charges (tout contact renseigné, partenaire connu ou non), sinon
+    // les deux écrans afficheraient des litiges différents pour le même point.
+    const nbContactsTotal = (commandes || [])
+      .filter(c => c.contact_client && c.contact_client.trim() !== '').length
 
     // Inventaire groupé par shift
     const invParShift = {}
@@ -225,6 +241,7 @@ export default function VerificationScreen() {
       presences: presences || [],
       invParFournisseur,
       contactsParPartenaire,
+      nbContactsTotal,
       invShifts: Object.values(invParShift).sort((a, b) => a.numero - b.numero),
       historiquesFournisseurs: historiquesFournisseurs || [],
       deverouillages: deverouillages || [],
@@ -434,8 +451,55 @@ export default function VerificationScreen() {
 
   function voirPhoto(uri, label) {
     if (!uri) return
+    // Ouvrir le plein écran sur une URI locale ou un jeton en attente ne
+    // donnerait qu'un écran noir : on explique au lieu d'afficher du vide.
+    if (!photoConsultable(uri)) {
+      Alert.alert(
+        estPhotoEnAttente(uri) ? 'Photo en attente' : 'Photo indisponible',
+        estPhotoEnAttente(uri)
+          ? "Cette photo est encore sur l'appareil qui l'a prise. Elle apparaîtra ici dès que cet appareil retrouvera le réseau."
+          : "Cette photo n'a jamais été envoyée sur le serveur : elle est restée sur le téléphone qui l'a prise et n'est plus récupérable. Demandez une nouvelle photo du justificatif."
+      )
+      return
+    }
     setPhotoSelectionnee({ uri, label })
     setModalPhoto(true)
+  }
+
+  // ── Correction du nombre de commandes Yango / Glovo ──────────────────
+  function ouvrirCorrectionCommandes() {
+    const p = pointSelectionne
+    setCorrCmdYango(String(p?.yango_nb_commandes || 0))
+    setCorrCmdGlovo(String(p?.glovo_nb_commandes || 0))
+    setCorrCmdMotif(p?.nb_commandes_correction_motif || '')
+    setCorrCmdError('')
+    setCorrCmdOuvert(true)
+  }
+
+  async function sauvegarderCorrectionCommandes() {
+    const p = pointSelectionne
+    if (!p) return
+    setCorrCmdSaving(true)
+    setCorrCmdError('')
+    const res = await corrigerNbCommandes({
+      point: p,
+      yango: corrCmdYango,
+      glovo: corrCmdGlovo,
+      motif: corrCmdMotif,
+      userId, userNom: userNom || roleActif,
+    })
+    setCorrCmdSaving(false)
+    if (!res.ok) { setCorrCmdError(res.error); return }
+
+    // MAJ locale (détail + liste) sans recharger tout le point
+    setPointSelectionne(res.point)
+    setPoints(prev => prev.map(x => x.id === res.point.id ? { ...x, ...res.point } : x))
+    setDetailPoint(prev => prev && ({ ...prev, point: res.point }))
+    setCorrCmdOuvert(false)
+    Alert.alert(
+      '✅ Nombre de commandes corrigé',
+      'Le litige « contacts » est recalculé automatiquement dans Litiges et Charges.\nLe gérant a été notifié.'
+    )
   }
 
   // ── Correction de facture fournisseur ────────────────────────────────
@@ -849,7 +913,10 @@ export default function VerificationScreen() {
   }
 
   function PhotoVignette({ uri, label, montant, onPress }) {
-    const aPhoto = !!uri
+    // « Une URL est présente » ne veut pas dire « la photo est consultable » :
+    // une URI locale ou un jeton en attente doivent rester non cliquables.
+    const aPhoto = photoConsultable(uri)
+    const renseignee = !!uri
     return (
       <TouchableOpacity
         style={[styles.photoVignette, !aPhoto && styles.photoVignetteManquante]}
@@ -857,8 +924,8 @@ export default function VerificationScreen() {
         disabled={!aPhoto}
         activeOpacity={aPhoto ? 0.7 : 1}
       >
-        {aPhoto ? (
-          <Image source={{ uri }} style={styles.photoThumb} resizeMode="cover" />
+        {renseignee ? (
+          <PhotoJustificatif uri={uri} style={styles.photoThumb} compact />
         ) : (
           <View style={styles.photoAbsente}>
             <Text style={styles.photoAbsenteIcon}>❌</Text>
@@ -1262,7 +1329,7 @@ export default function VerificationScreen() {
                               photo.uri ? (
                                 <TouchableOpacity key={i} style={styles.canalPhotoTouchable}
                                   onPress={() => { const idx = toutes.findIndex(x => x.uri === photo.uri); ouvriGalerie(toutes, idx >= 0 ? idx : 0) }}>
-                                  <Image source={{ uri: photo.uri }} style={styles.canalPhotoMini} resizeMode="cover" />
+                                  <PhotoJustificatif uri={photo.uri} style={styles.canalPhotoMini} compact />
                                   <Text style={styles.canalPhotoLabel}>📷 {photo.label} — Tap pour agrandir</Text>
                                 </TouchableOpacity>
                               ) : <Text key={i} style={styles.aucunePhoto}>Aucune photo CSE enregistrée</Text>
@@ -1280,7 +1347,7 @@ export default function VerificationScreen() {
                             {p?.photo_yango_tab ? (
                               <TouchableOpacity style={styles.canalPhotoTouchable}
                                 onPress={() => { const idx = toutes.findIndex(x => x.uri === p.photo_yango_tab); ouvriGalerie(toutes, idx >= 0 ? idx : 0) }}>
-                                <Image source={{ uri: p.photo_yango_tab }} style={styles.canalPhotoMini} resizeMode="cover" />
+                                <PhotoJustificatif uri={p.photo_yango_tab} style={styles.canalPhotoMini} compact />
                                 <Text style={styles.canalPhotoLabel}>📷 Photo TAB Yango — Tap pour agrandir</Text>
                               </TouchableOpacity>
                             ) : <Text style={styles.aucunePhoto}>Aucune photo TAB enregistrée</Text>}
@@ -1318,7 +1385,7 @@ export default function VerificationScreen() {
                               photo.uri ? (
                                 <TouchableOpacity key={i} style={styles.canalPhotoTouchable}
                                   onPress={() => { const idx = toutes.findIndex(x => x.uri === photo.uri); ouvriGalerie(toutes, idx >= 0 ? idx : 0) }}>
-                                  <Image source={{ uri: photo.uri }} style={styles.canalPhotoMini} resizeMode="cover" />
+                                  <PhotoJustificatif uri={photo.uri} style={styles.canalPhotoMini} compact />
                                   <Text style={styles.canalPhotoLabel}>📷 {photo.label} — Tap pour agrandir</Text>
                                 </TouchableOpacity>
                               ) : <Text key={i} style={styles.aucunePhoto}>Aucune photo CSE enregistrée</Text>
@@ -1336,7 +1403,7 @@ export default function VerificationScreen() {
                             {p?.photo_glovo_tab ? (
                               <TouchableOpacity style={styles.canalPhotoTouchable}
                                 onPress={() => { const idx = toutes.findIndex(x => x.uri === p.photo_glovo_tab); ouvriGalerie(toutes, idx >= 0 ? idx : 0) }}>
-                                <Image source={{ uri: p.photo_glovo_tab }} style={styles.canalPhotoMini} resizeMode="cover" />
+                                <PhotoJustificatif uri={p.photo_glovo_tab} style={styles.canalPhotoMini} compact />
                                 <Text style={styles.canalPhotoLabel}>📷 Photo TAB Glovo — Tap pour agrandir</Text>
                               </TouchableOpacity>
                             ) : <Text style={styles.aucunePhoto}>Aucune photo TAB enregistrée</Text>}
@@ -1369,9 +1436,50 @@ export default function VerificationScreen() {
                       </View>
                     )}
 
+                    {/* Nombre de commandes livraison → base du litige « contacts ».
+                        Le gérant peut s'être trompé : manager/directeur corrigent ici.
+                        Toujours affiché, même sans montant Yango/Glovo sur le point :
+                        c'est justement quand le nombre est faux qu'il faut le corriger. */}
+                    {(() => {
+                      const calc = calculerLitigeContact(p, detailPoint.nbContactsTotal || 0)
+                      return (
+                        <View style={styles.corrCmdBox}>
+                          <View style={styles.canalRow}>
+                            <Text style={styles.canalLabel}>Commandes livraison saisies</Text>
+                            <Text style={styles.canalVal}>
+                              Yango {calc.nbYango} · Glovo {calc.nbGlovo}
+                            </Text>
+                          </View>
+                          <View style={styles.canalRow}>
+                            <Text style={styles.canalLabel}>Contacts pris</Text>
+                            <Text style={styles.canalVal}>
+                              {calc.nbContacts} / {calc.nbCommandes}
+                              {calc.nbCommandes > 0 ? ` (${calc.taux}% manquants)` : ''}
+                            </Text>
+                          </View>
+                          {calc.litige > 0 && (
+                            <Text style={styles.corrCmdLitige}>
+                              ⚠️ Litige contacts : {fmt(calc.litige)}
+                              {calc.forceParManager ? ' (montant forcé)' : ''}
+                            </Text>
+                          )}
+                          {calc.nbCorrige && (
+                            <Text style={styles.corrCmdBadge}>
+                              ✏️ Corrigé (avant : Yango {calc.nbYangoOriginal ?? '—'} · Glovo {calc.nbGlovoOriginal ?? '—'})
+                              {calc.nbCorrigePar ? ` — ${calc.nbCorrigePar}` : ''}
+                              {calc.nbCorrigeMotif ? `\n${calc.nbCorrigeMotif}` : ''}
+                            </Text>
+                          )}
+                          <TouchableOpacity style={styles.corrCmdBtn} onPress={ouvrirCorrectionCommandes}>
+                            <Text style={styles.corrCmdBtnTxt}>✏️ Corriger le nombre de commandes</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )
+                    })()}
+
                     {!hasYango && !hasGlovo && !hasAutres && (
                       <View style={styles.emptySection}>
-                        <Text style={styles.emptySectionTxt}>Aucune donnée enregistrée</Text>
+                        <Text style={styles.emptySectionTxt}>Aucun montant enregistré sur les canaux</Text>
                       </View>
                     )}
                   </View>
@@ -1468,7 +1576,7 @@ export default function VerificationScreen() {
                                 onPress={() => ouvriGalerie(p.ecart_photos.map((u, j) => ({ uri: u, label: `Justificatif ${j + 1}` })))}
                                 activeOpacity={0.85}
                               >
-                                <Image source={{ uri }} style={{ width: 80, height: 80, borderRadius: 8 }} />
+                                <PhotoJustificatif uri={uri} style={{ width: 80, height: 80, borderRadius: 8 }} compact />
                               </TouchableOpacity>
                             ))}
                           </View>
@@ -1481,9 +1589,9 @@ export default function VerificationScreen() {
                           activeOpacity={0.85}
                         >
                           <Text style={[styles.recapLabel, { marginBottom: 8 }]}>📷 Photo vente machine :</Text>
-                          <Image
-                            source={{ uri: p.photo_vente_machine }}
-                            style={{ width: '100%', height: 180, borderRadius: 10, resizeMode: 'cover' }}
+                          <PhotoJustificatif
+                            uri={p.photo_vente_machine}
+                            style={{ width: '100%', height: 180, borderRadius: 10 }}
                           />
                           <Text style={{ fontSize: 11, color: '#888', textAlign: 'center', marginTop: 6 }}>
                             Appuyer pour agrandir
@@ -1610,7 +1718,7 @@ export default function VerificationScreen() {
                                 </View>
                                 {f.photo_url ? (
                                   <TouchableOpacity onPress={() => voirPhoto(f.photo_url, f.fournisseurs?.nom)}>
-                                    <Image source={{ uri: f.photo_url }} style={styles.miniThumb} resizeMode="cover" />
+                                    <PhotoJustificatif uri={f.photo_url} style={styles.miniThumb} compact />
                                   </TouchableOpacity>
                                 ) : (
                                   <View style={styles.photoAbsenteThumb}>
@@ -1711,7 +1819,7 @@ export default function VerificationScreen() {
                                 </View>
                                 {f.photo_url ? (
                                   <TouchableOpacity onPress={() => voirPhoto(f.photo_url, f.fournisseurs?.nom)}>
-                                    <Image source={{ uri: f.photo_url }} style={styles.miniThumb} resizeMode="cover" />
+                                    <PhotoJustificatif uri={f.photo_url} style={styles.miniThumb} compact />
                                   </TouchableOpacity>
                                 ) : (
                                   <View style={styles.photoAbsenteThumb}>
@@ -2189,8 +2297,8 @@ export default function VerificationScreen() {
                     bouncesZoom
                   >
                     {galeriePhotos[galerieIndex]?.uri && (
-                      <Image
-                        source={{ uri: galeriePhotos[galerieIndex].uri }}
+                      <PhotoJustificatif
+                        uri={galeriePhotos[galerieIndex].uri}
                         style={{ width: SW, height: SW * 1.3 }}
                         resizeMode="contain"
                       />
@@ -2216,8 +2324,8 @@ export default function VerificationScreen() {
                     keyExtractor={(_, idx) => String(idx)}
                     renderItem={({ item }) => (
                       <View style={{ width: SW, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                        <Image
-                          source={{ uri: item.uri }}
+                        <PhotoJustificatif
+                          uri={item.uri}
                           style={{ width: SW, height: SW * 1.1 }}
                           resizeMode="contain"
                         />
@@ -2244,7 +2352,7 @@ export default function VerificationScreen() {
               <Text style={styles.photoModalLabel}>{photoSelectionnee?.label}</Text>
               <View style={styles.photoModalImgWrapper}>
                 {photoSelectionnee?.uri && (
-                  <Image source={{ uri: photoSelectionnee.uri }} style={styles.photoModalImg} resizeMode="contain" />
+                  <PhotoJustificatif uri={photoSelectionnee.uri} style={styles.photoModalImg} resizeMode="contain" />
                 )}
               </View>
               <TouchableOpacity style={styles.photoModalFermer} onPress={() => setModalPhoto(false)}>
@@ -2773,6 +2881,71 @@ export default function VerificationScreen() {
       </Modal>
 
       {/* ══════════════════════════════════════════
+          MODAL CORRECTION NOMBRE DE COMMANDES
+      ══════════════════════════════════════════ */}
+      <Modal visible={corrCmdOuvert} animationType="fade" transparent onRequestClose={() => setCorrCmdOuvert(false)}>
+        <View style={styles.annulerOverlay}>
+          <View style={styles.annulerCard}>
+            <Text style={styles.annulerTitre}>✏️ Corriger le nombre de commandes</Text>
+            <Text style={styles.corrAncien}>
+              Saisi par le gérant : Yango {pointSelectionne?.yango_nb_commandes || 0} ·
+              Glovo {pointSelectionne?.glovo_nb_commandes || 0}
+            </Text>
+
+            <Text style={styles.annulerLabel}>Commandes Yango</Text>
+            <TextInput
+              style={styles.annulerInput}
+              keyboardType="numeric"
+              value={corrCmdYango}
+              onChangeText={v => setCorrCmdYango(v.replace(/[^0-9]/g, ''))}
+              placeholder="0" placeholderTextColor="#bbb"
+            />
+
+            <Text style={[styles.annulerLabel, { marginTop: 12 }]}>Commandes Glovo</Text>
+            <TextInput
+              style={styles.annulerInput}
+              keyboardType="numeric"
+              value={corrCmdGlovo}
+              onChangeText={v => setCorrCmdGlovo(v.replace(/[^0-9]/g, ''))}
+              placeholder="0" placeholderTextColor="#bbb"
+            />
+
+            <Text style={[styles.annulerLabel, { marginTop: 12 }]}>Motif (optionnel)</Text>
+            <TextInput
+              style={[styles.annulerInput, styles.corrRaisonInput]}
+              value={corrCmdMotif}
+              onChangeText={setCorrCmdMotif}
+              placeholder="Ex. le gérant a tapé 40 au lieu de 14"
+              placeholderTextColor="#bbb"
+              multiline
+            />
+
+            <Text style={styles.annulerHint}>
+              Le litige « contacts » est recalculé automatiquement dans Litiges et Charges. Le gérant sera notifié.
+            </Text>
+            {corrCmdError ? <Text style={styles.corrError}>{corrCmdError}</Text> : null}
+
+            <View style={styles.annulerBtnRow}>
+              <TouchableOpacity
+                style={[styles.annulerBtn, styles.annulerBtnCancel]}
+                onPress={() => setCorrCmdOuvert(false)}
+                disabled={corrCmdSaving}
+              >
+                <Text style={styles.annulerBtnCancelTxt}>Retour</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.annulerBtn, styles.annulerBtnConfirm, corrCmdSaving && { opacity: 0.5 }]}
+                onPress={sauvegarderCorrectionCommandes}
+                disabled={corrCmdSaving}
+              >
+                <Text style={styles.annulerBtnConfirmTxt}>{corrCmdSaving ? '...' : 'Corriger'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ══════════════════════════════════════════
           MODAL CORRECTION FACTURE FOURNISSEUR
       ══════════════════════════════════════════ */}
       <Modal visible={corrFacture != null} animationType="fade" transparent onRequestClose={fermerCorrectionFacture}>
@@ -2786,7 +2959,7 @@ export default function VerificationScreen() {
 
                 {corrFacture.photo_url ? (
                   <TouchableOpacity onPress={() => voirPhoto(corrFacture.photo_url, corrFacture.fournisseurs?.nom)} activeOpacity={0.85}>
-                    <Image source={{ uri: corrFacture.photo_url }} style={styles.corrPhoto} resizeMode="cover" />
+                    <PhotoJustificatif uri={corrFacture.photo_url} style={styles.corrPhoto} />
                     <Text style={styles.corrPhotoHint}>Toucher pour agrandir la facture</Text>
                   </TouchableOpacity>
                 ) : (
@@ -3159,6 +3332,15 @@ function makeStyles(colors) { return StyleSheet.create({
   corrPhotoHint: { fontSize: 11, color: colors.textMuted, textAlign: 'center', marginBottom: 12 },
   corrRaisonInput: { fontSize: 14, fontWeight: '500', textAlign: 'left', minHeight: 60, textAlignVertical: 'top' },
   corrError: { fontSize: 12, color: '#A32D2D', fontWeight: '600', marginTop: 8, textAlign: 'center' },
+  // Correction du nombre de commandes livraison (base du litige contacts)
+  corrCmdBox: {
+    backgroundColor: colors.surface, borderRadius: 12, padding: 12, marginTop: 4,
+    borderWidth: 0.5, borderColor: colors.border, borderLeftWidth: 3, borderLeftColor: '#534AB7',
+  },
+  corrCmdLitige: { fontSize: 12, color: '#A32D2D', fontWeight: '700', marginTop: 4 },
+  corrCmdBadge: { fontSize: 11, color: '#854F0B', fontWeight: '600', marginTop: 4, lineHeight: 15 },
+  corrCmdBtn: { alignSelf: 'flex-start', backgroundColor: '#E8F0FE', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginTop: 8 },
+  corrCmdBtnTxt: { fontSize: 12, color: '#1B4B9E', fontWeight: '700' },
   factCorrBadge: { fontSize: 11, color: '#854F0B', fontWeight: '700', marginBottom: 3 },
   factCorrBtn: { alignSelf: 'flex-start', backgroundColor: '#E8F0FE', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, marginTop: 1 },
   factCorrBtnTxt: { fontSize: 12, color: '#1B4B9E', fontWeight: '700' },

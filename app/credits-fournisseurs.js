@@ -14,11 +14,12 @@ import { router } from 'expo-router'
 import * as Sharing from 'expo-sharing'
 import { useEffect, useMemo, useState } from 'react'
 import {
-  ActivityIndicator, Alert, Image, Modal, Platform,
+  ActivityIndicator, Alert, Modal, Platform,
   SafeAreaView, ScrollView, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native'
 import * as XLSX from 'xlsx'
+import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { journaliser } from '../lib/journal'
@@ -975,7 +976,7 @@ ${mouvements.map(m => {
 
                     {m.photo_url && (
                       <TouchableOpacity style={styles.histoMvtPhoto} onPress={() => setModalPhotoUri(m.photo_url)}>
-                        <Image source={{ uri: m.photo_url }} style={styles.histoMvtPhotoThumb} resizeMode="cover" />
+                        <PhotoJustificatif uri={m.photo_url} style={styles.histoMvtPhotoThumb} compact />
                         <Text style={styles.histoMvtPhotoTxt}>📷 Voir la facture</Text>
                       </TouchableOpacity>
                     )}
@@ -1304,8 +1305,8 @@ ${mouvements.map(m => {
             <Text style={{ fontSize: 30, color: '#fff', fontWeight: '300' }}>✕</Text>
           </TouchableOpacity>
           {modalPhotoUri && (
-            <Image
-              source={{ uri: modalPhotoUri }}
+            <PhotoJustificatif
+              uri={modalPhotoUri}
               style={{ width: '92%', height: '70%' }}
               resizeMode="contain"
             />

@@ -1,16 +1,21 @@
 import { router } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import {
-  ActivityIndicator, Alert, Image, Modal, Platform, SafeAreaView,
+  ActivityIndicator, Alert, Modal, Platform, SafeAreaView,
   ScrollView, StyleSheet, Text, TextInput,
   TouchableOpacity, View,
 } from 'react-native'
 import { Calendar } from 'react-native-calendars'
+import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { CATEGORIES_INVENTAIRE } from '../lib/constants'
 import { supabase } from '../lib/supabase'
 import { annulerDeductionInventaire } from '../lib/api'
+import {
+  calculerLitigeContact, chargerPointsContact,
+  corrigerNbCommandes, forcerLitigeContact,
+} from '../lib/litigeContacts'
 import { exporterPdf } from '../lib/pdfDocuments'
 import { usePhoto } from '../lib/usePhoto'
 
@@ -174,6 +179,13 @@ export default function LitigesScreen() {
 
   // ── Volet 6 — Écart Contact ──────────────────────────────────
   const [ecartContacts, setEcartContacts] = useState([])
+  // Corrections manager/directeur (voir lib/litigeContacts.js)
+  const [corrCmd, setCorrCmd] = useState(null)          // ligne ciblée : nb de commandes
+  const [corrCmdForm, setCorrCmdForm] = useState({ yango: '', glovo: '', motif: '' })
+  const [corrLitige, setCorrLitige] = useState(null)    // ligne ciblée : montant du litige
+  const [corrLitigeForm, setCorrLitigeForm] = useState({ montant: '', motif: '' })
+  const [corrSaving, setCorrSaving] = useState(false)
+  const [corrError, setCorrError] = useState('')
 
   // ── Volet 7 — Point pas fait ─────────────────────────────────
   const [litigesPointPasFait, setLitigesPointPasFait] = useState([])
@@ -554,12 +566,7 @@ export default function LitigesScreen() {
   async function chargerEcartContacts() {
     const { debut, fin } = plage
 
-    const { data: points } = await supabase
-      .from('points')
-      .select('id, date, yango_nb_commandes, glovo_nb_commandes')
-      .eq('restaurant_id', restoSelectionne.id)
-      .gte('date', debut).lte('date', fin)
-      .order('date', { ascending: false })
+    const points = await chargerPointsContact(restoSelectionne.id, debut, fin)
 
     if (!points?.length) { setEcartContacts([]); return }
 
@@ -606,11 +613,7 @@ export default function LitigesScreen() {
     })
 
     setEcartContacts(points.map(p => {
-      const nbCommandes = (p.yango_nb_commandes || 0) + (p.glovo_nb_commandes || 0)
-      const nbContacts = contactsByPoint[p.id] || 0
-      const ecart = nbCommandes - nbContacts
-      const taux = nbCommandes > 0 ? Math.round((ecart / nbCommandes) * 1000) / 10 : 0
-      const litige = taux > 20 ? ecart * 500 : 0
+      const calc = calculerLitigeContact(p, contactsByPoint[p.id] || 0)
       const shiftsJour = shiftsByPoint[p.id] || []
       const caissiers = shiftsJour.map(s =>
         `${s.caissier_nom || '—'}${s.heure_debut ? ` (${s.heure_debut}→${s.heure_fin})` : ''}`
@@ -619,7 +622,7 @@ export default function LitigesScreen() {
         nom: nomCaissier[cid] || 'Caissier',
         nb,
       })).sort((a, b) => b.nb - a.nb)
-      return { date: p.date, caissiers, nbCommandes, nbContacts, ecart, taux, litige, contactsParCaissier }
+      return { ...calc, point: p, date: p.date, caissiers, contactsParCaissier }
     }).filter(r => r.nbCommandes > 0 || r.caissiers))
   }
 
@@ -686,11 +689,8 @@ export default function LitigesScreen() {
       const yangoTotal = (yango || []).reduce((s, x) => s + (x.montant || 0), 0)
       const glovoTotal = (glovo || []).reduce((s, x) => s + (x.montant || 0), 0)
 
-      // Contacts manquants (litige si taux > 20%) — même calcul que chargerEcartContacts
-      const { data: ptsContact } = await supabase
-        .from('points').select('id, date, yango_nb_commandes, glovo_nb_commandes')
-        .eq('restaurant_id', resto.id).gte('date', debut).lte('date', fin)
-        .order('date', { ascending: false })
+      // Contacts manquants — règle et corrections dans lib/litigeContacts.js
+      const ptsContact = await chargerPointsContact(resto.id, debut, fin)
       let contacts = []
       let contactTotal = 0
       if (ptsContact?.length) {
@@ -703,14 +703,10 @@ export default function LitigesScreen() {
             contactsByPoint[c.point_id] = (contactsByPoint[c.point_id] || 0) + 1
           }
         })
-        contacts = ptsContact.map(p => {
-          const nbCommandes = (p.yango_nb_commandes || 0) + (p.glovo_nb_commandes || 0)
-          const nbContacts = contactsByPoint[p.id] || 0
-          const ecart = nbCommandes - nbContacts
-          const taux = nbCommandes > 0 ? Math.round((ecart / nbCommandes) * 1000) / 10 : 0
-          const litige = taux > 20 ? ecart * 500 : 0
-          return { date: p.date, nbCommandes, nbContacts, ecart, taux, litige }
-        }).filter(r => r.litige > 0)
+        contacts = ptsContact.map(p => ({
+          date: p.date,
+          ...calculerLitigeContact(p, contactsByPoint[p.id] || 0),
+        })).filter(r => r.litige > 0)
         contactTotal = contacts.reduce((s, r) => s + r.litige, 0)
       }
 
@@ -1334,7 +1330,7 @@ export default function LitigesScreen() {
                 <Text style={styles.explicGerantSousTitre}>📷 Photos justificatives</Text>
                 <View style={styles.regulPhotosRow}>
                   {item.photosEcart.map((uri, i) => (
-                    <Image key={i} source={{ uri }} style={styles.regulPhotoThumb} resizeMode="cover" />
+                    <PhotoJustificatif key={i} uri={uri} style={styles.regulPhotoThumb} compact />
                   ))}
                 </View>
               </View>
@@ -1361,7 +1357,7 @@ export default function LitigesScreen() {
                 {Array.isArray(r.photos) && r.photos.length > 0 && (
                   <View style={styles.regulPhotosRow}>
                     {r.photos.map((uri, j) => (
-                      <Image key={j} source={{ uri }} style={styles.regulPhotoThumb} resizeMode="cover" />
+                      <PhotoJustificatif key={j} uri={uri} style={styles.regulPhotoThumb} compact />
                     ))}
                   </View>
                 )}
@@ -1748,6 +1744,67 @@ export default function LitigesScreen() {
     )
   }
 
+  // ── Corrections du volet Contacts (manager / directeur) ──────
+  function ouvrirCorrNbCommandes(item) {
+    setCorrError('')
+    setCorrCmd(item)
+    setCorrCmdForm({
+      yango: String(item.nbYango || 0),
+      glovo: String(item.nbGlovo || 0),
+      motif: item.nbCorrigeMotif || '',
+    })
+  }
+
+  function ouvrirCorrLitige(item) {
+    setCorrError('')
+    setCorrLitige(item)
+    setCorrLitigeForm({
+      montant: String(item.forceParManager ? item.litige : item.litigeCalcule),
+      motif: item.motif || '',
+    })
+  }
+
+  async function sauvegarderCorrNbCommandes() {
+    if (!corrCmd) return
+    setCorrSaving(true)
+    setCorrError('')
+    const res = await corrigerNbCommandes({
+      point: corrCmd.point,
+      yango: corrCmdForm.yango,
+      glovo: corrCmdForm.glovo,
+      motif: corrCmdForm.motif,
+      userId, userNom,
+    })
+    setCorrSaving(false)
+    if (!res.ok) { setCorrError(res.error); return }
+    setCorrCmd(null)
+    await chargerEcartContacts()
+    Alert.alert('✅ Nombre corrigé', 'Le litige contacts a été recalculé. Le gérant a été notifié.')
+  }
+
+  async function sauvegarderCorrLitige(annulerCorrection = false) {
+    if (!corrLitige) return
+    setCorrSaving(true)
+    setCorrError('')
+    const res = await forcerLitigeContact({
+      point: corrLitige.point,
+      montant: annulerCorrection ? null : corrLitigeForm.montant,
+      motif: corrLitigeForm.motif,
+      litigeCalcule: corrLitige.litigeCalcule,
+      userId, userNom,
+    })
+    setCorrSaving(false)
+    if (!res.ok) { setCorrError(res.error); return }
+    setCorrLitige(null)
+    await chargerEcartContacts()
+    Alert.alert(
+      annulerCorrection ? '↩️ Correction retirée' : '✅ Litige corrigé',
+      annulerCorrection
+        ? 'Le montant calculé automatiquement s’applique de nouveau.'
+        : 'Le montant retenu a été enregistré. Le gérant a été notifié.'
+    )
+  }
+
   function renderEcartContacts() {
     const multiJour = periodeKey !== '1jour'
     return (
@@ -1764,34 +1821,61 @@ export default function LitigesScreen() {
           ecartContacts.map((item, idx) => {
             const parfait = item.taux === 0
             const tolere = item.taux > 0 && item.taux <= 20
-            const aLitige = item.taux > 20
+            const aLitige = item.litige > 0
             return (
-              <View key={idx} style={[styles.ligneCard, aLitige && { borderColor: '#C62828', borderWidth: 1 }]}>
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={[styles.ligneNom, { color: colors.text }]}>📅 {item.date}</Text>
-                  {item.caissiers ? <Text style={styles.ligneSous}>👤 {item.caissiers}</Text> : null}
-                  <Text style={styles.ligneSous}>
-                    Cmds : {item.nbCommandes}  ·  Contacts : {item.nbContacts}  ·  Écart : {item.ecart}  ·  {item.taux}%
-                  </Text>
-                  {item.contactsParCaissier?.length > 0 && (
-                    <View style={{ marginTop: 4, gap: 2 }}>
-                      {item.contactsParCaissier.map((c, ci) => (
-                        <Text key={ci} style={[styles.ligneSous, { color: '#185FA5' }]}>
-                          📞 {c.nom} : {c.nb} contact{c.nb > 1 ? 's' : ''}
-                        </Text>
-                      ))}
-                    </View>
-                  )}
-                  {parfait && <Text style={{ fontSize: 12, color: '#2E7D32', fontWeight: '600' }}>✅ Parfait</Text>}
-                  {tolere && <Text style={{ fontSize: 12, color: '#F57F17', fontWeight: '600' }}>✅ Toléré</Text>}
-                  {aLitige && (
-                    <Text style={{ fontSize: 12, color: '#C62828', fontWeight: '600' }}>
-                      ⚠️ {item.ecart} × 500 = {fmtShort(item.litige)}
+              <View key={idx} style={[styles.ligneCard, { flexDirection: 'column', alignItems: 'stretch' }, aLitige && { borderColor: '#C62828', borderWidth: 1 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={[styles.ligneNom, { color: colors.text }]}>📅 {item.date}</Text>
+                    {item.caissiers ? <Text style={styles.ligneSous}>👤 {item.caissiers}</Text> : null}
+                    <Text style={styles.ligneSous}>
+                      Cmds : {item.nbCommandes} (Y {item.nbYango} · G {item.nbGlovo})  ·  Contacts : {item.nbContacts}  ·  Écart : {item.ecart}  ·  {item.taux}%
                     </Text>
-                  )}
+                    {item.nbCorrige && (
+                      <Text style={styles.corrBadge}>
+                        ✏️ Nb corrigé (avant : Y {item.nbYangoOriginal ?? '—'} · G {item.nbGlovoOriginal ?? '—'})
+                        {item.nbCorrigePar ? ` — ${item.nbCorrigePar}` : ''}
+                        {item.nbCorrigeMotif ? ` · ${item.nbCorrigeMotif}` : ''}
+                      </Text>
+                    )}
+                    {item.contactsParCaissier?.length > 0 && (
+                      <View style={{ marginTop: 4, gap: 2 }}>
+                        {item.contactsParCaissier.map((c, ci) => (
+                          <Text key={ci} style={[styles.ligneSous, { color: '#185FA5' }]}>
+                            📞 {c.nom} : {c.nb} contact{c.nb > 1 ? 's' : ''}
+                          </Text>
+                        ))}
+                      </View>
+                    )}
+                    {parfait && !item.forceParManager && <Text style={{ fontSize: 12, color: '#2E7D32', fontWeight: '600' }}>✅ Parfait</Text>}
+                    {tolere && !item.forceParManager && <Text style={{ fontSize: 12, color: '#F57F17', fontWeight: '600' }}>✅ Toléré</Text>}
+                    {item.litigeCalcule > 0 && !item.forceParManager && (
+                      <Text style={{ fontSize: 12, color: '#C62828', fontWeight: '600' }}>
+                        ⚠️ {item.ecart} × 500 = {fmtShort(item.litigeCalcule)}
+                      </Text>
+                    )}
+                    {item.forceParManager && (
+                      <Text style={styles.corrBadge}>
+                        ✏️ Montant forcé (calculé : {fmtShort(item.litigeCalcule)})
+                        {item.forcePar ? ` — ${item.forcePar}` : ''}
+                        {item.motif ? ` · ${item.motif}` : ''}
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={[styles.montantTxt, { color: item.litige > 0 ? '#C62828' : '#2E7D32' }]}>
+                    {fmtShort(item.litige)}
+                  </Text>
                 </View>
-                {aLitige && (
-                  <Text style={[styles.montantTxt, { color: '#C62828' }]}>{fmtShort(item.litige)}</Text>
+
+                {peutRegulariser && item.point && (
+                  <View style={styles.corrBtnRow}>
+                    <TouchableOpacity style={styles.corrBtn} onPress={() => ouvrirCorrNbCommandes(item)}>
+                      <Text style={styles.corrBtnTxt}>✏️ Nb commandes</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.corrBtn} onPress={() => ouvrirCorrLitige(item)}>
+                      <Text style={styles.corrBtnTxt}>✏️ Montant du litige</Text>
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
             )
@@ -2207,6 +2291,129 @@ export default function LitigesScreen() {
         </ScrollView>
       </Modal>
 
+      {/* ── Modal correction du nombre de commandes Yango / Glovo ── */}
+      <Modal visible={!!corrCmd} transparent animationType="slide" onRequestClose={() => setCorrCmd(null)}>
+        <ScrollView contentContainerStyle={styles.overlay} keyboardShouldPersistTaps="handled">
+          <View style={styles.formModal}>
+            <Text style={styles.formTitre}>✏️ Corriger le nombre de commandes</Text>
+            {corrCmd && (
+              <>
+                <View style={styles.regulInfo}>
+                  <Text style={styles.regulInfoTxt}>📅 {corrCmd.date}</Text>
+                  <Text style={styles.regulInfoSub}>
+                    Saisi par le gérant : Yango {corrCmd.nbYango} · Glovo {corrCmd.nbGlovo}.
+                    {'\n'}Contacts réellement pris : {corrCmd.nbContacts}.
+                    {'\n'}Le litige contacts, les charges et le récap sont recalculés automatiquement.
+                  </Text>
+                </View>
+
+                <Text style={styles.formLabel}>Commandes Yango</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={corrCmdForm.yango}
+                  onChangeText={v => setCorrCmdForm(p => ({ ...p, yango: v.replace(/[^0-9]/g, '') }))}
+                  keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textMuted}
+                />
+
+                <Text style={styles.formLabel}>Commandes Glovo</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={corrCmdForm.glovo}
+                  onChangeText={v => setCorrCmdForm(p => ({ ...p, glovo: v.replace(/[^0-9]/g, '') }))}
+                  keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textMuted}
+                />
+
+                <Text style={styles.formLabel}>Motif (optionnel)</Text>
+                <TextInput
+                  style={[styles.formInput, { minHeight: 60, textAlignVertical: 'top' }]}
+                  value={corrCmdForm.motif}
+                  onChangeText={v => setCorrCmdForm(p => ({ ...p, motif: v }))}
+                  placeholder="Ex : le gérant a tapé 40 au lieu de 14"
+                  placeholderTextColor={colors.textMuted}
+                  multiline
+                />
+
+                {corrError ? <Text style={styles.corrErrorTxt}>⚠️ {corrError}</Text> : null}
+                <View style={styles.formBtns}>
+                  <TouchableOpacity style={styles.btnAnnuler} onPress={() => setCorrCmd(null)} disabled={corrSaving}>
+                    <Text style={styles.btnAnnulerTxt}>Annuler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.btnValider, corrSaving && { opacity: 0.5 }]}
+                    onPress={sauvegarderCorrNbCommandes} disabled={corrSaving}
+                  >
+                    <Text style={styles.btnValiderTxt}>{corrSaving ? '...' : 'Corriger'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </ScrollView>
+      </Modal>
+
+      {/* ── Modal correction du montant du litige contacts ── */}
+      <Modal visible={!!corrLitige} transparent animationType="slide" onRequestClose={() => setCorrLitige(null)}>
+        <ScrollView contentContainerStyle={styles.overlay} keyboardShouldPersistTaps="handled">
+          <View style={styles.formModal}>
+            <Text style={styles.formTitre}>✏️ Corriger le montant du litige</Text>
+            {corrLitige && (
+              <>
+                <View style={styles.regulInfo}>
+                  <Text style={styles.regulInfoTxt}>📅 {corrLitige.date}</Text>
+                  <Text style={styles.regulInfoSub}>
+                    Montant calculé : {fmt(corrLitige.litigeCalcule)} ({corrLitige.ecart} contact
+                    {corrLitige.ecart > 1 ? 's' : ''} manquant{corrLitige.ecart > 1 ? 's' : ''} × 500).
+                    {'\n'}Mettez 0 si le restaurant n’y est pour rien (tablette en panne, etc.).
+                  </Text>
+                </View>
+
+                <Text style={styles.formLabel}>Montant retenu (FCFA)</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={corrLitigeForm.montant}
+                  onChangeText={v => setCorrLitigeForm(p => ({ ...p, montant: v.replace(/[^0-9]/g, '') }))}
+                  keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textMuted}
+                />
+
+                <Text style={styles.formLabel}>Motif (obligatoire)</Text>
+                <TextInput
+                  style={[styles.formInput, { minHeight: 70, textAlignVertical: 'top' }]}
+                  value={corrLitigeForm.motif}
+                  onChangeText={v => setCorrLitigeForm(p => ({ ...p, motif: v }))}
+                  placeholder="Ex : tablette hors service, contacts impossibles à prendre"
+                  placeholderTextColor={colors.textMuted}
+                  multiline
+                />
+
+                {corrError ? <Text style={styles.corrErrorTxt}>⚠️ {corrError}</Text> : null}
+
+                {corrLitige.forceParManager && (
+                  <TouchableOpacity
+                    style={styles.corrResetBtn}
+                    onPress={() => sauvegarderCorrLitige(true)}
+                    disabled={corrSaving}
+                  >
+                    <Text style={styles.corrResetBtnTxt}>↩️ Revenir au montant calculé</Text>
+                  </TouchableOpacity>
+                )}
+
+                <View style={styles.formBtns}>
+                  <TouchableOpacity style={styles.btnAnnuler} onPress={() => setCorrLitige(null)} disabled={corrSaving}>
+                    <Text style={styles.btnAnnulerTxt}>Annuler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.btnValider, corrSaving && { opacity: 0.5 }]}
+                    onPress={() => sauvegarderCorrLitige(false)} disabled={corrSaving}
+                  >
+                    <Text style={styles.btnValiderTxt}>{corrSaving ? '...' : 'Enregistrer'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </ScrollView>
+      </Modal>
+
       {/* ── Modal Confirmation Suppression ── */}
       <Modal visible={!!confirmSuppr} transparent animationType="fade">
         <View style={styles.overlay}>
@@ -2273,7 +2480,7 @@ export default function LitigesScreen() {
                     <View style={styles.regulPhotosRow}>
                       {regulPhotos.map((uri, i) => (
                         <View key={i} style={styles.regulPhotoWrap}>
-                          <Image source={{ uri }} style={styles.regulPhotoThumb} resizeMode="cover" />
+                          <PhotoJustificatif uri={uri} style={styles.regulPhotoThumb} compact />
                           <TouchableOpacity style={styles.regulPhotoDel} onPress={() => setRegulPhotos(prev => prev.filter((_, j) => j !== i))}>
                             <Text style={styles.regulPhotoDelTxt}>✕</Text>
                           </TouchableOpacity>
@@ -2476,6 +2683,21 @@ function makeStyles(colors) { return StyleSheet.create({
   prodLigne: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
   annulDeducBtnSm: { backgroundColor: '#FCEBEB', borderWidth: 1, borderColor: '#F09595', borderRadius: 7, paddingVertical: 6, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', minWidth: 78, minHeight: 32 },
   annulDeducBtnSmTxt: { color: '#A32D2D', fontWeight: '700', fontSize: 12 },
+
+  // Corrections manager du volet Contacts
+  corrBadge: { fontSize: 11, color: '#854F0B', fontWeight: '600', marginTop: 2, lineHeight: 15 },
+  corrBtnRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  corrBtn: {
+    flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
+    backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.borderLight,
+  },
+  corrBtnTxt: { fontSize: 12, fontWeight: '600', color: '#534AB7' },
+  corrErrorTxt: { color: '#C62828', fontSize: 12, marginBottom: 8, textAlign: 'center' },
+  corrResetBtn: {
+    paddingVertical: 10, borderRadius: 8, alignItems: 'center', marginBottom: 10,
+    backgroundColor: '#F1EFE8', borderWidth: 1, borderColor: '#854F0B',
+  },
+  corrResetBtnTxt: { fontSize: 13, fontWeight: '700', color: '#854F0B' },
 
   emptyBox: { paddingVertical: 40, alignItems: 'center', gap: 8 },
   emptyTxt: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },

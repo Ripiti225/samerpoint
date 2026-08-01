@@ -8,6 +8,7 @@ import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { CATEGORIES_INVENTAIRE as CATEGORIES } from '../lib/constants'
 import { supabase } from '../lib/supabase'
+import { dernierComptage } from '../lib/verificationStock'
 
 const TYPES_SHIFTS = [
   { id: 'matin',       label: '🌅 Shift Matin',  debut: '08:00', fin: '16:00' },
@@ -98,19 +99,36 @@ export default function InventaireScreen() {
     setLoading(true)
     setSaveMsg(null)
     try {
-      const { data: existant } = await supabase
+      // stock_initial_verif : comptage physique du vérificateur, prioritaire sur
+      // le stock déclaré. Sélection tolérante — la colonne peut manquer tant que
+      // supabase_verification_stock_initial.sql n'est pas passé.
+      let { data: existant, error: errSel } = await supabase
         .from('inventaires_shifts')
-        .select('id, valide')
+        .select('id, valide, stock_initial_verif')
         .eq('point_id', pointId)
         .eq('caissier_id', userId)
         .eq('type_shift', shift.id)
         .maybeSingle()
+      if (errSel) {
+        const { data: repli } = await supabase
+          .from('inventaires_shifts')
+          .select('id, valide')
+          .eq('point_id', pointId)
+          .eq('caissier_id', userId)
+          .eq('type_shift', shift.id)
+          .maybeSingle()
+        existant = repli
+      }
 
       if (existant) {
         setInventaireId(existant.id)
         setIsValide(existant.valide || false)
         const hasLines = await chargerLignes(existant.id)
         if (!hasLines) await chargerStockInitial(existant.id)
+        // Le comptage du vérificateur écrase le stock initial, ligne enregistrée
+        // ou pas : il est réappliqué à chaque chargement (les lignes sont
+        // supprimées/réinsérées à chaque sauvegarde).
+        appliquerOverrideVerif(existant.stock_initial_verif)
         if (existant.valide) setInventaireTermine(true)
       } else {
         const { data: nouveau, error } = await supabase
@@ -174,13 +192,26 @@ export default function InventaireScreen() {
     return (lignes || []).length > 0
   }
 
+  // Comptage du vérificateur → stock initial. Prioritaire sur le stock déclaré
+  // par le caissier : c'est le stock physiquement constaté.
+  function appliquerOverrideVerif(override) {
+    if (!override || typeof override !== 'object') return
+    const valeurs = {}
+    Object.entries(override).forEach(([pid, v]) => {
+      const n = parseFloat(v)
+      if (!isNaN(n)) valeurs[pid] = n
+    })
+    if (Object.keys(valeurs).length === 0) return
+    setStocksInitiaux(prev => ({ ...prev, ...valeurs }))
+  }
+
   async function chargerStockInitial(idActuel = null) {
     if (!restaurantId) return
 
     // Chercher les derniers shifts de ce restaurant (toute date), excluant l'actuel
     let query = supabase
       .from('inventaires_shifts')
-      .select('id, inventaire_lignes(produit_id, stock_reel)')
+      .select('id, created_at, inventaire_lignes(produit_id, stock_reel)')
       .eq('restaurant_id', restaurantId)
       .eq('valide', true)
       .order('created_at', { ascending: false })
@@ -197,6 +228,12 @@ export default function InventaireScreen() {
     if (found) {
       const init = {}
       ;(found.inventaire_lignes || []).forEach(l => { if (l.stock_reel != null) init[l.produit_id] = l.stock_reel })
+      // Un comptage du vérificateur postérieur à ce shift fait foi : il repart
+      // du stock physiquement compté, pas de celui déclaré par le caissier.
+      try {
+        const comptage = await dernierComptage(restaurantId, found.created_at)
+        if (comptage) Object.assign(init, comptage.valeurs)
+      } catch (_) { /* table/colonne absente : on garde le stock déclaré */ }
       setStocksInitiaux(init)
       return
     }
