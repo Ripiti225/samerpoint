@@ -18,7 +18,7 @@ import {
 } from 'react-native'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
-import { calculerLitigeContact, chargerPointsContact } from '../lib/litigeContacts'
+import { calculerLitigeContact, chargerPointsContact, compterContacts } from '../lib/litigeContacts'
 
 const MOIS_NOMS = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -163,15 +163,7 @@ export default function ChargesScreen() {
     let contact = 0
     const ptsCmds = await chargerPointsContact(restoSelectionne.id, debut, fin)
     if (ptsCmds?.length) {
-      const ptIds = ptsCmds.map(p => p.id)
-      const { data: cmdsContact } = await supabase
-        .from('commandes').select('point_id, contact_client').in('point_id', ptIds)
-      const contactsByPt = {}
-      ;(cmdsContact || []).forEach(c => {
-        if (c.contact_client && c.contact_client.trim() !== '') {
-          contactsByPt[c.point_id] = (contactsByPt[c.point_id] || 0) + 1
-        }
-      })
+      const { parPoint: contactsByPt } = await compterContacts(ptsCmds.map(p => p.id))
       ptsCmds.forEach(p => {
         contact += calculerLitigeContact(p, contactsByPt[p.id] || 0).litige
       })

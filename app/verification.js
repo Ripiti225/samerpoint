@@ -1454,7 +1454,8 @@ export default function VerificationScreen() {
                             <Text style={styles.canalLabel}>Contacts pris</Text>
                             <Text style={styles.canalVal}>
                               {calc.nbContacts} / {calc.nbCommandes}
-                              {calc.nbCommandes > 0 ? ` (${calc.taux}% manquants)` : ''}
+                              {calc.nbCommandes > 0 && calc.ecart > 0 ? ` (${calc.taux}% manquants)` : ''}
+                              {calc.ecart < 0 ? ` (surplus de ${Math.abs(calc.ecart)})` : ''}
                             </Text>
                           </View>
                           {calc.litige > 0 && (

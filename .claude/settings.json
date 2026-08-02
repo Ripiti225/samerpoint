@@ -61,7 +61,27 @@
       "Bash(curl -s \"http://localhost:8082/\" --max-time 60)",
       "Bash(curl -s -o /dev/null -w \"ios bundle HTTP:%{http_code} BYTES:%{size_download}\\\\n\" \"http://localhost:8082/index.bundle?platform=ios&dev=true&hot=false&transform.routerRoot=app\" --max-time 300)",
       "Bash(curl -s \"http://localhost:8082/node_modules/expo-router/entry.bundle?platform=ios&dev=true&hot=false&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable\" --max-time 300 -w \"\\\\nHTTP:%{http_code} BYTES:%{size_download}\\\\n\" -o /tmp/ios_bundle_check.txt)",
-      "Bash(grep -oE \"Unable to resolve[^\\\\\"]{0,80}\" /tmp/ios_bundle_check.txt)"
+      "Bash(grep -oE \"Unable to resolve[^\\\\\"]{0,80}\" /tmp/ios_bundle_check.txt)",
+      "Bash(sed -n 's/=.*/=<masqué>/p' .env)",
+      "Bash(node -e ' *)",
+      "Bash(curl -s -o /dev/null -w \"bundle web HTTP:%{http_code}\\\\n\" \"http://localhost:8082/node_modules/expo-router/entry.bundle?platform=web&dev=true&hot=false&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable\" --max-time 300)",
+      "Bash(node /private/tmp/claude-501/-Users-macbookpro-samtrackly/628bc1b9-afbc-42ed-b77e-842776b7965b/scratchpad/test-rapport.mjs)",
+      "Bash(node -e \"console.log\\(require.resolve\\('@supabase/supabase-js'\\)\\)\")",
+      "Bash(sed -i '' 's#dist/main/index.js#dist/index.mjs#g' test-rapport.mjs)",
+      "Bash(node test-rapport.mjs)",
+      "Bash(node -e \"console.log\\('pptxgenjs', require\\('./package.json'\\).dependencies.pptxgenjs\\)\")",
+      "Bash(grep -oE \"^export const LOGO_SAMER = '[^,]{0,40}\" lib/logos.js)",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/expo-file-system/package.json'\\).version\\)\")",
+      "Bash(node -e \"const p=require\\('./node_modules/pptxgenjs/package.json'\\);console.log\\(JSON.stringify\\({main:p.main,module:p.module,exports:p.exports},null,1\\)\\)\")",
+      "Bash(node test-export.mjs)",
+      "Bash(unzip -l Rapport_Juillet_2026.pptx)",
+      "Bash(PLATFORME=web node test-export.mjs)",
+      "Bash(rm -f Rapport_Juillet_2026.pptx)",
+      "Bash(PLATFORME=test node test-export.mjs)",
+      "Bash(python3 verif-geometrie.py Rapport_Juillet_2026.pptx)",
+      "Bash(python3 verif-chevauchement.py Rapport_Juillet_2026.pptx)",
+      "Bash(node -e \"const p=require\\('./package.json'\\).dependencies;console.log\\('jspdf',p.jspdf,'· autotable',p['jspdf-autotable']\\)\")",
+      "Bash(sed -i '' \"s#jspdf-autotable/dist/index.mjs#jspdf-autotable/dist/jspdf.plugin.autotable.mjs#\" test-export.mjs)"
     ]
   }
 }

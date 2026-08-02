@@ -13,7 +13,7 @@ import { CATEGORIES_INVENTAIRE } from '../lib/constants'
 import { supabase } from '../lib/supabase'
 import { annulerDeductionInventaire } from '../lib/api'
 import {
-  calculerLitigeContact, chargerPointsContact,
+  calculerLitigeContact, chargerPointsContact, compterContacts,
   corrigerNbCommandes, forcerLitigeContact,
 } from '../lib/litigeContacts'
 import { exporterPdf } from '../lib/pdfDocuments'
@@ -43,9 +43,17 @@ const ONGLETS = [
 ]
 
 const TYPES_AVIS = [
-  { key: 'mauvais', label: '👎 Mauvais avis', montant: 1000, couleur: '#C62828' },
-  { key: 'bon', label: '👍 Bon avis', montant: -500, couleur: '#2E7D32' },
+  { key: 'mauvais', label: '👎 Mauvais avis', court: '👎 Mauvais', montant: 1000, couleur: '#C62828' },
+  { key: 'bon', label: '👍 Bon avis', court: '👍 Bon', montant: -500, couleur: '#2E7D32' },
+  // Neutre : on garde la trace de l'avis sans impact financier (ni sanction,
+  // ni récompense). Le montant reste 0 dans tous les totaux.
+  { key: 'neutre', label: '😐 Avis neutre', court: '😐 Neutre', montant: 0, couleur: '#78716C' },
 ]
+function typeAvis(key) { return TYPES_AVIS.find(t => t.key === key) }
+// Rouge = à la charge du resto, vert = en sa faveur, gris = sans impact
+function couleurMontant(m, colors) {
+  return m > 0 ? '#C62828' : m < 0 ? '#2E7D32' : (colors?.textMuted || '#78716C')
+}
 // Canal du client à l'origine de l'avis
 const CANAUX_AVIS = [
   { key: 'sur_place', label: '🍽️ Sur place', court: 'Sur place', couleur: '#185FA5' },
@@ -578,22 +586,11 @@ export default function LitigesScreen() {
       .in('point_id', pointIds)
       .order('created_at', { ascending: true })
 
-    // Contacts pris (commandes avec contact_client renseigné)
-    const { data: cmds } = await supabase
-      .from('commandes').select('point_id, contact_client, caissier_id')
-      .in('point_id', pointIds)
-
-    const contactsByPoint = {}
-    const contactsByPointCaissier = {} // { point_id: { caissier_id: count } }
-    ;(cmds || []).forEach(c => {
-      if (c.contact_client && c.contact_client.trim() !== '') {
-        contactsByPoint[c.point_id] = (contactsByPoint[c.point_id] || 0) + 1
-        if (c.caissier_id) {
-          if (!contactsByPointCaissier[c.point_id]) contactsByPointCaissier[c.point_id] = {}
-          contactsByPointCaissier[c.point_id][c.caissier_id] = (contactsByPointCaissier[c.point_id][c.caissier_id] || 0) + 1
-        }
-      }
-    })
+    // Contacts pris (commandes avec contact_client renseigné) — paginé :
+    // au-delà de 1000 commandes sur la période, Supabase tronquait
+    // silencieusement et des journées entières tombaient à 0 contact.
+    const { parPoint: contactsByPoint, parPointCaissier: contactsByPointCaissier } =
+      await compterContacts(pointIds)
 
     // Noms des caissiers pour l'affichage contacts par caissier
     const allCaissierIds = [...new Set(
@@ -694,15 +691,7 @@ export default function LitigesScreen() {
       let contacts = []
       let contactTotal = 0
       if (ptsContact?.length) {
-        const pIds = ptsContact.map(p => p.id)
-        const { data: cmds } = await supabase
-          .from('commandes').select('point_id, contact_client').in('point_id', pIds)
-        const contactsByPoint = {}
-        ;(cmds || []).forEach(c => {
-          if (c.contact_client && c.contact_client.trim() !== '') {
-            contactsByPoint[c.point_id] = (contactsByPoint[c.point_id] || 0) + 1
-          }
-        })
+        const { parPoint: contactsByPoint } = await compterContacts(ptsContact.map(p => p.id))
         contacts = ptsContact.map(p => ({
           date: p.date,
           ...calculerLitigeContact(p, contactsByPoint[p.id] || 0),
@@ -801,9 +790,9 @@ export default function LitigesScreen() {
           const ac = d.avisTotal > 0 ? 'r' : 'g'
           html += `<div class="volet"><div class="volet-h"><span>👁 Avis clients (${d.avis.length})</span><span class="${ac}">${d.avisTotal > 0 ? '+' : ''}${Math.round(d.avisTotal).toLocaleString('fr-FR')} FCFA</span></div>`
           d.avis.forEach(a => {
-            const tl = TYPES_AVIS.find(t => t.key === a.type)?.label || a.type
+            const tl = typeAvis(a.type)?.label || a.type
             const cn = a.canal ? ` · <strong style="color:${canalAvis(a.canal)?.couleur || '#555'}">📍 ${canalAvis(a.canal)?.court || a.canal}</strong>` : ''
-            const mc = a.montant > 0 ? 'r' : 'g'
+            const mc = a.montant > 0 ? 'r' : a.montant < 0 ? 'g' : ''  // neutre : couleur par défaut
             html += `<div class="item">${a.numero_commande ? `<span class="cmd">#${a.numero_commande}</span> — ` : ''}${tl}${cn}${a.notes ? ` — ${a.notes}` : ''} <span class="${mc}"><strong>${a.montant > 0 ? '+' : ''}${Math.round(a.montant).toLocaleString('fr-FR')} FCFA</strong></span></div>`
           })
           html += `</div>`
@@ -948,7 +937,7 @@ export default function LitigesScreen() {
                   )}
                   {/* Avis */}
                   {d.avis.map(a => {
-                    const type = TYPES_AVIS.find(t => t.key === a.type)
+                    const type = typeAvis(a.type)
                     return (
                       <View key={a.id} style={styles.globalItem}>
                         <View style={{ flex: 1 }}>
@@ -959,7 +948,7 @@ export default function LitigesScreen() {
                             {a.notes ? ` — ${a.notes}` : ''}
                           </Text>
                         </View>
-                        <Text style={[styles.globalItemMontant, { color: a.montant > 0 ? '#C62828' : '#2E7D32' }]}>
+                        <Text style={[styles.globalItemMontant, { color: couleurMontant(a.montant, colors) }]}>
                           {a.montant > 0 ? '+' : ''}{fmtShort(a.montant)}
                         </Text>
                       </View>
@@ -1051,7 +1040,7 @@ export default function LitigesScreen() {
   async function sauvegarderAvis() {
     if (!restoSelectionne) return
     setSaving(true)
-    const montant = formAvis.type === 'bon' ? -500 : 1000
+    const montant = typeAvis(formAvis.type)?.montant ?? 1000
     const dateToSave = formAvis.date_saisie || TODAY
     const champs = {
       type: formAvis.type, montant,
@@ -1626,7 +1615,7 @@ export default function LitigesScreen() {
           </View>
         )}
         {avisClients.map(a => {
-          const type = TYPES_AVIS.find(t => t.key === a.type)
+          const type = typeAvis(a.type)
           return (
             <View key={a.id} style={styles.ligneCard}>
               <View style={{ flex: 1 }}>
@@ -1639,7 +1628,7 @@ export default function LitigesScreen() {
                 {a.created_by ? <Text style={styles.ligneCreer}>par {a.created_by}</Text> : null}
               </View>
               <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                <Text style={[styles.montantTxt, { color: a.montant > 0 ? '#C62828' : '#2E7D32' }]}>
+                <Text style={[styles.montantTxt, { color: couleurMontant(a.montant, colors) }]}>
                   {a.montant > 0 ? '+' : ''}{fmtShort(a.montant)}
                 </Text>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -1819,8 +1808,11 @@ export default function LitigesScreen() {
           <View style={styles.emptyBox}><Text style={styles.emptyTxt}>Aucune donnée sur cette période</Text></View>
         ) : (
           ecartContacts.map((item, idx) => {
-            const parfait = item.taux === 0
+            const parfait = item.ecart === 0
             const tolere = item.taux > 0 && item.taux <= 20
+            // Plus de contacts que de commandes = surplus : jamais un litige
+            // (même règle que le volet Écarts, où seuls les manquants comptent).
+            const surplus = item.ecart < 0
             const aLitige = item.litige > 0
             return (
               <View key={idx} style={[styles.ligneCard, { flexDirection: 'column', alignItems: 'stretch' }, aLitige && { borderColor: '#C62828', borderWidth: 1 }]}>
@@ -1849,6 +1841,11 @@ export default function LitigesScreen() {
                     )}
                     {parfait && !item.forceParManager && <Text style={{ fontSize: 12, color: '#2E7D32', fontWeight: '600' }}>✅ Parfait</Text>}
                     {tolere && !item.forceParManager && <Text style={{ fontSize: 12, color: '#F57F17', fontWeight: '600' }}>✅ Toléré</Text>}
+                    {surplus && !item.forceParManager && (
+                      <Text style={{ fontSize: 12, color: '#F57F17', fontWeight: '600' }}>
+                        ↩️ Surplus de {Math.abs(item.ecart)} contact{Math.abs(item.ecart) > 1 ? 's' : ''} — pas de litige
+                      </Text>
+                    )}
                     {item.litigeCalcule > 0 && !item.forceParManager && (
                       <Text style={{ fontSize: 12, color: '#C62828', fontWeight: '600' }}>
                         ⚠️ {item.ecart} × 500 = {fmtShort(item.litigeCalcule)}
@@ -2095,9 +2092,9 @@ export default function LitigesScreen() {
                   style={[styles.typeBtn, { flex: 1 }, formAvis.type === t.key && { backgroundColor: t.couleur, borderColor: t.couleur }]}
                   onPress={() => setFormAvis(p => ({ ...p, type: t.key }))}
                 >
-                  <Text style={[styles.typeBtnTxt, formAvis.type === t.key && { color: '#fff' }]}>{t.label}</Text>
+                  <Text style={[styles.typeBtnTxt, formAvis.type === t.key && { color: '#fff' }]}>{t.court || t.label}</Text>
                   <Text style={[styles.typeBtnMontant, formAvis.type === t.key && { color: '#ffffffbb' }]}>
-                    {t.montant > 0 ? '+' : ''}{t.montant} FCFA
+                    {t.montant === 0 ? 'aucun impact' : `${t.montant > 0 ? '+' : ''}${t.montant} FCFA`}
                   </Text>
                 </TouchableOpacity>
               ))}
