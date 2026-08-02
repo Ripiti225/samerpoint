@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTheme } from '../context/ThemeContext'
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   RefreshControl,
   SafeAreaView,
@@ -15,6 +16,9 @@ import {
 import * as Print from 'expo-print'
 import * as Sharing from 'expo-sharing'
 import { supabase } from '../lib/supabase'
+import { listerMoisAvecTotaux, chargerRapportMensuel } from '../lib/rapportMensuel'
+import { exporterPptx, exporterXlsx, exporterPdf } from '../lib/exportRapportMensuel'
+import '../lib/webAlert'   // remplace Alert.alert par les dialogues du navigateur
 
 function fmt(n) {
   if (n == null || isNaN(n)) return '—'
@@ -94,6 +98,7 @@ function VariationBadge({ valeur, reference }) {
 export default function RapportsScreen() {
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
+  const [onglet, setOnglet] = useState('hebdo')
   const [rapports, setRapports] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -228,15 +233,51 @@ export default function RapportsScreen() {
     setExporting(false)
   }
 
+  const enTete = (
+    <View style={styles.header}>
+      <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <Text style={styles.backTxt}>← Retour</Text>
+      </TouchableOpacity>
+      <Text style={styles.headerTitre}>Rapports</Text>
+      <Text style={styles.headerSub}>
+        {onglet === 'hebdo'
+          ? '3 derniers mois · tous restaurants'
+          : 'Mois clos · PowerPoint, Excel et PDF'}
+      </Text>
+    </View>
+  )
+
+  const onglets = (
+    <View style={styles.ongletBar}>
+      {[['hebdo', 'Hebdo'], ['mensuel', 'Mensuel']].map(([cle, libelle]) => (
+        <TouchableOpacity
+          key={cle}
+          style={[styles.ongletBtn, onglet === cle && styles.ongletBtnActif]}
+          onPress={() => setOnglet(cle)}
+        >
+          <Text style={[styles.ongletTxt, onglet === cle && styles.ongletTxtActif]}>
+            {libelle}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  )
+
+  if (onglet === 'mensuel') {
+    return (
+      <SafeAreaView style={styles.container}>
+        {enTete}
+        {onglets}
+        <OngletMensuel />
+      </SafeAreaView>
+    )
+  }
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Text style={styles.backTxt}>← Retour</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitre}>Rapports hebdomadaires</Text>
-        </View>
+        {enTete}
+        {onglets}
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color="#534AB7" />
         </View>
@@ -246,13 +287,8 @@ export default function RapportsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backTxt}>← Retour</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitre}>Rapports hebdomadaires</Text>
-        <Text style={styles.headerSub}>3 derniers mois · tous restaurants</Text>
-      </View>
+      {enTete}
+      {onglets}
 
       {restaurants.length > 0 && (
         <ScrollView
@@ -307,6 +343,168 @@ export default function RapportsScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
+  )
+}
+
+// ─── Onglet « Mensuel » ────────────────────────────────────────────────────
+// Liste les mois CLOS avec leurs chiffres clés (lecture légère), et génère à
+// la demande le rapport complet. L'agrégation complète prend une vingtaine de
+// secondes : on ne la lance qu'au clic sur un bouton d'export.
+
+const FORMATS = [
+  { cle: 'pptx', libelle: 'PowerPoint', icone: '📄', exporter: exporterPptx },
+  { cle: 'xlsx', libelle: 'Excel', icone: '📊', exporter: exporterXlsx },
+  { cle: 'pdf', libelle: 'PDF', icone: '📕', exporter: exporterPdf },
+]
+
+function OngletMensuel() {
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
+  const [mois, setMois] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [erreur, setErreur] = useState(null)
+  // { mois, format, etape } pendant une génération, null sinon
+  const [travail, setTravail] = useState(null)
+
+  useEffect(() => { charger() }, [])
+
+  async function charger() {
+    try {
+      setErreur(null)
+      setMois(await listerMoisAvecTotaux())
+    } catch (e) {
+      console.error('[RapportMensuel] chargement', e)
+      setErreur(e.message)
+    }
+    setLoading(false)
+    setRefreshing(false)
+  }
+
+  async function exporter(m, format) {
+    if (travail) return
+    setTravail({ mois: m.mois, format: format.cle, etape: 'Préparation…' })
+    try {
+      const suivre = etape => setTravail(t => (t ? { ...t, etape } : t))
+      const rapport = await chargerRapportMensuel(m.mois, suivre)
+      await format.exporter(rapport, suivre)
+    } catch (e) {
+      console.error('[RapportMensuel] export', e)
+      Alert.alert('Export impossible', e.message || 'Une erreur est survenue.')
+    }
+    setTravail(null)
+  }
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    )
+  }
+
+  return (
+    <ScrollView
+      style={styles.body}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => { setRefreshing(true); charger() }}
+          tintColor={colors.primary}
+        />
+      }
+    >
+      {erreur && (
+        <View style={styles.erreurBox}>
+          <Text style={styles.erreurTxt}>Impossible de charger les mois : {erreur}</Text>
+        </View>
+      )}
+
+      {mois.length === 0 && !erreur ? (
+        <View style={styles.emptyBox}>
+          <Text style={styles.emptyIcon}>🗂️</Text>
+          <Text style={styles.emptyTitre}>Aucun mois clos</Text>
+          <Text style={styles.emptySub}>
+            Le rapport mensuel ne porte que sur des mois terminés. Le mois en cours
+            apparaîtra ici une fois achevé.
+          </Text>
+        </View>
+      ) : (
+        mois.map(m => (
+          <MoisCard
+            key={m.mois}
+            mois={m}
+            travail={travail?.mois === m.mois ? travail : null}
+            bloque={!!travail}
+            onExporter={format => exporter(m, format)}
+          />
+        ))
+      )}
+      <View style={{ height: 40 }} />
+    </ScrollView>
+  )
+}
+
+function MoisCard({ mois, travail, bloque, onExporter }) {
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
+  const marge = mois.ca ? Math.round((mois.benefice / mois.ca) * 1000) / 10 : null
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.moisHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.moisTitre}>{mois.label}</Text>
+          <Text style={styles.cardMeta}>
+            {mois.nbRestaurants} restaurant{mois.nbRestaurants > 1 ? 's' : ''} ·{' '}
+            {mois.nbValides} journée{mois.nbValides > 1 ? 's' : ''} validée
+            {mois.nbValides > 1 ? 's' : ''}
+            {mois.nbPoints !== mois.nbValides ? ` sur ${mois.nbPoints}` : ''}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.kpiRow}>
+        <View style={styles.kpiItem}>
+          <Text style={styles.kpiLabel}>Chiffre d'affaires</Text>
+          <Text style={styles.kpiVente}>{fmt(mois.ca)}</Text>
+        </View>
+        <View style={styles.kpiItem}>
+          <Text style={styles.kpiLabel}>Bénéfice</Text>
+          <Text style={[styles.kpiBenef, mois.benefice < 0 && styles.kpiNeg]}>
+            {fmt(mois.benefice)}
+          </Text>
+        </View>
+        <View style={[styles.kpiItem, { borderRightWidth: 0 }]}>
+          <Text style={styles.kpiLabel}>Marge</Text>
+          <Text style={styles.kpiBenef}>{marge == null ? '—' : `${marge} %`}</Text>
+        </View>
+      </View>
+
+      {travail ? (
+        <View style={styles.travailBox}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.travailTxt} numberOfLines={1}>
+            {travail.etape}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.formatsRow}>
+          {FORMATS.map(f => (
+            <TouchableOpacity
+              key={f.cle}
+              style={[styles.formatBtn, bloque && styles.formatBtnBloque]}
+              disabled={bloque}
+              onPress={() => onExporter(f)}
+            >
+              <Text style={styles.formatIcone}>{f.icone}</Text>
+              <Text style={styles.formatTxt}>{f.libelle}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
   )
 }
 
@@ -405,6 +603,27 @@ function makeStyles(colors) { return StyleSheet.create({
   headerTitre: { fontSize: 22, fontWeight: '700', color: colors.surface },
   headerSub: { fontSize: 13, color: colors.primaryText, marginTop: 3 },
   body: { flex: 1, padding: 16 },
+
+  ongletBar: { flexDirection: 'row', backgroundColor: colors.surface, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
+  ongletBtn: { flex: 1, paddingVertical: 13, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  ongletBtnActif: { borderBottomColor: colors.primary },
+  ongletTxt: { fontSize: 14, fontWeight: '600', color: colors.textMuted, letterSpacing: 0.3 },
+  ongletTxtActif: { color: colors.primary },
+
+  moisHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 },
+  moisTitre: { fontSize: 17, fontWeight: '700', color: colors.text, marginBottom: 2 },
+
+  formatsRow: { flexDirection: 'row', gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: colors.borderLight },
+  formatBtn: { flex: 1, backgroundColor: colors.primaryLight, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
+  formatBtnBloque: { opacity: 0.4 },
+  formatIcone: { fontSize: 18, marginBottom: 3 },
+  formatTxt: { fontSize: 12, fontWeight: '600', color: colors.primaryDark },
+
+  travailBox: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: colors.borderLight },
+  travailTxt: { flex: 1, fontSize: 13, color: colors.textSecondary },
+
+  erreurBox: { backgroundColor: colors.errorLight, borderRadius: 10, padding: 14, marginBottom: 14 },
+  erreurTxt: { fontSize: 13, color: colors.errorDark },
 
   restoBar: { backgroundColor: colors.surface, maxHeight: 50, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
   restoChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.borderLight },
