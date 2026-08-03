@@ -73,9 +73,7 @@
       "onedriveClientId": "d5e6d078-77c6-4593-8ce4-279126ae1aec"
     },
     "owner": "ripiti225",
-    "runtimeVersion": {
-      "policy": "fingerprint"
-    },
+    "runtimeVersion": "1",
     "updates": {
       "url": "https://u.expo.dev/1f840fa7-6f32-4302-a82f-4d8f258e96f6"
     }
