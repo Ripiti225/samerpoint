@@ -238,7 +238,35 @@ export default function CreditsFournisseursScreen() {
       .eq('fournisseur_id', f.id)
       .order('created_at', { ascending: false })
 
-    setHistoMouvements(transactions || [])
+    const liste = transactions || []
+
+    // `date_point` = date de la JOURNÉE de la facture, renseignée par le
+    // déclencheur de supabase_date_point_transactions.sql. Tant que cette
+    // migration n'est pas passée elle est vide : on retombe alors sur la date
+    // du point. Sans ça, une facture réinjectée s'affiche à la date de la
+    // réinjection et remonte en tête de liste, ce qui induit en erreur.
+    const aResoudre = [...new Set(liste.filter(t => !t.date_point && t.point_id).map(t => t.point_id))]
+    if (aResoudre.length) {
+      const parPoint = {}
+      for (let i = 0; i < aResoudre.length; i += 60) {   // lots courts : URL PostgREST
+        const { data: pts } = await supabase.from('points')
+          .select('id, date').in('id', aResoudre.slice(i, i + 60))
+        ;(pts || []).forEach(p => { parPoint[p.id] = p.date })
+      }
+      liste.forEach(t => { if (!t.date_point) t.date_point = parPoint[t.point_id] || null })
+    }
+
+    // Tri sur la date de journée : une facture réinjectée reprend sa vraie
+    // place chronologique. C'est déjà l'ordre qu'utilise le recalcul des soldes.
+    const jour = t => t.date_point || String(t.created_at || '').slice(0, 10)
+    liste.sort((a, b) => {
+      const da = jour(a)
+      const db = jour(b)
+      if (da !== db) return da < db ? 1 : -1
+      return String(a.created_at) < String(b.created_at) ? 1 : -1
+    })
+
+    setHistoMouvements(liste)
     setLoadingHisto(false)
   }
 
@@ -934,10 +962,23 @@ ${mouvements.map(m => {
                 // Crédit reporté de la veille = reste - facture + paye
                 const creditVeille = solde - facture + paye
 
+                // Date de la JOURNÉE en principal, date de SAISIE en second et
+                // seulement si elle diffère : c'est ce qui révèle qu'une facture
+                // a été réinjectée après coup.
+                const jourFacture = m.date_point || m.created_at
+                const jourSaisie = String(m.created_at || '').slice(0, 10)
+                const saisieDecalee = jourFacture && jourSaisie
+                  && String(jourFacture).slice(0, 10) !== jourSaisie
+
                 return (
                   <View key={`t-${m.id || idx}`} style={styles.histoMvtCard}>
                     <View style={styles.histoMvtHeader}>
-                      <Text style={styles.histoMvtDate}>📅 {fmtDate(m.created_at)}</Text>
+                      <View>
+                        <Text style={styles.histoMvtDate}>📅 {fmtDate(jourFacture)}</Text>
+                        {saisieDecalee && (
+                          <Text style={styles.histoMvtSaisie}>saisi le {fmtDate(m.created_at)}</Text>
+                        )}
+                      </View>
                       <View style={[styles.histoMvtBadge, { backgroundColor: sourceInfo.bg }]}>
                         <Text style={[styles.histoMvtBadgeTxt, { color: sourceInfo.txt }]}>{sourceInfo.icon} {sourceInfo.label}</Text>
                       </View>
@@ -1436,6 +1477,7 @@ function makeStyles(colors) { return StyleSheet.create({
   histoMvtCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: colors.border },
   histoMvtHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   histoMvtDate: { fontSize: 13, fontWeight: '600', color: colors.text },
+  histoMvtSaisie: { fontSize: 10, color: colors.textMuted, marginTop: 1 },
   histoMvtBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   histoMvtBadgeTxt: { fontSize: 10, fontWeight: '600' },
   histoMvtChiffres: { flexDirection: 'row', borderTopWidth: 0.5, borderTopColor: colors.border, paddingTop: 10 },
