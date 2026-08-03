@@ -20,9 +20,14 @@
         "backgroundColor": "#EF9F27"
       },
       "package": "com.samer.app",
-      "versionCode": 13,
+      "versionCode": 14,
       "googleServicesFile": "./google-services.json",
       "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.POST_NOTIFICATIONS",
         "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA",
         "android.permission.READ_MEDIA_IMAGES",
@@ -67,6 +72,12 @@
       "supabaseKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indsd290enhuem93YmtiZmNwbnlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NjQ1OTEsImV4cCI6MjA5MTQ0MDU5MX0.nioXBAKA05_zRIyTpJmV_d4JY5mCYueOt5cKIlL-NNk",
       "onedriveClientId": "d5e6d078-77c6-4593-8ce4-279126ae1aec"
     },
-    "owner": "ripiti225"
+    "owner": "ripiti225",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/1f840fa7-6f32-4302-a82f-4d8f258e96f6"
+    }
   }
 }

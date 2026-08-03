@@ -81,7 +81,15 @@
       "Bash(python3 verif-geometrie.py Rapport_Juillet_2026.pptx)",
       "Bash(python3 verif-chevauchement.py Rapport_Juillet_2026.pptx)",
       "Bash(node -e \"const p=require\\('./package.json'\\).dependencies;console.log\\('jspdf',p.jspdf,'· autotable',p['jspdf-autotable']\\)\")",
-      "Bash(sed -i '' \"s#jspdf-autotable/dist/index.mjs#jspdf-autotable/dist/jspdf.plugin.autotable.mjs#\" test-export.mjs)"
+      "Bash(sed -i '' \"s#jspdf-autotable/dist/index.mjs#jspdf-autotable/dist/jspdf.plugin.autotable.mjs#\" test-export.mjs)",
+      "Bash(curl -s -L \"https://samtrackly-ripiti225s-projects.vercel.app\")",
+      "Bash(curl -s -o /tmp/app.html -w \"%{http_code}\" -L \"https://samtrackly.vercel.app\")",
+      "Bash(tee /private/tmp/claude-501/-Users-macbookpro-samtrackly/628bc1b9-afbc-42ed-b77e-842776b7965b/scratchpad/expo.log)",
+      "Bash(curl -s -m 8 -o /tmp/loc.html -w \"code %{http_code} · %{size_download} octets\\\\n\" http://localhost:8090)",
+      "Bash(node -e \"console.log\\('supabase-js', require\\('./node_modules/@supabase/supabase-js/package.json'\\).version\\); console.log\\('postgrest-js', require\\('./node_modules/@supabase/postgrest-js/package.json'\\).version\\)\")",
+      "WebFetch(domain:expo.dev)",
+      "Bash(node -e \"console.log\\('expo-updates :', require\\('./package.json'\\).dependencies['expo-updates']\\)\")",
+      "Bash(npx expo-updates *)"
     ]
   }
 }
