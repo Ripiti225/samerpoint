@@ -16,6 +16,7 @@ import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { CATEGORIES_DEPENSES } from '../lib/constants'
+import { logErreur } from '../lib/logErreur'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
 
@@ -266,17 +267,28 @@ export default function DeductionsGerantScreen() {
           caissier_nom: userNom || null,
         })
         if (txErr) throw txErr
-        // Synchroniser fournisseurs_restaurants si la table a un credit_actuel
-        supabase.from('fournisseurs_restaurants')
+        // Synchroniser fournisseurs_restaurants si la table a un credit_actuel.
+        // ⚠️ NE JAMAIS écrire `.catch()` sur une chaîne supabase : un query
+        // builder est un « thenable » qui n'expose que `.then` — `.catch` y vaut
+        // undefined et l'appeler lève une TypeError. C'est ce qui interrompait la
+        // boucle ici : seul le PREMIER fournisseur était enregistré, les suivants
+        // étaient perdus sans message. Avec `await` + `{ error }`, l'échec est
+        // retourné au lieu d'être lancé, et l'on peut vraiment l'ignorer.
+        const { error: syncErr } = await supabase.from('fournisseurs_restaurants')
           .update({ credit_actuel: nouveauCredit })
           .eq('fournisseur_id', fournId)
           .eq('restaurant_id', restaurantId)
-          .catch(() => {})
+        if (syncErr) {
+          console.warn('[deductions-gerant] sync fournisseurs_restaurants ignorée :', syncErr.message)
+        }
       }
 
       // Rafraîchir l'affichage des crédits après sauvegarde
       await chargerDonnees()
-    } catch (_) {
+    } catch (e) {
+      // Journaliser la cause : avaler l'exception avait masqué pendant des mois
+      // le plantage de la synchronisation fournisseurs_restaurants ci-dessus.
+      logErreur('deductionsGerant.sauvegarder', e, { pointId, restaurantId })
       setSaveStatus('error')
     } finally {
       setTimeout(() => setSaveStatus(null), 3000)
