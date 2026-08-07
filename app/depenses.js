@@ -207,7 +207,7 @@ export default function DepensesScreen() {
 
     if (isCaissier || isManager) {
       // Sauvegarder dépenses caissier
-      await saveDepenses(pointId, depensesJour, 'caissier', userNom)
+      await saveDepenses(pointId, depensesJour, 'caissier', userNom, restaurantId)
     }
 
     if (isGerant || isManager) {

@@ -10,6 +10,9 @@ import { annulerDeductionInventaire, deciderEcartInventaire } from '../lib/api'
 import { useApp } from '../context/AppContext'
 import { genererPdfPoint, genererPdfEcarts } from '../lib/generatePdf'
 import { CATEGORIES_INVENTAIRE } from '../lib/constants'
+import {
+  PLAFOND_COMPTAGE, chargerDeductions, repartitionValide,
+} from '../lib/deductionsVerification'
 import { useTheme } from '../context/ThemeContext'
 import { journaliser } from '../lib/journal'
 import { calculerLitigeContact, corrigerNbCommandes } from '../lib/litigeContacts'
@@ -76,6 +79,15 @@ export default function VerificationScreen() {
   const [qteAcceptee, setQteAcceptee] = useState('')
   const [decisionSaving, setDecisionSaving] = useState(false)
   const [loadingInventaire, setLoadingInventaire] = useState(false)
+  // Montants issus des comptages du vérificateur, en attente de décision
+  const [deducVerif, setDeducVerif] = useState([])
+  const [deducMigration, setDeducMigration] = useState(false)
+  const [deducEnCours, setDeducEnCours] = useState(null)
+  // Répartition en cours d'édition : { [lot_id]: [{ ...part, montant }] }
+  const [repartition, setRepartition] = useState({})
+  const [caissiersDuJour, setCaissiersDuJour] = useState([])
+  const [justifie, setJustifie] = useState({})     // { [lot]: montant non déduit }
+  const [rouverts, setRouverts] = useState({})     // { [lot]: true } → décision reprise
   const [generatingEcartsPdf, setGeneratingEcartsPdf] = useState(false)
   // Déverrouillage / correction
   const [modalCorrection, setModalCorrection] = useState(false)
@@ -344,10 +356,34 @@ export default function VerificationScreen() {
         .order('shift_numero'),
     ])
 
+    // Entrées de produits reçues pendant les shifts, avec leur fournisseur.
+    // Table à part (entrees_shift) : elle ne remonte pas avec inventaire_lignes.
+    const invIds = (invShiftsRaw || []).map(s => s.id)
+    let entreesRaw = []
+    if (invIds.length > 0) {
+      const { data } = await supabase
+        .from('entrees_shift')
+        .select('inventaire_id, produit_nom, quantite, fournisseur_nom, source')
+        .in('inventaire_id', invIds)
+        .order('fournisseur_nom')
+      entreesRaw = data || []
+    }
+
     const caissierNomMap = {}
     ;(pointsShiftsRaw || []).forEach(ps => {
       if (ps.caissier_id && ps.caissier_nom) caissierNomMap[ps.caissier_id] = ps.caissier_nom
     })
+
+    // Repli sur la table des utilisateurs : un caissier peut avoir saisi un
+    // inventaire sans avoir de points_shifts ce jour-là, son nom manquerait.
+    const idsSansNom = [...new Set(
+      (invShiftsRaw || []).map(s => s.caissier_id).filter(id => id && !caissierNomMap[id]),
+    )]
+    if (idsSansNom.length > 0) {
+      const { data: users } = await supabase
+        .from('utilisateurs').select('id, nom').in('id', idsSansNom)
+      ;(users || []).forEach(u => { caissierNomMap[u.id] = u.nom })
+    }
 
     const shiftsNouveauFormat = (invShiftsRaw || []).map(invShift => ({
       ...invShift,
@@ -365,12 +401,160 @@ export default function VerificationScreen() {
       ancienMap[key].lignes.push(ligne)
     })
 
+    // Regroupement par fournisseur : c'est l'angle utile pour vérifier qui a
+    // livré quoi. Un même produit peut venir de plusieurs fournisseurs dans
+    // la journée, et un fournisseur livrer plusieurs produits.
+    // Qui a saisi l'entrée : entrees_shift ne porte pas d'auteur, on le déduit
+    // du shift d'inventaire auquel la ligne est rattachée.
+    const auteurParInventaire = {}
+    ;(invShiftsRaw || []).forEach(inv => {
+      auteurParInventaire[inv.id] = {
+        nom: caissierNomMap[inv.caissier_id] || 'Caissier',
+        shift: TYPES_SHIFTS_MAP[inv.type_shift] || inv.type_shift || '',
+      }
+    })
+
+    const parFournisseur = {}
+    entreesRaw.forEach(e => {
+      const nom = (e.fournisseur_nom || '').trim() || 'Sans fournisseur'
+      if (!parFournisseur[nom]) parFournisseur[nom] = { fournisseur: nom, produits: {}, nbLignes: 0 }
+      const auteur = auteurParInventaire[e.inventaire_id] || { nom: 'Caissier', shift: '' }
+      // Clé produit + auteur : deux réceptions du même produit par des
+      // personnes différentes restent deux lignes distinctes.
+      const cle = `${e.produit_nom || 'Produit inconnu'}|${auteur.nom}`
+      if (!parFournisseur[nom].produits[cle]) {
+        parFournisseur[nom].produits[cle] = {
+          nom: e.produit_nom || 'Produit inconnu',
+          quantite: 0,
+          auteur: auteur.nom,
+          shift: auteur.shift,
+        }
+      }
+      parFournisseur[nom].produits[cle].quantite += parseFloat(e.quantite) || 0
+      parFournisseur[nom].nbLignes += 1
+    })
+    const entreesParFournisseur = Object.values(parFournisseur)
+      .map(f => ({
+        ...f,
+        produits: Object.values(f.produits).sort((a, b) => b.quantite - a.quantite),
+      }))
+      .sort((a, b) => b.nbLignes - a.nbLignes)
+
+    const { lignes: dv, migration: dvMig } = await chargerDeductions(point.restaurant_id, point.date)
+    setDeducVerif(dv)
+    setDeducMigration(dvMig)
+    // Répartition initiale = la proposition enregistrée par le vérificateur.
+    const parLot = {}
+    ;(dv || []).forEach(d => { (parLot[d.lot_id || d.date] = parLot[d.lot_id || d.date] || []).push({ ...d }) })
+    setRepartition(parLot)
+    const justifs = {}
+    Object.entries(parLot).forEach(([lot, ps]) => { justifs[lot] = Number(ps[0]?.montant_justifie) || 0 })
+    setJustifie(justifs)
+    setRouverts({})
+    // Toutes les personnes imputables : les caissiers du jour + le gérant.
+    setCaissiersDuJour((pointsShiftsRaw || [])
+      .filter(ps => ps.caissier_id && ps.caissier_nom)
+      .map(ps => ({
+        caissier_id: ps.caissier_id,
+        caissier_nom: ps.caissier_nom,
+        shift_libelle: `${ps.heure_debut || '?'}–${ps.heure_fin || '?'}`,
+      }))
+      .filter((v, i, arr) => arr.findIndex(x => x.caissier_id === v.caissier_id) === i))
+
     setDetailInventaire({
       shiftsNouveauFormat,
       shiftsAncienFormat: Object.values(ancienMap).sort((a, b) => a.numero - b.numero),
       useNouveauFormat: shiftsNouveauFormat.length > 0,
+      entreesParFournisseur,
+      nbEntrees: entreesRaw.length,
     })
     setLoadingInventaire(false)
+  }
+
+  // ── Répartition d'un comptage ──────────────────────────────────────────
+  // L'app propose, l'administration dispose : chaque montant est modifiable,
+  // on peut ajouter ou retirer une personne, ou tout mettre à la charge du
+  // gérant quand aucun caissier n'est précisément en cause.
+
+  function majMontant(lot, index, valeur) {
+    const montant = Math.max(0, parseInt(String(valeur).replace(/\D/g, ''), 10) || 0)
+    setRepartition(prev => ({
+      ...prev,
+      [lot]: prev[lot].map((p, i) => (i === index ? { ...p, montant } : p)),
+    }))
+  }
+
+  function retirerPart(lot, index) {
+    setRepartition(prev => ({ ...prev, [lot]: prev[lot].filter((_, i) => i !== index) }))
+  }
+
+  function ajouterPart(lot, personne) {
+    setRepartition(prev => {
+      const actuel = prev[lot] || []
+      if (personne.beneficiaire_type !== 'gerant'
+        && actuel.some(p => p.caissier_id === personne.caissier_id)) return prev
+      const modele = actuel[0] || {}
+      return {
+        ...prev,
+        [lot]: [...actuel, {
+          lot_id: modele.lot_id, restaurant_id: modele.restaurant_id, date: modele.date,
+          nb_produits: modele.nb_produits, produits_resume: modele.produits_resume,
+          montant_ecart: modele.montant_ecart, montant_plafond: modele.montant_plafond,
+          explication: modele.explication,
+          verificateur_nom: modele.verificateur_nom,
+          role_dans_ecart: personne.beneficiaire_type === 'gerant' ? 'gerant' : 'ajoute',
+          montant: 0, montant_propose: 0,
+          ...personne,
+        }],
+      }
+    })
+  }
+
+  /** Écrit la répartition définitive : on remplace les lignes du comptage. */
+  async function enregistrerRepartition(lot) {
+    const parts = repartition[lot] || []
+    const plafond = parts[0]?.montant_plafond ?? 0
+    const justif = Math.max(0, Math.min(plafond, Number(justifie[lot]) || 0))
+    const aRepartir = plafond - justif
+    // Tout justifié → plus rien à imputer à personne.
+    const statut = aRepartir <= 0 ? 'validee' : 'repartie'
+
+    if (aRepartir > 0) {
+      const ctrl = repartitionValide(parts, aRepartir)
+      if (!ctrl.ok) {
+        Alert.alert(
+          'Répartition incomplète',
+          `La somme des montants (${fmt(ctrl.somme)}) doit être égale à ${fmt(aRepartir)}.\n\n` +
+          (ctrl.reste > 0 ? `Il reste ${fmt(ctrl.reste)} à attribuer.` : `Vous avez dépassé de ${fmt(-ctrl.reste)}.`),
+        )
+        return
+      }
+    }
+    setDeducEnCours(lot)
+    const anciens = deducVerif.filter(d => (d.lot_id || d.date) === lot).map(d => d.id)
+    if (anciens.length) {
+      await supabase.from('deductions_verification').delete().in('id', anciens)
+    }
+    // En justification totale on garde TOUTES les personnes avec un montant à
+    // zéro, et non une seule ligne : sans ça, rouvrir la décision ferait
+    // perdre la répartition et il faudrait tout ressaisir.
+    const rows = parts
+      .map(p => (aRepartir <= 0 ? { ...p, montant: 0 } : p))
+      .filter(p => aRepartir <= 0 || p.montant > 0)
+      .map(({ id, created_at, ...p }) => ({
+        ...p,
+        montant_justifie: justif,
+        statut,
+        decide_par_id: userId || null,
+        decide_par_nom: userNom || null,
+        decide_at: new Date().toISOString(),
+      }))
+    const { error } = rows.length
+      ? await supabase.from('deductions_verification').insert(rows)
+      : { error: null }
+    setDeducEnCours(null)
+    if (error) { Alert.alert('Erreur', error.message); return }
+    await ouvrirInventaire(pointSelectionne)
   }
 
   // Annule DÉFINITIVEMENT la déduction d'inventaire d'un produit (manager/directeur).
@@ -785,11 +969,16 @@ export default function VerificationScreen() {
         source: 'verification',
       }
       const nouvelles = [...ctx.regulsExistantes, record]
-      const statutMaj = {
+
+      // Le statut « annulee » neutralise TOUT l'écart côté Litiges. On ne le
+      // pose donc que si la régularisation solde l'écart entièrement. Sinon,
+      // annuler 8 000 sur un manquant de 10 000 affichait 0 au lieu de 2 000.
+      const soldeApres = Math.round(ctx.restant - montant)
+      const statutMaj = soldeApres <= 0 ? {
         explication_machine_statut: 'annulee',
         explication_machine_statut_par: userNom || roleActif || 'Manager',
         explication_machine_statut_at: new Date().toISOString(),
-      }
+      } : {}
 
       let error
       if (cibleId === p.id) {
@@ -2393,7 +2582,8 @@ export default function VerificationScreen() {
               <Text style={styles.emptySub}>L'inventaire de ce jour n'a pas encore été saisi</Text>
             </View>
           ) : (() => {
-            const { shiftsNouveauFormat, shiftsAncienFormat, useNouveauFormat } = detailInventaire
+            const { shiftsNouveauFormat, shiftsAncienFormat, useNouveauFormat,
+              entreesParFournisseur = [], nbEntrees = 0 } = detailInventaire
             const peutVoirEcarts = roleActif === 'manager' || roleActif === 'directeur'
 
             // ─── Calcul des lignes avec écart ───────────────────────
@@ -2504,6 +2694,227 @@ export default function VerificationScreen() {
                     </View>
                   )}
                 </View>
+
+                {/* ══ Entrées de produits reçues, par fournisseur ═══════ */}
+                {entreesParFournisseur.length > 0 && (
+                  <>
+                    <Text style={styles.sectionTitre}>📥 Entrées de produits ({nbEntrees})</Text>
+                    <View style={styles.invResumeCard}>
+                      {entreesParFournisseur.map((f, i) => (
+                        <View
+                          key={f.fournisseur}
+                          style={[styles.invEntreeFourn, i > 0 && styles.invEntreeFournSep]}
+                        >
+                          <Text style={styles.invEntreeFournNom}>🧾 {f.fournisseur}</Text>
+                          {f.produits.map(p => (
+                            <View key={`${p.nom}|${p.auteur}`} style={styles.invEntreeLigne}>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.invEntreeProduit} numberOfLines={1}>{p.nom}</Text>
+                                <Text style={styles.invEntreeAuteur} numberOfLines={1}>
+                                  👤 {p.auteur}{p.shift ? ` · ${p.shift}` : ''}
+                                </Text>
+                              </View>
+                              <Text style={styles.invEntreeQte}>
+                                +{Number(p.quantite).toLocaleString('fr-FR')}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                {/* ══ Comptage du vérificateur → répartition ═══════════ */}
+                {deducMigration && (
+                  <View style={styles.deducAlerte}>
+                    <Text style={styles.deducAlerteTxt}>
+                      ⚠️ Script supabase_deductions_verification.sql non passé : les montants
+                      issus des comptages ne sont pas enregistrés.
+                    </Text>
+                  </View>
+                )}
+                {Object.entries(repartition).map(([lot, parts]) => {
+                  const ref = parts[0] || {}
+                  const plafond = ref.montant_plafond ?? 0
+                  const justif = Math.max(0, Math.min(plafond, Number(justifie[lot]) || 0))
+                  const aRepartir = plafond - justif
+                  const ctrl = repartitionValide(parts, aRepartir)
+                  // Une décision prise reste modifiable : le bouton « Modifier »
+                  // rouvre le comptage, rien n'est jamais définitif.
+                  const tranche = ref.statut === 'repartie' || ref.statut === 'validee'
+                  const fige = tranche && !rouverts[lot]
+                  return (
+                    <View key={lot}>
+                      <Text style={styles.sectionTitre}>
+                        🔍 Comptage vérificateur — {fmt(plafond)} à répartir
+                      </Text>
+
+                      <View style={styles.invResumeCard}>
+                        <Text style={styles.deducMeta}>
+                          {ref.nb_produits} produit(s) en écart : {ref.produits_resume || '—'}
+                        </Text>
+                        {ref.montant_ecart > plafond && (
+                          <View style={styles.deducAlerte}>
+                            <Text style={styles.deducAlerteTxt}>
+                              ⚖️ Écart réel {fmt(ref.montant_ecart)} — plafond de {fmt(PLAFOND_COMPTAGE)}
+                              {' '}par comptage appliqué.
+                            </Text>
+                          </View>
+                        )}
+                        {ref.explication ? (
+                          <Text style={styles.deducExpl}>💬 {ref.explication}</Text>
+                        ) : (
+                          <Text style={styles.deducExplVide}>Aucune explication donnée au vérificateur</Text>
+                        )}
+
+                        {!fige && peutVoirEcarts && (
+                          <View style={styles.justifLigne}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.justifLbl}>✓ Montant justifié</Text>
+                              <Text style={styles.justifAide}>
+                                Part reconnue comme expliquée — elle ne sera déduite à personne.
+                              </Text>
+                            </View>
+                            <TextInput
+                              style={styles.repartInput}
+                              value={String(justif)}
+                              onChangeText={v => setJustifie(prev => ({
+                                ...prev, [lot]: Math.max(0, parseInt(String(v).replace(/\D/g, ''), 10) || 0),
+                              }))}
+                              keyboardType="numeric"
+                              selectTextOnFocus
+                            />
+                          </View>
+                        )}
+
+                        {aRepartir > 0 && parts.map((p, i) => (
+                          <View key={`${lot}-${i}`} style={styles.repartLigne}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.repartNom}>
+                                {p.beneficiaire_type === 'gerant' ? '🧑‍💼 ' : '👤 '}{p.caissier_nom}
+                              </Text>
+                              <Text style={styles.repartMeta}>
+                                {p.shift_libelle || 'Gérant du restaurant'}
+                                {p.role_dans_ecart === 'en_poste' ? ' · en poste'
+                                  : p.role_dans_ecart === 'shift_precedent' ? ' · shift précédent' : ''}
+                                {p.montant_propose ? ` · proposé ${fmt(p.montant_propose)}` : ''}
+                              </Text>
+                            </View>
+                            {fige || !peutVoirEcarts ? (
+                              <Text style={styles.deducMontant}>{fmt(p.montant)}</Text>
+                            ) : (
+                              <>
+                                <TextInput
+                                  style={styles.repartInput}
+                                  value={String(p.montant ?? 0)}
+                                  onChangeText={v => majMontant(lot, i, v)}
+                                  keyboardType="numeric"
+                                  selectTextOnFocus
+                                />
+                                <TouchableOpacity onPress={() => retirerPart(lot, i)} style={styles.repartRetirer}>
+                                  <Text style={styles.repartRetirerTxt}>✕</Text>
+                                </TouchableOpacity>
+                              </>
+                            )}
+                          </View>
+                        ))}
+
+                        {!fige && peutVoirEcarts && (
+                          <>
+                            <View style={styles.repartTotalBox}>
+                              <Text style={styles.repartTotalLbl}>
+                                {aRepartir > 0 ? 'À répartir' : 'Intégralement justifié'}
+                              </Text>
+                              <Text style={[styles.repartTotalVal, { color: ctrl.ok ? '#3B6D11' : '#A32D2D' }]}>
+                                {aRepartir > 0
+                                  ? `${fmt(ctrl.somme)} / ${fmt(aRepartir)}${ctrl.ok ? '  ✓' : ctrl.reste > 0 ? `  · reste ${fmt(ctrl.reste)}` : '  · dépassement'}`
+                                  : 'rien à déduire  ✓'}
+                              </Text>
+                            </View>
+
+                            <Text style={styles.repartAjoutTitre}>Ajouter une personne</Text>
+                            <View style={styles.repartChips}>
+                              {caissiersDuJour
+                                .filter(c => !parts.some(p => p.caissier_id === c.caissier_id))
+                                .map(c => (
+                                  <TouchableOpacity
+                                    key={c.caissier_id}
+                                    style={styles.repartChip}
+                                    onPress={() => ajouterPart(lot, { ...c, beneficiaire_type: 'caissier' })}
+                                  >
+                                    <Text style={styles.repartChipTxt}>+ {c.caissier_nom}</Text>
+                                  </TouchableOpacity>
+                                ))}
+                              {!parts.some(p => p.beneficiaire_type === 'gerant') && (
+                                <TouchableOpacity
+                                  style={[styles.repartChip, styles.repartChipGerant]}
+                                  onPress={() => ajouterPart(lot, {
+                                    beneficiaire_type: 'gerant',
+                                    caissier_id: null,
+                                    caissier_nom: 'Gérant du restaurant',
+                                    shift_libelle: null,
+                                  })}
+                                >
+                                  <Text style={styles.repartChipGerantTxt}>+ 🧑‍💼 Gérant</Text>
+                                </TouchableOpacity>
+                              )}
+                            </View>
+
+                            <View style={styles.deducActions}>
+                              <TouchableOpacity
+                                style={[styles.deducBtn, styles.deducBtnValider]}
+                                disabled={deducEnCours === lot}
+                                onPress={() => setJustifie(prev => ({ ...prev, [lot]: plafond }))}
+                              >
+                                <Text style={styles.deducBtnValiderTxt}>Tout justifier</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={[styles.deducBtn, styles.deducBtnRefuser, !(ctrl.ok || aRepartir <= 0) && { opacity: 0.45 }]}
+                                disabled={deducEnCours === lot || !(ctrl.ok || aRepartir <= 0)}
+                                onPress={() => enregistrerRepartition(lot)}
+                              >
+                                <Text style={styles.deducBtnRefuserTxt}>✓ Confirmer</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </>
+                        )}
+
+                        {fige && (
+                          <>
+                            <Text style={[styles.deducStatut, { color: ref.statut === 'validee' ? '#185FA5' : '#A32D2D' }]}>
+                              {ref.statut === 'validee' ? '✓ Intégralement justifié — rien à déduire' : '✓ Répartition confirmée'}
+                              {Number(ref.montant_justifie) > 0 && ref.statut !== 'validee'
+                                ? ` · ${fmt(ref.montant_justifie)} justifiés` : ''}
+                              {ref.decide_par_nom ? ` · par ${ref.decide_par_nom}` : ''}
+                            </Text>
+                            {peutVoirEcarts && (
+                              <TouchableOpacity
+                                style={styles.deducModifier}
+                                onPress={() => {
+                                  setRouverts(prev => ({ ...prev, [lot]: true }))
+                                  // Si tout avait été justifié, les parts sont à zéro :
+                                  // on remet une répartition égale pour repartir d'une base.
+                                  if (parts.every(x => !Number(x.montant))) {
+                                    const base = Math.floor(plafond / parts.length)
+                                    const reste = plafond - base * parts.length
+                                    setJustifie(prev => ({ ...prev, [lot]: 0 }))
+                                    setRepartition(prev => ({
+                                      ...prev,
+                                      [lot]: prev[lot].map((x, k) => ({ ...x, montant: base + (k < reste ? 1 : 0) })),
+                                    }))
+                                  }
+                                }}
+                              >
+                                <Text style={styles.deducModifierTxt}>✎ Modifier cette décision</Text>
+                              </TouchableOpacity>
+                            )}
+                          </>
+                        )}
+                      </View>
+                    </View>
+                  )
+                })}
 
                 {/* ══ SECTION 2 : Produits avec écarts (manager/directeur) ══ */}
                 {peutVoirEcarts && nbAvecEcart > 0 && (
@@ -3352,6 +3763,48 @@ function makeStyles(colors) { return StyleSheet.create({
   invResumeBadgeNum: { fontSize: 24, fontWeight: '700', marginBottom: 2 },
   invResumeBadgeLbl: { fontSize: 11, fontWeight: '500', textAlign: 'center' },
   invResumeTotalBox: { borderRadius: 10, padding: 12, marginTop: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  deducAlerte: { backgroundColor: '#FFF4E0', borderRadius: 8, padding: 10, marginBottom: 10, borderWidth: 1, borderColor: '#E8C98A' },
+  deducAlerteTxt: { fontSize: 12, color: '#7A4800', lineHeight: 17 },
+  deducMontant: { fontSize: 14, fontWeight: '800', color: '#A32D2D' },
+  deducMontantAnnule: { color: colors.textMuted, textDecorationLine: 'line-through' },
+  deducRetenu: { fontSize: 12, fontWeight: '800', color: '#A32D2D', marginTop: 1 },
+  repartLigne: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.borderLight, gap: 8 },
+  repartNom: { fontSize: 13, fontWeight: '700', color: colors.text },
+  repartMeta: { fontSize: 10, color: colors.textMuted, marginTop: 2 },
+  repartInput: { width: 96, borderWidth: 1, borderColor: colors.inputBorder, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 7, fontSize: 13, fontWeight: '700', color: colors.text, backgroundColor: colors.inputBg, textAlign: 'right' },
+  repartRetirer: { paddingHorizontal: 6, paddingVertical: 4 },
+  repartRetirerTxt: { fontSize: 15, color: '#A32D2D', fontWeight: '700' },
+  repartTotalBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 2, borderTopColor: colors.border },
+  repartTotalLbl: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+  repartTotalVal: { fontSize: 14, fontWeight: '800' },
+  repartAjoutTitre: { fontSize: 11, color: colors.textMuted, marginTop: 12, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
+  repartChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  repartChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, backgroundColor: colors.badgeBg },
+  repartChipTxt: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
+  repartChipGerant: { backgroundColor: colors.primaryLight },
+  repartChipGerantTxt: { fontSize: 12, color: colors.primaryDark, fontWeight: '700' },
+  justifLigne: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.borderLight },
+  justifLbl: { fontSize: 13, fontWeight: '700', color: '#185FA5' },
+  justifAide: { fontSize: 10, color: colors.textMuted, marginTop: 2 },
+  deducModifier: { marginTop: 10, paddingVertical: 9, borderRadius: 8, backgroundColor: colors.badgeBg, alignItems: 'center' },
+  deducModifierTxt: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+  deducMeta: { fontSize: 11, color: colors.textSecondary, marginTop: 3 },
+  deducExpl: { fontSize: 12, color: colors.text, marginTop: 6, fontStyle: 'italic' },
+  deducExplVide: { fontSize: 11, color: colors.textMuted, marginTop: 6, fontStyle: 'italic' },
+  deducActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  deducBtn: { flex: 1, paddingVertical: 9, borderRadius: 8, alignItems: 'center' },
+  deducBtnValider: { backgroundColor: '#E6F1FB' },
+  deducBtnValiderTxt: { fontSize: 12, fontWeight: '700', color: '#185FA5' },
+  deducBtnRefuser: { backgroundColor: '#FCEBEB' },
+  deducBtnRefuserTxt: { fontSize: 12, fontWeight: '700', color: '#A32D2D' },
+  deducStatut: { fontSize: 12, fontWeight: '700', marginTop: 8 },
+  invEntreeFourn: { paddingVertical: 8 },
+  invEntreeFournSep: { borderTopWidth: 1, borderTopColor: colors.borderLight, marginTop: 2 },
+  invEntreeFournNom: { fontSize: 13, fontWeight: '700', color: colors.primary, marginBottom: 5 },
+  invEntreeLigne: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingVertical: 3, paddingLeft: 10 },
+  invEntreeProduit: { fontSize: 12, color: colors.textSecondary },
+  invEntreeAuteur: { fontSize: 10, color: colors.textMuted, marginTop: 1 },
+  invEntreeQte: { fontSize: 12, fontWeight: '700', color: '#3B6D11', marginLeft: 10 },
   invResumeTotalLabel: { fontSize: 13, fontWeight: '600' },
   invResumeTotalVal: { fontSize: 16, fontWeight: '800' },
   // ─── Fiche produit avec écart ───

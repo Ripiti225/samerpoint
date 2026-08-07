@@ -16,6 +16,7 @@ import {
   calculerLitigeContact, chargerPointsContact, compterContacts,
   corrigerNbCommandes, forcerLitigeContact,
 } from '../lib/litigeContacts'
+import { PLAFOND_COMPTAGE } from '../lib/deductionsVerification'
 import { exporterPdf } from '../lib/pdfDocuments'
 import { usePhoto } from '../lib/usePhoto'
 
@@ -140,6 +141,8 @@ export default function LitigesScreen() {
   // ── Mode global (tous restaurants) ──────────────────────────
   const [modeGlobal, setModeGlobal] = useState(false)
   const [donneesGlobales, setDonneesGlobales] = useState([])
+  // Comptages du vérificateur pour le restaurant sélectionné (vue mono-resto)
+  const [deducVerifResto, setDeducVerifResto] = useState([])
   const [generatingPdf, setGeneratingPdf] = useState(false)
 
   // ── UI ───────────────────────────────────────────────────────
@@ -249,7 +252,7 @@ export default function LitigesScreen() {
   async function chargerTout() {
     if (!restoSelectionne) return
     setLoading(true)
-    await Promise.all([chargerEcarts(), chargerResponsables(), chargerInventaire(), chargerAvis(), chargerYango(), chargerGlovo(), chargerEcartContacts(), chargerPointPasFait()])
+    await Promise.all([chargerEcarts(), chargerResponsables(), chargerInventaire(), chargerAvis(), chargerYango(), chargerGlovo(), chargerEcartContacts(), chargerPointPasFait(), chargerDeducVerifResto()])
     setLoading(false)
   }
 
@@ -316,6 +319,18 @@ export default function LitigesScreen() {
         photosEcart: Array.isArray(p.ecart_photos) ? p.ecart_photos : [],
       }
     }))
+  }
+
+  async function chargerDeducVerifResto() {
+    if (!restoSelectionne) { setDeducVerifResto([]); return }
+    const { debut, fin } = plage
+    const { data } = await supabase
+      .from('deductions_verification').select('*')
+      .eq('restaurant_id', restoSelectionne.id)
+      .gte('date', debut).lte('date', fin)
+      .neq('statut', 'validee')
+      .order('date', { ascending: false })
+    setDeducVerifResto(data || [])
   }
 
   async function chargerResponsables() {
@@ -632,7 +647,7 @@ export default function LitigesScreen() {
     const resultats = await Promise.all(restaurants.map(async resto => {
       // Écarts
       const { data: pointsData } = await supabase
-        .from('points').select('id, date, vente_machine, explication_machine_statut')
+        .from('points').select('id, date, vente_machine, explication_machine_statut, ecart_regularisations')
         .eq('restaurant_id', resto.id).gte('date', debut).lte('date', fin)
       let ecartTotal = 0
       if (pointsData?.length) {
@@ -642,10 +657,38 @@ export default function LitigesScreen() {
         const byPoint = {}
         ;(shifts || []).forEach(s => { byPoint[s.point_id] = (byPoint[s.point_id] || 0) + (s.vente_shift || 0) })
         pointsData.forEach(p => {
-          if (p.explication_machine_statut === 'annulee') return // écart annulé → neutralisé (0)
-          ecartTotal += Math.max(0, (p.vente_machine || 0) - (byPoint[p.id] || 0))
+          if (p.explication_machine_statut === 'annulee') return // écart soldé → 0
+          const brut = (p.vente_machine || 0) - (byPoint[p.id] || 0)
+          // Les régularisations partielles réduisent l'écart : sans ça, annuler
+          // 8 000 sur un manquant de 10 000 laissait 10 000 dans le total.
+          const reguls = Array.isArray(p.ecart_regularisations) ? p.ecart_regularisations : []
+          const totalRegul = reguls.reduce((s2, r) => s2 + (parseFloat(r.montant) || 0), 0)
+          ecartTotal += Math.max(0, brut - totalRegul)
         })
       }
+
+      // Comptages du vérificateur : montants à déduire, plafonnés par comptage.
+      const { data: dedVerif } = await supabase
+        .from('deductions_verification')
+        .select('*')
+        .eq('restaurant_id', resto.id).gte('date', debut).lte('date', fin)
+        .neq('statut', 'validee')
+      const verifLignes = dedVerif || []
+      // Le montant est déjà plafonné et réparti à l'enregistrement : on somme
+      // simplement les parts. L'écart réel sert seulement à expliquer l'écart
+      // entre ce qui a été constaté et ce qui est réellement retenu.
+      const verifRetenu = verifLignes.reduce((s2, l) => s2 + (Number(l.montant) || 0), 0)
+      const lots = {}
+      verifLignes.forEach(l => { lots[l.lot_id || l.date] = Number(l.montant_ecart) || 0 })
+      const verifReel = Object.values(lots).reduce((s2, v) => s2 + v, 0)
+
+      // Responsables des écarts : le total ci-dessus ne dit pas QUI doit quoi.
+      // C'est pourtant le plus gros poste de litiges, et chaque ligne porte un nom.
+      const { data: responsables } = await supabase
+        .from('litiges_responsables')
+        .select('date, responsable_nom, role, montant, type')
+        .eq('restaurant_id', resto.id).gte('date', debut).lte('date', fin)
+        .order('montant', { ascending: false })
 
       // Inventaire + détail
       const { data: invShifts } = await supabase
@@ -708,12 +751,17 @@ export default function LitigesScreen() {
 
       return {
         restaurant: resto, ecartTotal, invTotal, invEnriched,
+        responsables: responsables || [],
         avis: avis || [], avisTotal,
         yango: yango || [], yangoTotal,
         glovo: glovo || [], glovoTotal,
         contacts, contactTotal,
         pasFait: pasFait || [], pasFaitTotal,
-        total: ecartTotal + invTotal + avisTotal + yangoTotal + glovoTotal + contactTotal + pasFaitTotal,
+        verifLignes, verifRetenu, verifReel,
+        // Le total du restaurant n'intègre que le montant RETENU (plafonné),
+        // jamais l'écart brut : c'est ce qui sera effectivement déduit.
+        total: ecartTotal + invTotal + avisTotal + yangoTotal + glovoTotal
+          + contactTotal + pasFaitTotal + verifRetenu,
       }
     }))
 
@@ -750,6 +798,13 @@ export default function LitigesScreen() {
 
       let grandTotal = 0
 
+      // Mention du responsable, ajoutée à chaque ligne de litige. Vide quand
+      // personne n'a été désigné, pour ne pas alourdir le document inutilement.
+      const resp = nom => {
+        const n = (nom || '').trim()
+        return n ? ` · 👤 <strong>${n}</strong>` : ''
+      }
+
       for (const d of donneesGlobales) {
         grandTotal += d.total
         const tc = d.total > 0 ? 'r' : d.total < 0 ? 'g' : ''
@@ -758,15 +813,23 @@ export default function LitigesScreen() {
           <span class="resto-tot ${tc}">${d.total > 0 ? '+' : ''}${Math.round(d.total).toLocaleString('fr-FR')} FCFA</span>
         </div>`
 
-        const vide = !d.ecartTotal && !d.invTotal && !d.avis.length && !d.yango.length && !d.glovo.length && !d.contactTotal && !d.pasFaitTotal
+        const vide = !d.ecartTotal && !d.invTotal && !d.avis.length && !d.yango.length
+          && !d.glovo.length && !d.contactTotal && !d.pasFaitTotal && !d.responsables.length && !d.verifRetenu
         if (vide) {
           html += `<div class="volet"><span class="ok">✅ Aucun litige sur la période</span></div>`
         }
 
         // Écart
-        if (d.ecartTotal !== 0) {
+        if (d.ecartTotal !== 0 || d.responsables.length) {
           const ec = d.ecartTotal > 0 ? 'r' : 'g'
-          html += `<div class="volet"><div class="volet-h"><span>📊 Écart point</span><span class="${ec}">${d.ecartTotal > 0 ? '+' : ''}${Math.round(d.ecartTotal).toLocaleString('fr-FR')} FCFA</span></div></div>`
+          html += `<div class="volet"><div class="volet-h"><span>📊 Écart point</span><span class="${ec}">${d.ecartTotal > 0 ? '+' : ''}${Math.round(d.ecartTotal).toLocaleString('fr-FR')} FCFA</span></div>`
+          d.responsables.forEach(r => {
+            const mc = r.montant > 0 ? 'r' : 'g'
+            const role = r.role ? ` (${r.role})` : ''
+            const type = r.type ? ` — ${r.type}` : ''
+            html += `<div class="item">📅 ${r.date}${resp(r.responsable_nom) || ' · 👤 <em>non attribué</em>'}${role}${type} <span class="${mc}"><strong>${r.montant > 0 ? '+' : ''}${Math.round(r.montant).toLocaleString('fr-FR')} FCFA</strong></span></div>`
+          })
+          html += `</div>`
         }
 
         // Inventaire
@@ -777,7 +840,7 @@ export default function LitigesScreen() {
             const parCat = {}
             inv.lignes.forEach(l => { const c = PRODUIT_TO_CAT[l.produit_id] || l.produit_nom; parCat[c] = (parCat[c] || 0) + (l.montant_deduit || 0) })
             const cats = Object.entries(parCat).filter(([, v]) => v > 0).map(([c, v]) => `${c} : ${Math.round(v).toLocaleString('fr-FR')} FCFA`).join(' · ')
-            html += `<div class="item"><strong>${inv.caissier_nom} — ${sl}</strong>${cats ? ' — ' + cats : ''}</div>`
+            html += `<div class="item">👤 <strong>${inv.caissier_nom}</strong> — <strong>${sl}</strong>${cats ? ' — ' + cats : ''}</div>`
             inv.lignes.filter(l => l.explication).forEach(l => {
               html += `<div class="item">💬 <strong>${l.produit_nom}</strong> : ${l.explication}</div>`
             })
@@ -793,7 +856,7 @@ export default function LitigesScreen() {
             const tl = typeAvis(a.type)?.label || a.type
             const cn = a.canal ? ` · <strong style="color:${canalAvis(a.canal)?.couleur || '#555'}">📍 ${canalAvis(a.canal)?.court || a.canal}</strong>` : ''
             const mc = a.montant > 0 ? 'r' : a.montant < 0 ? 'g' : ''  // neutre : couleur par défaut
-            html += `<div class="item">${a.numero_commande ? `<span class="cmd">#${a.numero_commande}</span> — ` : ''}${tl}${cn}${a.notes ? ` — ${a.notes}` : ''} <span class="${mc}"><strong>${a.montant > 0 ? '+' : ''}${Math.round(a.montant).toLocaleString('fr-FR')} FCFA</strong></span></div>`
+            html += `<div class="item">${a.numero_commande ? `<span class="cmd">#${a.numero_commande}</span> — ` : ''}${tl}${cn}${resp(a.responsable_nom)}${a.notes ? ` — ${a.notes}` : ''} <span class="${mc}"><strong>${a.montant > 0 ? '+' : ''}${Math.round(a.montant).toLocaleString('fr-FR')} FCFA</strong></span></div>`
           })
           html += `</div>`
         }
@@ -805,7 +868,7 @@ export default function LitigesScreen() {
           d.yango.forEach(y => {
             const tl = TYPES_YANGO.find(t => t.key === y.type)?.label || y.type
             const mc = y.montant > 0 ? 'r' : 'g'
-            html += `<div class="item">${y.numero_commande ? `<span class="cmd">#${y.numero_commande}</span> — ` : ''}${tl}${y.notes ? ` — ${y.notes}` : ''} <span class="${mc}"><strong>${y.montant > 0 ? '+' : ''}${Math.round(y.montant).toLocaleString('fr-FR')} FCFA</strong></span></div>`
+            html += `<div class="item">${y.numero_commande ? `<span class="cmd">#${y.numero_commande}</span> — ` : ''}${tl}${resp(y.responsable_nom)}${y.notes ? ` — ${y.notes}` : ''} <span class="${mc}"><strong>${y.montant > 0 ? '+' : ''}${Math.round(y.montant).toLocaleString('fr-FR')} FCFA</strong></span></div>`
           })
           html += `</div>`
         }
@@ -817,7 +880,19 @@ export default function LitigesScreen() {
           d.glovo.forEach(g => {
             const tl = TYPES_GLOVO.find(t => t.key === g.type)?.label || g.type
             const mc = g.montant > 0 ? 'r' : 'g'
-            html += `<div class="item">${g.numero_commande ? `<span class="cmd">#${g.numero_commande}</span> — ` : ''}${tl}${g.notes ? ` — ${g.notes}` : ''} <span class="${mc}"><strong>${g.montant > 0 ? '+' : ''}${Math.round(g.montant).toLocaleString('fr-FR')} FCFA</strong></span></div>`
+            html += `<div class="item">${g.numero_commande ? `<span class="cmd">#${g.numero_commande}</span> — ` : ''}${tl}${resp(g.responsable_nom)}${g.notes ? ` — ${g.notes}` : ''} <span class="${mc}"><strong>${g.montant > 0 ? '+' : ''}${Math.round(g.montant).toLocaleString('fr-FR')} FCFA</strong></span></div>`
+          })
+          html += `</div>`
+        }
+
+        // Comptage vérificateur — montants plafonnés
+        if (d.verifRetenu > 0) {
+          html += `<div class="volet"><div class="volet-h"><span>🔍 Comptage vérificateur</span><span class="r">+${Math.round(d.verifRetenu).toLocaleString('fr-FR')} FCFA</span></div>`
+          if (d.verifReel > d.verifRetenu) {
+            html += `<div class="item" style="border-left-color:#E8C98A"><strong>⚖️ Écart réel ${Math.round(d.verifReel).toLocaleString('fr-FR')} FCFA</strong> — plafond de ${PLAFOND_COMPTAGE.toLocaleString('fr-FR')} FCFA par comptage appliqué, ${Math.round(d.verifRetenu).toLocaleString('fr-FR')} FCFA retenus.</div>`
+          }
+          d.verifLignes.forEach(l => {
+            html += `<div class="item">📅 ${l.date} — ${l.produit_nom} (déclaré ${l.stock_declare}, compté ${l.stock_compte})${resp(l.caissier_nom)}${l.shift_libelle ? ` · ${l.shift_libelle}` : ''}${l.explication ? ` — ${l.explication}` : ''} <span class="r"><strong>${Math.round(l.montant).toLocaleString('fr-FR')} FCFA</strong></span></div>`
           })
           html += `</div>`
         }
@@ -833,7 +908,11 @@ export default function LitigesScreen() {
 
         // Point pas fait
         if (d.pasFaitTotal > 0) {
-          html += `<div class="volet"><div class="volet-h"><span>🚫 Point pas fait</span><span class="r">−${Math.round(d.pasFaitTotal).toLocaleString('fr-FR')} FCFA</span></div></div>`
+          html += `<div class="volet"><div class="volet-h"><span>🚫 Point pas fait</span><span class="r">−${Math.round(d.pasFaitTotal).toLocaleString('fr-FR')} FCFA</span></div>`
+          d.pasFait.forEach(pf => {
+            html += `<div class="item">📅 ${pf.date}${resp(pf.responsable_nom) || ' · 👤 <em>non attribué</em>'}${pf.notes ? ` — ${pf.notes}` : ''} <span class="r"><strong>−${Math.round(pf.montant || 0).toLocaleString('fr-FR')} FCFA</strong></span></div>`
+          })
+          html += `</div>`
         }
 
         html += `</div>` // .resto
@@ -907,13 +986,30 @@ export default function LitigesScreen() {
               ) : (
                 <View style={styles.restoGlobalBody}>
                   {/* Écart */}
-                  {d.ecartTotal !== 0 && (
-                    <View style={styles.globalVoletRow}>
-                      <Text style={styles.globalVoletLabel}>📊 Écart point</Text>
-                      <Text style={[styles.globalVoletVal, { color: d.ecartTotal > 0 ? '#C62828' : '#2E7D32' }]}>
-                        {d.ecartTotal > 0 ? '+' : ''}{fmtShort(d.ecartTotal)}
-                      </Text>
-                    </View>
+                  {(d.ecartTotal !== 0 || d.responsables.length > 0) && (
+                    <>
+                      <View style={styles.globalVoletRow}>
+                        <Text style={styles.globalVoletLabel}>📊 Écart point</Text>
+                        <Text style={[styles.globalVoletVal, { color: d.ecartTotal > 0 ? '#C62828' : '#2E7D32' }]}>
+                          {d.ecartTotal > 0 ? '+' : ''}{fmtShort(d.ecartTotal)}
+                        </Text>
+                      </View>
+                      {d.responsables.map((r, ri) => (
+                        <View key={'resp' + ri} style={styles.globalItem}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.globalItemTxt} numberOfLines={2}>
+                              📅 {r.date}{r.type ? ` — ${r.type}` : ''}
+                            </Text>
+                            <Text style={styles.globalItemResp}>
+                              👤 {r.responsable_nom || 'Non attribué'}{r.role ? ` · ${r.role}` : ''}
+                            </Text>
+                          </View>
+                          <Text style={[styles.globalItemMontant, { color: r.montant > 0 ? '#C62828' : '#2E7D32' }]}>
+                            {r.montant > 0 ? '+' : ''}{fmtShort(r.montant)}
+                          </Text>
+                        </View>
+                      ))}
+                    </>
                   )}
                   {/* Inventaire + explication des manquants */}
                   {d.invTotal > 0 && (
@@ -922,13 +1018,22 @@ export default function LitigesScreen() {
                         <Text style={styles.globalVoletLabel}>📦 Inventaire</Text>
                         <Text style={[styles.globalVoletVal, { color: '#C62828' }]}>−{fmtShort(d.invTotal)}</Text>
                       </View>
-                      {d.invEnriched.flatMap(inv => inv.lignes).map((l, li) => (
+                      {/* On rattache chaque ligne à son shift : un flatMap nu
+                          perdait le caissier, donc le responsable de la déduction. */}
+                      {d.invEnriched.flatMap(inv =>
+                        inv.lignes.map(l => ({ ...l, caissier_nom: inv.caissier_nom, type_shift: inv.type_shift }))
+                      ).map((l, li) => (
                         <View key={'inv' + li} style={styles.globalItem}>
                           <View style={{ flex: 1 }}>
                             <Text style={styles.globalItemTxt} numberOfLines={2}>
                               📦 {l.produit_nom}
                               {l.explication ? <Text style={styles.globalItemCmd}> — {l.explication}</Text> : null}
                             </Text>
+                            {l.caissier_nom ? (
+                              <Text style={styles.globalItemResp}>
+                                👤 {l.caissier_nom}{l.type_shift ? ` · ${l.type_shift}` : ''}
+                              </Text>
+                            ) : null}
                           </View>
                           <Text style={[styles.globalItemMontant, { color: '#C62828' }]}>−{fmtShort(l.montant_deduit)}</Text>
                         </View>
@@ -947,6 +1052,9 @@ export default function LitigesScreen() {
                             {a.numero_commande ? <Text style={styles.globalItemCmd}> #{a.numero_commande}</Text> : null}
                             {a.notes ? ` — ${a.notes}` : ''}
                           </Text>
+                          {a.responsable_nom ? (
+                            <Text style={styles.globalItemResp}>👤 {a.responsable_nom}</Text>
+                          ) : null}
                         </View>
                         <Text style={[styles.globalItemMontant, { color: couleurMontant(a.montant, colors) }]}>
                           {a.montant > 0 ? '+' : ''}{fmtShort(a.montant)}
@@ -965,6 +1073,9 @@ export default function LitigesScreen() {
                             {y.numero_commande ? <Text style={styles.globalItemCmd}> #{y.numero_commande}</Text> : null}
                             {y.notes ? ` — ${y.notes}` : ''}
                           </Text>
+                          {y.responsable_nom ? (
+                            <Text style={styles.globalItemResp}>👤 {y.responsable_nom}</Text>
+                          ) : null}
                         </View>
                         <Text style={[styles.globalItemMontant, { color: y.montant > 0 ? '#C62828' : '#2E7D32' }]}>
                           {y.montant > 0 ? '+' : ''}{fmtShort(y.montant)}
@@ -983,6 +1094,9 @@ export default function LitigesScreen() {
                             {g.numero_commande ? <Text style={styles.globalItemCmd}> #{g.numero_commande}</Text> : null}
                             {g.notes ? ` — ${g.notes}` : ''}
                           </Text>
+                          {g.responsable_nom ? (
+                            <Text style={styles.globalItemResp}>👤 {g.responsable_nom}</Text>
+                          ) : null}
                         </View>
                         <Text style={[styles.globalItemMontant, { color: g.montant > 0 ? '#C62828' : '#2E7D32' }]}>
                           {g.montant > 0 ? '+' : ''}{fmtShort(g.montant)}
@@ -990,6 +1104,38 @@ export default function LitigesScreen() {
                       </View>
                     )
                   })}
+                  {/* Comptage vérificateur — montants plafonnés */}
+                  {d.verifRetenu > 0 && (
+                    <>
+                      <View style={styles.globalVoletRow}>
+                        <Text style={styles.globalVoletLabel}>🔍 Comptage vérificateur</Text>
+                        <Text style={[styles.globalVoletVal, { color: '#C62828' }]}>+{fmtShort(d.verifRetenu)}</Text>
+                      </View>
+                      {d.verifReel > d.verifRetenu && (
+                        <View style={styles.plafondBox}>
+                          <Text style={styles.plafondTxt}>
+                            ⚖️ Écart réel {fmt(d.verifReel)} — plafond de {fmt(PLAFOND_COMPTAGE)} par
+                            comptage appliqué, {fmt(d.verifRetenu)} retenus.
+                          </Text>
+                        </View>
+                      )}
+                      {d.verifLignes.map(l => (
+                        <View key={l.id} style={styles.globalItem}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.globalItemTxt} numberOfLines={2}>
+                              📅 {l.date} — {l.produit_nom}
+                              <Text style={styles.globalItemCmd}> (déclaré {l.stock_declare} · compté {l.stock_compte})</Text>
+                            </Text>
+                            <Text style={styles.globalItemResp}>
+                              👤 {l.caissier_nom}{l.shift_libelle ? ` · ${l.shift_libelle}` : ''}
+                            </Text>
+                          </View>
+                          <Text style={[styles.globalItemMontant, { color: '#C62828' }]}>{fmtShort(l.montant)}</Text>
+                        </View>
+                      ))}
+                    </>
+                  )}
+
                   {/* Contacts manquants */}
                   {d.contactTotal > 0 && (
                     <>
@@ -1034,7 +1180,13 @@ export default function LitigesScreen() {
   const totalGlovo = litigesGlovo.reduce((s, x) => s + (x.montant || 0), 0)
   const totalContact = ecartContacts.reduce((s, x) => s + x.litige, 0)
   const totalPointPasFait = litigesPointPasFait.reduce((s, x) => s + (x.montant || 0), 0)
-  const totalGlobal = totalEcart + totalInventaire + totalAvis + totalYango + totalGlovo + totalContact + totalPointPasFait
+  // Les montants du vérificateur sont déjà plafonnés et répartis à
+  // l'enregistrement : on somme simplement les parts encore dues.
+  const totalVerif = deducVerifResto.reduce((s, x) => s + (Number(x.montant) || 0), 0)
+  const verifParLot = {}
+  deducVerifResto.forEach(x => { verifParLot[x.lot_id || x.date] = Number(x.montant_ecart) || 0 })
+  const totalVerifReel = Object.values(verifParLot).reduce((s, v) => s + v, 0)
+  const totalGlobal = totalEcart + totalInventaire + totalAvis + totalYango + totalGlovo + totalContact + totalPointPasFait + totalVerif
 
   // ── Sauvegarde ───────────────────────────────────────────────
   async function sauvegarderAvis() {
@@ -1541,6 +1693,38 @@ export default function LitigesScreen() {
           <Text style={styles.totalBannerLabel}>Total déductions inventaire</Text>
           <Text style={[styles.totalBannerValue, { color: '#C62828' }]}>{fmt(totalInventaire)}</Text>
         </View>
+
+        {/* Comptages du vérificateur : montants plafonnés, en attente ou répartis */}
+        {deducVerifResto.length > 0 && (
+          <>
+            <View style={[styles.totalBanner, { marginTop: 10 }]}>
+              <Text style={styles.totalBannerLabel}>🔍 Comptage vérificateur</Text>
+              <Text style={[styles.totalBannerValue, { color: '#C62828' }]}>{fmt(totalVerif)}</Text>
+            </View>
+            {totalVerifReel > totalVerif && (
+              <View style={styles.plafondBox}>
+                <Text style={styles.plafondTxt}>
+                  ⚖️ Écart réellement constaté {fmt(totalVerifReel)} — plafond de {fmt(PLAFOND_COMPTAGE)}
+                  {' '}par comptage appliqué, {fmt(totalVerif)} retenus.
+                </Text>
+              </View>
+            )}
+            {deducVerifResto.map(d => (
+              <View key={d.id} style={styles.globalItem}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.globalItemTxt} numberOfLines={2}>
+                    📅 {d.date} — {d.produits_resume || `${d.nb_produits || 0} produit(s) en écart`}
+                  </Text>
+                  <Text style={styles.globalItemResp}>
+                    👤 {d.caissier_nom}{d.shift_libelle ? ` · ${d.shift_libelle}` : ''}
+                    {d.statut === 'en_attente' ? ' · ⏳ à répartir' : ' · ✓ réparti'}
+                  </Text>
+                </View>
+                <Text style={[styles.globalItemMontant, { color: '#C62828' }]}>{fmtShort(d.montant)}</Text>
+              </View>
+            ))}
+          </>
+        )}
         {inventaireShifts.map(inv => {
           const shiftLabel = SHIFT_LABELS[inv.type_shift] || inv.type_shift || 'Shift'
           // Grouper les lignes par catégorie
@@ -2791,5 +2975,8 @@ function makeStyles(colors) { return StyleSheet.create({
   },
   globalItemTxt: { fontSize: 12, color: colors.textSecondary, flex: 1 },
   globalItemCmd: { fontSize: 12, color: '#185FA5', fontWeight: '600' },
+  globalItemResp: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  plafondBox: { backgroundColor: '#FFF4E0', borderRadius: 8, padding: 9, marginVertical: 5, borderWidth: 1, borderColor: '#E8C98A' },
+  plafondTxt: { fontSize: 11, color: '#7A4800', lineHeight: 16 },
   globalItemMontant: { fontSize: 12, fontWeight: '700', marginLeft: 8 },
 }) }

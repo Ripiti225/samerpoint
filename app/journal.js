@@ -12,6 +12,7 @@ import {
 } from 'react-native'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
+import { regrouperErreurs } from '../lib/erreursLisibles'
 import { ACTION_LABELS, chargerJournal } from '../lib/journal'
 import { supabase } from '../lib/supabase'
 
@@ -36,11 +37,55 @@ function formatRelative(dateStr) {
   return `Il y a ${days} jour${days > 1 ? 's' : ''}`
 }
 
+// Les clés brutes du journal ne sont pas lisibles telles quelles.
+const LIBELLES_DETAIL = {
+  facture_entree: '📥 Facture (entrée)',
+  paye_sortie: '📤 Payé (sortie)',
+  credit_restant: '💳 Crédit restant',
+  montant_total: 'Montant total',
+  montant_a_deduire: 'Montant à déduire',
+  nb_lignes: 'Nombre de lignes',
+  nb_fournisseurs: 'Fournisseurs',
+  total_factures: '📥 Total factures',
+  total_paye: '📤 Total payé',
+  total_credit_restant: '💳 Crédit restant',
+  fournisseurs: 'Détail',
+  nb_produits: 'Produits comptés',
+  nb_ecarts: 'Produits en écart',
+  produits_en_ecart: 'Produits concernés',
+  date_point: 'Journée',
+  vente_total: 'Vente totale',
+  depense_total: 'Dépenses',
+  benefice_sc: 'Bénéfice',
+  saisi_par: 'Saisi par',
+}
+const libelleDetail = k => LIBELLES_DETAIL[k] || k.replace(/_/g, ' ')
+
+// Les montants sortent bruts de la base : on les met en forme, sans toucher
+// aux textes ni aux compteurs.
+const CLES_MONTANT = new Set([
+  'facture_entree', 'paye_sortie', 'credit_restant', 'montant_total',
+  'montant_a_deduire', 'vente_total', 'depense_total', 'benefice_sc',
+  'montant', 'vente', 'paye', 'facture', 'ancien', 'nouveau',
+  'total_factures', 'total_paye', 'total_credit_restant',
+])
+function formatValeur(cle, v) {
+  if (v == null) return '—'
+  if (CLES_MONTANT.has(cle) && typeof v === 'number') {
+    return Math.round(v).toLocaleString('fr-FR') + ' F'
+  }
+  // Le détail des fournisseurs arrive en tableau de lignes déjà mises en forme :
+  // on les empile au lieu d'afficher du JSON.
+  if (Array.isArray(v)) return v.length ? '\n' + v.join('\n') : '—'
+  if (typeof v === 'object') return JSON.stringify(v)
+  return String(v)
+}
+
 const FILTRES = [
   { key: null, label: 'Tout' },
   { key: 'point_valide', label: '✅ Validations' },
   { key: 'shift_sauvegarde', label: '⏱️ Shifts' },
-  { key: 'depenses_sauvegardees', label: '📋 Dépenses' },
+  { key: 'fournisseurs_sauvegardes', label: '🧾 Fournisseurs' },
   { key: 'inventaire_sauvegarde', label: '📦 Inventaire' },
   { key: '__erreurs__', label: '⚠️ Erreurs' },
 ]
@@ -158,17 +203,8 @@ export default function JournalScreen() {
                 <Text style={styles.emptyTxt}>Aucune erreur enregistrée</Text>
               </View>
             ) : (
-              erreurs.map((e, i) => (
-                <View key={e.id || i} style={styles.erreurRow}>
-                  <View style={styles.erreurHeader}>
-                    <Text style={styles.erreurContexte}>⚠️ {e.contexte}</Text>
-                    <Text style={styles.erreurTime}>{formatRelative(e.created_at)}</Text>
-                  </View>
-                  <Text style={styles.erreurMsg}>{e.message}</Text>
-                  {e.details ? <Text style={styles.erreurDetails}>{e.details}</Text> : null}
-                  {e.meta ? <Text style={styles.erreurMeta}>{JSON.stringify(e.meta)}</Text> : null}
-                  <Text style={styles.erreurHeure}>{formatHeure(e.created_at)}</Text>
-                </View>
+              regrouperErreurs(erreurs).map(p => (
+                <ErreurRow key={p.cle} paquet={p} styles={styles} colors={colors} />
               ))
             )
           ) : grouped.length === 0 ? (
@@ -193,6 +229,43 @@ export default function JournalScreen() {
   )
 }
 
+// Une erreur technique, expliquée en français. Le message brut reste
+// accessible en dépliant, pour le diagnostic.
+function ErreurRow({ paquet, styles }) {
+  const [ouvert, setOuvert] = useState(false)
+  const { info, nb, derniere, exemple } = paquet
+
+  return (
+    <TouchableOpacity style={styles.erreurRow} onPress={() => setOuvert(o => !o)} activeOpacity={0.7}>
+      <View style={styles.erreurHeader}>
+        <Text style={styles.erreurContexte}>{info.icone} {info.quoi}</Text>
+        <Text style={styles.erreurTime}>{formatRelative(derniere)}</Text>
+      </View>
+
+      <Text style={styles.erreurCause}>{info.cause}</Text>
+      {info.action ? <Text style={styles.erreurAction}>→ {info.action}</Text> : null}
+
+      <View style={styles.erreurPied}>
+        {nb > 1 ? (
+          <Text style={styles.erreurCompteur}>{nb} fois</Text>
+        ) : <View />}
+        <Text style={styles.erreurHeure}>
+          {formatHeure(derniere)}  {ouvert ? '▲' : '▼'}
+        </Text>
+      </View>
+
+      {ouvert && (
+        <View style={styles.erreurTechBox}>
+          <Text style={styles.erreurTechTitre}>Détail technique</Text>
+          <Text style={styles.erreurMsg}>{exemple.contexte}</Text>
+          <Text style={styles.erreurMsg}>{info.technique || exemple.message}</Text>
+          {exemple.meta ? <Text style={styles.erreurMeta}>{JSON.stringify(exemple.meta)}</Text> : null}
+        </View>
+      )}
+    </TouchableOpacity>
+  )
+}
+
 function EntryRow({ entry, styles, colors }) {
   const [expanded, setExpanded] = useState(false)
   const meta = ACTION_LABELS[entry.action] || { icon: '📝', label: entry.action }
@@ -213,14 +286,18 @@ function EntryRow({ entry, styles, colors }) {
           <Text style={styles.entryLabel}>{meta.label}</Text>
           <Text style={styles.entryTime}>{formatRelative(entry.created_at)}</Text>
         </View>
-        {entry.user_nom && (
-          <Text style={styles.entrySub}>👤 {entry.user_nom}</Text>
+        {(entry.user_nom || entry.restaurants?.nom) && (
+          <Text style={styles.entrySub}>
+            {entry.user_nom ? `👤 ${entry.user_nom}` : ''}
+            {entry.user_nom && entry.restaurants?.nom ? '  ·  ' : ''}
+            {entry.restaurants?.nom ? `🏪 ${entry.restaurants.nom}` : ''}
+          </Text>
         )}
         {expanded && hasDetails && (
           <View style={styles.detailsBox}>
             {Object.entries(details).map(([k, v]) => (
               <Text key={k} style={styles.detailLine}>
-                <Text style={{ fontWeight: '600' }}>{k}</Text> : {String(v)}
+                <Text style={{ fontWeight: '600' }}>{libelleDetail(k)}</Text> : {formatValeur(k, v)}
               </Text>
             ))}
             <Text style={styles.detailTime}>{formatHeure(entry.created_at)}</Text>
@@ -277,7 +354,13 @@ function makeStyles(colors) {
     erreurHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
     erreurContexte: { fontSize: 13, fontWeight: '700', color: '#C62828', flex: 1 },
     erreurTime: { fontSize: 11, color: '#999' },
-    erreurMsg: { fontSize: 13, color: '#333', marginBottom: 4 },
+    erreurMsg: { fontSize: 11, color: colors.textSecondary, marginBottom: 3, fontFamily: 'monospace' },
+    erreurCause: { fontSize: 13, color: colors.text, marginBottom: 4, lineHeight: 18 },
+    erreurAction: { fontSize: 12, color: colors.primaryDark, marginBottom: 4, lineHeight: 17 },
+    erreurPied: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
+    erreurCompteur: { fontSize: 11, fontWeight: '700', color: '#C62828', backgroundColor: colors.errorLight, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, overflow: 'hidden' },
+    erreurTechBox: { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.borderLight },
+    erreurTechTitre: { fontSize: 10, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
     erreurDetails: { fontSize: 11, color: '#666', fontStyle: 'italic', marginBottom: 2 },
     erreurMeta: { fontSize: 10, color: '#999', fontFamily: 'monospace' },
     erreurHeure: { fontSize: 10, color: '#bbb', marginTop: 6 },

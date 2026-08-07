@@ -7,6 +7,7 @@ import {
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { CATEGORIES_INVENTAIRE as CATEGORIES } from '../lib/constants'
+import { journaliser, ACTIONS } from '../lib/journal'
 import { supabase } from '../lib/supabase'
 import { dernierComptage } from '../lib/verificationStock'
 
@@ -42,7 +43,7 @@ const PRODUITS_ENTREE = CATEGORIES.flatMap(cat =>
 const CATS_ENTREE = [...new Set(PRODUITS_ENTREE.map(p => p.categorie))]
 
 export default function InventaireScreen() {
-  const { pointId, dateJour, restaurantId, userId, roleActif, setInventaireTermine } = useApp()
+  const { pointId, dateJour, restaurantId, userId, userNom, restaurantNom, roleActif, setInventaireTermine } = useApp()
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
 
@@ -548,6 +549,20 @@ export default function InventaireScreen() {
               supabase.from('points').update({ montant_inventaire: ancien + montant }).eq('id', pointId)
             }
           }).catch(() => {})
+
+        // Journal : rien n'était enregistré pour l'inventaire — la seule
+        // journalisation existante (api.js saveInventaireShift) porte sur
+        // l'ancienne table `inventaires`, qui n'est plus alimentée.
+        const enEcart = lignes.filter(l => Math.abs(l.ecart || 0) > 0.01)
+        journaliser(ACTIONS.INVENTAIRE_SAUVEGARDE, {
+          restaurant: restaurantNom || '—',
+          date_point: dateJour || '—',
+          shift: selectedShift?.label || selectedShift?.id || '—',
+          montant_a_deduire: montant,
+          nb_produits: lignes.length,
+          nb_ecarts: enEcart.length,
+          produits_en_ecart: enEcart.map(l => l.produit_nom).slice(0, 8).join(', ') || '—',
+        }, { pointId, restaurantId, userId, userNom }).catch(() => {})
 
         setIsValide(true)
         setInventaireTermine(true)

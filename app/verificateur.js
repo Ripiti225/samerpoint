@@ -6,7 +6,7 @@
  * vérificateur compte physiquement et saisit « Stock compté ». L'« Écart » se
  * calcule automatiquement (compté − réel).
  *
- * Si ≥ 40 % des produits comptés présentent un écart, une « Demande d'explication »
+ * Si ≥ 30 % des produits comptés présentent un écart, une « Demande d'explication »
  * est créée automatiquement dans le module Demandes (visible par le RH) et une
  * notification est envoyée au RH.
  *
@@ -36,10 +36,15 @@ import { CATEGORIES_INVENTAIRE } from '../lib/constants'
 import { journaliser } from '../lib/journal'
 import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifExplicationNouvelle } from '../lib/notifications'
+import {
+  caissiersResponsables, enregistrerDeductions, prixProduit, proposerRepartition,
+} from '../lib/deductionsVerification'
 import { supabase } from '../lib/supabase'
 import { appliquerComptage } from '../lib/verificationStock'
 
-const SEUIL_ECART = 0.4 // ≥ 40 % des produits comptés en écart → demande au RH
+// ≥ 30 % des produits comptés en écart → une demande d'explication PAR personne
+// concernée : le gérant, le caissier en poste et celui du shift précédent.
+const SEUIL_ECART = 0.3
 
 // Ordre des produits selon le catalogue (IDs stables).
 const ORDRE_PRODUIT = {}
@@ -64,6 +69,8 @@ export default function VerificateurScreen() {
   const [comptes, setComptes] = useState({})         // { produit_id: '12' }
   const [refInfo, setRefInfo] = useState(null)       // { date, caissierId, caissierNom }
   const [tab, setTab] = useState('comptage')         // 'comptage' | 'recap'
+  const [explications, setExplications] = useState({})  // { produit_id: 'texte' }
+  const [shiftsJour, setShiftsJour] = useState([])      // points_shifts du jour + veille
 
   useEffect(() => { chargerRestaurants() }, [])
 
@@ -88,6 +95,17 @@ export default function VerificateurScreen() {
     setComptes({})
     setProduits([])
     setRefInfo(null)
+    setExplications({})
+
+    // Shifts de caisse du jour ET de la veille : à 07h30, le shift précédent
+    // est celui du soir d'hier, c'est lui qui a déclaré le stock.
+    const jour = aujourdhui()
+    const veille = new Date(new Date(jour).getTime() - 86400000).toISOString().split('T')[0]
+    const { data: psJour } = await supabase
+      .from('points_shifts')
+      .select('date, caissier_id, caissier_nom, heure_debut, heure_fin')
+      .eq('restaurant_id', restoId).in('date', [jour, veille])
+    setShiftsJour((psJour || []).map(x => ({ ...x, _veille: x.date === veille })))
 
     const { data: shifts } = await supabase
       .from('inventaires_shifts')
@@ -151,6 +169,14 @@ export default function VerificateurScreen() {
     if (isNaN(c)) return null
     return c - p.stock_reel
   }
+
+  // Caissiers imputables : celui en poste à cette heure, plus celui du shift
+  // précédent. Recalculé à chaque rendu pour rester juste si le comptage
+  // s'étale sur un changement de shift.
+  const responsables = useMemo(
+    () => caissiersResponsables(shiftsJour, new Date().toTimeString().slice(0, 5)),
+    [shiftsJour],
+  )
 
   // Récap live
   const recap = useMemo(() => {
@@ -228,10 +254,36 @@ export default function VerificateurScreen() {
       report = await appliquerComptage({ restaurantId: resto.id, lotId: lot, lignes })
     } catch (_) { report = { cible: 'prochain', statut: 'erreur' } }
 
+    // Chaque écart devient un montant à déduire, partagé à parts égales entre
+    // le caissier en poste et celui du shift précédent. L'administration
+    // tranchera ensuite depuis l'écran Vérification.
+    let statutDeduc = 'vide'
+    let totalDeduit = 0
+    if (avecEcart.length > 0) {
+      const aChiffrer = avecEcart.map(l => ({ ...l, explication: explications[l.produit_id] }))
+      // L'app PROPOSE une répartition ; c'est l'administration qui tranchera.
+      const { constat, parts } = proposerRepartition(aChiffrer, responsables)
+      totalDeduit = constat.montant_plafond
+      const explicationsJointes = avecEcart
+        .map(l => (explications[l.produit_id] || '').trim() && `${l.produit_nom} : ${explications[l.produit_id].trim()}`)
+        .filter(Boolean).join(' · ')
+      statutDeduc = await enregistrerDeductions(parts.map(x => ({
+        ...x, explication: explicationsJointes || null,
+      })), {
+        restaurantId: resto.id,
+        date,
+        lotId: lot,
+        verificateurId: userId || null,
+        verificateurNom: userNom || null,
+      })
+    }
+
     journaliser('verification_stock', {
       restaurant_id: resto.id, comptes: lignes.length, ecarts: avecEcart.length, pct,
       stock_initial_reporte: report.cible, report_statut: report.statut,
-    }, { par: userNom || roleActif }).catch(() => {})
+      montant_a_deduire: totalDeduit,
+      caissiers_imputes: responsables.map(r => r.caissier_nom).join(', ') || '—',
+    }, { par: userNom || roleActif, restaurantId: resto.id }).catch(() => {})
 
     // Notifier manager + directeur de la vérification de stock enregistrée.
     creerNotification({
@@ -244,6 +296,18 @@ export default function VerificateurScreen() {
     }).catch(() => {})
 
     // Ce que devient le stock compté — à dire clairement au vérificateur.
+    const msgDeduc = statutDeduc === 'ok'
+      ? `\n\n\u{1F4B0} ${totalDeduit.toLocaleString('fr-FR')} F \u00e0 r\u00e9partir. `
+        + `Proposition : ${responsables.map(r => r.caissier_nom).join(' et ')}. `
+        + `L'administration r\u00e9partira le montant d\u00e9finitivement.`
+      : statutDeduc === 'migration'
+        ? "\n\n\u26a0\ufe0f Montants NON enregistr\u00e9s : le script supabase_deductions_verification.sql n'a pas encore \u00e9t\u00e9 pass\u00e9."
+        : statutDeduc === 'erreur'
+          ? "\n\n\u26a0\ufe0f Les montants \u00e0 d\u00e9duire n'ont pas pu \u00eatre enregistr\u00e9s."
+          : (responsables.length === 0 && avecEcart.length > 0)
+            ? "\n\n\u26a0\ufe0f Aucun caissier identifi\u00e9 sur ce cr\u00e9neau : aucun montant n'a \u00e9t\u00e9 imput\u00e9."
+            : ''
+
     const msgReport =
       report.statut === 'migration'
         ? '\n\n⚠️ Le stock compté n’a PAS été repris comme stock initial (mise à jour de la base requise).'
@@ -255,74 +319,106 @@ export default function VerificateurScreen() {
 
     // Seuil atteint → demande d'explication + notification RH
     if (ratio >= SEUIL_ECART) {
-      const creee = await creerDemandeRH(avecEcart, lignes.length, pct, date)
+      const creees = await creerDemandeRH(avecEcart, lignes.length, pct, date)
       setSaving(false)
       Alert.alert(
         '⚠️ Écarts importants',
         `${avecEcart.length}/${lignes.length} produits comptés présentent un écart (${pct}%).\n\n` +
-        (creee
-          ? "📨 Une demande d'explication a été créée et le RH a été notifié."
-          : "⚠️ La demande d'explication n'a PAS pu être créée. Prévenez le RH ou le manager.") +
-        msgReport
+        (creees > 0
+          ? `📨 ${creees} demande(s) d'explication créée(s) — gérant, caissier en poste et caissier du shift précédent. Le RH a été notifié.`
+          : "⚠️ Aucune demande d'explication n'a pu être créée. Prévenez le RH ou le manager.") +
+        msgReport + msgDeduc
       )
     } else {
       setSaving(false)
       Alert.alert(
         '✅ Comptage enregistré',
-        `${avecEcart.length}/${lignes.length} produits en écart (${pct}%). En dessous du seuil de 40 % — aucune demande envoyée.${msgReport}`
+        `${avecEcart.length}/${lignes.length} produits en écart (${pct}%). En dessous du seuil de 30 % — aucune demande envoyée.${msgReport}${msgDeduc}`
       )
     }
     setComptes({})
+    setExplications({})
   }
 
   // Demande d'explication automatique (seuil d'écarts atteint).
   // Table demandes_explication — celle du workflow accepter → envoyer → relancer,
   // pas l'ancienne table `demandes` (congés/absences), où elle passait inaperçue.
   // @returns true si la demande a bien été créée.
+  /**
+   * Une demande d'explication PAR personne concernée : le gérant du
+   * restaurant, le caissier en poste à l'heure du comptage, et celui du shift
+   * précédent. Un écart de 30 % en génère donc trois.
+   * @returns {number} nombre de demandes réellement créées
+   */
   async function creerDemandeRH(avecEcart, nbComptes, pct, date) {
-    const caissierNom = refInfo?.caissierNom || 'Caissier'
-
-    // Le caissier est un utilisateur : on relie au travailleur homonyme s'il existe.
-    let travailleurId = null, travailleurPoste = null
-    const { data: trav } = await supabase
-      .from('travailleurs').select('id, poste').eq('restaurant_id', resto.id).ilike('nom', caissierNom).limit(1)
-    if (trav && trav.length) { travailleurId = trav[0].id; travailleurPoste = trav[0].poste || null }
+    // Destinataires : les caissiers identifiés + le gérant du restaurant.
+    const destinataires = responsables.map(r => ({
+      nom: r.caissier_nom,
+      role: r.role_dans_ecart === 'en_poste' ? 'caissier en poste' : 'caissier du shift précédent',
+    }))
+    const { data: gerants } = await supabase
+      .from('utilisateurs').select('nom')
+      .eq('restaurant_id', resto.id).eq('role', 'gerant').eq('actif', true)
+    ;(gerants || []).forEach(g => {
+      if (g.nom && !destinataires.some(d => d.nom === g.nom)) {
+        destinataires.push({ nom: g.nom, role: 'gérant' })
+      }
+    })
+    if (destinataires.length === 0 && refInfo?.caissierNom) {
+      destinataires.push({ nom: refInfo.caissierNom, role: 'caissier' })
+    }
+    if (destinataires.length === 0) return 0
 
     const liste = avecEcart
       .map(l => `• ${l.produit_nom} : réel ${l.stock_reel}, compté ${l.stock_compte} (écart ${l.ecart > 0 ? '+' : ''}${l.ecart})`)
       .join('\n')
-    const description =
-      `Comptage du vérificateur (${userNom || 'Vérificateur'}) le ${date} : ` +
-      `${avecEcart.length}/${nbComptes} produits comptés présentent un écart (${pct}%).\n\n` +
-      `Produits concernés :\n${liste}\n\nMerci de justifier ces écarts.`
+    let creees = 0
+    for (const dest of destinataires) {
+      // Le destinataire est un utilisateur : on le relie au travailleur
+      // homonyme s'il existe, pour que la demande arrive sur sa fiche.
+      let travailleurId = null, travailleurPoste = null
+      const { data: trav } = await supabase
+        .from('travailleurs').select('id, poste')
+        .eq('restaurant_id', resto.id).ilike('nom', dest.nom).limit(1)
+      if (trav && trav.length) { travailleurId = trav[0].id; travailleurPoste = trav[0].poste || null }
 
-    const { error } = await supabase.from('demandes_explication').insert({
-      restaurant_id: resto.id,
-      travailleur_id: travailleurId,
-      travailleur_nom: caissierNom,
-      travailleur_poste: travailleurPoste,
-      motif: `Écarts de stock au comptage (${pct}%)`,
-      description,
-      // Créateur non-admin → passe par l'acceptation d'un admin, comme un gérant.
-      statut: 'en_attente_acceptation',
-      numero: 1,
-      cree_par_id: userId || null,
-      cree_par_nom: userNom || roleActif || 'Vérificateur',
-      cree_par_role: roleActif || 'verificateur',
-    })
-    if (error) return false
+      const description =
+        `Comptage du vérificateur (${userNom || 'Vérificateur'}) le ${date} : ` +
+        `${avecEcart.length}/${nbComptes} produits comptés présentent un écart (${pct}%).\n\n` +
+        `Vous êtes concerné en tant que ${dest.role}.\n\n` +
+        `Produits concernés :\n${liste}\n\nMerci de justifier ces écarts.`
 
-    creerNotification({
-      type: 'explication_nouvelle',
-      titre: "Demande d'explication",
-      message: `📨 ${caissierNom} — ${resto.nom} · écarts de stock ${pct}% · à accepter`,
-      restaurant_id: resto.id,
-      cible_role: ['rh', 'directeur', 'manager'],
-      created_by: userId || null,
-      screen: 'demandes-explication-admin',
-    }).catch(() => {})
-    envoyerNotifExplicationNouvelle(caissierNom, resto.id).catch(() => {})
-    return true
+      const { error } = await supabase.from('demandes_explication').insert({
+        restaurant_id: resto.id,
+        travailleur_id: travailleurId,
+        travailleur_nom: dest.nom,
+        travailleur_poste: travailleurPoste,
+        motif: `Écarts de stock au comptage (${pct}%) — ${dest.role}`,
+        description,
+        // Créateur non-admin → passe par l'acceptation d'un admin, comme un gérant.
+        statut: 'en_attente_acceptation',
+        numero: 1,
+        cree_par_id: userId || null,
+        cree_par_nom: userNom || roleActif || 'Vérificateur',
+        cree_par_role: roleActif || 'verificateur',
+      })
+      if (error) continue
+      creees += 1
+      envoyerNotifExplicationNouvelle(dest.nom, resto.id).catch(() => {})
+    }
+
+    if (creees > 0) {
+      creerNotification({
+        type: 'explication_nouvelle',
+        titre: "Demandes d'explication",
+        message: `📨 ${creees} demande(s) — ${resto.nom} · écarts de stock ${pct}% · ${destinataires.map(d => d.nom).join(', ')} · à accepter`,
+        restaurant_id: resto.id,
+        cible_role: ['rh', 'directeur', 'manager'],
+        created_by: userId || null,
+        screen: 'demandes-explication-admin',
+      }).catch(() => {})
+    }
+    return creees
   }
 
   return (
@@ -399,7 +495,8 @@ export default function VerificateurScreen() {
               const e = ecartDe(p)
               const enEcart = e != null && Math.abs(e) > 0.001
               return (
-                <View key={p.produit_id} style={styles.row}>
+                <View key={p.produit_id} style={styles.rowWrap}>
+                  <View style={styles.row}>
                   <Text style={styles.colProduit} numberOfLines={2}>{p.produit_nom}</Text>
                   <Text style={[styles.colNum, styles.reelTxt]}>{p.stock_reel}</Text>
                   <TextInput
@@ -413,6 +510,25 @@ export default function VerificateurScreen() {
                   <Text style={[styles.colNum, styles.ecartTxt, enEcart && styles.ecartActif]}>
                     {e == null ? '—' : (e > 0 ? '+' : '') + e}
                   </Text>
+                  </View>
+                  {enEcart && (
+                    <View style={styles.explBox}>
+                      <Text style={styles.explMontant}>
+                        💰 {Math.round(Math.abs(e) * prixProduit(p.produit_id)).toLocaleString('fr-FR')} F
+                        {responsables.length > 0
+                          ? ` · ${responsables.length} caissier(s) · ${Math.round(Math.abs(e) * prixProduit(p.produit_id) / responsables.length).toLocaleString('fr-FR')} F chacun`
+                          : ' · aucun caissier identifié'}
+                      </Text>
+                      <TextInput
+                        style={styles.explInput}
+                        value={explications[p.produit_id] ?? ''}
+                        onChangeText={v => setExplications(prev => ({ ...prev, [p.produit_id]: v }))}
+                        placeholder="Explication donnée par le caissier (facultatif)"
+                        placeholderTextColor={colors.textMuted}
+                        multiline
+                      />
+                    </View>
+                  )}
                 </View>
               )
             })}
@@ -424,8 +540,8 @@ export default function VerificateurScreen() {
               <Text style={styles.recapTxt}>
                 {recap.comptees} compté(s) · {recap.avecEcart} écart(s)
               </Text>
-              <Text style={[styles.recapPct, recap.pct >= 40 && styles.recapPctAlert]}>
-                {recap.pct}%{recap.pct >= 40 ? ' ⚠️' : ''}
+              <Text style={[styles.recapPct, recap.pct >= 30 && styles.recapPctAlert]}>
+                {recap.pct}%{recap.pct >= 30 ? ' ⚠️' : ''}
               </Text>
             </View>
             <TouchableOpacity
@@ -488,6 +604,10 @@ function makeStyles(colors) {
       borderWidth: 1, borderColor: colors.primary, borderRadius: 8, paddingVertical: 6,
       color: colors.text, backgroundColor: colors.bg,
     },
+    rowWrap: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+    explBox: { paddingHorizontal: 12, paddingBottom: 10, paddingTop: 2, backgroundColor: colors.surfaceAlt },
+    explMontant: { fontSize: 11, fontWeight: '700', color: '#A32D2D', marginBottom: 5 },
+    explInput: { borderWidth: 1, borderColor: colors.inputBorder, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, fontSize: 12, color: colors.text, backgroundColor: colors.inputBg, minHeight: 34 },
     ecartTxt: { color: colors.textMuted, fontWeight: '600' },
     ecartActif: { color: '#A32D2D', fontWeight: '800' },
     footer: {

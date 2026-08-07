@@ -89,7 +89,26 @@
       "Bash(node -e \"console.log\\('supabase-js', require\\('./node_modules/@supabase/supabase-js/package.json'\\).version\\); console.log\\('postgrest-js', require\\('./node_modules/@supabase/postgrest-js/package.json'\\).version\\)\")",
       "WebFetch(domain:expo.dev)",
       "Bash(node -e \"console.log\\('expo-updates :', require\\('./package.json'\\).dependencies['expo-updates']\\)\")",
-      "Bash(npx expo-updates *)"
+      "Bash(npx expo-updates *)",
+      "Bash(node -e \"const a=require\\('./app.json'\\).expo; console.log\\('versionCode restauré :', a.android.versionCode\\)\")",
+      "Bash(python3 -c \"import json,sys; print\\('empreinte :', json.load\\(sys.stdin\\)['hash']\\)\")",
+      "Bash(awk -F: '$1<590')",
+      "Bash(grep -n -B2 -A6 \"await validerPoint\\(pointId, {\" app/recap-point.js)",
+      "Bash(lsof -nP -iTCP:8090 -sTCP:LISTEN)",
+      "Bash(node test-erreurs.mjs)",
+      "Bash(node /private/tmp/claude-501/-Users-macbookpro-samtrackly/0fef0d38-21f4-4d96-ba9a-3a798e3760cf/scratchpad/test-erreurs.mjs)",
+      "Bash(node test-deductions.mjs)",
+      "Bash(cp /Users/macbookpro/samtrackly/assets/cachet.png c0.png)",
+      "Bash(python3 -c \"import PIL; print\\('Pillow', PIL.__version__\\)\")",
+      "Bash(sips -s format png c0.png --out c1.png)",
+      "Bash(awk '{print \"  \"$5\"  \"$9}')",
+      "Bash(awk '{print \"  \"$5\" octets   \"$9}')",
+      "Bash(cp /tmp/c3.png assets/cachet-samer.png)",
+      "Bash(node /tmp/fix-partiels.mjs)",
+      "Bash(node /tmp/fix-partiels.mjs --go)",
+      "Bash(node /tmp/nettoyage-doublons.mjs --go)",
+      "Bash(curl -s -o /dev/null -m 2 http://localhost:8090)",
+      "Bash(curl -s -m 8 -o /tmp/l.html -w \"code %{http_code} · %{size_download} octets\\\\n\" http://localhost:8090)"
     ]
   }
 }

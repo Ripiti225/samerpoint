@@ -50,7 +50,7 @@ export default function RecapPointScreen() {
     depensesGerantCaisse, fournisseursGerantCaisse, paiesGerantCaisse,
     totalDepensesGerantCaisse,
     inventaireTermine,
-    restaurantId, restaurantNom, userId,
+    restaurantId, restaurantNom, userId, userNom,
     fournisseursNonEnregistres,
   } = useApp()
 
@@ -370,7 +370,21 @@ export default function RecapPointScreen() {
         saisi_par: 'gerant',
       }))
     if (fourGerantRows.length > 0) {
-      await supabase.from('transactions_fournisseurs').insert(fourGerantRows)
+      // Ne PAS réécrire un fournisseur déjà enregistré depuis Déductions gérant :
+      // cet écran écrit avec saisi_par = 'gerant_caissier', que la suppression
+      // ci-dessus (ciblée sur 'gerant') ne touche pas. Sans ce filtre, le même
+      // paiement était compté deux fois et le crédit du fournisseur doublait.
+      // Le garde-fou équivalent existe déjà dans lib/api.js pour l'autre chemin.
+      const { data: dejaGerant } = await supabase
+        .from('transactions_fournisseurs')
+        .select('fournisseur_id')
+        .eq('point_id', pointId)
+        .eq('saisi_par', 'gerant_caissier')
+      const dejaEnregistres = new Set((dejaGerant || []).map(t => t.fournisseur_id))
+      const aInserer = fourGerantRows.filter(r => !dejaEnregistres.has(r.fournisseur_id))
+      if (aInserer.length > 0) {
+        await supabase.from('transactions_fournisseurs').insert(aInserer)
+      }
     }
 
     const venteTheo = cumulShifts?.venteTotal || totalVentes()
@@ -397,6 +411,11 @@ export default function RecapPointScreen() {
       reste_fc: fcCalc(),
       fc_compte: parseFloat(ventesJour.fc_recu) || 0,
       benefice_sc: beneficeSCCalc(),
+    }, {
+      restaurantId,
+      restaurantNom,
+      dateJour,
+      userNom,
     })
 
     // ── 2. Colonnes étendues (ignorées si pas encore créées) ─
