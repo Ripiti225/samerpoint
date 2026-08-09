@@ -59,6 +59,9 @@ export default function InventaireScreen() {
 
   // Données inventaire
   const [stocksInitiaux, setStocksInitiaux] = useState({})
+  // Provenance du stock initial : { texte, alerte } — voir analyserSourceStock()
+  const [sourceStock, setSourceStock] = useState(null)
+  const [recalculEnCours, setRecalculEnCours] = useState(false)
   // stocks[id] = { sorties: '', stockReel: '' }
   const [stocks, setStocks] = useState({})
   // entrees[id] = nombre total reçu dans ce shift
@@ -126,18 +129,30 @@ export default function InventaireScreen() {
         setIsValide(existant.valide || false)
         const hasLines = await chargerLignes(existant.id)
         if (!hasLines) await chargerStockInitial(existant.id)
+        // Lignes déjà saisies : on ne réécrit pas le stock initial, mais on
+        // affiche quand même sa provenance — c'est là qu'on voit qu'il a été
+        // figé avant la validation du shift précédent.
+        else await analyserSourceStock(existant.id)
         // Le comptage du vérificateur écrase le stock initial, ligne enregistrée
         // ou pas : il est réappliqué à chaque chargement (les lignes sont
         // supprimées/réinsérées à chaque sauvegarde).
         appliquerOverrideVerif(existant.stock_initial_verif)
         if (existant.valide) setInventaireTermine(true)
       } else {
+        // Le restaurant du contexte peut être vide après une restauration de
+        // session : deconnecter() sauvegarde le point, la date et l'utilisateur,
+        // mais pas le restaurant. Un shift créé sans restaurant devient invisible
+        // pour la recherche du stock initial, et le shift suivant repart sur un
+        // stock faux. Le point, lui, porte toujours le bon restaurant.
+        const restoId = restaurantId || await restaurantDuPoint()
+        if (!restoId) throw new Error('Restaurant introuvable — reconnectez-vous avant de démarrer l’inventaire')
+
         const { data: nouveau, error } = await supabase
           .from('inventaires_shifts')
           .insert({
             point_id: pointId,
             caissier_id: userId,
-            restaurant_id: restaurantId,
+            restaurant_id: restoId,
             date: dateJour,
             type_shift: shift.id,
             heure_debut: shift.debut || null,
@@ -206,33 +221,104 @@ export default function InventaireScreen() {
     setStocksInitiaux(prev => ({ ...prev, ...valeurs }))
   }
 
-  async function chargerStockInitial(idActuel = null) {
-    if (!restaurantId) return
+  // Le restaurant du point, quand celui du contexte manque. Le point est
+  // obligatoire pour ouvrir un inventaire, et il porte toujours le bon
+  // restaurant : c'est l'ancrage fiable.
+  async function restaurantDuPoint() {
+    if (!pointId) return null
+    const { data } = await supabase
+      .from('points').select('restaurant_id').eq('id', pointId).maybeSingle()
+    return data?.restaurant_id || null
+  }
 
-    // Chercher les derniers shifts de ce restaurant (toute date), excluant l'actuel
-    let query = supabase
+  // Position d'un shift dans le temps réel : « 2026-08-08 16:00 ». Trie
+  // naturellement nuit (00:00) → matin (08:00) → double (12:00) → soir (16:00).
+  function rangShift(date, heure) {
+    return `${date || ''} ${String(heure || '').slice(0, 5)}`
+  }
+
+  // Repli sur l'horaire théorique du type de shift si l'heure n'est pas stockée.
+  function positionShift(s) {
+    return rangShift(s.date, s.heure_debut || TYPES_SHIFTS.find(t => t.id === s.type_shift)?.debut)
+  }
+
+  function libelleShift(s) {
+    const t = TYPES_SHIFTS.find(x => x.id === s.type_shift)
+    const [, m, j] = String(s.date || '').split('-')
+    return `${t?.label || s.type_shift} du ${j}/${m}`
+  }
+
+  /**
+   * Cherche le shift dont le stock final doit servir de stock initial.
+   *
+   * Deux choix volontaires, tous les deux issus de l'incident du 08/08 :
+   *   • On filtre le restaurant via le point (points.restaurant_id) et non via
+   *     la colonne du shift : un shift dont la colonne est vide reste trouvable.
+   *   • On classe par chronologie réelle (date + heure de début) et non par
+   *     heure de création de la ligne : une caissière qui saisit son inventaire
+   *     en retard ne passe plus devant les autres.
+   *
+   * @returns {{ source: object|null, immediat: object|null }}
+   *   source   = shift précédent validé, celui dont on reprend le stock final
+   *   immediat = shift précédent le plus proche, validé ou non
+   */
+  async function analyserSourceStock(idActuel = null) {
+    const restoId = restaurantId || await restaurantDuPoint()
+    if (!restoId || !dateJour || !selectedShift) { setSourceStock(null); return { source: null, immediat: null } }
+
+    const { data: shifts } = await supabase
       .from('inventaires_shifts')
-      .select('id, created_at, inventaire_lignes(produit_id, stock_reel)')
-      .eq('restaurant_id', restaurantId)
-      .eq('valide', true)
-      .order('created_at', { ascending: false })
-      .limit(10)
-    if (idActuel) query = query.neq('id', idActuel)
+      .select('id, date, type_shift, heure_debut, valide, created_at, ' +
+              'points!inner(restaurant_id), utilisateurs(nom), ' +
+              'inventaire_lignes(produit_id, stock_reel)')
+      .eq('points.restaurant_id', restoId)
+      .lte('date', dateJour)
+      .order('date', { ascending: false })
+      .limit(20)
 
-    const { data: allShifts } = await query
+    // Un shift compte comme inventaire réel dès qu'il a un stock compté. Écarte
+    // les lignes vides créées quand une caissière ouvre un onglet par erreur.
+    const rangCourant = rangShift(dateJour, selectedShift.debut)
+    const precedents = (shifts || [])
+      .filter(s => s.id !== idActuel
+        && positionShift(s) < rangCourant
+        && (s.inventaire_lignes || []).some(l => l.stock_reel != null))
+      .sort((a, b) => positionShift(b).localeCompare(positionShift(a)))
 
-    // Prendre le dernier shift validé qui a au moins une ligne avec stock_reel renseigné
-    const found = (allShifts || []).find(s =>
-      s.inventaire_lignes && s.inventaire_lignes.some(l => l.stock_reel != null)
-    )
+    const immediat = precedents[0] || null
+    const source = precedents.find(s => s.valide) || null
+    const nom = s => (s?.utilisateurs?.nom || '').trim()
 
-    if (found) {
+    // Le shift juste avant le nôtre n'est pas celui qu'on a repris : il n'est pas
+    // encore validé, donc son stock final n'est pas pris en compte. C'est
+    // exactement le cas du 09/08 — la caissière doit le voir avant de saisir.
+    const alerte = immediat && immediat.id !== source?.id
+      ? `${libelleShift(immediat)}${nom(immediat) ? ` (${nom(immediat)})` : ''} n’est pas encore validé`
+      : null
+
+    setSourceStock(source || alerte ? {
+      texte: source
+        ? `Stock initial repris du ${libelleShift(source)}${nom(source) ? ` — ${nom(source)}` : ''}`
+        : 'Aucun shift précédent validé — stock initial à vérifier',
+      alerte,
+    } : null)
+
+    return { source, immediat }
+  }
+
+  async function chargerStockInitial(idActuel = null) {
+    const restoId = restaurantId || await restaurantDuPoint()
+    if (!restoId) return
+
+    const { source } = await analyserSourceStock(idActuel)
+
+    if (source) {
       const init = {}
-      ;(found.inventaire_lignes || []).forEach(l => { if (l.stock_reel != null) init[l.produit_id] = l.stock_reel })
+      ;(source.inventaire_lignes || []).forEach(l => { if (l.stock_reel != null) init[l.produit_id] = l.stock_reel })
       // Un comptage du vérificateur postérieur à ce shift fait foi : il repart
       // du stock physiquement compté, pas de celui déclaré par le caissier.
       try {
-        const comptage = await dernierComptage(restaurantId, found.created_at)
+        const comptage = await dernierComptage(restoId, source.created_at)
         if (comptage) Object.assign(init, comptage.valeurs)
       } catch (_) { /* table/colonne absente : on garde le stock déclaré */ }
       setStocksInitiaux(init)
@@ -242,7 +328,7 @@ export default function InventaireScreen() {
     // Fallback ancien format : chercher dans les points récents de ce restaurant
     const { data: ancienPoints } = await supabase
       .from('points').select('id')
-      .eq('restaurant_id', restaurantId)
+      .eq('restaurant_id', restoId)
       .order('date', { ascending: false }).limit(7)
 
     for (const pt of (ancienPoints || [])) {
@@ -255,6 +341,28 @@ export default function InventaireScreen() {
         setStocksInitiaux(init)
         return
       }
+    }
+  }
+
+  // Le stock initial est figé à la première ouverture de l'écran. Si le shift
+  // précédent est validé après coup, il faut pouvoir le reprendre — sinon la
+  // caissière porte l'écart de la collègue d'avant.
+  async function recalculerStockInitial() {
+    if (isValide || !inventaireId) return
+    setRecalculEnCours(true)
+    setSaveMsg(null)
+    try {
+      await chargerStockInitial(inventaireId)
+      // Le comptage du vérificateur reste prioritaire sur le stock déclaré.
+      const { data } = await supabase
+        .from('inventaires_shifts').select('stock_initial_verif')
+        .eq('id', inventaireId).maybeSingle()
+      appliquerOverrideVerif(data?.stock_initial_verif)
+      setSaveMsg('✅ Stock initial recalculé — vérifiez puis enregistrez')
+    } catch (e) {
+      setSaveMsg('❌ ' + (e.message || 'Recalcul impossible'))
+    } finally {
+      setRecalculEnCours(false)
     }
   }
 
@@ -707,6 +815,23 @@ export default function InventaireScreen() {
       {nEcarts > 0 && !isValide && (
         <View style={styles.alertBanner}>
           <Text style={styles.alertTxt}>⚠️ {nEcarts} anomalie(s) — justification requise</Text>
+        </View>
+      )}
+      {sourceStock && (
+        <View style={[styles.sourceBanner, sourceStock.alerte && styles.sourceBannerAlerte]}>
+          <Text style={[styles.sourceTxt, sourceStock.alerte && styles.sourceTxtAlerte]}>
+            {sourceStock.alerte ? `⚠️ ${sourceStock.alerte}` : `📦 ${sourceStock.texte}`}
+          </Text>
+          {sourceStock.alerte && (
+            <Text style={styles.sourceSousTxt}>{sourceStock.texte}</Text>
+          )}
+          {!isValide && (
+            <TouchableOpacity style={styles.sourceBtn} onPress={recalculerStockInitial} disabled={recalculEnCours}>
+              <Text style={styles.sourceBtnTxt}>
+                {recalculEnCours ? 'Recalcul…' : '🔄 Recalculer le stock initial'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -1355,6 +1480,13 @@ function makeStyles(colors) { return StyleSheet.create({
   valideBannerTxt: { fontSize: 12, color: '#185FA5', fontWeight: '600' },
   alertBanner: { backgroundColor: '#FAECE7', padding: 10, alignItems: 'center', borderBottomWidth: 0.5, borderBottomColor: '#F5C4B3' },
   alertTxt: { fontSize: 12, color: '#993C1D', fontWeight: '500' },
+  sourceBanner: { backgroundColor: colors.surfaceAlt, paddingVertical: 8, paddingHorizontal: 12, alignItems: 'center', borderBottomWidth: 0.5, borderBottomColor: colors.border },
+  sourceBannerAlerte: { backgroundColor: '#FDF4E3', borderBottomColor: '#EFD9A8' },
+  sourceTxt: { fontSize: 11.5, color: colors.textMuted, textAlign: 'center' },
+  sourceTxtAlerte: { color: '#854F0B', fontWeight: '600' },
+  sourceSousTxt: { fontSize: 11, color: '#854F0B', textAlign: 'center', marginTop: 2 },
+  sourceBtn: { marginTop: 6, paddingVertical: 5, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
+  sourceBtnTxt: { fontSize: 11.5, color: colors.text, fontWeight: '600' },
   tabs: { backgroundColor: colors.surface, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight, maxHeight: 46 },
   tab: { paddingHorizontal: 14, paddingVertical: 12 },
   tabActive: { borderBottomWidth: 2, borderBottomColor: '#EF9F27' },
