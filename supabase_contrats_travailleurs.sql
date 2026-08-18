@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS contrats_travailleurs (
     (type = 'CDI' AND date_fin IS NULL) OR (type <> 'CDI' AND date_fin IS NOT NULL)
   ),
   CONSTRAINT contrat_fin_apres_debut CHECK (date_fin IS NULL OR date_fin >= date_debut),
-  CONSTRAINT contrat_cloture_coherente CHECK (cloture_le IS NULL OR cloture_le >= date_debut)
+  CONSTRAINT contrat_cloture_coherente CHECK (cloture_le IS NULL OR (cloture_le >= date_debut AND (date_fin IS NULL OR cloture_le <= date_fin)))
 );
 
 -- Un travailleur n'a qu'un seul contrat à la fois. La borne haute est exclusive
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS contrats_travailleurs (
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'contrats_sans_chevauchement'
+    SELECT 1 FROM pg_constraint WHERE conname = 'contrats_sans_chevauchement' AND conrelid = 'contrats_travailleurs'::regclass
   ) THEN
     ALTER TABLE contrats_travailleurs
       ADD CONSTRAINT contrats_sans_chevauchement
@@ -62,21 +62,67 @@ CREATE POLICY allow_all ON contrats_travailleurs
   FOR ALL TO public USING (true) WITH CHECK (true);
 
 -- 'Stage' rejoint les valeurs acceptées sur la fiche travailleur.
--- Si aucune contrainte CHECK n'existe sur type_contrat, ce bloc ne fait rien.
+-- Ce bloc détecte la contrainte CHECK existante sur type_contrat et l'enrichit si nécessaire.
+-- Il refuse (RAISE EXCEPTION) plutôt que de supprimer silencieusement une règle complexe qui
+-- pourrait coupler type_contrat avec d'autres colonnes. Idempotent : si Stage est déjà accepté,
+-- le bloc n'agit pas.
 DO $$
-DECLARE v_nom text;
+DECLARE
+  v_conname text;
+  v_conndef text;
+  v_count int;
+  v_col_pattern text;
 BEGIN
-  SELECT conname INTO v_nom
+  -- Chercher les contraintes CHECK mentionnant type_contrat.
+  SELECT count(*) INTO v_count
     FROM pg_constraint
    WHERE conrelid = 'travailleurs'::regclass
      AND contype = 'c'
-     AND pg_get_constraintdef(oid) ILIKE '%type_contrat%'
-   LIMIT 1;
-  IF v_nom IS NOT NULL THEN
-    EXECUTE format('ALTER TABLE travailleurs DROP CONSTRAINT %I', v_nom);
-    ALTER TABLE travailleurs ADD CONSTRAINT travailleurs_type_contrat_check
-      CHECK (type_contrat IN ('Stage','CDD','CDI','Journalier'));
+     AND pg_get_constraintdef(oid) ILIKE '%type_contrat%';
+
+  IF v_count = 0 THEN
+    RETURN;  -- Aucune contrainte à mettre à jour.
   END IF;
+
+  IF v_count > 1 THEN
+    RAISE EXCEPTION
+      'Migration contrats: plusieurs contraintes CHECK mentionnent type_contrat sur travailleurs. '
+      'Impossible de procéder sans risque de suppression silencieuse. Modifiez manuellement.';
+  END IF;
+
+  -- Une seule contrainte trouvée.
+  SELECT conname, pg_get_constraintdef(oid) INTO v_conname, v_conndef
+    FROM pg_constraint
+   WHERE conrelid = 'travailleurs'::regclass
+     AND contype = 'c'
+     AND pg_get_constraintdef(oid) ILIKE '%type_contrat%';
+
+  -- Si elle accepte déjà Stage, rien à faire.
+  IF v_conndef ILIKE '%Stage%' THEN
+    RAISE NOTICE 'Migration contrats: % accepte déjà Stage, aucune modification.', v_conname;
+    RETURN;
+  END IF;
+
+  -- Construire un motif pour chercher d'autres colonnes.
+  -- Tous les noms de colonnes de travailleurs sauf type_contrat.
+  SELECT string_agg(column_name, '|') INTO v_col_pattern
+    FROM information_schema.columns
+   WHERE table_name = 'travailleurs'
+     AND column_name <> 'type_contrat';
+
+  -- Si la définition mentionne une autre colonne, refuser.
+  IF v_col_pattern IS NOT NULL AND v_conndef ~ ('(' || v_col_pattern || ')')::text THEN
+    RAISE EXCEPTION
+      'Migration contrats: % couvre plus que type_contrat (mention d''autres colonnes). '
+      'Impossible de modifier. Vérifiez et agissez manuellement.',
+      v_conname;
+  END IF;
+
+  -- La contrainte est simple sur type_contrat. Procéder à la mise à jour.
+  EXECUTE format('ALTER TABLE travailleurs DROP CONSTRAINT %I', v_conname);
+  ALTER TABLE travailleurs ADD CONSTRAINT travailleurs_type_contrat_check
+    CHECK (type_contrat IN ('Stage','CDD','CDI','Journalier'));
+  RAISE NOTICE 'Migration contrats: % mise à jour pour accepter Stage.', v_conname;
 END $$;
 
 -- =====================================================================
