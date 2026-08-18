@@ -109,10 +109,15 @@ apparaisse dans les papiers du travailleur comme les autres pièces.
    Journaliers ne sont pas concernés par cette fonctionnalité.
 5. **Pas de chevauchement** : un travailleur n'a qu'un contrat en cours.
 6. **Pas de renouvellement automatique.** Rien n'est jamais créé tout seul.
-7. **Fin anticipée = archivage du travailleur.** Il n'existe pas d'action
-   séparée « rompre le contrat ». Archiver un travailleur (Démission / Renvoi /
-   Fin de contrat / Autre) clôture son contrat en cours : `cloture_le` prend la
-   date du jour, `cloture_motif` le motif d'archivage.
+7. **Fin anticipée = archivage ou suppression du travailleur.** Il n'existe pas
+   d'action séparée « rompre le contrat ». Deux chemins, et deux seulement :
+   - **Archivage** (Démission / Renvoi / Fin de contrat / Autre) : le contrat en
+     cours est clôturé. `cloture_le` prend la date du jour, `cloture_motif` le
+     motif d'archivage. L'historique est conservé et le travailleur est
+     récupérable par « Réactiver ».
+   - **Suppression définitive** : les contrats du travailleur sont effacés avec
+     le reste de son dossier. Irréversible, réservé aux rôles qui ont déjà ce
+     droit (manager, directeur).
 8. **Désactivation automatique à l'échéance** (détail plus bas).
 9. Un contrat clôturé ne déclenche ni alerte ni désactivation.
 
@@ -225,6 +230,19 @@ premier passage du cron archivait les 130 travailleurs actifs.
 Notification aux mêmes destinataires (gérant inclus, sans navigation) :
 `🔒 Kouamé Assi désactivé — fin de contrat le 16/10/2026`
 
+### Suppression définitive d'un travailleur
+
+Le flux existant supprime explicitement, table par table, présences, demandes
+et documents avant la fiche. Les contrats s'y ajoutent de la même façon :
+`contrats_travailleurs` est vidé pour ce travailleur avant la suppression de la
+fiche. La contrainte `ON DELETE CASCADE` couvre déjà le cas, mais la suppression
+explicite garde le flux lisible et cohérent avec les autres tables.
+
+Le texte d'avertissement passe de « Toutes ses présences et documents seront
+effacés » à « Toutes ses présences, ses documents et ses contrats seront
+effacés ». Supprimer un dossier de contrats sans le dire n'est pas acceptable
+pour une action irréversible.
+
 ## Hors périmètre
 
 - Renouvellement automatique d'un contrat.
@@ -254,6 +272,8 @@ séparé, décision prise le 2026-08-18.
 - Alerte J-7 envoyée une seule fois, même après trois passages du cron.
 - Contrat saisi à 5 jours de la fin → reçoit J-7, pas J-3.
 - Contrat clôturé par archivage → plus aucune alerte.
+- Suppression d'un travailleur → ses contrats sont effacés, aucune ligne
+  orpheline dans `contrats_travailleurs`.
 - Travailleur sans contrat → jamais désactivé automatiquement.
 - Contrat suivant saisi en continuité → pas de désactivation.
 - Contrat suivant saisi avec trois jours de battement → pas de désactivation.
