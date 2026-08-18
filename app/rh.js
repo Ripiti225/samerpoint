@@ -28,6 +28,7 @@ import { useTheme } from '../context/ThemeContext'
 import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifNouveauTravailleur } from '../lib/notifications'
 import { supabase } from '../lib/supabase'
+import { uploaderFichier } from '../lib/uploadFichier'
 import { usePhoto } from '../lib/usePhoto'
 
 const STATUT_COLORS = {
@@ -463,29 +464,14 @@ export default function RHScreen() {
   async function uploaderFichierPapier(uri, typeDoc, fichierType) {
     setUploadingPapier(true)
     try {
-      const ext = fichierType === 'pdf' ? 'pdf' : 'jpg'
-      const filename = `papier_${Date.now()}.${ext}`
-      const contentType = fichierType === 'pdf' ? 'application/pdf' : 'image/jpeg'
-
-      let blob
-      if (Platform.OS === 'web') {
-        const resp = await fetch(uri)
-        blob = await resp.blob()
-      } else {
-        const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 })
-        const byteChars = atob(b64)
-        const byteArr = new Uint8Array(byteChars.length)
-        for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i)
-        blob = new Blob([byteArr], { type: contentType })
-      }
-
-      const { error } = await supabase.storage
-        .from('documents-travailleurs')
-        .upload(filename, blob, { contentType, upsert: true })
-      if (error) throw error
-
-      const { data: urlData } = supabase.storage.from('documents-travailleurs').getPublicUrl(filename)
-      setPapiersDraft(prev => [...prev, { type_document: typeDoc, fichier_url: urlData.publicUrl, fichier_type: fichierType }])
+      const { url, type } = await uploaderFichier({
+        uri, bucket: 'documents-travailleurs', prefixe: 'papier',
+        estPDF: fichierType === 'pdf',
+      })
+      setPapiersDraft(prev => [...prev, {
+        type_document: typeDoc, fichier_url: url,
+        fichier_type: type === 'pdf' ? 'pdf' : 'image',
+      }])
     } catch {
       Alert.alert('Erreur', "Impossible d'uploader le fichier")
     }
