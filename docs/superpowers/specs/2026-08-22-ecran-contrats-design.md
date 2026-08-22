@@ -21,6 +21,9 @@ Les contrats deviennent un écran à part entière, `/contrats`, où tout se gè
 | Onglet Contrats dans RH | Supprimé. Le bloc de la fiche travailleur reste, en lecture seule. |
 | Actions sur un contrat | Renouveler, rompre, corriger, supprimer — les quatre. |
 | Contrat fini + suivant pas encore démarré | On affiche le **contrat terminé**, mention « suite prévue le JJ/MM ». Le travailleur reste dans « Expirés ». |
+| Nombre de contrats | Illimité, y compris plusieurs du même type à la suite. |
+| Numérotation | **Par type**, pas globale : 3 stages d'affilée = 1er, 2e, 3e contrat de stage ; le passage en CDD repart à « 1er contrat CDD ». |
+| Durées | Boutons 1 / 2 / 3 / 6 / 12 mois, plus un champ libre en mois. Demande une migration. |
 
 ## Structure de l'écran
 
@@ -45,6 +48,24 @@ CONTRATS                          [Tous ▾] [🔍 nom…]
 └──────────────────────────────────────────────────┘
                                   ( + Nouveau contrat )
 ```
+
+### Renouvellements successifs et numérotation
+
+Un travailleur peut enchaîner autant de contrats qu'on veut, y compris plusieurs du même
+type : un stage de 3 mois, renouvelé 4 mois, renouvelé encore 6 mois. Chaque renouvellement
+est un contrat de plus, l'historique les garde tous.
+
+Le rang affiché se compte **par type**, dans l'ordre des dates de début :
+
+```
+Stage · 1er contrat    16/01/26 → 15/04/26   terminé
+Stage · 2e contrat     16/04/26 → 15/08/26   terminé
+Stage · 3e contrat     16/08/26 → 15/02/27   en cours
+```
+
+Passé en CDD, le compteur repart : le premier CDD est « CDD · 1er contrat », quel que soit
+le nombre de stages qui précèdent. `rangParType()` vit dans `lib/contrats.js` et se teste
+sans réseau.
 
 ### Quel contrat s'affiche pour un travailleur
 
@@ -136,7 +157,8 @@ va dans des modules purs testables, l'écran orchestre.
 
 | Fichier | Responsabilité |
 |---|---|
-| `lib/contrats.js` (étendre) | `contratAffiche()`, `validerCloture()`, `MOTIFS_RUPTURE` |
+| `supabase_contrats_duree_libre.sql` (créer) | Migration : lève la contrainte `duree_mois IN (3,6,12)` |
+| `lib/contrats.js` (étendre) | `contratAffiche()`, `validerCloture()`, `rangParType()`, `ordinalFR()`, `MOTIFS_RUPTURE`, `DUREES_MOIS` élargi |
 | `lib/contrats.test.mjs` (étendre) | Tests des deux nouvelles fonctions |
 | `app/contrats.js` (créer) | L'écran : chargement, filtres, recherche, liste, orchestration |
 | `components/FicheContrat.js` (créer) | Fiche d'un travailleur : contrat affiché, historique, 4 actions |
@@ -147,6 +169,9 @@ va dans des modules purs testables, l'écran orchestre.
 ### Interfaces
 
 - `contratAffiche(contrats, aujourdhui)` → le contrat à montrer, ou `null`. Pur.
+- `rangParType(contrats, contrat)` → entier 1-based parmi les contrats du même type,
+  triés par date de début. Pur.
+- `ordinalFR(n)` → `'1er'`, `'2e'`, `'3e'`… Pur.
 - `validerCloture(contrat, dateCloture, motif)` → `{ ok, erreur }`. Pur, message en français.
 - `FicheContrat({ visible, travailleur, contrats, colors, onFermer, onRenouveler, onRompre, onCorriger, onSupprimer })`
 - `SelecteurTravailleur({ visible, travailleurs, restaurants, colors, onFermer, onChoisir })`
@@ -164,10 +189,29 @@ va dans des modules purs testables, l'écran orchestre.
 Accès : manager, directeur et RH, comme `app/equipe.js` (`roleActif`). La tuile est déjà
 configurée pour ces trois rôles.
 
-## Rien à changer en base
+## Durées de contrat
 
-`contrats_travailleurs` et ses contraintes couvrent déjà tout : types, cohérence CDI,
-bornes de clôture, anti-chevauchement. Aucune migration.
+Boutons rapides : **1, 2, 3, 6, 12 mois**. Plus un champ libre en mois pour tout le reste —
+un stage renouvelé 4 mois se saisit en tapant `4`, la date de fin se calcule seule.
+`calculerDateFin()` gère déjà n'importe quel nombre de mois, y compris le débordement
+d'année et le 31 d'un mois qui n'en a que 30.
+
+La durée libre est bornée à 1–60 mois. Au-delà c'est une faute de frappe, pas un contrat :
+« La durée doit être comprise entre 1 et 60 mois. »
+
+Un CDI n'a ni durée ni date de fin — inchangé.
+
+## Une migration nécessaire
+
+La colonne porte aujourd'hui `CHECK (duree_mois IN (3,6,12))`, qui refuserait un contrat
+de 4 mois. `supabase_contrats_duree_libre.sql` remplace cette contrainte par
+`duree_mois IS NULL OR (duree_mois BETWEEN 1 AND 60)`.
+
+Migration idempotente et rejouable, sur le modèle de celles déjà écrites. Les contrats
+existants restent tous valides : 3, 6 et 12 sont dans le nouvel intervalle.
+
+Le reste de la table ne bouge pas : types, cohérence CDI, bornes de clôture et
+anti-chevauchement couvrent déjà le besoin.
 
 ## Hors périmètre
 
