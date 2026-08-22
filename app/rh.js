@@ -22,6 +22,8 @@ import {
 } from 'react-native'
 import { Calendar } from 'react-native-calendars'
 import * as XLSX from 'xlsx'
+import BlocContrats from '../components/BlocContrats'
+import FormulaireContrat from '../components/FormulaireContrat'
 import FormulaireTravailleur from '../components/FormulaireTravailleur'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
@@ -53,7 +55,7 @@ const MOTIFS_ARCHIVE = ['Démission', 'Renvoi', 'Fin de contrat', 'Autre']
 export default function RHScreen() {
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
-  const { roleActif, isManager } = useApp() ?? {}
+  const { roleActif, isManager, userId } = useApp() ?? {}
   const { choisirPhoto } = usePhoto()
   const peutSupprimer = isManager || roleActif === 'directeur'
   const [onglet, setOnglet] = useState('Dashboard')
@@ -73,6 +75,8 @@ export default function RHScreen() {
   // Vue détail travailleur
   const [travailleurSelectionne, setTravailleurSelectionne] = useState(null)
   const [modalTravailleur, setModalTravailleur] = useState(false)
+  const [contratsTravailleur, setContratsTravailleur] = useState([])
+  const [modalContrat, setModalContrat] = useState(false)
   const [periodeTravailleur, setPeriodeTravailleur] = useState('month')
   const [presencesTravailleur, setPresencesTravailleur] = useState([])
   const [loadingTravailleur, setLoadingTravailleur] = useState(false)
@@ -229,6 +233,7 @@ export default function RHScreen() {
     setTravailleurSelectionne(t)
     setPeriodeTravailleur('month')
     setModalTravailleur(true)
+    chargerContrats(t.id)
   }
 
   async function sauvegarderTravailleur() {
@@ -324,6 +329,62 @@ export default function RHScreen() {
       .order('archived_at', { ascending: false })
     setArchivesTravail(data || [])
     setLoadingArchives(false)
+  }
+
+  async function chargerContrats(travailleurId) {
+    if (!travailleurId) { setContratsTravailleur([]); return }
+    const { data } = await supabase
+      .from('contrats_travailleurs')
+      .select('*')
+      .eq('travailleur_id', travailleurId)
+      .order('date_debut', { ascending: true })
+    setContratsTravailleur(data || [])
+  }
+
+  async function enregistrerContrat(contrat) {
+    const trav = travailleurSelectionne
+    if (!trav) return
+    const { error } = await supabase.from('contrats_travailleurs').insert({
+      ...contrat,
+      travailleur_id: trav.id,
+      restaurant_id: trav.restaurant_id || null,
+      cree_par: userId || null,
+    })
+    if (error) {
+      // Le chevauchement est refusé par la base : c'est la seule erreur que le
+      // RH peut corriger lui-même, elle mérite donc son propre message.
+      const chevauchement = String(error.message || '').includes('contrats_sans_chevauchement')
+      Alert.alert(
+        'Contrat non enregistré',
+        chevauchement
+          ? "Ce travailleur a déjà un contrat sur cette période. Vérifie les dates."
+          : "Impossible d'enregistrer le contrat. Vérifie ta connexion et réessaie."
+      )
+      return
+    }
+    await supabase.from('documents_travailleurs').insert({
+      travailleur_id: trav.id,
+      type_document: 'Contrat',
+      fichier_url: contrat.photo_url,
+      fichier_type: contrat.photo_type === 'pdf' ? 'pdf' : 'image',
+    }).then(() => {}, () => {})
+
+    await supabase.from('travailleurs')
+      .update({ type_contrat: contrat.type })
+      .eq('id', trav.id)
+
+    creerNotification({
+      type: 'contrat_ajoute',
+      titre: '📝 Contrat enregistré',
+      message: `${contrat.type} pour ${trav.nom}${contrat.date_fin ? ` — jusqu'au ${contrat.date_fin}` : ''}`,
+      restaurant_id: trav.restaurant_id || null,
+      cible_role: ['manager', 'directeur'],
+      screen: 'rh',
+    }).catch(() => {})
+
+    setModalContrat(false)
+    await chargerContrats(trav.id)
+    chargerDonnees()
   }
 
   async function archiverTravailleur() {
@@ -1243,6 +1304,12 @@ export default function RHScreen() {
             </View>
           ) : (
             <ScrollView style={{ padding: 16 }} showsVerticalScrollIndicator={false}>
+              <BlocContrats
+                travailleur={travailleurSelectionne}
+                contrats={contratsTravailleur}
+                colors={colors}
+                onAjouter={() => setModalContrat(true)}
+              />
               <View style={styles.travStatsGrid}>
                 <View style={[styles.travStatCard, { backgroundColor: '#EAF3DE' }]}>
                   <Text style={styles.travStatVal}>{s.present}</Text>
@@ -1690,6 +1757,15 @@ export default function RHScreen() {
       {renderModalFormTravailleur()}
       {renderModalCalendrier()}
       {renderModalArchiveAction()}
+
+      <FormulaireContrat
+        visible={modalContrat}
+        travailleur={travailleurSelectionne}
+        contratsExistants={contratsTravailleur}
+        colors={colors}
+        onFermer={() => setModalContrat(false)}
+        onEnregistrer={enregistrerContrat}
+      />
     </SafeAreaView>
   )
 }
