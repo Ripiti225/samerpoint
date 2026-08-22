@@ -66,7 +66,7 @@ Module pur, sans React ni réseau. C'est le cœur : tout le reste ne fait que l'
 
 Un « contrat » est un objet `{ type, date_debut, date_fin, duree_mois, cloture_le, rappels_envoyes }`.
 
-- [ ] **Step 1 : Écrire les tests qui échouent**
+- [x] **Step 1 : Écrire les tests qui échouent**
 
 Créer `lib/contrats.test.mjs` :
 
@@ -294,12 +294,12 @@ describe('validerFormulaireContrat', () => {
 })
 ```
 
-- [ ] **Step 2 : Lancer les tests pour vérifier qu'ils échouent**
+- [x] **Step 2 : Lancer les tests pour vérifier qu'ils échouent**
 
 Run: `npm test`
 Expected: FAIL — `Cannot find module './contrats.js'`
 
-- [ ] **Step 3 : Écrire `lib/contrats.js`**
+- [x] **Step 3 : Écrire `lib/contrats.js`**
 
 ```js
 // ──────────────────────────────────────────────────────────────────────────────
@@ -412,12 +412,12 @@ export function validerFormulaireContrat(form) {
 }
 ```
 
-- [ ] **Step 4 : Lancer les tests pour vérifier qu'ils passent**
+- [x] **Step 4 : Lancer les tests pour vérifier qu'ils passent**
 
 Run: `npm test`
 Expected: PASS, tous les tests de `contrats.test.mjs` verts, et les tests existants (`basculePOS`, `ecartPOS`, `sourcePoint`) toujours verts.
 
-- [ ] **Step 5 : Commit**
+- [x] **Step 5 : Commit**
 
 ```bash
 git add lib/contrats.js lib/contrats.test.mjs
@@ -436,7 +436,7 @@ git commit -m "feat(rh): logique des contrats de travail (dates, statuts, palier
 
 Cette migration se passe **à la main dans le SQL Editor de Supabase**, comme les précédentes du dossier. Rien ne l'exécute automatiquement.
 
-- [ ] **Step 1 : Écrire la migration**
+- [x] **Step 1 : Écrire la migration**
 
 ```sql
 -- =====================================================================
@@ -548,11 +548,11 @@ END $$;
 -- =====================================================================
 ```
 
-- [ ] **Step 2 : Vérifier la syntaxe du fichier**
+- [x] **Step 2 : Vérifier la syntaxe du fichier**
 
 Le fichier n'est pas exécuté par les tests. Le relire une fois de bout en bout, en vérifiant en particulier que les `$$` des blocs `DO` et du bloc cron commenté sont équilibrés.
 
-- [ ] **Step 3 : Commit**
+- [x] **Step 3 : Commit**
 
 ```bash
 git add supabase_contrats_travailleurs.sql
@@ -576,7 +576,7 @@ Le formulaire de contrat a besoin exactement de l'upload que `app/rh.js` fait d�
 **Interfaces:**
 - Produces : `uploaderFichier({ uri, bucket, prefixe, estPDF }): Promise<{ url: string, type: 'photo'|'pdf' }>` — lève une exception en cas d'échec.
 
-- [ ] **Step 1 : Créer `lib/uploadFichier.js`**
+- [x] **Step 1 : Créer `lib/uploadFichier.js`**
 
 ```js
 // ──────────────────────────────────────────────────────────────────────────────
@@ -618,7 +618,7 @@ export async function uploaderFichier({ uri, bucket, prefixe, estPDF = false }) 
 }
 ```
 
-- [ ] **Step 2 : Faire consommer le module par `app/rh.js`**
+- [x] **Step 2 : Faire consommer le module par `app/rh.js`**
 
 Remplacer le corps de `uploaderFichierPapier` par un appel au module. Le comportement visible ne change pas : même bucket, même préfixe, même message d'erreur.
 
@@ -649,14 +649,14 @@ import { uploaderFichier } from '../lib/uploadFichier'
 
 Vérifier ensuite si `FileSystem` et `Platform` servent encore ailleurs dans `app/rh.js` (`grep -n "FileSystem\.\|Platform\." app/rh.js`) et retirer les imports devenus inutiles — mais **seulement** s'ils ne servent plus nulle part. `FileSystem` est aussi utilisé par l'export Excel.
 
-- [ ] **Step 3 : Vérifier**
+- [x] **Step 3 : Vérifier**
 
 Run: `npm run lint`
 Expected: aucune erreur nouvelle sur `app/rh.js` ni `lib/uploadFichier.js`.
 
 Puis, l'app tournant (`npm start`) : ouvrir RH → Travailleurs → ajouter un travailleur → Papiers → ajouter une photo pour « CNI ». Le `✓ Photo` doit apparaître comme avant.
 
-- [ ] **Step 4 : Commit**
+- [x] **Step 4 : Commit**
 
 ```bash
 git add lib/uploadFichier.js app/rh.js
@@ -675,7 +675,7 @@ git commit -m "refactor(rh): extraction de l'upload de fichier dans lib/uploadFi
 - Produces : composant par défaut `FormulaireContrat({ visible, travailleur, contratsExistants, colors, onFermer, onEnregistrer })`.
   `onEnregistrer(contrat)` reçoit `{ type, date_debut, date_fin, duree_mois, photo_url, photo_type }` — `date_fin` et `duree_mois` valent `null` pour un CDI.
 
-- [ ] **Step 1 : Écrire le composant**
+- [x] **Step 1 : Écrire le composant**
 
 ```jsx
 // ──────────────────────────────────────────────────────────────────────────────
@@ -926,14 +926,14 @@ export default function FormulaireContrat({
 }
 ```
 
-- [ ] **Step 2 : Vérifier**
+- [x] **Step 2 : Vérifier**
 
 Run: `npm run lint`
 Expected: aucune erreur sur `components/FormulaireContrat.js`.
 
 Le composant n'est pas encore branché : rien à voir dans l'app à ce stade.
 
-- [ ] **Step 3 : Commit**
+- [x] **Step 3 : Commit**
 
 ```bash
 git add components/FormulaireContrat.js
@@ -953,7 +953,7 @@ git commit -m "feat(rh): formulaire de saisie d'un contrat de travail"
 - Produces : composant par défaut `BlocContrats({ travailleur, contrats, colors, onAjouter })`.
   `onAjouter()` est appelé au clic sur « + Nouveau contrat » — l'ouverture du formulaire est gérée par `app/rh.js`.
 
-- [ ] **Step 1 : Écrire `components/BlocContrats.js`**
+- [x] **Step 1 : Écrire `components/BlocContrats.js`**
 
 ```jsx
 // ──────────────────────────────────────────────────────────────────────────────
@@ -1065,7 +1065,7 @@ export default function BlocContrats({ travailleur, contrats, colors, onAjouter 
 }
 ```
 
-- [ ] **Step 2 : Charger les contrats et brancher le bloc dans `app/rh.js`**
+- [x] **Step 2 : Charger les contrats et brancher le bloc dans `app/rh.js`**
 
 Ajouter les imports :
 
@@ -1186,7 +1186,7 @@ Parcours à faire, la migration de la Task 2 devant être passée :
 5. Ré-ouvrir « + Nouveau contrat » → la date de début est pré-remplie au 17/10/2026.
 6. Créer un second contrat qui chevauche le premier → message « Ce travailleur a déjà un contrat sur cette période. »
 
-- [ ] **Step 4 : Commit**
+- [x] **Step 4 : Commit**
 
 ```bash
 git add components/BlocContrats.js app/rh.js
@@ -1203,7 +1203,7 @@ git commit -m "feat(rh): bloc contrat et saisie depuis la fiche travailleur"
 **Interfaces:**
 - Consumes : `lib/contrats.js`, `badgeEcheance` exporté par `components/BlocContrats.js`.
 
-- [ ] **Step 1 : Ajouter l'onglet et son chargement**
+- [x] **Step 1 : Ajouter l'onglet et son chargement**
 
 Étendre la constante existante :
 
@@ -1238,7 +1238,7 @@ Le déclencher, à côté de la ligne 117 existante :
     if (onglet === 'Contrats') chargerTousContrats()
 ```
 
-- [ ] **Step 2 : Écrire le rendu de l'onglet**
+- [x] **Step 2 : Écrire le rendu de l'onglet**
 
 ```jsx
   function renderContrats() {
@@ -1359,7 +1359,7 @@ Run: `npm start`
 2. Filtre **Sans contrat** → le compteur affiche les fiches non-Journalier sans contrat.
 3. Cliquer une ligne → ouvre la fiche du travailleur, bloc Contrat visible.
 
-- [ ] **Step 3 : Commit**
+- [x] **Step 3 : Commit**
 
 ```bash
 git add app/rh.js
@@ -1376,7 +1376,7 @@ git commit -m "feat(rh): onglet Contrats avec filtres d'échéance"
 **Interfaces:**
 - Consumes : `lib/contrats.js` (`aujourdhuiISO`).
 
-- [ ] **Step 1 : Clôturer le contrat en cours à l'archivage**
+- [x] **Step 1 : Clôturer le contrat en cours à l'archivage**
 
 Dans `archiverTravailleur`, juste après le `update` sur `travailleurs` et avant `creerNotification` :
 
@@ -1390,7 +1390,7 @@ Dans `archiverTravailleur`, juste après le `update` sur `travailleurs` et avant
       .or(`date_fin.is.null,date_fin.gte.${aujourdhuiISO()}`)
 ```
 
-- [ ] **Step 2 : Effacer les contrats à la suppression définitive**
+- [x] **Step 2 : Effacer les contrats à la suppression définitive**
 
 Dans `supprimerTravailleur`, ajouter la ligne avant la suppression de la fiche :
 
@@ -1413,7 +1413,7 @@ Run: `npm start`
 3. Ouvrir la boîte de suppression d'un travailleur → le texte mentionne bien « ses contrats ».
 4. Supprimer le travailleur de test → vérifier dans Supabase que `contrats_travailleurs` ne contient plus de ligne pour lui.
 
-- [ ] **Step 4 : Commit**
+- [x] **Step 4 : Commit**
 
 ```bash
 git add app/rh.js
@@ -1433,7 +1433,7 @@ git commit -m "feat(rh): l'archivage clôture le contrat, la suppression efface 
 
 La logique de `lib/contrats.js` est réécrite ici en TypeScript : une Edge Function Deno ne peut pas importer un module de l'app. Les règles doivent rester identiques — `lib/contrats.test.mjs` fait foi.
 
-- [ ] **Step 1 : Écrire la fonction**
+- [x] **Step 1 : Écrire la fonction**
 
 ```ts
 // Supabase Edge Function : rappel-contrats
@@ -1643,11 +1643,11 @@ function json(obj: unknown, status = 200) {
 }
 ```
 
-- [ ] **Step 2 : Vérifier la cohérence avec les tests de référence**
+- [x] **Step 2 : Vérifier la cohérence avec les tests de référence**
 
 Relire `palierAEnvoyer`, `enCours` et la condition de désactivation en les comparant ligne à ligne avec `lib/contrats.js`. Les trois verrous de la désactivation doivent être présents : au moins un contrat (garanti par la boucle sur `parTravailleur`), aucun contrat en cours, aucun contrat à venir.
 
-- [ ] **Step 3 : Commit**
+- [x] **Step 3 : Commit**
 
 ```bash
 git add supabase/functions/rappel-contrats/index.ts
@@ -1666,8 +1666,8 @@ Et prévenir que tant que ces deux gestes ne sont pas faits, la saisie des contr
 
 ## Vérification finale
 
-- [ ] `npm test` — tous les fichiers `lib/*.test.mjs` verts.
-- [ ] `npm run lint` — aucune erreur nouvelle.
+- [x] `npm test` — tous les fichiers `lib/*.test.mjs` verts.
+- [x] `npm run lint` — aucune erreur nouvelle.
 - [ ] Parcours complet, migration passée : créer un Stage 3 mois avec photo → le bloc l'affiche → ajouter un CDD en renouvellement (date pré-remplie) → l'onglet Contrats le montre sous « Expire bientôt » si l'échéance est proche → archiver le travailleur pour Démission → l'historique affiche « rompu ».
 - [ ] Appeler la fonction à la main pour valider les deux passes sans attendre le cron :
   `curl -X POST 'https://<PROJECT_REF>.supabase.co/functions/v1/rappel-contrats' -H 'Authorization: Bearer <SERVICE_ROLE_KEY>'`
