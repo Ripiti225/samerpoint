@@ -22,11 +22,12 @@ import {
 } from 'react-native'
 import { Calendar } from 'react-native-calendars'
 import * as XLSX from 'xlsx'
-import BlocContrats from '../components/BlocContrats'
+import BlocContrats, { badgeEcheance } from '../components/BlocContrats'
 import FormulaireContrat from '../components/FormulaireContrat'
 import FormulaireTravailleur from '../components/FormulaireTravailleur'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
+import { aujourdhuiISO, statutContrat } from '../lib/contrats'
 import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifNouveauTravailleur } from '../lib/notifications'
 import { supabase } from '../lib/supabase'
@@ -49,7 +50,7 @@ const PERIODES = [
   { label: '📅 Période', key: 'custom' },
 ]
 
-const ONGLETS = ['Dashboard', 'Travailleurs', 'Présences', 'Salaires', 'Archivés']
+const ONGLETS = ['Dashboard', 'Travailleurs', 'Présences', 'Salaires', 'Contrats', 'Archivés']
 const MOTIFS_ARCHIVE = ['Démission', 'Renvoi', 'Fin de contrat', 'Autre']
 
 export default function RHScreen() {
@@ -77,6 +78,8 @@ export default function RHScreen() {
   const [modalTravailleur, setModalTravailleur] = useState(false)
   const [contratsTravailleur, setContratsTravailleur] = useState([])
   const [modalContrat, setModalContrat] = useState(false)
+  const [tousContrats, setTousContrats] = useState([])
+  const [filtreContrats, setFiltreContrats] = useState('Expire bientôt')
   const [periodeTravailleur, setPeriodeTravailleur] = useState('month')
   const [presencesTravailleur, setPresencesTravailleur] = useState([])
   const [loadingTravailleur, setLoadingTravailleur] = useState(false)
@@ -120,6 +123,7 @@ export default function RHScreen() {
   useEffect(() => {
     if (!restoSelectionne) return
     if (onglet === 'Archivés') chargerArchives()
+    if (onglet === 'Contrats') chargerTousContrats()
   }, [restoSelectionne, onglet])
 
   const isMountedRef = useRef(true)
@@ -317,6 +321,16 @@ export default function RHScreen() {
     const url = await choisirPhoto('photos')
     if (url) setFormTravailleur(p => ({ ...p, photo_url: url }))
     setUploadingPhotoProfil(false)
+  }
+
+  // Une seule requête, puis regroupement en mémoire : les contrats se comptent
+  // en dizaines, pas en milliers.
+  async function chargerTousContrats() {
+    const { data } = await supabase
+      .from('contrats_travailleurs')
+      .select('*, travailleurs(nom, poste, restaurant_id, actif)')
+      .order('date_fin', { ascending: true, nullsFirst: false })
+    setTousContrats(data || [])
   }
 
   async function chargerArchives() {
@@ -1115,6 +1129,106 @@ export default function RHScreen() {
   }
 
   // ─── ARCHIVÉS ──────────────────────────────────────────────
+  // ─── ONGLET CONTRATS ────────────────────────────────────────
+  function renderContrats() {
+    const jour = aujourdhuiISO()
+    const actifs = travailleurs.filter(t => t.actif !== false)
+    // Les contrats sont chargés tous restaurants confondus : on les ramène au
+    // restaurant affiché, sinon le compteur « Sans contrat » et les lignes
+    // listées ne parleraient pas du même effectif.
+    const idsResto = new Set(travailleurs.map(t => t.id))
+    const contratsResto = tousContrats.filter(c => idsResto.has(c.travailleur_id))
+    const avecContrat = new Set(contratsResto.map(c => c.travailleur_id))
+    // Les Journaliers n'ont pas de contrat par construction : les compter comme
+    // « sans contrat » noierait les fiches qui en attendent vraiment un.
+    const sansContrat = actifs.filter(t => !avecContrat.has(t.id) && t.type_contrat !== 'Journalier')
+
+    const filtres = ['Expire bientôt', 'En cours', 'Expirés', 'Sans contrat']
+
+    let lignes = []
+    if (filtreContrats === 'Sans contrat') {
+      lignes = sansContrat.map(t => ({ sansContrat: true, travailleur: t, id: t.id }))
+    } else {
+      lignes = contratsResto.filter(c => {
+        const statut = statutContrat(c, jour)
+        if (filtreContrats === 'En cours') return statut === 'en_cours'
+        if (filtreContrats === 'Expirés') return statut === 'expire' || statut === 'rompu'
+        return badgeEcheance(c, jour) !== null   // Expire bientôt
+      })
+    }
+
+    return (
+      <View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+          {filtres.map(f => (
+            <TouchableOpacity
+              key={f}
+              style={[styles.ongletBtn, filtreContrats === f && styles.ongletBtnActive]}
+              onPress={() => setFiltreContrats(f)}
+            >
+              <Text style={[styles.ongletTxt, filtreContrats === f && styles.ongletTxtActive]}>
+                {f}{f === 'Sans contrat' ? ` (${sansContrat.length})` : ''}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {lignes.length === 0 && (
+          <Text style={{ fontSize: 14, color: colors.textMuted, padding: 20, textAlign: 'center' }}>
+            {filtreContrats === 'Expire bientôt'
+              ? 'Aucun contrat n\'arrive à échéance dans les 30 jours.'
+              : 'Rien à afficher.'}
+          </Text>
+        )}
+
+        {lignes.map(l => {
+          if (l.sansContrat) {
+            return (
+              <TouchableOpacity
+                key={l.id}
+                style={styles.travCard}
+                onPress={() => { setTravailleurSelectionne(l.travailleur); chargerContrats(l.travailleur.id); setModalTravailleur(true) }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.travNom}>{l.travailleur.nom}</Text>
+                  <Text style={styles.travPoste}>
+                    {l.travailleur.poste} · aucun contrat enregistré
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )
+          }
+          const badge = badgeEcheance(l, jour)
+          const trav = l.travailleurs || {}
+          return (
+            <TouchableOpacity
+              key={l.id}
+              style={styles.travCard}
+              onPress={() => {
+                const t = travailleurs.find(x => x.id === l.travailleur_id)
+                if (!t) return
+                setTravailleurSelectionne(t); chargerContrats(t.id); setModalTravailleur(true)
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.travNom}>{trav.nom || '—'}</Text>
+                <Text style={styles.travPoste}>
+                  {l.type}
+                  {l.date_fin ? ` · jusqu'au ${l.date_fin.split('-').reverse().join('/')}` : ' · sans échéance'}
+                </Text>
+              </View>
+              {badge && (
+                <View style={{ backgroundColor: badge.couleur, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                  <Text style={{ fontSize: 11, color: '#fff', fontWeight: '600' }}>{badge.texte}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )
+        })}
+      </View>
+    )
+  }
+
   function renderArchives() {
     if (loadingArchives) return (
       <View style={styles.loadingBox}>
@@ -1748,6 +1862,7 @@ export default function RHScreen() {
           {onglet === 'Travailleurs' && renderTravailleurs()}
           {onglet === 'Présences' && renderPresences()}
           {onglet === 'Salaires' && renderSalaires()}
+          {onglet === 'Contrats' && renderContrats()}
           {onglet === 'Archivés' && renderArchives()}
         </View>
       )}
