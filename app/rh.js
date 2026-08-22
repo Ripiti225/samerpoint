@@ -380,7 +380,7 @@ export default function RHScreen() {
       travailleur_id: trav.id,
       type_document: 'Contrat',
       fichier_url: contrat.photo_url,
-      fichier_type: contrat.photo_type === 'pdf' ? 'pdf' : 'image',
+      description: contrat.photo_type === 'pdf' ? 'pdf' : 'image',
     }).then(() => {}, () => {})
 
     await supabase.from('travailleurs')
@@ -548,7 +548,7 @@ export default function RHScreen() {
     setUploadingPapier(true)
     try {
       const { url, type } = await uploaderFichier({
-        uri, bucket: 'documents-travailleurs', prefixe: 'papier',
+        uri, dossier: 'documents-travailleurs', prefixe: 'papier',
         estPDF: fichierType === 'pdf',
       })
       setPapiersDraft(prev => [...prev, {

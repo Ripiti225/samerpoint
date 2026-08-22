@@ -97,7 +97,7 @@ export default function FormulaireContrat({
     setUpload(true)
     try {
       const res = await uploaderFichier({
-        uri, bucket: 'documents-travailleurs', prefixe: 'contrat', estPDF,
+        uri, dossier: 'documents-travailleurs', prefixe: 'contrat', estPDF,
       })
       setPhoto(res)
     } catch {
