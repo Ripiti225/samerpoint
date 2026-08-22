@@ -1,7 +1,7 @@
 import * as DocumentPicker from 'expo-document-picker'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as ImagePicker from 'expo-image-picker'
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import * as Sharing from 'expo-sharing'
 import { useEffect, useRef, useState, useMemo } from 'react'
 import {
@@ -59,7 +59,11 @@ export default function RHScreen() {
   const { roleActif, isManager, userId } = useApp() ?? {}
   const { choisirPhoto } = usePhoto()
   const peutSupprimer = isManager || roleActif === 'directeur'
-  const [onglet, setOnglet] = useState('Dashboard')
+  // La tuile d'accueil « Contrats » pointe sur /rh?onglet=Contrats : on ouvre
+  // directement le bon onglet plutôt que d'obliger à le chercher.
+  const { onglet: ongletDemande } = useLocalSearchParams()
+  const ongletInitial = ONGLETS.includes(ongletDemande) ? ongletDemande : 'Dashboard'
+  const [onglet, setOnglet] = useState(ongletInitial)
   const [periodeKey, setPeriodeKey] = useState('month')
   const [presences, setPresences] = useState([])
   const [paiesGerantDB, setPaiesGerantDB] = useState([])
@@ -119,6 +123,12 @@ export default function RHScreen() {
       chargerHistoriqueTravailleur()
     }
   }, [periodeTravailleur, travailleurSelectionne, modalTravailleur])
+
+  // Rouvrir la tuile Contrats alors que l'écran RH est déjà monté ne remonte pas
+  // le composant : sans cet effet, l'onglet resterait sur celui d'avant.
+  useEffect(() => {
+    if (ONGLETS.includes(ongletDemande)) setOnglet(ongletDemande)
+  }, [ongletDemande])
 
   useEffect(() => {
     if (!restoSelectionne) return
