@@ -199,6 +199,12 @@ d'année et le 31 d'un mois qui n'en a que 30.
 La durée libre est bornée à 1–60 mois. Au-delà c'est une faute de frappe, pas un contrat :
 « La durée doit être comprise entre 1 et 60 mois. »
 
+La date de fin reste **modifiable** après calcul, pour le cas rare d'un contrat qui ne
+tombe pas sur un nombre entier de mois (« jusqu'au 30 juin »). La corriger à la main met
+`duree_mois` à `null` : on n'enregistre pas une durée qui ne correspond plus aux dates.
+C'est la seule façon de garder la capacité qu'offrait l'ancien champ libre sans ajouter
+un deuxième bouton « Autre ».
+
 Un CDI n'a ni durée ni date de fin — inchangé.
 
 ## Une migration nécessaire
