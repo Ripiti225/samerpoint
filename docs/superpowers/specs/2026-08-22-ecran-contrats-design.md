@@ -67,7 +67,7 @@ différents — l'écran informe, le cron agit.
 
 | Filtre | Contenu |
 |---|---|
-| Expire bientôt | Contrat affiché dont l'échéance tombe dans 30 jours ou moins |
+| Expire bientôt | Contrat affiché dont l'échéance tombe dans 30 jours ou moins. Un CDI (sans date de fin) et un contrat rompu n'y entrent jamais. |
 | En cours | Contrat affiché en cours **ou** à venir — dans les deux cas, rien à faire |
 | Expirés | Contrat affiché terminé ou rompu — c'est la liste à traiter |
 | Sans contrat | Travailleurs actifs, hors Journaliers, sans aucun contrat |
@@ -98,6 +98,9 @@ c'est souvent l'ancien qui a été mal saisi.
 | Renouveler | Formulaire avec date de début pré-remplie au lendemain de la fin du contrat | Chevauchement |
 | Rompre | Date de rupture + motif obligatoire (Démission, Renvoi, Fin anticipée, Autre) | Date hors bornes |
 | Corriger | Formulaire pré-rempli : type, dates, photo | Chevauchement, règles du formulaire |
+
+En mode correction, la photo déjà enregistrée satisfait l'obligation de justificatif : on
+peut corriger une date sans redéposer le contrat signé. En remplacer un reste possible.
 | Supprimer | Double confirmation, irréversible | — |
 
 ### Messages d'erreur
