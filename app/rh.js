@@ -411,6 +411,13 @@ export default function RHScreen() {
       archived_at: new Date().toISOString(),
       archive_motif: motifFinal,
     }).eq('id', travailleurAction.id)
+    // Archiver, c'est rompre le contrat. Sans cette clôture, le cron continuerait
+    // d'envoyer des alertes d'échéance pour quelqu'un qui est parti.
+    await supabase.from('contrats_travailleurs')
+      .update({ cloture_le: aujourdhuiISO(), cloture_motif: motifFinal })
+      .eq('travailleur_id', travailleurAction.id)
+      .is('cloture_le', null)
+      .or(`date_fin.is.null,date_fin.gte.${aujourdhuiISO()}`)
     creerNotification({
       type: 'travailleur_archive',
       titre: '📦 Travailleur archivé',
@@ -473,7 +480,7 @@ export default function RHScreen() {
   function supprimerTravailleur(trav) {
     Alert.alert(
       '⚠️ Suppression définitive',
-      `Supprimer définitivement ${trav.nom} ? Toutes ses présences et documents seront effacés. Cette action est irréversible.`,
+      `Supprimer définitivement ${trav.nom} ? Toutes ses présences, ses documents et ses contrats seront effacés. Cette action est irréversible.`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -492,6 +499,7 @@ export default function RHScreen() {
                     await supabase.from('presences').delete().eq('travailleur_id', trav.id)
                     await supabase.from('demandes').delete().eq('travailleur_id', trav.id)
                     await supabase.from('documents_travailleurs').delete().eq('travailleur_id', trav.id)
+                    await supabase.from('contrats_travailleurs').delete().eq('travailleur_id', trav.id)
                     await supabase.from('travailleurs').delete().eq('id', trav.id)
                     creerNotification({
                       type: 'travailleur_supprime',
