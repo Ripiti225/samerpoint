@@ -51,7 +51,7 @@
 - Consumes : la table `contrats_travailleurs` (migration précédente).
 - Produces : la colonne `duree_mois` accepte tout entier de 1 à 60, ou `NULL`.
 
-- [ ] **Step 1 : Écrire la migration**
+- [x] **Step 1 : Écrire la migration**
 
 Le nom de la contrainte actuelle a été relevé sur la base de production : Postgres l'a
 générée automatiquement sous le nom `contrats_travailleurs_duree_mois_check`.
@@ -98,14 +98,14 @@ END $$;
 -- =====================================================================
 ```
 
-- [ ] **Step 2 : Vérifier la syntaxe du fichier**
+- [x] **Step 2 : Vérifier la syntaxe du fichier**
 
 Run: `grep -c "END \$\$" supabase_contrats_duree_libre.sql`
 Expected: `1`
 
 Relire que le `DO $$ ... END $$;` est bien fermé et que les deux blocs `IF` le sont aussi.
 
-- [ ] **Step 3 : Commit**
+- [x] **Step 3 : Commit**
 
 ```bash
 git add supabase_contrats_duree_libre.sql
@@ -143,7 +143,7 @@ Module pur, sans React ni réseau. Tout ce qui suit se teste sans base de donné
   - `validerCloture(contrat, dateCloture, motif): { ok, erreur }`
   - `validerDureeLibre(valeur): { ok, erreur, mois }`
 
-- [ ] **Step 1 : Écrire les tests qui échouent**
+- [x] **Step 1 : Écrire les tests qui échouent**
 
 Ajouter à la fin de `lib/contrats.test.mjs`. Compléter aussi la ligne d'import en tête du
 fichier pour y ajouter les nouveaux noms.
@@ -314,12 +314,12 @@ describe('validerDureeLibre', () => {
 })
 ```
 
-- [ ] **Step 2 : Lancer les tests pour vérifier qu'ils échouent**
+- [x] **Step 2 : Lancer les tests pour vérifier qu'ils échouent**
 
 Run: `node --test lib/contrats.test.mjs`
 Expected: FAIL — les nouveaux noms ne sont pas exportés.
 
-- [ ] **Step 3 : Modifier `lib/contrats.js`**
+- [x] **Step 3 : Modifier `lib/contrats.js`**
 
 Remplacer la ligne `export const DUREES_MOIS = [3, 6, 12]` par les constantes ci-dessous,
 et ajouter les fonctions à la suite de celles qui existent.
@@ -403,13 +403,13 @@ export function validerDureeLibre(valeur) {
 }
 ```
 
-- [ ] **Step 4 : Lancer les tests pour vérifier qu'ils passent**
+- [x] **Step 4 : Lancer les tests pour vérifier qu'ils passent**
 
 Run: `npm test`
 Expected: PASS, aucun échec. Les tests déjà présents doivent rester verts — en particulier
 `palierAEnvoyer` et `doitEtreDesactive`, que ce plan ne touche pas.
 
-- [ ] **Step 5 : Commit**
+- [x] **Step 5 : Commit**
 
 ```bash
 git add lib/contrats.js lib/contrats.test.mjs
@@ -436,7 +436,7 @@ mois**, et une date de fin calculée mais **modifiable**. Il gagne aussi un mode
   `date_fin` et `duree_mois` valent `null` pour un CDI. `duree_mois` vaut `null` quand la
   date de fin a été saisie à la main.
 
-- [ ] **Step 1 : Écrire le composant**
+- [x] **Step 1 : Écrire le composant**
 
 ```jsx
 // ──────────────────────────────────────────────────────────────────────────────
@@ -747,7 +747,7 @@ export default function FormulaireContrat({
 }
 ```
 
-- [ ] **Step 2 : Vérifier**
+- [x] **Step 2 : Vérifier**
 
 Run: `npx eslint components/FormulaireContrat.js`
 Expected: 0 erreur, 0 warning.
@@ -756,7 +756,7 @@ Le composant n'est pas encore branché sur le nouvel écran : rien à voir dans 
 stade. Le bloc de la fiche travailleur dans RH continue de fonctionner, la signature du
 composant restant compatible (`contratEdite` est simplement absent).
 
-- [ ] **Step 3 : Commit**
+- [x] **Step 3 : Commit**
 
 ```bash
 git add components/FormulaireContrat.js
@@ -777,7 +777,7 @@ git commit -m "feat(contrats): durées libres, date de fin modifiable et mode co
   `travailleurs` sont des lignes de la table `travailleurs`, chacune avec `restaurants: { nom }`
   grâce à la jointure faite par l'écran. `onChoisir(travailleur)` est appelé au clic.
 
-- [ ] **Step 1 : Écrire le composant**
+- [x] **Step 1 : Écrire le composant**
 
 ```jsx
 // ──────────────────────────────────────────────────────────────────────────────
@@ -868,12 +868,12 @@ export default function SelecteurTravailleur({
 }
 ```
 
-- [ ] **Step 2 : Vérifier**
+- [x] **Step 2 : Vérifier**
 
 Run: `npx eslint components/SelecteurTravailleur.js`
 Expected: 0 erreur, 0 warning.
 
-- [ ] **Step 3 : Commit**
+- [x] **Step 3 : Commit**
 
 ```bash
 git add components/SelecteurTravailleur.js
@@ -896,7 +896,7 @@ git commit -m "feat(contrats): sélecteur de travailleur pour l'ajout d'un contr
   - `onSupprimer(contrat)` — l'écran supprime après sa propre confirmation.
   - `onRompre(contrat, dateCloture, motif)` — la validation a déjà été faite ici.
 
-- [ ] **Step 1 : Écrire le composant**
+- [x] **Step 1 : Écrire le composant**
 
 ```jsx
 // ──────────────────────────────────────────────────────────────────────────────
@@ -1149,12 +1149,12 @@ export default function FicheContrat({
 }
 ```
 
-- [ ] **Step 2 : Vérifier**
+- [x] **Step 2 : Vérifier**
 
 Run: `npx eslint components/FicheContrat.js`
 Expected: 0 erreur, 0 warning.
 
-- [ ] **Step 3 : Commit**
+- [x] **Step 3 : Commit**
 
 ```bash
 git add components/FicheContrat.js
@@ -1172,7 +1172,7 @@ git commit -m "feat(contrats): fiche travailleur avec historique et les quatre a
 - Consumes : `lib/contrats.js`, `components/FicheContrat.js`, `components/FormulaireContrat.js`, `components/SelecteurTravailleur.js`, `lib/supabase.js`, `lib/journal.js`, `lib/notificationsInterne.js`, `context/AppContext`, `context/ThemeContext`.
 - Produces : la route `/contrats`, atteignable depuis la tuile d'accueil.
 
-- [ ] **Step 1 : Écrire l'écran**
+- [x] **Step 1 : Écrire l'écran**
 
 ```jsx
 // ──────────────────────────────────────────────────────────────────────────────
@@ -1656,7 +1656,7 @@ function makeStyles(colors) { return StyleSheet.create({
 }) }
 ```
 
-- [ ] **Step 2 : Vérifier**
+- [x] **Step 2 : Vérifier**
 
 Run: `npx eslint app/contrats.js`
 Expected: 0 erreur.
@@ -1676,7 +1676,7 @@ La migration de la Task 1 doit avoir été passée pour les points 4 et 5.
 7. **Corriger** un contrat : la photo déjà enregistrée est indiquée, changer une date suffit.
 8. **Supprimer** un contrat de test → double confirmation → il disparaît de la fiche.
 
-- [ ] **Step 4 : Commit**
+- [x] **Step 4 : Commit**
 
 ```bash
 git add app/contrats.js
@@ -1696,13 +1696,13 @@ git commit -m "feat(contrats): écran autonome avec filtres, fiche et actions"
 - Consumes : `app/contrats.js` (Task 6) doit exister avant, sinon la tuile pointe dans le vide.
 - Produces : plus aucune gestion de contrat dans `app/rh.js`.
 
-- [ ] **Step 1 : Faire pointer la tuile sur le nouvel écran**
+- [x] **Step 1 : Faire pointer la tuile sur le nouvel écran**
 
 Dans `lib/menus.js`, remplacer `route: '/rh?onglet=Contrats'` par `route: '/contrats'` sur
 la ligne dont l'`id` est `contrats`. Ne pas toucher à l'`id` : il est stocké en base dans
 `roles_acces`, le renommer ferait disparaître la tuile pour le rôle RH.
 
-- [ ] **Step 2 : Rendre `onAjouter` optionnel dans le bloc**
+- [x] **Step 2 : Rendre `onAjouter` optionnel dans le bloc**
 
 Dans `components/BlocContrats.js`, remplacer le bouton d'ajout par un rendu conditionnel :
 
@@ -1721,7 +1721,7 @@ Dans `components/BlocContrats.js`, remplacer le bouton d'ajout par un rendu cond
       )}
 ```
 
-- [ ] **Step 3 : Retirer l'onglet Contrats de `app/rh.js`**
+- [x] **Step 3 : Retirer l'onglet Contrats de `app/rh.js`**
 
 Six suppressions, à faire dans cet ordre :
 
@@ -1769,7 +1769,7 @@ Supprimer enfin l'import devenu inutile `badgeEcheance` (l'import redevient
 `import { aujourdhuiISO, statutContrat } from '../lib/contrats'` s'il n'est plus utilisé
 ailleurs dans le fichier.
 
-- [ ] **Step 4 : Vérifier**
+- [x] **Step 4 : Vérifier**
 
 Run: `npx eslint app/rh.js lib/menus.js components/BlocContrats.js`
 Expected: 0 erreur. Aucun avertissement `no-unused-vars` : s'il en reste un, c'est qu'un
@@ -1788,7 +1788,7 @@ Run: `npm start`
    avec la mention « À gérer dans l'écran Contrats ».
 3. Accueil → tuile Contrats → ouvre bien `/contrats` et non l'écran RH.
 
-- [ ] **Step 6 : Commit**
+- [x] **Step 6 : Commit**
 
 ```bash
 git add lib/menus.js app/rh.js components/BlocContrats.js
@@ -1799,11 +1799,11 @@ git commit -m "refactor(rh): les contrats quittent l'écran RH pour leur écran 
 
 ## Vérification finale
 
-- [ ] `npm test` — tous les fichiers `lib/*.test.mjs` verts.
-- [ ] `npm run lint` — aucune erreur nouvelle.
+- [x] `npm test` — tous les fichiers `lib/*.test.mjs` verts.
+- [x] `npm run lint` — aucune erreur nouvelle.
 - [ ] Migration `supabase_contrats_duree_libre.sql` passée dans Supabase.
 - [ ] Parcours complet : accueil → Contrats → nouveau Stage 3 mois → renouveler 4 mois →
       la fiche montre « 1er » et « 2e contrat de stage » → la liste ne montre le travailleur
       qu'une fois → rompre le contrat en cours → il passe dans « Expirés ».
 - [ ] Passer un travailleur du Stage au CDD : le CDD s'affiche « CDD · 1er contrat ».
-- [ ] `grep -rn "onglet=Contrats" app lib components` — aucun résultat.
+- [x] `grep -rn "onglet=Contrats" app lib components` — aucun résultat.
