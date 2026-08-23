@@ -460,14 +460,6 @@ export default function RHScreen() {
     )
   }
 
-  function choisirFichierPapier(typeDoc) {
-    Alert.alert(typeDoc, 'Type de fichier', [
-      { text: 'Photo (JPG/PNG)', onPress: () => choisirPhotoPapier(typeDoc) },
-      { text: 'Document PDF', onPress: () => choisirPDFPapier(typeDoc) },
-      { text: 'Annuler', style: 'cancel' },
-    ])
-  }
-
   async function choisirPhotoPapier(typeDoc) {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -1495,13 +1487,25 @@ export default function RHScreen() {
                             </TouchableOpacity>
                           </View>
                         ) : (
-                          <TouchableOpacity
-                            style={[styles.papierBtn, uploadingPapier && { opacity: 0.5 }]}
-                            onPress={() => choisirFichierPapier(type)}
-                            disabled={uploadingPapier}
-                          >
-                            <Text style={styles.papierBtnTxt}>{uploadingPapier ? '…' : '+ Ajouter'}</Text>
-                          </TouchableOpacity>
+                          <View style={{ flexDirection: 'row', gap: 6 }}>
+                            {/* Deux boutons distincts : sur le web, un menu
+                                Alert se réduit à window.confirm et le choix
+                                PDF ne serait jamais atteignable. */}
+                            <TouchableOpacity
+                              style={[styles.papierBtn, uploadingPapier && { opacity: 0.5 }]}
+                              onPress={() => choisirPhotoPapier(type)}
+                              disabled={uploadingPapier}
+                            >
+                              <Text style={styles.papierBtnTxt}>{uploadingPapier ? '…' : '📷 Photo'}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.papierBtn, uploadingPapier && { opacity: 0.5 }]}
+                              onPress={() => choisirPDFPapier(type)}
+                              disabled={uploadingPapier}
+                            >
+                              <Text style={styles.papierBtnTxt}>{uploadingPapier ? '…' : '📄 PDF'}</Text>
+                            </TouchableOpacity>
+                          </View>
                         )}
                       </View>
                     )

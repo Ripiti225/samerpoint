@@ -107,14 +107,6 @@ export default function FormulaireContrat({
     setFinManuelle(false)   // reprendre un bouton reprend la main sur la date
   }
 
-  function choisirFichier() {
-    Alert.alert('Contrat signé', 'Type de fichier', [
-      { text: 'Photo (JPG/PNG)', onPress: () => prendrePhoto() },
-      { text: 'Document PDF', onPress: () => prendrePDF() },
-      { text: 'Annuler', style: 'cancel' },
-    ])
-  }
-
   async function prendrePhoto() {
     const r = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.85,
@@ -260,22 +252,37 @@ export default function FormulaireContrat({
             )}
 
             <Text style={label}>Contrat signé * (photo ou PDF)</Text>
-            <TouchableOpacity
-              style={[input, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}
-              onPress={choisirFichier}
-              disabled={upload}
-            >
-              <Text style={{ fontSize: 15, color: photoUrl ? colors.text : '#bbb' }}>
+            {/* Deux boutons distincts, jamais un menu : sur le web, Alert.alert
+                passe par window.confirm, qui ne peut offrir que deux issues —
+                le troisième choix serait inatteignable. */}
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+              <TouchableOpacity
+                style={[puce, { flex: 1, paddingVertical: 14 }, upload && { opacity: 0.5 }]}
+                onPress={prendrePhoto}
+                disabled={upload}
+              >
+                <Text style={{ fontSize: 14, color: colors.text }}>📷 Photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[puce, { flex: 1, paddingVertical: 14 }, upload && { opacity: 0.5 }]}
+                onPress={prendrePDF}
+                disabled={upload}
+              >
+                <Text style={{ fontSize: 14, color: colors.text }}>📄 PDF</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              {upload && <ActivityIndicator size="small" />}
+              <Text style={{ fontSize: 13, color: photoUrl ? '#3B6D11' : colors.textMuted }}>
                 {upload
                   ? 'Envoi en cours…'
                   : photo
                     ? `✓ ${photo.type === 'pdf' ? 'PDF' : 'Photo'} ajouté`
                     : contratEdite?.photo_url
-                      ? `✓ ${contratEdite.photo_type === 'pdf' ? 'PDF' : 'Photo'} déjà enregistré — appuyer pour remplacer`
-                      : 'Ajouter le contrat signé'}
+                      ? `✓ ${contratEdite.photo_type === 'pdf' ? 'PDF' : 'Photo'} déjà enregistré — choisis un fichier pour le remplacer`
+                      : 'Aucun fichier choisi'}
               </Text>
-              {upload ? <ActivityIndicator size="small" /> : <Text style={{ color: '#185FA5' }}>+</Text>}
-            </TouchableOpacity>
+            </View>
 
             {!validation.ok && (
               <Text style={{ fontSize: 13, color: '#993C1D', marginBottom: 14 }}>{validation.erreur}</Text>
