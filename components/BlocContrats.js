@@ -96,12 +96,18 @@ export default function BlocContrats({ travailleur, contrats, colors, onAjouter 
         </>
       )}
 
-      <TouchableOpacity
-        style={{ marginTop: 10, alignSelf: 'flex-start', backgroundColor: colors.bg, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, borderWidth: 0.5, borderColor: colors.border }}
-        onPress={onAjouter}
-      >
-        <Text style={{ fontSize: 13, color: '#185FA5', fontWeight: '500' }}>+ Nouveau contrat</Text>
-      </TouchableOpacity>
+      {onAjouter ? (
+        <TouchableOpacity
+          style={{ marginTop: 10, alignSelf: 'flex-start', backgroundColor: colors.bg, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, borderWidth: 0.5, borderColor: colors.border }}
+          onPress={onAjouter}
+        >
+          <Text style={{ fontSize: 13, color: '#185FA5', fontWeight: '500' }}>+ Nouveau contrat</Text>
+        </TouchableOpacity>
+      ) : (
+        <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 10 }}>
+          À gérer dans l'écran Contrats.
+        </Text>
+      )}
     </View>
   )
 }

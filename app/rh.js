@@ -1,7 +1,7 @@
 import * as DocumentPicker from 'expo-document-picker'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as ImagePicker from 'expo-image-picker'
-import { router, useLocalSearchParams } from 'expo-router'
+import { router } from 'expo-router'
 import * as Sharing from 'expo-sharing'
 import { useEffect, useRef, useState, useMemo } from 'react'
 import {
@@ -22,12 +22,11 @@ import {
 } from 'react-native'
 import { Calendar } from 'react-native-calendars'
 import * as XLSX from 'xlsx'
-import BlocContrats, { badgeEcheance } from '../components/BlocContrats'
-import FormulaireContrat from '../components/FormulaireContrat'
+import BlocContrats from '../components/BlocContrats'
 import FormulaireTravailleur from '../components/FormulaireTravailleur'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
-import { aujourdhuiISO, statutContrat } from '../lib/contrats'
+import { aujourdhuiISO } from '../lib/contrats'
 import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifNouveauTravailleur } from '../lib/notifications'
 import { supabase } from '../lib/supabase'
@@ -50,20 +49,16 @@ const PERIODES = [
   { label: '📅 Période', key: 'custom' },
 ]
 
-const ONGLETS = ['Dashboard', 'Travailleurs', 'Présences', 'Salaires', 'Contrats', 'Archivés']
+const ONGLETS = ['Dashboard', 'Travailleurs', 'Présences', 'Salaires', 'Archivés']
 const MOTIFS_ARCHIVE = ['Démission', 'Renvoi', 'Fin de contrat', 'Autre']
 
 export default function RHScreen() {
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
-  const { roleActif, isManager, userId } = useApp() ?? {}
+  const { roleActif, isManager } = useApp() ?? {}
   const { choisirPhoto } = usePhoto()
   const peutSupprimer = isManager || roleActif === 'directeur'
-  // La tuile d'accueil « Contrats » pointe sur /rh?onglet=Contrats : on ouvre
-  // directement le bon onglet plutôt que d'obliger à le chercher.
-  const { onglet: ongletDemande } = useLocalSearchParams()
-  const ongletInitial = ONGLETS.includes(ongletDemande) ? ongletDemande : 'Dashboard'
-  const [onglet, setOnglet] = useState(ongletInitial)
+  const [onglet, setOnglet] = useState('Dashboard')
   const [periodeKey, setPeriodeKey] = useState('month')
   const [presences, setPresences] = useState([])
   const [paiesGerantDB, setPaiesGerantDB] = useState([])
@@ -81,9 +76,6 @@ export default function RHScreen() {
   const [travailleurSelectionne, setTravailleurSelectionne] = useState(null)
   const [modalTravailleur, setModalTravailleur] = useState(false)
   const [contratsTravailleur, setContratsTravailleur] = useState([])
-  const [modalContrat, setModalContrat] = useState(false)
-  const [tousContrats, setTousContrats] = useState([])
-  const [filtreContrats, setFiltreContrats] = useState('Expire bientôt')
   const [periodeTravailleur, setPeriodeTravailleur] = useState('month')
   const [presencesTravailleur, setPresencesTravailleur] = useState([])
   const [loadingTravailleur, setLoadingTravailleur] = useState(false)
@@ -124,16 +116,9 @@ export default function RHScreen() {
     }
   }, [periodeTravailleur, travailleurSelectionne, modalTravailleur])
 
-  // Rouvrir la tuile Contrats alors que l'écran RH est déjà monté ne remonte pas
-  // le composant : sans cet effet, l'onglet resterait sur celui d'avant.
-  useEffect(() => {
-    if (ONGLETS.includes(ongletDemande)) setOnglet(ongletDemande)
-  }, [ongletDemande])
-
   useEffect(() => {
     if (!restoSelectionne) return
     if (onglet === 'Archivés') chargerArchives()
-    if (onglet === 'Contrats') chargerTousContrats()
   }, [restoSelectionne, onglet])
 
   const isMountedRef = useRef(true)
@@ -333,16 +318,6 @@ export default function RHScreen() {
     setUploadingPhotoProfil(false)
   }
 
-  // Une seule requête, puis regroupement en mémoire : les contrats se comptent
-  // en dizaines, pas en milliers.
-  async function chargerTousContrats() {
-    const { data } = await supabase
-      .from('contrats_travailleurs')
-      .select('*, travailleurs(nom, poste, restaurant_id, actif)')
-      .order('date_fin', { ascending: true, nullsFirst: false })
-    setTousContrats(data || [])
-  }
-
   async function chargerArchives() {
     if (!restoSelectionne) return
     setLoadingArchives(true)
@@ -363,52 +338,6 @@ export default function RHScreen() {
       .eq('travailleur_id', travailleurId)
       .order('date_debut', { ascending: true })
     setContratsTravailleur(data || [])
-  }
-
-  async function enregistrerContrat(contrat) {
-    const trav = travailleurSelectionne
-    if (!trav) return
-    const { error } = await supabase.from('contrats_travailleurs').insert({
-      ...contrat,
-      travailleur_id: trav.id,
-      restaurant_id: trav.restaurant_id || null,
-      cree_par: userId || null,
-    })
-    if (error) {
-      // Le chevauchement est refusé par la base : c'est la seule erreur que le
-      // RH peut corriger lui-même, elle mérite donc son propre message.
-      const chevauchement = String(error.message || '').includes('contrats_sans_chevauchement')
-      Alert.alert(
-        'Contrat non enregistré',
-        chevauchement
-          ? "Ce travailleur a déjà un contrat sur cette période. Vérifie les dates."
-          : "Impossible d'enregistrer le contrat. Vérifie ta connexion et réessaie."
-      )
-      return
-    }
-    await supabase.from('documents_travailleurs').insert({
-      travailleur_id: trav.id,
-      type_document: 'Contrat',
-      fichier_url: contrat.photo_url,
-      description: contrat.photo_type === 'pdf' ? 'pdf' : 'image',
-    }).then(() => {}, () => {})
-
-    await supabase.from('travailleurs')
-      .update({ type_contrat: contrat.type })
-      .eq('id', trav.id)
-
-    creerNotification({
-      type: 'contrat_ajoute',
-      titre: '📝 Contrat enregistré',
-      message: `${contrat.type} pour ${trav.nom}${contrat.date_fin ? ` — jusqu'au ${contrat.date_fin}` : ''}`,
-      restaurant_id: trav.restaurant_id || null,
-      cible_role: ['manager', 'directeur'],
-      screen: 'rh',
-    }).catch(() => {})
-
-    setModalContrat(false)
-    await chargerContrats(trav.id)
-    chargerDonnees()
   }
 
   async function archiverTravailleur() {
@@ -1147,106 +1076,6 @@ export default function RHScreen() {
   }
 
   // ─── ARCHIVÉS ──────────────────────────────────────────────
-  // ─── ONGLET CONTRATS ────────────────────────────────────────
-  function renderContrats() {
-    const jour = aujourdhuiISO()
-    const actifs = travailleurs.filter(t => t.actif !== false)
-    // Les contrats sont chargés tous restaurants confondus : on les ramène au
-    // restaurant affiché, sinon le compteur « Sans contrat » et les lignes
-    // listées ne parleraient pas du même effectif.
-    const idsResto = new Set(travailleurs.map(t => t.id))
-    const contratsResto = tousContrats.filter(c => idsResto.has(c.travailleur_id))
-    const avecContrat = new Set(contratsResto.map(c => c.travailleur_id))
-    // Les Journaliers n'ont pas de contrat par construction : les compter comme
-    // « sans contrat » noierait les fiches qui en attendent vraiment un.
-    const sansContrat = actifs.filter(t => !avecContrat.has(t.id) && t.type_contrat !== 'Journalier')
-
-    const filtres = ['Expire bientôt', 'En cours', 'Expirés', 'Sans contrat']
-
-    let lignes = []
-    if (filtreContrats === 'Sans contrat') {
-      lignes = sansContrat.map(t => ({ sansContrat: true, travailleur: t, id: t.id }))
-    } else {
-      lignes = contratsResto.filter(c => {
-        const statut = statutContrat(c, jour)
-        if (filtreContrats === 'En cours') return statut === 'en_cours'
-        if (filtreContrats === 'Expirés') return statut === 'expire' || statut === 'rompu'
-        return badgeEcheance(c, jour) !== null   // Expire bientôt
-      })
-    }
-
-    return (
-      <View>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-          {filtres.map(f => (
-            <TouchableOpacity
-              key={f}
-              style={[styles.ongletBtn, filtreContrats === f && styles.ongletBtnActive]}
-              onPress={() => setFiltreContrats(f)}
-            >
-              <Text style={[styles.ongletTxt, filtreContrats === f && styles.ongletTxtActive]}>
-                {f}{f === 'Sans contrat' ? ` (${sansContrat.length})` : ''}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {lignes.length === 0 && (
-          <Text style={{ fontSize: 14, color: colors.textMuted, padding: 20, textAlign: 'center' }}>
-            {filtreContrats === 'Expire bientôt'
-              ? 'Aucun contrat n\'arrive à échéance dans les 30 jours.'
-              : 'Rien à afficher.'}
-          </Text>
-        )}
-
-        {lignes.map(l => {
-          if (l.sansContrat) {
-            return (
-              <TouchableOpacity
-                key={l.id}
-                style={styles.travCard}
-                onPress={() => { setTravailleurSelectionne(l.travailleur); chargerContrats(l.travailleur.id); setModalTravailleur(true) }}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.travNom}>{l.travailleur.nom}</Text>
-                  <Text style={styles.travPoste}>
-                    {l.travailleur.poste} · aucun contrat enregistré
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            )
-          }
-          const badge = badgeEcheance(l, jour)
-          const trav = l.travailleurs || {}
-          return (
-            <TouchableOpacity
-              key={l.id}
-              style={styles.travCard}
-              onPress={() => {
-                const t = travailleurs.find(x => x.id === l.travailleur_id)
-                if (!t) return
-                setTravailleurSelectionne(t); chargerContrats(t.id); setModalTravailleur(true)
-              }}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.travNom}>{trav.nom || '—'}</Text>
-                <Text style={styles.travPoste}>
-                  {l.type}
-                  {l.date_fin ? ` · jusqu'au ${l.date_fin.split('-').reverse().join('/')}` : ' · sans échéance'}
-                </Text>
-              </View>
-              {badge && (
-                <View style={{ backgroundColor: badge.couleur, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                  <Text style={{ fontSize: 11, color: '#fff', fontWeight: '600' }}>{badge.texte}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          )
-        })}
-      </View>
-    )
-  }
-
   function renderArchives() {
     if (loadingArchives) return (
       <View style={styles.loadingBox}>
@@ -1440,7 +1269,6 @@ export default function RHScreen() {
                 travailleur={travailleurSelectionne}
                 contrats={contratsTravailleur}
                 colors={colors}
-                onAjouter={() => setModalContrat(true)}
               />
               <View style={styles.travStatsGrid}>
                 <View style={[styles.travStatCard, { backgroundColor: '#EAF3DE' }]}>
@@ -1880,7 +1708,6 @@ export default function RHScreen() {
           {onglet === 'Travailleurs' && renderTravailleurs()}
           {onglet === 'Présences' && renderPresences()}
           {onglet === 'Salaires' && renderSalaires()}
-          {onglet === 'Contrats' && renderContrats()}
           {onglet === 'Archivés' && renderArchives()}
         </View>
       )}
@@ -1890,15 +1717,6 @@ export default function RHScreen() {
       {renderModalFormTravailleur()}
       {renderModalCalendrier()}
       {renderModalArchiveAction()}
-
-      <FormulaireContrat
-        visible={modalContrat}
-        travailleur={travailleurSelectionne}
-        contratsExistants={contratsTravailleur}
-        colors={colors}
-        onFermer={() => setModalContrat(false)}
-        onEnregistrer={enregistrerContrat}
-      />
     </SafeAreaView>
   )
 }
