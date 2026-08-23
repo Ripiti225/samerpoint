@@ -1289,7 +1289,7 @@ export default function ContratsScreen() {
   const compteurs = useMemo(() => {
     let expire = 0, enCours = 0, sans = 0
     for (const l of lignes) {
-      if (!l.contrat) { if (l.travailleur.type_contrat !== 'Journalier') sans++; continue }
+      if (!l.contrat) { sans++; continue }
       const s = statutContrat(l.contrat, jour)
       if (s === 'en_cours' || s === 'a_venir') enCours++
       if (badge(l.contrat)) expire++
@@ -1299,11 +1299,9 @@ export default function ContratsScreen() {
   }, [lignes, jour])
 
   const affichees = lignes.filter(l => {
-    if (filtreEtat === 'Sans contrat') {
-      // Les Journaliers n'ont pas de contrat par construction : les compter
-      // noierait les fiches qui en attendent vraiment un.
-      return !l.contrat && l.travailleur.type_contrat !== 'Journalier'
-    }
+    // Aucune exception de type : un journalier sans contrat est un travailleur
+    // sans contrat, tant qu'on ne lui en a pas enregistré un.
+    if (filtreEtat === 'Sans contrat') return !l.contrat
     if (!l.contrat) return false
     const s = statutContrat(l.contrat, jour)
     if (filtreEtat === 'En cours') return s === 'en_cours' || s === 'a_venir'
@@ -1668,7 +1666,7 @@ Run: `npm start`
 La migration de la Task 1 doit avoir été passée pour les points 4 et 5.
 
 1. Accueil → tuile **Contrats** → l'écran s'ouvre sur « Expire bientôt ».
-2. Filtre **Sans contrat** → la liste montre les travailleurs sans contrat, sans les Journaliers.
+2. Filtre **Sans contrat** → la liste montre tous les travailleurs sans contrat, journaliers compris.
 3. `+ Nouveau contrat` → choisir un travailleur → Stage, 3 mois, photo → enregistrer.
 4. Rouvrir sa fiche → `+ Renouveler` → la date de début est le lendemain de la fin. Choisir **Autre** et taper `4` → la date de fin se cale 4 mois plus tard. Enregistrer.
 5. Sa fiche affiche maintenant « Stage · 1er contrat » et « Stage · 2e contrat ». Dans la liste principale il n'apparaît **qu'une fois**.

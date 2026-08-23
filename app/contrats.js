@@ -112,7 +112,7 @@ export default function ContratsScreen() {
   const compteurs = useMemo(() => {
     let expire = 0, enCours = 0, sans = 0
     for (const l of lignes) {
-      if (!l.contrat) { if (l.travailleur.type_contrat !== 'Journalier') sans++; continue }
+      if (!l.contrat) { sans++; continue }
       const s = statutContrat(l.contrat, jour)
       if (s === 'en_cours' || s === 'a_venir') enCours++
       if (badge(l.contrat)) expire++
@@ -126,11 +126,9 @@ export default function ContratsScreen() {
     // avec ou sans contrat : c'est la vue d'entrée, celle où l'on cherche
     // quelqu'un par son nom plutôt que par l'état de son contrat.
     if (filtreEtat === 'Travailleurs') return true
-    if (filtreEtat === 'Sans contrat') {
-      // Les Journaliers n'ont pas de contrat par construction : les compter
-      // noierait les fiches qui en attendent vraiment un.
-      return !l.contrat && l.travailleur.type_contrat !== 'Journalier'
-    }
+    // Aucune exception de type : un journalier sans contrat est un travailleur
+    // sans contrat, tant qu'on ne lui en a pas enregistré un.
+    if (filtreEtat === 'Sans contrat') return !l.contrat
     if (!l.contrat) return false
     const s = statutContrat(l.contrat, jour)
     if (filtreEtat === 'En cours') return s === 'en_cours' || s === 'a_venir'
@@ -287,11 +285,7 @@ export default function ContratsScreen() {
   // contrat valable aujourd'hui ? Un contrat terminé n'en est pas un.
   function pied(l) {
     const c = l.contrat
-    if (!c) {
-      return l.travailleur.type_contrat === 'Journalier'
-        ? { txt: 'Journalier — aucun contrat requis', couleur: colors.textMuted }
-        : { txt: '⚠ Aucun contrat', couleur: '#993C1D' }
-    }
+    if (!c) return { txt: '⚠ Aucun contrat', couleur: '#993C1D' }
     const s = statutContrat(c, jour)
     if (s === 'en_cours') return { txt: '✓ Sous contrat', couleur: '#3B6D11' }
     if (s === 'a_venir') return { txt: '✓ Contrat à venir', couleur: '#185FA5' }

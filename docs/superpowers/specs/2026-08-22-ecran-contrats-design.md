@@ -91,14 +91,15 @@ différents — l'écran informe, le cron agit.
 | Expire bientôt | Contrat affiché dont l'échéance tombe dans 30 jours ou moins. Un CDI (sans date de fin) et un contrat rompu n'y entrent jamais. |
 | En cours | Contrat affiché en cours **ou** à venir — dans les deux cas, rien à faire |
 | Expirés | Contrat affiché terminé ou rompu — c'est la liste à traiter |
-| Sans contrat | Travailleurs actifs, hors Journaliers, sans aucun contrat |
+| Sans contrat | Tous les travailleurs actifs sans aucun contrat, sans exception de type |
 
 « Expire bientôt » est un sous-ensemble de « En cours » : c'est une vue de priorité, pas
 une catégorie disjointe. Les quatre filtres couvrent tous les travailleurs actifs, aucun
 ne peut passer entre les mailles.
 
-Les Journaliers sont exclus de « Sans contrat » : ils n'ont pas de contrat par construction,
-les compter noierait les fiches qui en attendent vraiment un.
+Aucune exception de type. Un journalier n'a pas de contrat tant qu'on ne lui en a pas
+enregistré un — l'exclure de la liste reviendrait à décider à la place du RH qu'il n'en
+aura jamais. Le filtre montre l'état réel, il ne présume pas de l'intention.
 
 ## Ajouter un contrat
 
