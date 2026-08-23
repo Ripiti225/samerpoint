@@ -156,8 +156,12 @@ export default function ContratsScreen() {
     if (txt.includes('contrats_sans_chevauchement')) {
       return 'Ce travailleur a déjà un contrat sur cette période. Vérifie les dates.'
     }
-    if (txt.includes('contrat_duree_bornee')) {
-      return 'La durée doit être comprise entre 1 et 60 mois.'
+    // Deux noms possibles : `contrat_duree_bornee` après la migration des durées
+    // libres, `contrats_travailleurs_duree_mois_check` tant qu'elle n'est pas
+    // passée. Sans le second, un contrat de 4 mois renvoyait un message générique
+    // qui n'expliquait rien.
+    if (txt.includes('duree_mois') || txt.includes('contrat_duree_bornee')) {
+      return 'Cette durée est refusée par la base. Si la migration des durées libres n\'a pas encore été passée, seules 3, 6 et 12 mois sont acceptées.'
     }
     if (txt.includes('contrat_cdi_sans_fin')) {
       return "Un CDI n'a pas de date de fin, et un Stage ou un CDD doit en avoir une."
