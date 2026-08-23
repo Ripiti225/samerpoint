@@ -28,7 +28,7 @@ import { journaliser } from '../lib/journal'
 import { creerNotification } from '../lib/notificationsInterne'
 import { supabase } from '../lib/supabase'
 
-const FILTRES = ['Expire bientôt', 'En cours', 'Expirés', 'Sans contrat']
+const FILTRES = ['Travailleurs', 'Expire bientôt', 'En cours', 'Expirés', 'Sans contrat']
 const SEUIL_BADGE_JOURS = 30
 
 export default function ContratsScreen() {
@@ -43,7 +43,7 @@ export default function ContratsScreen() {
 
   const [recherche, setRecherche] = useState('')
   const [filtreResto, setFiltreResto] = useState('tous')
-  const [filtreEtat, setFiltreEtat] = useState('Expire bientôt')
+  const [filtreEtat, setFiltreEtat] = useState('Travailleurs')
 
   const [ficheVisible, setFicheVisible] = useState(false)
   const [travSelectionne, setTravSelectionne] = useState(null)
@@ -122,6 +122,10 @@ export default function ContratsScreen() {
   }, [lignes, jour])
 
   const affichees = lignes.filter(l => {
+    // L'onglet « Travailleurs » montre tout l'effectif du restaurant choisi,
+    // avec ou sans contrat : c'est la vue d'entrée, celle où l'on cherche
+    // quelqu'un par son nom plutôt que par l'état de son contrat.
+    if (filtreEtat === 'Travailleurs') return true
     if (filtreEtat === 'Sans contrat') {
       // Les Journaliers n'ont pas de contrat par construction : les compter
       // noierait les fiches qui en attendent vraiment un.
@@ -279,9 +283,25 @@ export default function ContratsScreen() {
     await charger()
   }
 
+  // Le pied de carte répond à une seule question : cette personne a-t-elle un
+  // contrat valable aujourd'hui ? Un contrat terminé n'en est pas un.
+  function pied(l) {
+    const c = l.contrat
+    if (!c) {
+      return l.travailleur.type_contrat === 'Journalier'
+        ? { txt: 'Journalier — aucun contrat requis', couleur: colors.textMuted }
+        : { txt: '⚠ Aucun contrat', couleur: '#993C1D' }
+    }
+    const s = statutContrat(c, jour)
+    if (s === 'en_cours') return { txt: '✓ Sous contrat', couleur: '#3B6D11' }
+    if (s === 'a_venir') return { txt: '✓ Contrat à venir', couleur: '#185FA5' }
+    return { txt: '⚠ Contrat terminé — à renouveler', couleur: '#993C1D' }
+  }
+
   function renderLigne(l) {
     const c = l.contrat
     const b = badge(c)
+    const pd = pied(l)
     const rang = c ? rangParType(contratsDe(l.travailleur.id), c) : 0
     const statut = c ? statutContrat(c, jour) : null
 
@@ -317,8 +337,10 @@ export default function ContratsScreen() {
               )}
             </>
           ) : (
-            <Text style={styles.mentionAlerte}>Aucun contrat enregistré</Text>
+            <Text style={styles.mention}>Aucun contrat enregistré</Text>
           )}
+
+          <Text style={[styles.pied, { color: pd.couleur }]}>{pd.txt}</Text>
         </View>
 
         {b && (
@@ -379,7 +401,7 @@ export default function ContratsScreen() {
       ) : (
         <ScrollView style={styles.body}>
           <Text style={styles.resume}>
-            {compteurs.expire} expirent bientôt · {compteurs.enCours} en cours · {compteurs.sans} sans contrat
+            {lignes.length} travailleur{lignes.length > 1 ? 's' : ''} · {compteurs.expire} expirent bientôt · {compteurs.sans} sans contrat
           </Text>
 
           <View style={styles.etatBar}>
@@ -396,11 +418,13 @@ export default function ContratsScreen() {
 
           {affichees.length === 0 && (
             <Text style={styles.vide}>
-              {filtreEtat === 'Expire bientôt'
-                ? "Aucun contrat n'arrive à échéance dans les 30 jours."
-                : filtreEtat === 'Sans contrat'
-                  ? 'Tous les travailleurs ont un contrat.'
-                  : 'Rien à afficher.'}
+              {filtreEtat === 'Travailleurs'
+                ? 'Aucun travailleur ne correspond.'
+                : filtreEtat === 'Expire bientôt'
+                  ? "Aucun contrat n'arrive à échéance dans les 30 jours."
+                  : filtreEtat === 'Sans contrat'
+                    ? 'Tous les travailleurs ont un contrat.'
+                    : 'Rien à afficher.'}
             </Text>
           )}
 
@@ -475,6 +499,7 @@ function makeStyles(colors) { return StyleSheet.create({
   mention: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   mentionAlerte: { fontSize: 12, color: '#993C1D', marginTop: 4, fontWeight: '600' },
   historique: { fontSize: 12, color: '#185FA5', marginTop: 4 },
+  pied: { fontSize: 12, fontWeight: '600', marginTop: 8 },
   badge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   badgeTxt: { fontSize: 11, color: '#fff', fontWeight: '600' },
   vide: { fontSize: 14, color: colors.textMuted, textAlign: 'center', paddingVertical: 40 },
