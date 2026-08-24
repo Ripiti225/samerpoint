@@ -1,17 +1,23 @@
 import { router } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import {
-  ActivityIndicator, Alert, Image, Modal, Platform, SafeAreaView,
+  ActivityIndicator, Alert, Modal, Platform, SafeAreaView,
   ScrollView, StyleSheet, Text, TextInput,
   TouchableOpacity, View,
 } from 'react-native'
 import { Calendar } from 'react-native-calendars'
-import * as Print from 'expo-print'
-import * as Sharing from 'expo-sharing'
+import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { CATEGORIES_INVENTAIRE } from '../lib/constants'
 import { supabase } from '../lib/supabase'
+import { annulerDeductionInventaire } from '../lib/api'
+import {
+  calculerLitigeContact, chargerPointsContact, compterContacts,
+  corrigerNbCommandes, forcerLitigeContact,
+} from '../lib/litigeContacts'
+import { PLAFOND_COMPTAGE } from '../lib/deductionsVerification'
+import { exporterPdf } from '../lib/pdfDocuments'
 import { usePhoto } from '../lib/usePhoto'
 
 function fmt(n) { return Math.round(n || 0).toLocaleString('fr-FR') + ' FCFA' }
@@ -38,9 +44,24 @@ const ONGLETS = [
 ]
 
 const TYPES_AVIS = [
-  { key: 'mauvais', label: '👎 Mauvais avis', montant: 1000, couleur: '#C62828' },
-  { key: 'bon', label: '👍 Bon avis', montant: -500, couleur: '#2E7D32' },
+  { key: 'mauvais', label: '👎 Mauvais avis', court: '👎 Mauvais', montant: 1000, couleur: '#C62828' },
+  { key: 'bon', label: '👍 Bon avis', court: '👍 Bon', montant: -500, couleur: '#2E7D32' },
+  // Neutre : on garde la trace de l'avis sans impact financier (ni sanction,
+  // ni récompense). Le montant reste 0 dans tous les totaux.
+  { key: 'neutre', label: '😐 Avis neutre', court: '😐 Neutre', montant: 0, couleur: '#78716C' },
 ]
+function typeAvis(key) { return TYPES_AVIS.find(t => t.key === key) }
+// Rouge = à la charge du resto, vert = en sa faveur, gris = sans impact
+function couleurMontant(m, colors) {
+  return m > 0 ? '#C62828' : m < 0 ? '#2E7D32' : (colors?.textMuted || '#78716C')
+}
+// Canal du client à l'origine de l'avis
+const CANAUX_AVIS = [
+  { key: 'sur_place', label: '🍽️ Sur place', court: 'Sur place', couleur: '#185FA5' },
+  { key: 'yango', label: 'Yango', court: 'Yango', couleur: '#EF9F27' },
+  { key: 'glovo', label: 'Glovo', court: 'Glovo', couleur: '#2E7D32' },
+]
+function canalAvis(key) { return CANAUX_AVIS.find(c => c.key === key) }
 const TYPES_YANGO = [
   { key: 'tape_moins', label: 'Tapé −', couleur: '#C62828' },
   { key: 'tape_plus', label: 'Tapé +', couleur: '#2E7D32' },
@@ -120,6 +141,8 @@ export default function LitigesScreen() {
   // ── Mode global (tous restaurants) ──────────────────────────
   const [modeGlobal, setModeGlobal] = useState(false)
   const [donneesGlobales, setDonneesGlobales] = useState([])
+  // Comptages du vérificateur pour le restaurant sélectionné (vue mono-resto)
+  const [deducVerifResto, setDeducVerifResto] = useState([])
   const [generatingPdf, setGeneratingPdf] = useState(false)
 
   // ── UI ───────────────────────────────────────────────────────
@@ -148,11 +171,12 @@ export default function LitigesScreen() {
 
   // ── Volet 2 — inventaire ────────────────────────────────────
   const [inventaireShifts, setInventaireShifts] = useState([])
+  const [annulDeducSaving, setAnnulDeducSaving] = useState(null)  // id de la ligne en cours d'annulation
 
   // ── Volet 3 — avis clients ──────────────────────────────────
   const [avisClients, setAvisClients] = useState([])
   const [showFormAvis, setShowFormAvis] = useState(false)
-  const [formAvis, setFormAvis] = useState({ type: 'mauvais', notes: '', numero_commande: '', date_saisie: TODAY, id: null })
+  const [formAvis, setFormAvis] = useState({ type: 'mauvais', canal: 'sur_place', notes: '', numero_commande: '', date_saisie: TODAY, id: null })
 
   // ── Volet 4 — Yango ─────────────────────────────────────────
   const [litigesYango, setLitigesYango] = useState([])
@@ -166,6 +190,13 @@ export default function LitigesScreen() {
 
   // ── Volet 6 — Écart Contact ──────────────────────────────────
   const [ecartContacts, setEcartContacts] = useState([])
+  // Corrections manager/directeur (voir lib/litigeContacts.js)
+  const [corrCmd, setCorrCmd] = useState(null)          // ligne ciblée : nb de commandes
+  const [corrCmdForm, setCorrCmdForm] = useState({ yango: '', glovo: '', motif: '' })
+  const [corrLitige, setCorrLitige] = useState(null)    // ligne ciblée : montant du litige
+  const [corrLitigeForm, setCorrLitigeForm] = useState({ montant: '', motif: '' })
+  const [corrSaving, setCorrSaving] = useState(false)
+  const [corrError, setCorrError] = useState('')
 
   // ── Volet 7 — Point pas fait ─────────────────────────────────
   const [litigesPointPasFait, setLitigesPointPasFait] = useState([])
@@ -221,7 +252,7 @@ export default function LitigesScreen() {
   async function chargerTout() {
     if (!restoSelectionne) return
     setLoading(true)
-    await Promise.all([chargerEcarts(), chargerResponsables(), chargerInventaire(), chargerAvis(), chargerYango(), chargerGlovo(), chargerEcartContacts(), chargerPointPasFait()])
+    await Promise.all([chargerEcarts(), chargerResponsables(), chargerInventaire(), chargerAvis(), chargerYango(), chargerGlovo(), chargerEcartContacts(), chargerPointPasFait(), chargerDeducVerifResto()])
     setLoading(false)
   }
 
@@ -234,7 +265,7 @@ export default function LitigesScreen() {
       .order('date', { ascending: false })
 
     let { data: pointsData, error } = await filtrer(
-      supabase.from('points').select('id, date, vente_machine, reste_fc, ecart_regularisations, explication_ecart_machine, ecart_responsables, ecart_photos')
+      supabase.from('points').select('id, date, vente_machine, reste_fc, ecart_regularisations, explication_ecart_machine, explication_machine_statut, ecart_responsables, ecart_photos')
     )
     // Fallback si la colonne ecart_regularisations n'est pas encore créée en DB
     if (error) {
@@ -268,6 +299,12 @@ export default function LitigesScreen() {
       let ecart = ecartBrut
       if (ecartBrut < 0) ecart = Math.min(0, ecartBrut + totalRegul)
       else if (ecartBrut > 0) ecart = Math.max(0, ecartBrut - totalRegul)
+      // Écart annulé dans Vérification → neutralisé (écart 0), quel que soit le mode d'annulation.
+      const annule = ['annulee', 'justifiee'].includes(p.explication_machine_statut)
+      // Les deux statuts soldent l'écart, mais pas de la même manière : 'annulee'
+      // a corrigé le fond, 'justifiee' non. Le libellé doit le dire.
+      const justifie = p.explication_machine_statut === 'justifiee'
+      if (annule) ecart = 0
       return {
         id: p.id,
         date: p.date,
@@ -275,6 +312,8 @@ export default function LitigesScreen() {
         cumulShifts,
         ecartBrut,
         ecart,
+        annule,
+        justifie,
         regularisations: reguls,
         totalRegul,
         resteFc: p.reste_fc || 0,
@@ -284,6 +323,18 @@ export default function LitigesScreen() {
         photosEcart: Array.isArray(p.ecart_photos) ? p.ecart_photos : [],
       }
     }))
+  }
+
+  async function chargerDeducVerifResto() {
+    if (!restoSelectionne) { setDeducVerifResto([]); return }
+    const { debut, fin } = plage
+    const { data } = await supabase
+      .from('deductions_verification').select('*')
+      .eq('restaurant_id', restoSelectionne.id)
+      .gte('date', debut).lte('date', fin)
+      .neq('statut', 'validee')
+      .order('date', { ascending: false })
+    setDeducVerifResto(data || [])
   }
 
   async function chargerResponsables() {
@@ -398,7 +449,9 @@ export default function LitigesScreen() {
     if (!r) return
     Alert.alert(
       'Supprimer cette régularisation ?',
-      `Le montant de ${fmt(r.montant)} sera réintégré dans l'écart et le fond actuel sera recalculé.`,
+      r.sans_fond
+        ? `Le montant de ${fmt(r.montant)} sera réintégré dans l'écart. Le fond n'est pas concerné.`
+        : `Le montant de ${fmt(r.montant)} sera réintégré dans l'écart et le fond actuel sera recalculé.`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -409,7 +462,13 @@ export default function LitigesScreen() {
             await supabase.from('points')
               .update({ ecart_regularisations: nouvelles })
               .eq('id', item.id)
-            if (r.fond_point_id) {
+            if (r.sans_fond) {
+              // Justifié sans incidence sur le fond (bouton « ✔️ Justifier » de
+              // Vérification) : aucun fond n'a été corrigé, donc rien à rendre.
+              // Ce cas DOIT passer avant le test fond_point_id : ces records ont
+              // fond_point_id null et tomberaient sinon dans la branche héritée
+              // ci-dessous, qui irait modifier reste_fc — le faux fond qu'on évite.
+            } else if (r.fond_point_id) {
               // Nouveau format : la correction de fond vit sur la journée cible → reverse là-bas
               const { data: pf } = await supabase.from('points')
                 .select('ajustement_fond').eq('id', r.fond_point_id).single()
@@ -434,7 +493,7 @@ export default function LitigesScreen() {
 
     const { data: shifts } = await supabase
       .from('inventaires_shifts')
-      .select('id, caissier_id, type_shift, montant_a_deduire, date')
+      .select('id, point_id, caissier_id, type_shift, montant_a_deduire, date')
       .eq('restaurant_id', restoSelectionne.id)
       .gte('date', debut).lte('date', fin)
       .eq('valide', true)
@@ -453,7 +512,7 @@ export default function LitigesScreen() {
     const shiftIds = shifts.map(s => s.id)
     const { data: lignes } = await supabase
       .from('inventaire_lignes')
-      .select('inventaire_id, produit_id, produit_nom, montant_deduit')
+      .select('id, inventaire_id, produit_id, produit_nom, montant_deduit')
       .in('inventaire_id', shiftIds)
       .gt('montant_deduit', 0)
 
@@ -468,6 +527,35 @@ export default function LitigesScreen() {
       caissier_nom: nomById[s.caissier_id] || 'Caissier',
       lignes: lignesByShift[s.id] || [],
     })))
+  }
+
+  // Annule DÉFINITIVEMENT la déduction d'inventaire d'un produit (manager/directeur).
+  function confirmerAnnulationDeductionLitige(ligne, inv) {
+    if (!ligne?.id || annulDeducSaving) return
+    const faire = async () => {
+      setAnnulDeducSaving(ligne.id)
+      try {
+        await annulerDeductionInventaire({
+          ligneId: ligne.id,
+          inventaireId: inv.id,
+          pointId: inv.point_id,
+          par: userNom || roleActif || 'Manager',
+        })
+        await chargerInventaire()  // recharge la liste à jour
+      } catch (e) {
+        Alert.alert('Erreur', e?.message || "Impossible d'annuler la déduction")
+      } finally {
+        setAnnulDeducSaving(null)
+      }
+    }
+    Alert.alert(
+      'Annuler la déduction ?',
+      `La déduction de ${fmt(ligne.montant_deduit)} sur « ${ligne.produit_nom} » sera annulée définitivement et retirée du total à déduire.`,
+      [
+        { text: 'Retour', style: 'cancel' },
+        { text: 'Annuler la déduction', style: 'destructive', onPress: faire },
+      ]
+    )
   }
 
   async function chargerAvis() {
@@ -513,12 +601,7 @@ export default function LitigesScreen() {
   async function chargerEcartContacts() {
     const { debut, fin } = plage
 
-    const { data: points } = await supabase
-      .from('points')
-      .select('id, date, yango_nb_commandes, glovo_nb_commandes')
-      .eq('restaurant_id', restoSelectionne.id)
-      .gte('date', debut).lte('date', fin)
-      .order('date', { ascending: false })
+    const points = await chargerPointsContact(restoSelectionne.id, debut, fin)
 
     if (!points?.length) { setEcartContacts([]); return }
 
@@ -530,22 +613,11 @@ export default function LitigesScreen() {
       .in('point_id', pointIds)
       .order('created_at', { ascending: true })
 
-    // Contacts pris (commandes avec contact_client renseigné)
-    const { data: cmds } = await supabase
-      .from('commandes').select('point_id, contact_client, caissier_id')
-      .in('point_id', pointIds)
-
-    const contactsByPoint = {}
-    const contactsByPointCaissier = {} // { point_id: { caissier_id: count } }
-    ;(cmds || []).forEach(c => {
-      if (c.contact_client && c.contact_client.trim() !== '') {
-        contactsByPoint[c.point_id] = (contactsByPoint[c.point_id] || 0) + 1
-        if (c.caissier_id) {
-          if (!contactsByPointCaissier[c.point_id]) contactsByPointCaissier[c.point_id] = {}
-          contactsByPointCaissier[c.point_id][c.caissier_id] = (contactsByPointCaissier[c.point_id][c.caissier_id] || 0) + 1
-        }
-      }
-    })
+    // Contacts pris (commandes avec contact_client renseigné) — paginé :
+    // au-delà de 1000 commandes sur la période, Supabase tronquait
+    // silencieusement et des journées entières tombaient à 0 contact.
+    const { parPoint: contactsByPoint, parPointCaissier: contactsByPointCaissier } =
+      await compterContacts(pointIds)
 
     // Noms des caissiers pour l'affichage contacts par caissier
     const allCaissierIds = [...new Set(
@@ -565,11 +637,7 @@ export default function LitigesScreen() {
     })
 
     setEcartContacts(points.map(p => {
-      const nbCommandes = (p.yango_nb_commandes || 0) + (p.glovo_nb_commandes || 0)
-      const nbContacts = contactsByPoint[p.id] || 0
-      const ecart = nbCommandes - nbContacts
-      const taux = nbCommandes > 0 ? Math.round((ecart / nbCommandes) * 1000) / 10 : 0
-      const litige = taux > 20 ? ecart * 500 : 0
+      const calc = calculerLitigeContact(p, contactsByPoint[p.id] || 0)
       const shiftsJour = shiftsByPoint[p.id] || []
       const caissiers = shiftsJour.map(s =>
         `${s.caissier_nom || '—'}${s.heure_debut ? ` (${s.heure_debut}→${s.heure_fin})` : ''}`
@@ -578,7 +646,7 @@ export default function LitigesScreen() {
         nom: nomCaissier[cid] || 'Caissier',
         nb,
       })).sort((a, b) => b.nb - a.nb)
-      return { date: p.date, caissiers, nbCommandes, nbContacts, ecart, taux, litige, contactsParCaissier }
+      return { ...calc, point: p, date: p.date, caissiers, contactsParCaissier }
     }).filter(r => r.nbCommandes > 0 || r.caissiers))
   }
 
@@ -591,17 +659,68 @@ export default function LitigesScreen() {
     const resultats = await Promise.all(restaurants.map(async resto => {
       // Écarts
       const { data: pointsData } = await supabase
-        .from('points').select('id, date, vente_machine')
+        .from('points').select('id, date, vente_machine, explication_machine_statut, ecart_regularisations')
         .eq('restaurant_id', resto.id).gte('date', debut).lte('date', fin)
       let ecartTotal = 0
+      // Points dont l'écart ne pèse plus rien : annulé, justifié, entièrement
+      // régularisé, ou simple surplus. Sert à filtrer les responsables plus bas.
+      const pointsSoldes = new Set()
       if (pointsData?.length) {
         const ids = pointsData.map(p => p.id)
         const { data: shifts } = await supabase
           .from('points_shifts').select('point_id, vente_shift').in('point_id', ids)
         const byPoint = {}
         ;(shifts || []).forEach(s => { byPoint[s.point_id] = (byPoint[s.point_id] || 0) + (s.vente_shift || 0) })
-        pointsData.forEach(p => { ecartTotal += Math.max(0, (p.vente_machine || 0) - (byPoint[p.id] || 0)) })
+        pointsData.forEach(p => {
+          if (['annulee', 'justifiee'].includes(p.explication_machine_statut)) { // écart soldé → 0
+            pointsSoldes.add(p.id)
+            return
+          }
+          const brut = (p.vente_machine || 0) - (byPoint[p.id] || 0)
+          // Les régularisations partielles réduisent l'écart : sans ça, annuler
+          // 8 000 sur un manquant de 10 000 laissait 10 000 dans le total.
+          const reguls = Array.isArray(p.ecart_regularisations) ? p.ecart_regularisations : []
+          const totalRegul = reguls.reduce((s2, r) => s2 + (parseFloat(r.montant) || 0), 0)
+          const reste = Math.max(0, brut - totalRegul)
+          if (reste <= 0) pointsSoldes.add(p.id)
+          ecartTotal += reste
+        })
       }
+
+      // Comptages du vérificateur : montants à déduire, plafonnés par comptage.
+      const { data: dedVerif } = await supabase
+        .from('deductions_verification')
+        .select('*')
+        .eq('restaurant_id', resto.id).gte('date', debut).lte('date', fin)
+        .neq('statut', 'validee')
+      const verifLignes = dedVerif || []
+      // Le montant est déjà plafonné et réparti à l'enregistrement : on somme
+      // simplement les parts. L'écart réel sert seulement à expliquer l'écart
+      // entre ce qui a été constaté et ce qui est réellement retenu.
+      const verifRetenu = verifLignes.reduce((s2, l) => s2 + (Number(l.montant) || 0), 0)
+      const lots = {}
+      verifLignes.forEach(l => { lots[l.lot_id || l.date] = Number(l.montant_ecart) || 0 })
+      const verifReel = Object.values(lots).reduce((s2, v) => s2 + v, 0)
+
+      // Responsables des écarts : le total ci-dessus ne dit pas QUI doit quoi.
+      // C'est pourtant le plus gros poste de litiges, et chaque ligne porte un nom.
+      const { data: responsablesBruts } = await supabase
+        .from('litiges_responsables')
+        .select('point_id, date, responsable_nom, role, montant, type')
+        .eq('restaurant_id', resto.id).gte('date', debut).lte('date', fin)
+        .order('montant', { ascending: false })
+
+      // Deux filtres, pour que le détail affiché colle enfin au montant annoncé :
+      //   • les surplus ne sont pas des litiges — ecartTotal les exclut déjà, mais
+      //     ils s'affichaient quand même sous « Écart point », en rouge ;
+      //   • un écart soldé n'a plus de responsable à montrer. litiges_responsables
+      //     n'est réécrite que par ventes.js (syncLitigesResponsables) : elle ignore
+      //     tout des annulations et justifications décidées dans Vérification.
+      // Une ligne sans point_id (format ancien) est conservée : on ne peut pas la
+      // rattacher à une journée, mieux vaut l'afficher que la perdre.
+      const responsables = (responsablesBruts || []).filter(r =>
+        r.type !== 'surplus' && !(r.point_id && pointsSoldes.has(r.point_id))
+      )
 
       // Inventaire + détail
       const { data: invShifts } = await supabase
@@ -617,7 +736,8 @@ export default function LitigesScreen() {
         ;(users || []).forEach(u => { nomById[u.id] = u.nom })
         const shiftIds = invShifts.map(s => s.id)
         const { data: lignes } = await supabase
-          .from('inventaire_lignes').select('inventaire_id, produit_id, produit_nom, montant_deduit')
+          .from('inventaire_lignes')
+          .select('inventaire_id, produit_id, produit_nom, montant_deduit, explication, nombre_explique, ecart')
           .in('inventaire_id', shiftIds).gt('montant_deduit', 0)
         const lignesByShift = {}
         ;(lignes || []).forEach(l => {
@@ -641,17 +761,53 @@ export default function LitigesScreen() {
       const yangoTotal = (yango || []).reduce((s, x) => s + (x.montant || 0), 0)
       const glovoTotal = (glovo || []).reduce((s, x) => s + (x.montant || 0), 0)
 
+      // Contacts manquants — règle et corrections dans lib/litigeContacts.js
+      const ptsContact = await chargerPointsContact(resto.id, debut, fin)
+      let contacts = []
+      let contactTotal = 0
+      if (ptsContact?.length) {
+        const { parPoint: contactsByPoint } = await compterContacts(ptsContact.map(p => p.id))
+        contacts = ptsContact.map(p => ({
+          date: p.date,
+          ...calculerLitigeContact(p, contactsByPoint[p.id] || 0),
+        })).filter(r => r.litige > 0)
+        contactTotal = contacts.reduce((s, r) => s + r.litige, 0)
+      }
+
+      // Point pas fait
+      const { data: pasFait } = await supabase
+        .from('litiges_point_pas_fait').select('*')
+        .eq('restaurant_id', resto.id).gte('date', debut).lte('date', fin)
+        .order('date', { ascending: false })
+      const pasFaitTotal = (pasFait || []).reduce((s, x) => s + (x.montant || 0), 0)
+
       return {
         restaurant: resto, ecartTotal, invTotal, invEnriched,
+        responsables,
         avis: avis || [], avisTotal,
         yango: yango || [], yangoTotal,
         glovo: glovo || [], glovoTotal,
-        total: ecartTotal + invTotal + avisTotal + yangoTotal + glovoTotal,
+        contacts, contactTotal,
+        pasFait: pasFait || [], pasFaitTotal,
+        verifLignes, verifRetenu, verifReel,
+        // Le total du restaurant n'intègre que le montant RETENU (plafonné),
+        // jamais l'écart brut : c'est ce qui sera effectivement déduit.
+        total: ecartTotal + invTotal + avisTotal + yangoTotal + glovoTotal
+          + contactTotal + pasFaitTotal + verifRetenu,
       }
     }))
 
     setDonneesGlobales(resultats)
     setLoading(false)
+  }
+
+  // Définition UNIQUE du « restaurant sans litige ». L'écran et le PDF avaient
+  // chacun la leur : un resto pouvait s'afficher « ✅ Aucun litige » dans l'app
+  // et sortir avec des lignes dans le rapport envoyé.
+  function restoSansLitige(d) {
+    return !d.ecartTotal && !d.invTotal && !d.avis.length && !d.yango.length
+      && !d.glovo.length && !d.contactTotal && !d.pasFaitTotal
+      && !d.responsables.length && !d.verifRetenu
   }
 
   // ── Génération PDF + partage natif ───────────────────────────
@@ -683,6 +839,13 @@ export default function LitigesScreen() {
 
       let grandTotal = 0
 
+      // Mention du responsable, ajoutée à chaque ligne de litige. Vide quand
+      // personne n'a été désigné, pour ne pas alourdir le document inutilement.
+      const resp = nom => {
+        const n = (nom || '').trim()
+        return n ? ` · 👤 <strong>${n}</strong>` : ''
+      }
+
       for (const d of donneesGlobales) {
         grandTotal += d.total
         const tc = d.total > 0 ? 'r' : d.total < 0 ? 'g' : ''
@@ -691,15 +854,22 @@ export default function LitigesScreen() {
           <span class="resto-tot ${tc}">${d.total > 0 ? '+' : ''}${Math.round(d.total).toLocaleString('fr-FR')} FCFA</span>
         </div>`
 
-        const vide = !d.ecartTotal && !d.invTotal && !d.avis.length && !d.yango.length && !d.glovo.length
+        const vide = restoSansLitige(d)
         if (vide) {
           html += `<div class="volet"><span class="ok">✅ Aucun litige sur la période</span></div>`
         }
 
         // Écart
-        if (d.ecartTotal !== 0) {
+        if (d.ecartTotal !== 0 || d.responsables.length) {
           const ec = d.ecartTotal > 0 ? 'r' : 'g'
-          html += `<div class="volet"><div class="volet-h"><span>📊 Écart point</span><span class="${ec}">${d.ecartTotal > 0 ? '+' : ''}${Math.round(d.ecartTotal).toLocaleString('fr-FR')} FCFA</span></div></div>`
+          html += `<div class="volet"><div class="volet-h"><span>📊 Écart point</span><span class="${ec}">${d.ecartTotal > 0 ? '+' : ''}${Math.round(d.ecartTotal).toLocaleString('fr-FR')} FCFA</span></div>`
+          d.responsables.forEach(r => {
+            const mc = r.montant > 0 ? 'r' : 'g'
+            const role = r.role ? ` (${r.role})` : ''
+            const type = r.type ? ` — ${r.type}` : ''
+            html += `<div class="item">📅 ${r.date}${resp(r.responsable_nom) || ' · 👤 <em>non attribué</em>'}${role}${type} <span class="${mc}"><strong>${r.montant > 0 ? '+' : ''}${Math.round(r.montant).toLocaleString('fr-FR')} FCFA</strong></span></div>`
+          })
+          html += `</div>`
         }
 
         // Inventaire
@@ -710,7 +880,10 @@ export default function LitigesScreen() {
             const parCat = {}
             inv.lignes.forEach(l => { const c = PRODUIT_TO_CAT[l.produit_id] || l.produit_nom; parCat[c] = (parCat[c] || 0) + (l.montant_deduit || 0) })
             const cats = Object.entries(parCat).filter(([, v]) => v > 0).map(([c, v]) => `${c} : ${Math.round(v).toLocaleString('fr-FR')} FCFA`).join(' · ')
-            html += `<div class="item"><strong>${inv.caissier_nom} — ${sl}</strong>${cats ? ' — ' + cats : ''}</div>`
+            html += `<div class="item">👤 <strong>${inv.caissier_nom}</strong> — <strong>${sl}</strong>${cats ? ' — ' + cats : ''}</div>`
+            inv.lignes.filter(l => l.explication).forEach(l => {
+              html += `<div class="item">💬 <strong>${l.produit_nom}</strong> : ${l.explication}</div>`
+            })
           })
           html += `</div>`
         }
@@ -720,9 +893,10 @@ export default function LitigesScreen() {
           const ac = d.avisTotal > 0 ? 'r' : 'g'
           html += `<div class="volet"><div class="volet-h"><span>👁 Avis clients (${d.avis.length})</span><span class="${ac}">${d.avisTotal > 0 ? '+' : ''}${Math.round(d.avisTotal).toLocaleString('fr-FR')} FCFA</span></div>`
           d.avis.forEach(a => {
-            const tl = TYPES_AVIS.find(t => t.key === a.type)?.label || a.type
-            const mc = a.montant > 0 ? 'r' : 'g'
-            html += `<div class="item">${a.numero_commande ? `<span class="cmd">#${a.numero_commande}</span> — ` : ''}${tl}${a.notes ? ` — ${a.notes}` : ''} <span class="${mc}"><strong>${a.montant > 0 ? '+' : ''}${Math.round(a.montant).toLocaleString('fr-FR')} FCFA</strong></span></div>`
+            const tl = typeAvis(a.type)?.label || a.type
+            const cn = a.canal ? ` · <strong style="color:${canalAvis(a.canal)?.couleur || '#555'}">📍 ${canalAvis(a.canal)?.court || a.canal}</strong>` : ''
+            const mc = a.montant > 0 ? 'r' : a.montant < 0 ? 'g' : ''  // neutre : couleur par défaut
+            html += `<div class="item">${a.numero_commande ? `<span class="cmd">#${a.numero_commande}</span> — ` : ''}${tl}${cn}${resp(a.responsable_nom)}${a.notes ? ` — ${a.notes}` : ''} <span class="${mc}"><strong>${a.montant > 0 ? '+' : ''}${Math.round(a.montant).toLocaleString('fr-FR')} FCFA</strong></span></div>`
           })
           html += `</div>`
         }
@@ -734,7 +908,7 @@ export default function LitigesScreen() {
           d.yango.forEach(y => {
             const tl = TYPES_YANGO.find(t => t.key === y.type)?.label || y.type
             const mc = y.montant > 0 ? 'r' : 'g'
-            html += `<div class="item">${y.numero_commande ? `<span class="cmd">#${y.numero_commande}</span> — ` : ''}${tl}${y.notes ? ` — ${y.notes}` : ''} <span class="${mc}"><strong>${y.montant > 0 ? '+' : ''}${Math.round(y.montant).toLocaleString('fr-FR')} FCFA</strong></span></div>`
+            html += `<div class="item">${y.numero_commande ? `<span class="cmd">#${y.numero_commande}</span> — ` : ''}${tl}${resp(y.responsable_nom)}${y.notes ? ` — ${y.notes}` : ''} <span class="${mc}"><strong>${y.montant > 0 ? '+' : ''}${Math.round(y.montant).toLocaleString('fr-FR')} FCFA</strong></span></div>`
           })
           html += `</div>`
         }
@@ -746,7 +920,37 @@ export default function LitigesScreen() {
           d.glovo.forEach(g => {
             const tl = TYPES_GLOVO.find(t => t.key === g.type)?.label || g.type
             const mc = g.montant > 0 ? 'r' : 'g'
-            html += `<div class="item">${g.numero_commande ? `<span class="cmd">#${g.numero_commande}</span> — ` : ''}${tl}${g.notes ? ` — ${g.notes}` : ''} <span class="${mc}"><strong>${g.montant > 0 ? '+' : ''}${Math.round(g.montant).toLocaleString('fr-FR')} FCFA</strong></span></div>`
+            html += `<div class="item">${g.numero_commande ? `<span class="cmd">#${g.numero_commande}</span> — ` : ''}${tl}${resp(g.responsable_nom)}${g.notes ? ` — ${g.notes}` : ''} <span class="${mc}"><strong>${g.montant > 0 ? '+' : ''}${Math.round(g.montant).toLocaleString('fr-FR')} FCFA</strong></span></div>`
+          })
+          html += `</div>`
+        }
+
+        // Comptage vérificateur — montants plafonnés
+        if (d.verifRetenu > 0) {
+          html += `<div class="volet"><div class="volet-h"><span>🔍 Comptage vérificateur</span><span class="r">+${Math.round(d.verifRetenu).toLocaleString('fr-FR')} FCFA</span></div>`
+          if (d.verifReel > d.verifRetenu) {
+            html += `<div class="item" style="border-left-color:#E8C98A"><strong>⚖️ Écart réel ${Math.round(d.verifReel).toLocaleString('fr-FR')} FCFA</strong> — plafond de ${PLAFOND_COMPTAGE.toLocaleString('fr-FR')} FCFA par comptage appliqué, ${Math.round(d.verifRetenu).toLocaleString('fr-FR')} FCFA retenus.</div>`
+          }
+          d.verifLignes.forEach(l => {
+            html += `<div class="item">📅 ${l.date} — ${l.produit_nom} (déclaré ${l.stock_declare}, compté ${l.stock_compte})${resp(l.caissier_nom)}${l.shift_libelle ? ` · ${l.shift_libelle}` : ''}${l.explication ? ` — ${l.explication}` : ''} <span class="r"><strong>${Math.round(l.montant).toLocaleString('fr-FR')} FCFA</strong></span></div>`
+          })
+          html += `</div>`
+        }
+
+        // Contacts manquants
+        if (d.contactTotal > 0) {
+          html += `<div class="volet"><div class="volet-h"><span>📞 Contacts manquants</span><span class="r">−${Math.round(d.contactTotal).toLocaleString('fr-FR')} FCFA</span></div>`
+          d.contacts.forEach(c => {
+            html += `<div class="item">📅 ${c.date} — ${c.ecart} manquant${c.ecart > 1 ? 's' : ''} (${c.nbContacts}/${c.nbCommandes} · ${c.taux}%) <span class="r"><strong>−${Math.round(c.litige).toLocaleString('fr-FR')} FCFA</strong></span></div>`
+          })
+          html += `</div>`
+        }
+
+        // Point pas fait
+        if (d.pasFaitTotal > 0) {
+          html += `<div class="volet"><div class="volet-h"><span>🚫 Point pas fait</span><span class="r">−${Math.round(d.pasFaitTotal).toLocaleString('fr-FR')} FCFA</span></div>`
+          d.pasFait.forEach(pf => {
+            html += `<div class="item">📅 ${pf.date}${resp(pf.responsable_nom) || ' · 👤 <em>non attribué</em>'}${pf.notes ? ` — ${pf.notes}` : ''} <span class="r"><strong>−${Math.round(pf.montant || 0).toLocaleString('fr-FR')} FCFA</strong></span></div>`
           })
           html += `</div>`
         }
@@ -763,12 +967,7 @@ export default function LitigesScreen() {
       })
       html += `<div class="recap-l gt"><span>TOTAL GLOBAL</span><span style="color:${gtc}">${grandTotal > 0 ? '+' : ''}${Math.round(grandTotal).toLocaleString('fr-FR')} FCFA</span></div></div></body></html>`
 
-      const { uri } = await Print.printToFileAsync({ html })
-      await Sharing.shareAsync(uri, {
-        mimeType: 'application/pdf',
-        dialogTitle: 'Partager le rapport litiges',
-        UTI: 'com.adobe.pdf',
-      })
+      await exporterPdf(html, `rapport_litiges_${periode.replace(/\s+/g, '_')}.pdf`, 'Partager le rapport litiges')
     } catch (e) {
       Alert.alert('Erreur PDF', e.message || 'Impossible de générer le PDF')
     } finally {
@@ -811,7 +1010,7 @@ export default function LitigesScreen() {
         {/* Un card par restaurant */}
         {donneesGlobales.map(d => {
           const tc = d.total > 0 ? '#C62828' : d.total < 0 ? '#2E7D32' : colors.textMuted
-          const vide = !d.ecartTotal && !d.invTotal && !d.avis.length && !d.yango.length && !d.glovo.length
+          const vide = restoSansLitige(d)
           return (
             <View key={d.restaurant.id} style={styles.restoGlobalCard}>
               {/* Header restaurant */}
@@ -827,34 +1026,77 @@ export default function LitigesScreen() {
               ) : (
                 <View style={styles.restoGlobalBody}>
                   {/* Écart */}
-                  {d.ecartTotal !== 0 && (
-                    <View style={styles.globalVoletRow}>
-                      <Text style={styles.globalVoletLabel}>📊 Écart point</Text>
-                      <Text style={[styles.globalVoletVal, { color: d.ecartTotal > 0 ? '#C62828' : '#2E7D32' }]}>
-                        {d.ecartTotal > 0 ? '+' : ''}{fmtShort(d.ecartTotal)}
-                      </Text>
-                    </View>
+                  {(d.ecartTotal !== 0 || d.responsables.length > 0) && (
+                    <>
+                      <View style={styles.globalVoletRow}>
+                        <Text style={styles.globalVoletLabel}>📊 Écart point</Text>
+                        <Text style={[styles.globalVoletVal, { color: d.ecartTotal > 0 ? '#C62828' : '#2E7D32' }]}>
+                          {d.ecartTotal > 0 ? '+' : ''}{fmtShort(d.ecartTotal)}
+                        </Text>
+                      </View>
+                      {d.responsables.map((r, ri) => (
+                        <View key={'resp' + ri} style={styles.globalItem}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.globalItemTxt} numberOfLines={2}>
+                              📅 {r.date}{r.type ? ` — ${r.type}` : ''}
+                            </Text>
+                            <Text style={styles.globalItemResp}>
+                              👤 {r.responsable_nom || 'Non attribué'}{r.role ? ` · ${r.role}` : ''}
+                            </Text>
+                          </View>
+                          <Text style={[styles.globalItemMontant, { color: r.montant > 0 ? '#C62828' : '#2E7D32' }]}>
+                            {r.montant > 0 ? '+' : ''}{fmtShort(r.montant)}
+                          </Text>
+                        </View>
+                      ))}
+                    </>
                   )}
-                  {/* Inventaire */}
+                  {/* Inventaire + explication des manquants */}
                   {d.invTotal > 0 && (
-                    <View style={styles.globalVoletRow}>
-                      <Text style={styles.globalVoletLabel}>📦 Inventaire</Text>
-                      <Text style={[styles.globalVoletVal, { color: '#C62828' }]}>−{fmtShort(d.invTotal)}</Text>
-                    </View>
+                    <>
+                      <View style={styles.globalVoletRow}>
+                        <Text style={styles.globalVoletLabel}>📦 Inventaire</Text>
+                        <Text style={[styles.globalVoletVal, { color: '#C62828' }]}>−{fmtShort(d.invTotal)}</Text>
+                      </View>
+                      {/* On rattache chaque ligne à son shift : un flatMap nu
+                          perdait le caissier, donc le responsable de la déduction. */}
+                      {d.invEnriched.flatMap(inv =>
+                        inv.lignes.map(l => ({ ...l, caissier_nom: inv.caissier_nom, type_shift: inv.type_shift }))
+                      ).map((l, li) => (
+                        <View key={'inv' + li} style={styles.globalItem}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.globalItemTxt} numberOfLines={2}>
+                              📦 {l.produit_nom}
+                              {l.explication ? <Text style={styles.globalItemCmd}> — {l.explication}</Text> : null}
+                            </Text>
+                            {l.caissier_nom ? (
+                              <Text style={styles.globalItemResp}>
+                                👤 {l.caissier_nom}{l.type_shift ? ` · ${l.type_shift}` : ''}
+                              </Text>
+                            ) : null}
+                          </View>
+                          <Text style={[styles.globalItemMontant, { color: '#C62828' }]}>−{fmtShort(l.montant_deduit)}</Text>
+                        </View>
+                      ))}
+                    </>
                   )}
                   {/* Avis */}
                   {d.avis.map(a => {
-                    const type = TYPES_AVIS.find(t => t.key === a.type)
+                    const type = typeAvis(a.type)
                     return (
                       <View key={a.id} style={styles.globalItem}>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.globalItemTxt} numberOfLines={2}>
                             {type?.label || a.type}
+                            {a.canal ? <Text style={{ color: canalAvis(a.canal)?.couleur }}> · 📍{canalAvis(a.canal)?.court || a.canal}</Text> : null}
                             {a.numero_commande ? <Text style={styles.globalItemCmd}> #{a.numero_commande}</Text> : null}
                             {a.notes ? ` — ${a.notes}` : ''}
                           </Text>
+                          {a.responsable_nom ? (
+                            <Text style={styles.globalItemResp}>👤 {a.responsable_nom}</Text>
+                          ) : null}
                         </View>
-                        <Text style={[styles.globalItemMontant, { color: a.montant > 0 ? '#C62828' : '#2E7D32' }]}>
+                        <Text style={[styles.globalItemMontant, { color: couleurMontant(a.montant, colors) }]}>
                           {a.montant > 0 ? '+' : ''}{fmtShort(a.montant)}
                         </Text>
                       </View>
@@ -871,6 +1113,9 @@ export default function LitigesScreen() {
                             {y.numero_commande ? <Text style={styles.globalItemCmd}> #{y.numero_commande}</Text> : null}
                             {y.notes ? ` — ${y.notes}` : ''}
                           </Text>
+                          {y.responsable_nom ? (
+                            <Text style={styles.globalItemResp}>👤 {y.responsable_nom}</Text>
+                          ) : null}
                         </View>
                         <Text style={[styles.globalItemMontant, { color: y.montant > 0 ? '#C62828' : '#2E7D32' }]}>
                           {y.montant > 0 ? '+' : ''}{fmtShort(y.montant)}
@@ -889,6 +1134,9 @@ export default function LitigesScreen() {
                             {g.numero_commande ? <Text style={styles.globalItemCmd}> #{g.numero_commande}</Text> : null}
                             {g.notes ? ` — ${g.notes}` : ''}
                           </Text>
+                          {g.responsable_nom ? (
+                            <Text style={styles.globalItemResp}>👤 {g.responsable_nom}</Text>
+                          ) : null}
                         </View>
                         <Text style={[styles.globalItemMontant, { color: g.montant > 0 ? '#C62828' : '#2E7D32' }]}>
                           {g.montant > 0 ? '+' : ''}{fmtShort(g.montant)}
@@ -896,6 +1144,65 @@ export default function LitigesScreen() {
                       </View>
                     )
                   })}
+                  {/* Comptage vérificateur — montants plafonnés */}
+                  {d.verifRetenu > 0 && (
+                    <>
+                      <View style={styles.globalVoletRow}>
+                        <Text style={styles.globalVoletLabel}>🔍 Comptage vérificateur</Text>
+                        <Text style={[styles.globalVoletVal, { color: '#C62828' }]}>+{fmtShort(d.verifRetenu)}</Text>
+                      </View>
+                      {d.verifReel > d.verifRetenu && (
+                        <View style={styles.plafondBox}>
+                          <Text style={styles.plafondTxt}>
+                            ⚖️ Écart réel {fmt(d.verifReel)} — plafond de {fmt(PLAFOND_COMPTAGE)} par
+                            comptage appliqué, {fmt(d.verifRetenu)} retenus.
+                          </Text>
+                        </View>
+                      )}
+                      {d.verifLignes.map(l => (
+                        <View key={l.id} style={styles.globalItem}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.globalItemTxt} numberOfLines={2}>
+                              📅 {l.date} — {l.produit_nom}
+                              <Text style={styles.globalItemCmd}> (déclaré {l.stock_declare} · compté {l.stock_compte})</Text>
+                            </Text>
+                            <Text style={styles.globalItemResp}>
+                              👤 {l.caissier_nom}{l.shift_libelle ? ` · ${l.shift_libelle}` : ''}
+                            </Text>
+                          </View>
+                          <Text style={[styles.globalItemMontant, { color: '#C62828' }]}>{fmtShort(l.montant)}</Text>
+                        </View>
+                      ))}
+                    </>
+                  )}
+
+                  {/* Contacts manquants */}
+                  {d.contactTotal > 0 && (
+                    <>
+                      <View style={styles.globalVoletRow}>
+                        <Text style={styles.globalVoletLabel}>📞 Contacts manquants</Text>
+                        <Text style={[styles.globalVoletVal, { color: '#C62828' }]}>−{fmtShort(d.contactTotal)}</Text>
+                      </View>
+                      {d.contacts.map((c, ci) => (
+                        <View key={'ct' + ci} style={styles.globalItem}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.globalItemTxt} numberOfLines={2}>
+                              📅 {c.date} — {c.ecart} manquant{c.ecart > 1 ? 's' : ''}
+                              <Text style={styles.globalItemCmd}> ({c.nbContacts}/{c.nbCommandes} · {c.taux}%)</Text>
+                            </Text>
+                          </View>
+                          <Text style={[styles.globalItemMontant, { color: '#C62828' }]}>−{fmtShort(c.litige)}</Text>
+                        </View>
+                      ))}
+                    </>
+                  )}
+                  {/* Point pas fait */}
+                  {d.pasFaitTotal > 0 && (
+                    <View style={styles.globalVoletRow}>
+                      <Text style={styles.globalVoletLabel}>🚫 Point pas fait</Text>
+                      <Text style={[styles.globalVoletVal, { color: '#C62828' }]}>−{fmtShort(d.pasFaitTotal)}</Text>
+                    </View>
+                  )}
                 </View>
               )}
             </View>
@@ -913,40 +1220,41 @@ export default function LitigesScreen() {
   const totalGlovo = litigesGlovo.reduce((s, x) => s + (x.montant || 0), 0)
   const totalContact = ecartContacts.reduce((s, x) => s + x.litige, 0)
   const totalPointPasFait = litigesPointPasFait.reduce((s, x) => s + (x.montant || 0), 0)
-  const totalGlobal = totalEcart + totalInventaire + totalAvis + totalYango + totalGlovo + totalContact + totalPointPasFait
+  // Les montants du vérificateur sont déjà plafonnés et répartis à
+  // l'enregistrement : on somme simplement les parts encore dues.
+  const totalVerif = deducVerifResto.reduce((s, x) => s + (Number(x.montant) || 0), 0)
+  const verifParLot = {}
+  deducVerifResto.forEach(x => { verifParLot[x.lot_id || x.date] = Number(x.montant_ecart) || 0 })
+  const totalVerifReel = Object.values(verifParLot).reduce((s, v) => s + v, 0)
+  const totalGlobal = totalEcart + totalInventaire + totalAvis + totalYango + totalGlovo + totalContact + totalPointPasFait + totalVerif
 
   // ── Sauvegarde ───────────────────────────────────────────────
   async function sauvegarderAvis() {
     if (!restoSelectionne) return
     setSaving(true)
-    const montant = formAvis.type === 'bon' ? -500 : 1000
+    const montant = typeAvis(formAvis.type)?.montant ?? 1000
     const dateToSave = formAvis.date_saisie || TODAY
-    let err
-    if (formAvis.id) {
-      const { error } = await supabase.from('litiges_avis_clients').update({
-        type: formAvis.type, montant,
-        notes: formAvis.notes || null,
-        numero_commande: formAvis.numero_commande || null,
-        date: dateToSave,
-        responsable_id: formAvis.responsable_id || null,
-        responsable_nom: formAvis.responsable_nom || null,
-      }).eq('id', formAvis.id)
-      err = error
-    } else {
-      const { error } = await supabase.from('litiges_avis_clients').insert({
-        restaurant_id: restoSelectionne.id,
-        date: dateToSave,
-        type: formAvis.type, montant,
-        notes: formAvis.notes || null,
-        numero_commande: formAvis.numero_commande || null,
-        created_by: userNom || userId,
-        responsable_id: formAvis.responsable_id || null,
-        responsable_nom: formAvis.responsable_nom || null,
-      })
-      err = error
+    const champs = {
+      type: formAvis.type, montant,
+      canal: formAvis.canal || 'sur_place',
+      notes: formAvis.notes || null,
+      numero_commande: formAvis.numero_commande || null,
+      date: dateToSave,
+      responsable_id: formAvis.responsable_id || null,
+      responsable_nom: formAvis.responsable_nom || null,
+    }
+    const run = (payload) => formAvis.id
+      ? supabase.from('litiges_avis_clients').update(payload).eq('id', formAvis.id)
+      : supabase.from('litiges_avis_clients').insert({ ...payload, restaurant_id: restoSelectionne.id, created_by: userNom || userId })
+
+    let { error } = await run(champs)
+    // Repli si la colonne `canal` n'existe pas encore en base (migration non jouée)
+    if (error && /canal/i.test(error.message || '')) {
+      const { canal: _omit, ...sansCanal } = champs
+      ;({ error } = await run(sansCanal))
     }
     setSaving(false)
-    if (err) { setSaveError(err.message); return }
+    if (error) { setSaveError(error.message); return }
     setSaveError(null)
     setShowFormAvis(false)
     chargerAvis()
@@ -1075,11 +1383,11 @@ export default function LitigesScreen() {
 
   function ouvrirAddAvis() {
     setSaving(false)
-    setFormAvis({ type: 'mauvais', notes: '', numero_commande: '', date_saisie: formDateDefaut(periodeKey, dateUnique), responsable_id: null, responsable_nom: '', id: null })
+    setFormAvis({ type: 'mauvais', canal: 'sur_place', notes: '', numero_commande: '', date_saisie: formDateDefaut(periodeKey, dateUnique), responsable_id: null, responsable_nom: '', id: null })
     setShowFormAvis(true)
   }
   function ouvrirEditAvis(a) {
-    setFormAvis({ type: a.type, notes: a.notes || '', numero_commande: a.numero_commande || '', date_saisie: a.date || TODAY, responsable_id: a.responsable_id || null, responsable_nom: a.responsable_nom || '', id: a.id })
+    setFormAvis({ type: a.type, canal: a.canal || 'sur_place', notes: a.notes || '', numero_commande: a.numero_commande || '', date_saisie: a.date || TODAY, responsable_id: a.responsable_id || null, responsable_nom: a.responsable_nom || '', id: a.id })
     setShowFormAvis(true)
   }
   function ouvrirAddYango() {
@@ -1203,7 +1511,7 @@ export default function LitigesScreen() {
                 <Text style={styles.explicGerantSousTitre}>📷 Photos justificatives</Text>
                 <View style={styles.regulPhotosRow}>
                   {item.photosEcart.map((uri, i) => (
-                    <Image key={i} source={{ uri }} style={styles.regulPhotoThumb} resizeMode="cover" />
+                    <PhotoJustificatif key={i} uri={uri} style={styles.regulPhotoThumb} compact />
                   ))}
                 </View>
               </View>
@@ -1226,11 +1534,16 @@ export default function LitigesScreen() {
                     </TouchableOpacity>
                   )}
                 </View>
+                {r.sans_fond && (
+                  <View style={styles.regulSansFondBadge}>
+                    <Text style={styles.regulSansFondTxt}>sans incidence sur le fond</Text>
+                  </View>
+                )}
                 {r.motif ? <Text style={styles.regulMotif}>{r.motif}</Text> : null}
                 {Array.isArray(r.photos) && r.photos.length > 0 && (
                   <View style={styles.regulPhotosRow}>
                     {r.photos.map((uri, j) => (
-                      <Image key={j} source={{ uri }} style={styles.regulPhotoThumb} resizeMode="cover" />
+                      <PhotoJustificatif key={j} uri={uri} style={styles.regulPhotoThumb} compact />
                     ))}
                   </View>
                 )}
@@ -1283,18 +1596,27 @@ export default function LitigesScreen() {
             backgroundColor: item.ecart !== 0 ? (item.ecart > 0 ? '#FFF0F0' : '#FFF8E1') : '#F0FFF4',
             borderColor: c + '44',
           }]}>
-            <Text style={styles.ecartLabel}>{item.totalRegul > 0 ? 'Écart restant' : 'Écart constaté'}</Text>
+            <Text style={styles.ecartLabel}>
+              {item.annule ? (item.justifie ? '✔️ Écart justifié' : '🚫 Écart annulé')
+                : item.totalRegul > 0 ? 'Écart restant' : 'Écart constaté'}
+            </Text>
             <Text style={[styles.ecartValeur, { color: c }]}>{item.ecart > 0 ? '+' : ''}{fmt(item.ecart)}</Text>
             <Text style={[styles.ecartSous, { color: c }]}>
-              {item.ecart > 0 ? 'Machine supérieure aux shifts déclarés'
+              {item.annule
+                ? (item.justifie
+                    ? '✔️ Justifié dans Vérification — fond non modifié'
+                    : '🚫 Annulé dans Vérification — non pris en compte')
+                : item.ecart > 0 ? 'Machine supérieure aux shifts déclarés'
                 : item.ecart < 0 ? 'Shifts supérieurs à la machine'
                 : (item.totalRegul > 0 ? '✅ Écart entièrement régularisé' : '✅ Aucun écart — tout est aligné')}
             </Text>
-            {item.totalRegul > 0 && (
+            {item.annule && item.ecartBrut !== 0 ? (
+              <Text style={styles.ecartRegulHint}>Écart initial {item.ecartBrut > 0 ? '+' : ''}{fmt(item.ecartBrut)} · {item.justifie ? 'justifié' : 'annulé'}</Text>
+            ) : item.totalRegul > 0 ? (
               <Text style={styles.ecartRegulHint}>
                 Écart initial {item.ecartBrut > 0 ? '+' : ''}{fmt(item.ecartBrut)} · régularisé {fmt(item.totalRegul)}
               </Text>
-            )}
+            ) : null}
           </View>
 
           {renderEcartDetails(item)}
@@ -1324,7 +1646,7 @@ export default function LitigesScreen() {
               >
                 {aDetails && <Text style={styles.ligneChevron}>{ouvert ? '▾' : '▸'}</Text>}
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.ligneNom}>{j.date}</Text>
+                  <Text style={styles.ligneNom}>{j.date}{j.annule ? (j.justifie ? '  ·  ✔️ justifié' : '  ·  🚫 annulé') : ''}</Text>
                   <Text style={styles.ligneSous}>Machine {fmtShort(j.venteMachine)} — Shifts {fmtShort(j.cumulShifts)} ({j.nbShifts})</Text>
                 </View>
                 <Text style={[styles.montantTxt, { color: cj }]}>{j.ecart > 0 ? '+' : ''}{fmtShort(j.ecart)}</Text>
@@ -1422,6 +1744,38 @@ export default function LitigesScreen() {
           <Text style={styles.totalBannerLabel}>Total déductions inventaire</Text>
           <Text style={[styles.totalBannerValue, { color: '#C62828' }]}>{fmt(totalInventaire)}</Text>
         </View>
+
+        {/* Comptages du vérificateur : montants plafonnés, en attente ou répartis */}
+        {deducVerifResto.length > 0 && (
+          <>
+            <View style={[styles.totalBanner, { marginTop: 10 }]}>
+              <Text style={styles.totalBannerLabel}>🔍 Comptage vérificateur</Text>
+              <Text style={[styles.totalBannerValue, { color: '#C62828' }]}>{fmt(totalVerif)}</Text>
+            </View>
+            {totalVerifReel > totalVerif && (
+              <View style={styles.plafondBox}>
+                <Text style={styles.plafondTxt}>
+                  ⚖️ Écart réellement constaté {fmt(totalVerifReel)} — plafond de {fmt(PLAFOND_COMPTAGE)}
+                  {' '}par comptage appliqué, {fmt(totalVerif)} retenus.
+                </Text>
+              </View>
+            )}
+            {deducVerifResto.map(d => (
+              <View key={d.id} style={styles.globalItem}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.globalItemTxt} numberOfLines={2}>
+                    📅 {d.date} — {d.produits_resume || `${d.nb_produits || 0} produit(s) en écart`}
+                  </Text>
+                  <Text style={styles.globalItemResp}>
+                    👤 {d.caissier_nom}{d.shift_libelle ? ` · ${d.shift_libelle}` : ''}
+                    {d.statut === 'en_attente' ? ' · ⏳ à répartir' : ' · ✓ réparti'}
+                  </Text>
+                </View>
+                <Text style={[styles.globalItemMontant, { color: '#C62828' }]}>{fmtShort(d.montant)}</Text>
+              </View>
+            ))}
+          </>
+        )}
         {inventaireShifts.map(inv => {
           const shiftLabel = SHIFT_LABELS[inv.type_shift] || inv.type_shift || 'Shift'
           // Grouper les lignes par catégorie
@@ -1442,16 +1796,40 @@ export default function LitigesScreen() {
                 </View>
                 <Text style={[styles.montantTxt, { color: '#C62828' }]}>−{fmtShort(inv.montant_a_deduire)}</Text>
               </View>
-              {/* Détail par catégorie */}
-              {catEntries.length > 0 && (
-                <View style={styles.catDetail}>
-                  {catEntries.map(([cat, montant]) => (
-                    <View key={cat} style={styles.catLigne}>
-                      <Text style={styles.catNom}>{cat}</Text>
-                      <Text style={styles.catMontant}>{fmtShort(montant)} FCFA</Text>
-                    </View>
-                  ))}
-                </View>
+              {/* Détail : par produit (manager → bouton Annuler) ou par catégorie (lecture seule) */}
+              {peutRegulariser ? (
+                inv.lignes.length > 0 && (
+                  <View style={styles.catDetail}>
+                    {inv.lignes.map(l => (
+                      <View key={l.id} style={styles.prodLigne}>
+                        <View style={{ flex: 1, paddingRight: 8 }}>
+                          <Text style={styles.catNom}>{l.produit_nom}</Text>
+                          <Text style={[styles.catMontant, { color: '#C62828' }]}>−{fmtShort(l.montant_deduit)} FCFA</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[styles.annulDeducBtnSm, annulDeducSaving === l.id && { opacity: 0.6 }]}
+                          onPress={() => confirmerAnnulationDeductionLitige(l, inv)}
+                          disabled={!!annulDeducSaving}
+                        >
+                          {annulDeducSaving === l.id
+                            ? <ActivityIndicator color="#A32D2D" size="small" />
+                            : <Text style={styles.annulDeducBtnSmTxt}>🚫 Annuler</Text>}
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                )
+              ) : (
+                catEntries.length > 0 && (
+                  <View style={styles.catDetail}>
+                    {catEntries.map(([cat, montant]) => (
+                      <View key={cat} style={styles.catLigne}>
+                        <Text style={styles.catNom}>{cat}</Text>
+                        <Text style={styles.catMontant}>{fmtShort(montant)} FCFA</Text>
+                      </View>
+                    ))}
+                  </View>
+                )
               )}
             </View>
           )
@@ -1472,11 +1850,12 @@ export default function LitigesScreen() {
           </View>
         )}
         {avisClients.map(a => {
-          const type = TYPES_AVIS.find(t => t.key === a.type)
+          const type = typeAvis(a.type)
           return (
             <View key={a.id} style={styles.ligneCard}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.ligneNom, { color: type?.couleur || colors.text }]}>{type?.label || a.type}</Text>
+                {a.canal ? <Text style={[styles.ligneSous, { color: canalAvis(a.canal)?.couleur || colors.textMuted, fontWeight: '600' }]}>📍 {canalAvis(a.canal)?.court || a.canal}</Text> : null}
                 {a.responsable_nom ? <Text style={styles.ligneSous}>👤 {a.responsable_nom}</Text> : null}
                 {a.numero_commande ? <Text style={styles.ligneCmd}>🔖 Cmd #{a.numero_commande}</Text> : null}
                 {multiJour && a.date ? <Text style={styles.ligneSous}>📅 {a.date}</Text> : null}
@@ -1484,7 +1863,7 @@ export default function LitigesScreen() {
                 {a.created_by ? <Text style={styles.ligneCreer}>par {a.created_by}</Text> : null}
               </View>
               <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                <Text style={[styles.montantTxt, { color: a.montant > 0 ? '#C62828' : '#2E7D32' }]}>
+                <Text style={[styles.montantTxt, { color: couleurMontant(a.montant, colors) }]}>
                   {a.montant > 0 ? '+' : ''}{fmtShort(a.montant)}
                 </Text>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -1589,6 +1968,67 @@ export default function LitigesScreen() {
     )
   }
 
+  // ── Corrections du volet Contacts (manager / directeur) ──────
+  function ouvrirCorrNbCommandes(item) {
+    setCorrError('')
+    setCorrCmd(item)
+    setCorrCmdForm({
+      yango: String(item.nbYango || 0),
+      glovo: String(item.nbGlovo || 0),
+      motif: item.nbCorrigeMotif || '',
+    })
+  }
+
+  function ouvrirCorrLitige(item) {
+    setCorrError('')
+    setCorrLitige(item)
+    setCorrLitigeForm({
+      montant: String(item.forceParManager ? item.litige : item.litigeCalcule),
+      motif: item.motif || '',
+    })
+  }
+
+  async function sauvegarderCorrNbCommandes() {
+    if (!corrCmd) return
+    setCorrSaving(true)
+    setCorrError('')
+    const res = await corrigerNbCommandes({
+      point: corrCmd.point,
+      yango: corrCmdForm.yango,
+      glovo: corrCmdForm.glovo,
+      motif: corrCmdForm.motif,
+      userId, userNom,
+    })
+    setCorrSaving(false)
+    if (!res.ok) { setCorrError(res.error); return }
+    setCorrCmd(null)
+    await chargerEcartContacts()
+    Alert.alert('✅ Nombre corrigé', 'Le litige contacts a été recalculé. Le gérant a été notifié.')
+  }
+
+  async function sauvegarderCorrLitige(annulerCorrection = false) {
+    if (!corrLitige) return
+    setCorrSaving(true)
+    setCorrError('')
+    const res = await forcerLitigeContact({
+      point: corrLitige.point,
+      montant: annulerCorrection ? null : corrLitigeForm.montant,
+      motif: corrLitigeForm.motif,
+      litigeCalcule: corrLitige.litigeCalcule,
+      userId, userNom,
+    })
+    setCorrSaving(false)
+    if (!res.ok) { setCorrError(res.error); return }
+    setCorrLitige(null)
+    await chargerEcartContacts()
+    Alert.alert(
+      annulerCorrection ? '↩️ Correction retirée' : '✅ Litige corrigé',
+      annulerCorrection
+        ? 'Le montant calculé automatiquement s’applique de nouveau.'
+        : 'Le montant retenu a été enregistré. Le gérant a été notifié.'
+    )
+  }
+
   function renderEcartContacts() {
     const multiJour = periodeKey !== '1jour'
     return (
@@ -1603,36 +2043,71 @@ export default function LitigesScreen() {
           <View style={styles.emptyBox}><Text style={styles.emptyTxt}>Aucune donnée sur cette période</Text></View>
         ) : (
           ecartContacts.map((item, idx) => {
-            const parfait = item.taux === 0
+            const parfait = item.ecart === 0
             const tolere = item.taux > 0 && item.taux <= 20
-            const aLitige = item.taux > 20
+            // Plus de contacts que de commandes = surplus : jamais un litige
+            // (même règle que le volet Écarts, où seuls les manquants comptent).
+            const surplus = item.ecart < 0
+            const aLitige = item.litige > 0
             return (
-              <View key={idx} style={[styles.ligneCard, aLitige && { borderColor: '#C62828', borderWidth: 1 }]}>
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={[styles.ligneNom, { color: colors.text }]}>📅 {item.date}</Text>
-                  {item.caissiers ? <Text style={styles.ligneSous}>👤 {item.caissiers}</Text> : null}
-                  <Text style={styles.ligneSous}>
-                    Cmds : {item.nbCommandes}  ·  Contacts : {item.nbContacts}  ·  Écart : {item.ecart}  ·  {item.taux}%
-                  </Text>
-                  {item.contactsParCaissier?.length > 0 && (
-                    <View style={{ marginTop: 4, gap: 2 }}>
-                      {item.contactsParCaissier.map((c, ci) => (
-                        <Text key={ci} style={[styles.ligneSous, { color: '#185FA5' }]}>
-                          📞 {c.nom} : {c.nb} contact{c.nb > 1 ? 's' : ''}
-                        </Text>
-                      ))}
-                    </View>
-                  )}
-                  {parfait && <Text style={{ fontSize: 12, color: '#2E7D32', fontWeight: '600' }}>✅ Parfait</Text>}
-                  {tolere && <Text style={{ fontSize: 12, color: '#F57F17', fontWeight: '600' }}>✅ Toléré</Text>}
-                  {aLitige && (
-                    <Text style={{ fontSize: 12, color: '#C62828', fontWeight: '600' }}>
-                      ⚠️ {item.ecart} × 500 = {fmtShort(item.litige)}
+              <View key={idx} style={[styles.ligneCard, { flexDirection: 'column', alignItems: 'stretch' }, aLitige && { borderColor: '#C62828', borderWidth: 1 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={[styles.ligneNom, { color: colors.text }]}>📅 {item.date}</Text>
+                    {item.caissiers ? <Text style={styles.ligneSous}>👤 {item.caissiers}</Text> : null}
+                    <Text style={styles.ligneSous}>
+                      Cmds : {item.nbCommandes} (Y {item.nbYango} · G {item.nbGlovo})  ·  Contacts : {item.nbContacts}  ·  Écart : {item.ecart}  ·  {item.taux}%
                     </Text>
-                  )}
+                    {item.nbCorrige && (
+                      <Text style={styles.corrBadge}>
+                        ✏️ Nb corrigé (avant : Y {item.nbYangoOriginal ?? '—'} · G {item.nbGlovoOriginal ?? '—'})
+                        {item.nbCorrigePar ? ` — ${item.nbCorrigePar}` : ''}
+                        {item.nbCorrigeMotif ? ` · ${item.nbCorrigeMotif}` : ''}
+                      </Text>
+                    )}
+                    {item.contactsParCaissier?.length > 0 && (
+                      <View style={{ marginTop: 4, gap: 2 }}>
+                        {item.contactsParCaissier.map((c, ci) => (
+                          <Text key={ci} style={[styles.ligneSous, { color: '#185FA5' }]}>
+                            📞 {c.nom} : {c.nb} contact{c.nb > 1 ? 's' : ''}
+                          </Text>
+                        ))}
+                      </View>
+                    )}
+                    {parfait && !item.forceParManager && <Text style={{ fontSize: 12, color: '#2E7D32', fontWeight: '600' }}>✅ Parfait</Text>}
+                    {tolere && !item.forceParManager && <Text style={{ fontSize: 12, color: '#F57F17', fontWeight: '600' }}>✅ Toléré</Text>}
+                    {surplus && !item.forceParManager && (
+                      <Text style={{ fontSize: 12, color: '#F57F17', fontWeight: '600' }}>
+                        ↩️ Surplus de {Math.abs(item.ecart)} contact{Math.abs(item.ecart) > 1 ? 's' : ''} — pas de litige
+                      </Text>
+                    )}
+                    {item.litigeCalcule > 0 && !item.forceParManager && (
+                      <Text style={{ fontSize: 12, color: '#C62828', fontWeight: '600' }}>
+                        ⚠️ {item.ecart} × 500 = {fmtShort(item.litigeCalcule)}
+                      </Text>
+                    )}
+                    {item.forceParManager && (
+                      <Text style={styles.corrBadge}>
+                        ✏️ Montant forcé (calculé : {fmtShort(item.litigeCalcule)})
+                        {item.forcePar ? ` — ${item.forcePar}` : ''}
+                        {item.motif ? ` · ${item.motif}` : ''}
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={[styles.montantTxt, { color: item.litige > 0 ? '#C62828' : '#2E7D32' }]}>
+                    {fmtShort(item.litige)}
+                  </Text>
                 </View>
-                {aLitige && (
-                  <Text style={[styles.montantTxt, { color: '#C62828' }]}>{fmtShort(item.litige)}</Text>
+
+                {peutRegulariser && item.point && (
+                  <View style={styles.corrBtnRow}>
+                    <TouchableOpacity style={styles.corrBtn} onPress={() => ouvrirCorrNbCommandes(item)}>
+                      <Text style={styles.corrBtnTxt}>✏️ Nb commandes</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.corrBtn} onPress={() => ouvrirCorrLitige(item)}>
+                      <Text style={styles.corrBtnTxt}>✏️ Montant du litige</Text>
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
             )
@@ -1852,12 +2327,27 @@ export default function LitigesScreen() {
                   style={[styles.typeBtn, { flex: 1 }, formAvis.type === t.key && { backgroundColor: t.couleur, borderColor: t.couleur }]}
                   onPress={() => setFormAvis(p => ({ ...p, type: t.key }))}
                 >
-                  <Text style={[styles.typeBtnTxt, formAvis.type === t.key && { color: '#fff' }]}>{t.label}</Text>
+                  <Text style={[styles.typeBtnTxt, formAvis.type === t.key && { color: '#fff' }]}>{t.court || t.label}</Text>
                   <Text style={[styles.typeBtnMontant, formAvis.type === t.key && { color: '#ffffffbb' }]}>
-                    {t.montant > 0 ? '+' : ''}{t.montant} FCFA
+                    {t.montant === 0 ? 'aucun impact' : `${t.montant > 0 ? '+' : ''}${t.montant} FCFA`}
                   </Text>
                 </TouchableOpacity>
               ))}
+            </View>
+
+            <Text style={styles.formLabel}>Canal du client</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+              {CANAUX_AVIS.map(c => {
+                const actif = (formAvis.canal || 'sur_place') === c.key
+                return (
+                  <TouchableOpacity key={c.key}
+                    style={[styles.typeBtn, { flex: 1 }, actif && { backgroundColor: c.couleur, borderColor: c.couleur }]}
+                    onPress={() => setFormAvis(p => ({ ...p, canal: c.key }))}
+                  >
+                    <Text style={[styles.typeBtnTxt, actif && { color: '#fff' }]}>{c.label}</Text>
+                  </TouchableOpacity>
+                )
+              })}
             </View>
 
             <Text style={styles.formLabel}>N° de commande (optionnel)</Text>
@@ -2033,6 +2523,129 @@ export default function LitigesScreen() {
         </ScrollView>
       </Modal>
 
+      {/* ── Modal correction du nombre de commandes Yango / Glovo ── */}
+      <Modal visible={!!corrCmd} transparent animationType="slide" onRequestClose={() => setCorrCmd(null)}>
+        <ScrollView contentContainerStyle={styles.overlay} keyboardShouldPersistTaps="handled">
+          <View style={styles.formModal}>
+            <Text style={styles.formTitre}>✏️ Corriger le nombre de commandes</Text>
+            {corrCmd && (
+              <>
+                <View style={styles.regulInfo}>
+                  <Text style={styles.regulInfoTxt}>📅 {corrCmd.date}</Text>
+                  <Text style={styles.regulInfoSub}>
+                    Saisi par le gérant : Yango {corrCmd.nbYango} · Glovo {corrCmd.nbGlovo}.
+                    {'\n'}Contacts réellement pris : {corrCmd.nbContacts}.
+                    {'\n'}Le litige contacts, les charges et le récap sont recalculés automatiquement.
+                  </Text>
+                </View>
+
+                <Text style={styles.formLabel}>Commandes Yango</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={corrCmdForm.yango}
+                  onChangeText={v => setCorrCmdForm(p => ({ ...p, yango: v.replace(/[^0-9]/g, '') }))}
+                  keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textMuted}
+                />
+
+                <Text style={styles.formLabel}>Commandes Glovo</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={corrCmdForm.glovo}
+                  onChangeText={v => setCorrCmdForm(p => ({ ...p, glovo: v.replace(/[^0-9]/g, '') }))}
+                  keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textMuted}
+                />
+
+                <Text style={styles.formLabel}>Motif (optionnel)</Text>
+                <TextInput
+                  style={[styles.formInput, { minHeight: 60, textAlignVertical: 'top' }]}
+                  value={corrCmdForm.motif}
+                  onChangeText={v => setCorrCmdForm(p => ({ ...p, motif: v }))}
+                  placeholder="Ex : le gérant a tapé 40 au lieu de 14"
+                  placeholderTextColor={colors.textMuted}
+                  multiline
+                />
+
+                {corrError ? <Text style={styles.corrErrorTxt}>⚠️ {corrError}</Text> : null}
+                <View style={styles.formBtns}>
+                  <TouchableOpacity style={styles.btnAnnuler} onPress={() => setCorrCmd(null)} disabled={corrSaving}>
+                    <Text style={styles.btnAnnulerTxt}>Annuler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.btnValider, corrSaving && { opacity: 0.5 }]}
+                    onPress={sauvegarderCorrNbCommandes} disabled={corrSaving}
+                  >
+                    <Text style={styles.btnValiderTxt}>{corrSaving ? '...' : 'Corriger'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </ScrollView>
+      </Modal>
+
+      {/* ── Modal correction du montant du litige contacts ── */}
+      <Modal visible={!!corrLitige} transparent animationType="slide" onRequestClose={() => setCorrLitige(null)}>
+        <ScrollView contentContainerStyle={styles.overlay} keyboardShouldPersistTaps="handled">
+          <View style={styles.formModal}>
+            <Text style={styles.formTitre}>✏️ Corriger le montant du litige</Text>
+            {corrLitige && (
+              <>
+                <View style={styles.regulInfo}>
+                  <Text style={styles.regulInfoTxt}>📅 {corrLitige.date}</Text>
+                  <Text style={styles.regulInfoSub}>
+                    Montant calculé : {fmt(corrLitige.litigeCalcule)} ({corrLitige.ecart} contact
+                    {corrLitige.ecart > 1 ? 's' : ''} manquant{corrLitige.ecart > 1 ? 's' : ''} × 500).
+                    {'\n'}Mettez 0 si le restaurant n’y est pour rien (tablette en panne, etc.).
+                  </Text>
+                </View>
+
+                <Text style={styles.formLabel}>Montant retenu (FCFA)</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={corrLitigeForm.montant}
+                  onChangeText={v => setCorrLitigeForm(p => ({ ...p, montant: v.replace(/[^0-9]/g, '') }))}
+                  keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textMuted}
+                />
+
+                <Text style={styles.formLabel}>Motif (obligatoire)</Text>
+                <TextInput
+                  style={[styles.formInput, { minHeight: 70, textAlignVertical: 'top' }]}
+                  value={corrLitigeForm.motif}
+                  onChangeText={v => setCorrLitigeForm(p => ({ ...p, motif: v }))}
+                  placeholder="Ex : tablette hors service, contacts impossibles à prendre"
+                  placeholderTextColor={colors.textMuted}
+                  multiline
+                />
+
+                {corrError ? <Text style={styles.corrErrorTxt}>⚠️ {corrError}</Text> : null}
+
+                {corrLitige.forceParManager && (
+                  <TouchableOpacity
+                    style={styles.corrResetBtn}
+                    onPress={() => sauvegarderCorrLitige(true)}
+                    disabled={corrSaving}
+                  >
+                    <Text style={styles.corrResetBtnTxt}>↩️ Revenir au montant calculé</Text>
+                  </TouchableOpacity>
+                )}
+
+                <View style={styles.formBtns}>
+                  <TouchableOpacity style={styles.btnAnnuler} onPress={() => setCorrLitige(null)} disabled={corrSaving}>
+                    <Text style={styles.btnAnnulerTxt}>Annuler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.btnValider, corrSaving && { opacity: 0.5 }]}
+                    onPress={() => sauvegarderCorrLitige(false)} disabled={corrSaving}
+                  >
+                    <Text style={styles.btnValiderTxt}>{corrSaving ? '...' : 'Enregistrer'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </ScrollView>
+      </Modal>
+
       {/* ── Modal Confirmation Suppression ── */}
       <Modal visible={!!confirmSuppr} transparent animationType="fade">
         <View style={styles.overlay}>
@@ -2099,7 +2712,7 @@ export default function LitigesScreen() {
                     <View style={styles.regulPhotosRow}>
                       {regulPhotos.map((uri, i) => (
                         <View key={i} style={styles.regulPhotoWrap}>
-                          <Image source={{ uri }} style={styles.regulPhotoThumb} resizeMode="cover" />
+                          <PhotoJustificatif uri={uri} style={styles.regulPhotoThumb} compact />
                           <TouchableOpacity style={styles.regulPhotoDel} onPress={() => setRegulPhotos(prev => prev.filter((_, j) => j !== i))}>
                             <Text style={styles.regulPhotoDelTxt}>✕</Text>
                           </TouchableOpacity>
@@ -2215,6 +2828,8 @@ function makeStyles(colors) { return StyleSheet.create({
   },
   regulCardTitre: { fontSize: 13, fontWeight: '700', color: colors.text, flex: 1 },
   regulDelTxt: { fontSize: 16, color: '#C62828', fontWeight: '700', paddingLeft: 8 },
+  regulSansFondBadge: { alignSelf: 'flex-start', marginTop: 6, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 8, backgroundColor: colors.surfaceAlt || '#EFEFEF' },
+  regulSansFondTxt: { fontSize: 11, fontWeight: '600', color: colors.textMuted },
   regulMotif: { fontSize: 13, color: colors.textSecondary, marginTop: 6, lineHeight: 18 },
   regulMeta: { fontSize: 11, color: colors.textMuted, marginTop: 6 },
   regulPhotosRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, marginBottom: 12 },
@@ -2299,6 +2914,24 @@ function makeStyles(colors) { return StyleSheet.create({
   catLigne: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   catNom: { fontSize: 12, color: colors.textSecondary, flex: 1 },
   catMontant: { fontSize: 12, fontWeight: '700', color: '#C62828' },
+  prodLigne: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
+  annulDeducBtnSm: { backgroundColor: '#FCEBEB', borderWidth: 1, borderColor: '#F09595', borderRadius: 7, paddingVertical: 6, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', minWidth: 78, minHeight: 32 },
+  annulDeducBtnSmTxt: { color: '#A32D2D', fontWeight: '700', fontSize: 12 },
+
+  // Corrections manager du volet Contacts
+  corrBadge: { fontSize: 11, color: '#854F0B', fontWeight: '600', marginTop: 2, lineHeight: 15 },
+  corrBtnRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  corrBtn: {
+    flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
+    backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.borderLight,
+  },
+  corrBtnTxt: { fontSize: 12, fontWeight: '600', color: '#534AB7' },
+  corrErrorTxt: { color: '#C62828', fontSize: 12, marginBottom: 8, textAlign: 'center' },
+  corrResetBtn: {
+    paddingVertical: 10, borderRadius: 8, alignItems: 'center', marginBottom: 10,
+    backgroundColor: '#F1EFE8', borderWidth: 1, borderColor: '#854F0B',
+  },
+  corrResetBtnTxt: { fontSize: 13, fontWeight: '700', color: '#854F0B' },
 
   emptyBox: { paddingVertical: 40, alignItems: 'center', gap: 8 },
   emptyTxt: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
@@ -2395,5 +3028,8 @@ function makeStyles(colors) { return StyleSheet.create({
   },
   globalItemTxt: { fontSize: 12, color: colors.textSecondary, flex: 1 },
   globalItemCmd: { fontSize: 12, color: '#185FA5', fontWeight: '600' },
+  globalItemResp: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  plafondBox: { backgroundColor: '#FFF4E0', borderRadius: 8, padding: 9, marginVertical: 5, borderWidth: 1, borderColor: '#E8C98A' },
+  plafondTxt: { fontSize: 11, color: '#7A4800', lineHeight: 16 },
   globalItemMontant: { fontSize: 12, fontWeight: '700', marginLeft: 8 },
 }) }

@@ -2,6 +2,7 @@ import { router } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
+  Alert,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -15,6 +16,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native'
+import { Calendar } from 'react-native-calendars'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { journaliser } from '../lib/journal'
@@ -69,6 +71,19 @@ export default function DemandesAdminScreen() {
   // Modal confirmation annulation
   const [showAnnulerModal, setShowAnnulerModal] = useState(false)
   const [demandeAnnuler, setDemandeAnnuler] = useState(null)
+
+  // Modal création (RH/manager/directeur — ex : planifier un congé futur)
+  const peutCreer = roleActif === 'rh' || roleActif === 'directeur' || roleActif === 'manager'
+  const [showCreer, setShowCreer] = useState(false)
+  const [creerResto, setCreerResto] = useState(null)
+  const [travCreer, setTravCreer] = useState([])
+  const [cType, setCType] = useState(null)
+  const [cTrav, setCTrav] = useState(null)
+  const [cDesc, setCDesc] = useState('')
+  const [cMontant, setCMontant] = useState('')
+  const [cDebut, setCDebut] = useState('')
+  const [cFin, setCFin] = useState('')
+  const [cDateChamp, setCDateChamp] = useState(null)
 
   useEffect(() => {
     chargerRestaurants()
@@ -209,6 +224,50 @@ export default function DemandesAdminScreen() {
     charger()
   }
 
+  // ── Création directe par un admin (auto-validée) ──
+  function ouvrirCreer() {
+    setCreerResto(null); setTravCreer([]); setCType(null); setCTrav(null)
+    setCDesc(''); setCMontant(''); setCDebut(''); setCFin(''); setCDateChamp(null)
+    setShowCreer(true)
+  }
+  async function choisirRestoCreer(r) {
+    setCreerResto(r); setCTrav(null)
+    const { data } = await supabase.from('travailleurs').select('id, nom').eq('restaurant_id', r.id).eq('actif', true).order('nom')
+    setTravCreer(data || [])
+  }
+  async function soumettreCreation() {
+    if (!cType) return Alert.alert('Erreur', 'Sélectionnez un type de demande')
+    if (!creerResto) return Alert.alert('Erreur', 'Sélectionnez un restaurant')
+    if (!cTrav) return Alert.alert('Erreur', 'Sélectionnez un travailleur')
+    if (cType.necessiteDates && (!cDebut || !cFin)) return Alert.alert('Erreur', 'Les dates sont obligatoires pour ce type')
+    if (cType.necessiteDates && cFin < cDebut) return Alert.alert('Erreur', 'La date de fin doit être après la date de début')
+    if (cType.necessiteMontant && !(parseFloat(cMontant) > 0)) return Alert.alert('Montant requis', 'Saisissez le montant (supérieur à 0).')
+    setSaving(true)
+    const now = new Date().toISOString()
+    const montantVal = cType.necessiteMontant ? (parseFloat(cMontant) || 0) : null
+    const { error } = await supabase.from('demandes').insert({
+      restaurant_id: creerResto.id,
+      travailleur_id: cTrav.id,
+      travailleur_nom: cTrav.nom,
+      type: cType.label,
+      necessite_dates: cType.necessiteDates,
+      date_debut: cType.necessiteDates ? cDebut : null,
+      date_fin: cType.necessiteDates ? cFin : null,
+      montant: montantVal,
+      montant_alloue: montantVal,
+      description: cDesc.trim() || null,
+      statut: 'validee', // créée et validée directement par l'admin
+      cree_par_id: userId,
+      cree_par_nom: userNom,
+      traite_par_id: userId,
+      traite_par_nom: userNom,
+      traite_at: now,
+    })
+    if (error) { setSaving(false); return Alert.alert('Erreur', error.message) }
+    journaliser({ action: 'demande_creee_admin', details: `${cType.label} pour ${cTrav.nom}`, userId, restaurantId: creerResto.id }).catch(() => {})
+    setSaving(false); setShowCreer(false); charger()
+  }
+
   const restoNom = restoFilter
     ? restaurants.find(r => r.id === restoFilter)?.nom || 'Restaurant'
     : 'Tous les restaurants'
@@ -223,11 +282,16 @@ export default function DemandesAdminScreen() {
         <View style={{ width: 60 }} />
       </View>
 
-      {/* Filtre restaurant */}
+      {/* Filtre restaurant + création */}
       <View style={styles.filtersRow}>
         <TouchableOpacity style={styles.restoBtn} onPress={() => setShowRestoPicker(true)}>
           <Text style={styles.restoBtnTxt}>🏪 {restoNom} ▾</Text>
         </TouchableOpacity>
+        {peutCreer && (
+          <TouchableOpacity style={styles.addBtnSmall} onPress={ouvrirCreer}>
+            <Text style={styles.addBtnSmallTxt}>+ Nouvelle demande</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Filtre statut */}
@@ -277,7 +341,7 @@ export default function DemandesAdminScreen() {
                   {d.montant > 0 && (
                     <Text style={styles.cardMontant}>💰 Montant demandé : {Math.round(d.montant).toLocaleString('fr-FR')} FCFA</Text>
                   )}
-                  {d.description ? <Text style={styles.cardDesc}>"{d.description}"</Text> : null}
+                  {d.description ? <Text style={styles.cardDesc}>{`« ${d.description} »`}</Text> : null}
                   <Text style={styles.cardMeta}>Le {fmtDate(d.created_at?.split('T')[0])}</Text>
 
                   {d.statut === 'validee' && d.montant_alloue > 0 && (
@@ -375,7 +439,7 @@ export default function DemandesAdminScreen() {
 
       {/* Modal motif déclin */}
       <Modal visible={showDeclineModal} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
           <View style={styles.modalOverlay}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
               <View style={styles.declineModal}>
@@ -415,7 +479,7 @@ export default function DemandesAdminScreen() {
 
       {/* Modal montant alloué (validation d'une demande financière) */}
       <Modal visible={showMontantModal} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
           <View style={styles.modalOverlay}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
               <View style={styles.declineModal}>
@@ -452,6 +516,109 @@ export default function DemandesAdminScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      {/* Modal création (admin) */}
+      <Modal visible={showCreer} transparent animationType="slide">
+        <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
+              <View style={styles.creerModal}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitre}>Nouvelle demande</Text>
+                  <TouchableOpacity onPress={() => setShowCreer(false)}><Text style={styles.modalClose}>✕</Text></TouchableOpacity>
+                </View>
+                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                  <Text style={styles.label}>Type de demande</Text>
+                  <View style={styles.typesGrid}>
+                    {TYPES_DEMANDE.map(t => (
+                      <TouchableOpacity
+                        key={t.label}
+                        style={[styles.typeChip, cType?.label === t.label && styles.typeChipActive]}
+                        onPress={() => { setCType(t); setCDebut(''); setCFin(''); setCDateChamp(null) }}
+                      >
+                        <Text style={[styles.typeChipTxt, cType?.label === t.label && styles.typeChipTxtActive]}>{t.icon} {t.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text style={styles.label}>Restaurant</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                    {restaurants.map(r => (
+                      <TouchableOpacity key={r.id} style={[styles.travChip, creerResto?.id === r.id && styles.travChipActive]} onPress={() => choisirRestoCreer(r)}>
+                        <Text style={[styles.travChipTxt, creerResto?.id === r.id && styles.travChipTxtActive]}>{r.nom}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+
+                  {creerResto && (
+                    <>
+                      <Text style={styles.label}>Travailleur</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                        {travCreer.length === 0 ? (
+                          <Text style={{ color: colors.textMuted, fontStyle: 'italic' }}>Aucun travailleur actif</Text>
+                        ) : travCreer.map(t => (
+                          <TouchableOpacity key={t.id} style={[styles.travChip, cTrav?.id === t.id && styles.travChipActive]} onPress={() => setCTrav(t)}>
+                            <Text style={[styles.travChipTxt, cTrav?.id === t.id && styles.travChipTxtActive]}>{t.nom}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </>
+                  )}
+
+                  {cType?.necessiteDates && (
+                    <>
+                      <Text style={styles.label}>Dates (futures autorisées)</Text>
+                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+                        <TouchableOpacity style={[styles.dateBtn, cDateChamp === 'debut' && styles.dateBtnActive]} onPress={() => setCDateChamp(cDateChamp === 'debut' ? null : 'debut')}>
+                          <Text style={[styles.dateBtnTxt, cDebut && { color: colors.text, fontWeight: '600' }, cDateChamp === 'debut' && { color: '#fff' }]}>{cDebut ? fmtDate(cDebut) : '📅 Début'}</Text>
+                        </TouchableOpacity>
+                        <Text style={{ color: colors.textMuted, alignSelf: 'center' }}>→</Text>
+                        <TouchableOpacity style={[styles.dateBtn, cDateChamp === 'fin' && styles.dateBtnActive]} onPress={() => setCDateChamp(cDateChamp === 'fin' ? null : 'fin')}>
+                          <Text style={[styles.dateBtnTxt, cFin && { color: colors.text, fontWeight: '600' }, cDateChamp === 'fin' && { color: '#fff' }]}>{cFin ? fmtDate(cFin) : '📅 Fin'}</Text>
+                        </TouchableOpacity>
+                      </View>
+                      {cDateChamp !== null && (
+                        <Calendar
+                          onDayPress={day => {
+                            if (cDateChamp === 'debut') setCDebut(day.dateString)
+                            else setCFin(day.dateString)
+                            setCDateChamp(null)
+                          }}
+                          markedDates={{
+                            ...(cDebut ? { [cDebut]: { selected: true, selectedColor: '#534AB7' } } : {}),
+                            ...(cFin ? { [cFin]: { selected: true, selectedColor: '#3B6D11' } } : {}),
+                          }}
+                          theme={{
+                            selectedDayBackgroundColor: cDateChamp === 'debut' ? '#534AB7' : '#3B6D11',
+                            todayTextColor: '#534AB7', arrowColor: '#534AB7',
+                            monthTextColor: colors.text, dayTextColor: colors.text, textDisabledColor: '#ccc',
+                          }}
+                        />
+                      )}
+                    </>
+                  )}
+
+                  {cType?.necessiteMontant && (
+                    <>
+                      <Text style={styles.label}>Montant (FCFA)</Text>
+                      <TextInput style={[styles.input, { color: colors.text, borderColor: colors.border }]} placeholder="Ex : 50000" placeholderTextColor={colors.textMuted} keyboardType="numeric" value={cMontant} onChangeText={v => setCMontant(v.replace(/[^0-9]/g, ''))} />
+                    </>
+                  )}
+
+                  <Text style={styles.label}>Description (optionnelle)</Text>
+                  <TextInput style={[styles.textArea, { color: colors.text, borderColor: colors.border }]} placeholder="Précisez les détails..." placeholderTextColor={colors.textMuted} multiline value={cDesc} onChangeText={setCDesc} />
+
+                  <TouchableOpacity style={[styles.btnValider, { paddingVertical: 13 }, saving && { opacity: 0.5 }]} onPress={soumettreCreation} disabled={saving}>
+                    <Text style={styles.btnValiderTxt}>{saving ? 'Enregistrement...' : '✅ Enregistrer (validée)'}</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.hint}>Créée directement validée. Idéal pour planifier un congé à une date future.</Text>
+                  <View style={{ height: 30 }} />
+                </ScrollView>
+              </View>
+            </KeyboardAvoidingView>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -462,9 +629,11 @@ function makeStyles(colors) {
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
     back: { fontSize: 16, color: '#534AB7', fontWeight: '500' },
     headerTitre: { fontSize: 18, fontWeight: '700', color: colors.text },
-    filtersRow: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 },
-    restoBtn: { backgroundColor: colors.surface, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, alignSelf: 'flex-start', borderWidth: 1, borderColor: colors.border },
+    filtersRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6, gap: 8 },
+    restoBtn: { backgroundColor: colors.surface, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: colors.border },
     restoBtnTxt: { fontSize: 14, color: colors.text, fontWeight: '500' },
+    addBtnSmall: { backgroundColor: '#534AB7', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+    addBtnSmallTxt: { color: '#fff', fontWeight: '700', fontSize: 13 },
     statutFilters: { paddingVertical: 8 },
     statutFilterBtn: { backgroundColor: colors.surface, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, borderColor: colors.border },
     statutFilterBtnActive: { backgroundColor: '#534AB7', borderColor: '#534AB7' },
@@ -511,5 +680,20 @@ function makeStyles(colors) {
     textArea: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 14, minHeight: 100, textAlignVertical: 'top', marginBottom: 16, backgroundColor: colors.background },
     btnDeclinerConfirm: { backgroundColor: '#993C1D', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
     btnDeclinerConfirmTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
+    creerModal: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '92%' },
+    label: { fontSize: 13, fontWeight: '600', color: colors.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+    typesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+    typeChip: { backgroundColor: colors.background, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colors.border },
+    typeChipActive: { backgroundColor: '#534AB7', borderColor: '#534AB7' },
+    typeChipTxt: { fontSize: 13, color: colors.textMuted, fontWeight: '500' },
+    typeChipTxtActive: { color: '#fff' },
+    travChip: { backgroundColor: colors.background, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colors.border, marginRight: 8 },
+    travChipActive: { backgroundColor: '#534AB7', borderColor: '#534AB7' },
+    travChipTxt: { fontSize: 13, color: colors.textMuted, fontWeight: '500' },
+    travChipTxtActive: { color: '#fff' },
+    dateBtn: { flex: 1, backgroundColor: colors.background, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
+    dateBtnActive: { backgroundColor: '#534AB7', borderColor: '#534AB7' },
+    dateBtnTxt: { fontSize: 13, color: colors.textMuted, fontWeight: '500' },
+    hint: { fontSize: 12, color: colors.textMuted, textAlign: 'center', marginTop: 10, fontStyle: 'italic' },
   })
 }

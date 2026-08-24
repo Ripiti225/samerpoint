@@ -2,22 +2,33 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet,
   SafeAreaView, ScrollView, ActivityIndicator,
-  Modal, Image, Alert, RefreshControl, Dimensions, FlatList, TextInput,
+  Modal, Alert, RefreshControl, Dimensions, FlatList, TextInput,
 } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import { supabase } from '../lib/supabase'
+import { annulerDeductionInventaire, deciderEcartInventaire } from '../lib/api'
 import { useApp } from '../context/AppContext'
 import { genererPdfPoint, genererPdfEcarts } from '../lib/generatePdf'
 import { CATEGORIES_INVENTAIRE } from '../lib/constants'
+import {
+  PLAFOND_COMPTAGE, chargerDeductions, repartitionValide,
+} from '../lib/deductionsVerification'
 import { useTheme } from '../context/ThemeContext'
 import { journaliser } from '../lib/journal'
+import { calculerLitigeContact, corrigerNbCommandes } from '../lib/litigeContacts'
 import { creerNotification } from '../lib/notificationsInterne'
+import { envoyerNotifFactureCorrigee } from '../lib/notifications'
+import PhotoJustificatif, { photoConsultable } from '../components/PhotoJustificatif'
+import { estPhotoEnAttente } from '../lib/photoQueue'
 
 const { width: SW } = Dimensions.get('window')
 
 // Décision du manager sur l'explication d'écart « vente machine ».
 // Sert à la fois au badge affiché et au contenu de la notification gérant.
 const STATUT_MACHINE = {
+  // Statut d'historique : le bouton « ✅ Valider » a été remplacé par « ✔️ Justifier »
+  // le 15/08/2026. Plus aucune action ne pose ce statut, mais les points déjà validés
+  // doivent continuer d'afficher leur badge.
   validee: {
     label: '✅ Explication validée',
     box: { backgroundColor: '#EAF3DE', borderColor: '#3B6D11' },
@@ -25,6 +36,14 @@ const STATUT_MACHINE = {
     titreNotif: '✅ Explication validée',
     msgNotif: (d) => `L'écart de vente machine du ${d} a été validé par le manager. Aucune correction nécessaire.`,
     confirm: 'Valider cette explication ? Le gérant sera notifié.',
+  },
+  justifiee: {
+    label: '✔️ Écart justifié',
+    box: { backgroundColor: '#EAF3DE', borderColor: '#3B6D11' },
+    txt: '#3B6D11',
+    titreNotif: '✔️ Écart justifié',
+    msgNotif: (d) => `L'écart de vente machine du ${d} a été justifié par le manager. Le fond n'a pas été modifié.`,
+    confirm: 'Justifier cet écart ? Le gérant sera notifié.',
   },
   refusee: {
     label: '❌ Explication refusée',
@@ -65,7 +84,21 @@ export default function VerificationScreen() {
   const [onglet, setOnglet] = useState('point')
   const [modalInventaire, setModalInventaire] = useState(false)
   const [detailInventaire, setDetailInventaire] = useState(null)
+  const [annulDeducSaving, setAnnulDeducSaving] = useState(null)  // id de la ligne en cours d'annulation
+  // Décision manager sur un écart inventaire expliqué (validee / refusee)
+  const [decisionInv, setDecisionInv] = useState(null)  // { ...ligneEcart } ou null
+  const [qteAcceptee, setQteAcceptee] = useState('')
+  const [decisionSaving, setDecisionSaving] = useState(false)
   const [loadingInventaire, setLoadingInventaire] = useState(false)
+  // Montants issus des comptages du vérificateur, en attente de décision
+  const [deducVerif, setDeducVerif] = useState([])
+  const [deducMigration, setDeducMigration] = useState(false)
+  const [deducEnCours, setDeducEnCours] = useState(null)
+  // Répartition en cours d'édition : { [lot_id]: [{ ...part, montant }] }
+  const [repartition, setRepartition] = useState({})
+  const [caissiersDuJour, setCaissiersDuJour] = useState([])
+  const [justifie, setJustifie] = useState({})     // { [lot]: montant non déduit }
+  const [rouverts, setRouverts] = useState({})     // { [lot]: true } → décision reprise
   const [generatingEcartsPdf, setGeneratingEcartsPdf] = useState(false)
   // Déverrouillage / correction
   const [modalCorrection, setModalCorrection] = useState(false)
@@ -79,6 +112,20 @@ export default function VerificationScreen() {
   const [modalAnnulerMachine, setModalAnnulerMachine] = useState(null)
   const [annulerMontant, setAnnulerMontant] = useState('')
   const [annulerSaving, setAnnulerSaving] = useState(false)
+  // Correction du nombre de commandes Yango/Glovo saisi par le gérant
+  // (il sert au litige « contacts » — une faute de frappe crée un faux litige)
+  const [corrCmdOuvert, setCorrCmdOuvert] = useState(false)
+  const [corrCmdYango, setCorrCmdYango] = useState('')
+  const [corrCmdGlovo, setCorrCmdGlovo] = useState('')
+  const [corrCmdMotif, setCorrCmdMotif] = useState('')
+  const [corrCmdSaving, setCorrCmdSaving] = useState(false)
+  const [corrCmdError, setCorrCmdError] = useState('')
+  // Correction de facture fournisseur (montant saisi ≠ photo)
+  const [corrFacture, setCorrFacture] = useState(null) // la transaction ciblée
+  const [corrMontant, setCorrMontant] = useState('')
+  const [corrRaison, setCorrRaison] = useState('')
+  const [corrSaving, setCorrSaving] = useState(false)
+  const [corrError, setCorrError] = useState('')
   // Galerie photos zoom
   const [galeriePhotos, setGaleriePhotos] = useState([])
   const [galerieIndex, setGalerieIndex] = useState(0)
@@ -185,6 +232,11 @@ export default function VerificationScreen() {
         contactsParPartenaire[c.partenaire] = (contactsParPartenaire[c.partenaire] || 0) + 1
       }
     })
+    // Total des contacts pris — base du litige « contacts ». Compté comme dans
+    // Litiges/Charges (tout contact renseigné, partenaire connu ou non), sinon
+    // les deux écrans afficheraient des litiges différents pour le même point.
+    const nbContactsTotal = (commandes || [])
+      .filter(c => c.contact_client && c.contact_client.trim() !== '').length
 
     // Inventaire groupé par shift
     const invParShift = {}
@@ -212,6 +264,7 @@ export default function VerificationScreen() {
       presences: presences || [],
       invParFournisseur,
       contactsParPartenaire,
+      nbContactsTotal,
       invShifts: Object.values(invParShift).sort((a, b) => a.numero - b.numero),
       historiquesFournisseurs: historiquesFournisseurs || [],
       deverouillages: deverouillages || [],
@@ -295,8 +348,10 @@ export default function VerificationScreen() {
         .select(`
           id, caissier_id, type_shift, heure_debut, heure_fin, montant_a_deduire, valide, created_at,
           inventaire_lignes(
-            produit_id, produit_nom, stock_initial, entrees, sorties,
-            stock_reel, ecart, nombre_explique, explication, montant_deduit
+            id, produit_id, produit_nom, stock_initial, entrees, sorties,
+            stock_reel, ecart, nombre_explique, explication, montant_deduit,
+            deduction_annulee, montant_deduit_annule,
+            explication_statut, quantite_acceptee, explication_decidee_par, explication_decidee_at
           )
         `)
         .eq('point_id', point.id)
@@ -312,10 +367,34 @@ export default function VerificationScreen() {
         .order('shift_numero'),
     ])
 
+    // Entrées de produits reçues pendant les shifts, avec leur fournisseur.
+    // Table à part (entrees_shift) : elle ne remonte pas avec inventaire_lignes.
+    const invIds = (invShiftsRaw || []).map(s => s.id)
+    let entreesRaw = []
+    if (invIds.length > 0) {
+      const { data } = await supabase
+        .from('entrees_shift')
+        .select('inventaire_id, produit_nom, quantite, fournisseur_nom, source')
+        .in('inventaire_id', invIds)
+        .order('fournisseur_nom')
+      entreesRaw = data || []
+    }
+
     const caissierNomMap = {}
     ;(pointsShiftsRaw || []).forEach(ps => {
       if (ps.caissier_id && ps.caissier_nom) caissierNomMap[ps.caissier_id] = ps.caissier_nom
     })
+
+    // Repli sur la table des utilisateurs : un caissier peut avoir saisi un
+    // inventaire sans avoir de points_shifts ce jour-là, son nom manquerait.
+    const idsSansNom = [...new Set(
+      (invShiftsRaw || []).map(s => s.caissier_id).filter(id => id && !caissierNomMap[id]),
+    )]
+    if (idsSansNom.length > 0) {
+      const { data: users } = await supabase
+        .from('utilisateurs').select('id, nom').in('id', idsSansNom)
+      ;(users || []).forEach(u => { caissierNomMap[u.id] = u.nom })
+    }
 
     const shiftsNouveauFormat = (invShiftsRaw || []).map(invShift => ({
       ...invShift,
@@ -333,18 +412,394 @@ export default function VerificationScreen() {
       ancienMap[key].lignes.push(ligne)
     })
 
+    // Regroupement par fournisseur : c'est l'angle utile pour vérifier qui a
+    // livré quoi. Un même produit peut venir de plusieurs fournisseurs dans
+    // la journée, et un fournisseur livrer plusieurs produits.
+    // Qui a saisi l'entrée : entrees_shift ne porte pas d'auteur, on le déduit
+    // du shift d'inventaire auquel la ligne est rattachée.
+    const auteurParInventaire = {}
+    ;(invShiftsRaw || []).forEach(inv => {
+      auteurParInventaire[inv.id] = {
+        nom: caissierNomMap[inv.caissier_id] || 'Caissier',
+        shift: TYPES_SHIFTS_MAP[inv.type_shift] || inv.type_shift || '',
+      }
+    })
+
+    const parFournisseur = {}
+    entreesRaw.forEach(e => {
+      const nom = (e.fournisseur_nom || '').trim() || 'Sans fournisseur'
+      if (!parFournisseur[nom]) parFournisseur[nom] = { fournisseur: nom, produits: {}, nbLignes: 0 }
+      const auteur = auteurParInventaire[e.inventaire_id] || { nom: 'Caissier', shift: '' }
+      // Clé produit + auteur : deux réceptions du même produit par des
+      // personnes différentes restent deux lignes distinctes.
+      const cle = `${e.produit_nom || 'Produit inconnu'}|${auteur.nom}`
+      if (!parFournisseur[nom].produits[cle]) {
+        parFournisseur[nom].produits[cle] = {
+          nom: e.produit_nom || 'Produit inconnu',
+          quantite: 0,
+          auteur: auteur.nom,
+          shift: auteur.shift,
+        }
+      }
+      parFournisseur[nom].produits[cle].quantite += parseFloat(e.quantite) || 0
+      parFournisseur[nom].nbLignes += 1
+    })
+    const entreesParFournisseur = Object.values(parFournisseur)
+      .map(f => ({
+        ...f,
+        produits: Object.values(f.produits).sort((a, b) => b.quantite - a.quantite),
+      }))
+      .sort((a, b) => b.nbLignes - a.nbLignes)
+
+    const { lignes: dv, migration: dvMig } = await chargerDeductions(point.restaurant_id, point.date)
+    setDeducVerif(dv)
+    setDeducMigration(dvMig)
+    // Répartition initiale = la proposition enregistrée par le vérificateur.
+    const parLot = {}
+    ;(dv || []).forEach(d => { (parLot[d.lot_id || d.date] = parLot[d.lot_id || d.date] || []).push({ ...d }) })
+    setRepartition(parLot)
+    const justifs = {}
+    Object.entries(parLot).forEach(([lot, ps]) => { justifs[lot] = Number(ps[0]?.montant_justifie) || 0 })
+    setJustifie(justifs)
+    setRouverts({})
+    // Toutes les personnes imputables : les caissiers du jour + le gérant.
+    setCaissiersDuJour((pointsShiftsRaw || [])
+      .filter(ps => ps.caissier_id && ps.caissier_nom)
+      .map(ps => ({
+        caissier_id: ps.caissier_id,
+        caissier_nom: ps.caissier_nom,
+        shift_libelle: `${ps.heure_debut || '?'}–${ps.heure_fin || '?'}`,
+      }))
+      .filter((v, i, arr) => arr.findIndex(x => x.caissier_id === v.caissier_id) === i))
+
     setDetailInventaire({
       shiftsNouveauFormat,
       shiftsAncienFormat: Object.values(ancienMap).sort((a, b) => a.numero - b.numero),
       useNouveauFormat: shiftsNouveauFormat.length > 0,
+      entreesParFournisseur,
+      nbEntrees: entreesRaw.length,
     })
     setLoadingInventaire(false)
   }
 
+  // ── Répartition d'un comptage ──────────────────────────────────────────
+  // L'app propose, l'administration dispose : chaque montant est modifiable,
+  // on peut ajouter ou retirer une personne, ou tout mettre à la charge du
+  // gérant quand aucun caissier n'est précisément en cause.
+
+  function majMontant(lot, index, valeur) {
+    const montant = Math.max(0, parseInt(String(valeur).replace(/\D/g, ''), 10) || 0)
+    setRepartition(prev => ({
+      ...prev,
+      [lot]: prev[lot].map((p, i) => (i === index ? { ...p, montant } : p)),
+    }))
+  }
+
+  function retirerPart(lot, index) {
+    setRepartition(prev => ({ ...prev, [lot]: prev[lot].filter((_, i) => i !== index) }))
+  }
+
+  function ajouterPart(lot, personne) {
+    setRepartition(prev => {
+      const actuel = prev[lot] || []
+      if (personne.beneficiaire_type !== 'gerant'
+        && actuel.some(p => p.caissier_id === personne.caissier_id)) return prev
+      const modele = actuel[0] || {}
+      return {
+        ...prev,
+        [lot]: [...actuel, {
+          lot_id: modele.lot_id, restaurant_id: modele.restaurant_id, date: modele.date,
+          nb_produits: modele.nb_produits, produits_resume: modele.produits_resume,
+          montant_ecart: modele.montant_ecart, montant_plafond: modele.montant_plafond,
+          explication: modele.explication,
+          verificateur_nom: modele.verificateur_nom,
+          role_dans_ecart: personne.beneficiaire_type === 'gerant' ? 'gerant' : 'ajoute',
+          montant: 0, montant_propose: 0,
+          ...personne,
+        }],
+      }
+    })
+  }
+
+  /** Écrit la répartition définitive : on remplace les lignes du comptage. */
+  async function enregistrerRepartition(lot) {
+    const parts = repartition[lot] || []
+    const plafond = parts[0]?.montant_plafond ?? 0
+    const justif = Math.max(0, Math.min(plafond, Number(justifie[lot]) || 0))
+    const aRepartir = plafond - justif
+    // Tout justifié → plus rien à imputer à personne.
+    const statut = aRepartir <= 0 ? 'validee' : 'repartie'
+
+    if (aRepartir > 0) {
+      const ctrl = repartitionValide(parts, aRepartir)
+      if (!ctrl.ok) {
+        Alert.alert(
+          'Répartition incomplète',
+          `La somme des montants (${fmt(ctrl.somme)}) doit être égale à ${fmt(aRepartir)}.\n\n` +
+          (ctrl.reste > 0 ? `Il reste ${fmt(ctrl.reste)} à attribuer.` : `Vous avez dépassé de ${fmt(-ctrl.reste)}.`),
+        )
+        return
+      }
+    }
+    setDeducEnCours(lot)
+    const anciens = deducVerif.filter(d => (d.lot_id || d.date) === lot).map(d => d.id)
+    if (anciens.length) {
+      await supabase.from('deductions_verification').delete().in('id', anciens)
+    }
+    // En justification totale on garde TOUTES les personnes avec un montant à
+    // zéro, et non une seule ligne : sans ça, rouvrir la décision ferait
+    // perdre la répartition et il faudrait tout ressaisir.
+    const rows = parts
+      .map(p => (aRepartir <= 0 ? { ...p, montant: 0 } : p))
+      .filter(p => aRepartir <= 0 || p.montant > 0)
+      .map(({ id, created_at, ...p }) => ({
+        ...p,
+        montant_justifie: justif,
+        statut,
+        decide_par_id: userId || null,
+        decide_par_nom: userNom || null,
+        decide_at: new Date().toISOString(),
+      }))
+    const { error } = rows.length
+      ? await supabase.from('deductions_verification').insert(rows)
+      : { error: null }
+    setDeducEnCours(null)
+    if (error) { Alert.alert('Erreur', error.message); return }
+    await ouvrirInventaire(pointSelectionne)
+  }
+
+  // Annule DÉFINITIVEMENT la déduction d'inventaire d'un produit (manager/directeur).
+  function confirmerAnnulationDeduction(ligne) {
+    if (!ligne?.id || annulDeducSaving) return
+    const faire = async () => {
+      setAnnulDeducSaving(ligne.id)
+      try {
+        await annulerDeductionInventaire({
+          ligneId: ligne.id,
+          inventaireId: ligne.inventaireId,
+          pointId: pointSelectionne?.id,
+          par: userNom || roleActif || 'Manager',
+        })
+        await ouvrirInventaire(pointSelectionne)  // recharge le détail à jour
+      } catch (e) {
+        Alert.alert('Erreur', e?.message || "Impossible d'annuler la déduction")
+      } finally {
+        setAnnulDeducSaving(null)
+      }
+    }
+    Alert.alert(
+      'Annuler la déduction ?',
+      `La déduction de ${fmt(ligne.montantDeduit)} sur « ${ligne.produit_nom} » sera annulée définitivement et retirée du total à déduire.`,
+      [
+        { text: 'Retour', style: 'cancel' },
+        { text: 'Annuler la déduction', style: 'destructive', onPress: faire },
+      ]
+    )
+  }
+
+  // ── Décision manager sur un écart inventaire expliqué ────────────────
+  function ouvrirDecisionInv(e) {
+    setDecisionInv(e)
+    const defaut = e.quantite_acceptee != null ? e.quantite_acceptee : (e.nombreExplique || 0)
+    setQteAcceptee(defaut ? String(defaut) : '')
+  }
+
+  async function enregistrerDecisionInv(statut) {
+    const e = decisionInv
+    if (!e || decisionSaving) return
+    const ecartAbs = Math.abs(e.ecart || 0)
+    const prix = e.prix || 0
+    const qAcc = statut === 'validee'
+      ? Math.max(0, Math.min(ecartAbs, parseFloat(qteAcceptee) || 0))
+      : 0
+    const nouveauMontant = Math.round(Math.max(0, ecartAbs - qAcc) * prix)
+    setDecisionSaving(true)
+    try {
+      await deciderEcartInventaire({
+        ligneId: e.id,
+        inventaireId: e.inventaireId,
+        pointId: pointSelectionne?.id,
+        statut,
+        quantiteAcceptee: qAcc,
+        nouveauMontant,
+        par: userNom || roleActif || 'Manager',
+      })
+      creerNotification({
+        type: `ecart_inventaire_${statut}`,
+        titre: statut === 'validee' ? '✅ Écart inventaire validé' : '❌ Écart inventaire refusé',
+        message: statut === 'validee'
+          ? `${e.produit_nom} : explication acceptée (${qAcc} justifié) — déduction ${fmt(nouveauMontant)}.`
+          : `${e.produit_nom} : explication refusée — déduction pleine de ${fmt(nouveauMontant)}.`,
+        restaurant_id: pointSelectionne?.restaurant_id,
+        cible_role: ['gerant'],
+        created_by: userId || null,
+        screen: null,
+      }).catch(() => {})
+      setDecisionInv(null)
+      await ouvrirInventaire(pointSelectionne)
+    } catch (err) {
+      Alert.alert('Erreur', err?.message || 'Décision impossible')
+    } finally {
+      setDecisionSaving(false)
+    }
+  }
+
   function voirPhoto(uri, label) {
     if (!uri) return
+    // Ouvrir le plein écran sur une URI locale ou un jeton en attente ne
+    // donnerait qu'un écran noir : on explique au lieu d'afficher du vide.
+    if (!photoConsultable(uri)) {
+      Alert.alert(
+        estPhotoEnAttente(uri) ? 'Photo en attente' : 'Photo indisponible',
+        estPhotoEnAttente(uri)
+          ? "Cette photo est encore sur l'appareil qui l'a prise. Elle apparaîtra ici dès que cet appareil retrouvera le réseau."
+          : "Cette photo n'a jamais été envoyée sur le serveur : elle est restée sur le téléphone qui l'a prise et n'est plus récupérable. Demandez une nouvelle photo du justificatif."
+      )
+      return
+    }
     setPhotoSelectionnee({ uri, label })
     setModalPhoto(true)
+  }
+
+  // ── Correction du nombre de commandes Yango / Glovo ──────────────────
+  function ouvrirCorrectionCommandes() {
+    const p = pointSelectionne
+    setCorrCmdYango(String(p?.yango_nb_commandes || 0))
+    setCorrCmdGlovo(String(p?.glovo_nb_commandes || 0))
+    setCorrCmdMotif(p?.nb_commandes_correction_motif || '')
+    setCorrCmdError('')
+    setCorrCmdOuvert(true)
+  }
+
+  async function sauvegarderCorrectionCommandes() {
+    const p = pointSelectionne
+    if (!p) return
+    setCorrCmdSaving(true)
+    setCorrCmdError('')
+    const res = await corrigerNbCommandes({
+      point: p,
+      yango: corrCmdYango,
+      glovo: corrCmdGlovo,
+      motif: corrCmdMotif,
+      userId, userNom: userNom || roleActif,
+    })
+    setCorrCmdSaving(false)
+    if (!res.ok) { setCorrCmdError(res.error); return }
+
+    // MAJ locale (détail + liste) sans recharger tout le point
+    setPointSelectionne(res.point)
+    setPoints(prev => prev.map(x => x.id === res.point.id ? { ...x, ...res.point } : x))
+    setDetailPoint(prev => prev && ({ ...prev, point: res.point }))
+    setCorrCmdOuvert(false)
+    Alert.alert(
+      '✅ Nombre de commandes corrigé',
+      'Le litige « contacts » est recalculé automatiquement dans Litiges et Charges.\nLe gérant a été notifié.'
+    )
+  }
+
+  // ── Correction de facture fournisseur ────────────────────────────────
+  function ouvrirCorrectionFacture(t) {
+    setCorrFacture(t)
+    setCorrMontant('')
+    setCorrRaison('')
+    setCorrError('')
+  }
+  function fermerCorrectionFacture() {
+    setCorrFacture(null)
+    setCorrMontant('')
+    setCorrRaison('')
+    setCorrError('')
+  }
+  async function sauvegarderCorrectionFacture() {
+    const t = corrFacture
+    if (!t) return
+    const nouveau = Math.round(parseFloat(corrMontant) || 0)
+    const ancien = Math.round(parseFloat(t.facture) || 0)
+    if (nouveau < 0) { setCorrError('Le montant ne peut pas être négatif.'); return }
+    if (nouveau === ancien) { setCorrError('Le nouveau montant est identique à l’ancien.'); return }
+    if (!corrRaison.trim()) { setCorrError('La raison est obligatoire.'); return }
+    setCorrSaving(true)
+    setCorrError('')
+    try {
+      // On garde le TOUT PREMIER montant d'origine (ré-correction possible).
+      const original = (t.facture_original == null) ? ancien : t.facture_original
+      const ancienReste = parseFloat(t.reste) || 0
+      // Seule la facture change → reste = ancienReste + (nouvelle − ancienne). Pas d'impact sur le fond.
+      const nouveauReste = ancienReste + (nouveau - ancien)
+      const nowIso = new Date().toISOString()
+
+      const { error } = await supabase.from('transactions_fournisseurs').update({
+        facture: nouveau,
+        reste: nouveauReste,
+        facture_original: original,
+        facture_corrigee_par: userId || null,
+        facture_corrigee_par_nom: userNom || roleActif || null,
+        facture_corrigee_at: nowIso,
+        facture_correction_raison: corrRaison.trim(),
+      }).eq('id', t.id)
+      if (error) { setCorrError(error.message); setCorrSaving(false); return }
+
+      // Solde fournisseur — recalcul simple : si c'est la transaction la plus
+      // récente du fournisseur, on met à jour son crédit actuel.
+      try {
+        const { data: derniere } = await supabase
+          .from('transactions_fournisseurs')
+          .select('id')
+          .eq('fournisseur_id', t.fournisseur_id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (derniere && derniere.id === t.id) {
+          await supabase.from('fournisseurs').update({ credit_actuel: nouveauReste }).eq('id', t.fournisseur_id)
+        }
+      } catch (_) { /* created_at absent : on ignore, la transaction reste corrigée */ }
+
+      const nomFourn = t.fournisseurs?.nom || 'Fournisseur'
+      const dateTxt = pointSelectionne?.date ? formatDate(pointSelectionne.date) : ''
+      // Notif in-app (cloche) — screen null : purement informatif, le gérant
+      // n'a pas accès à l'écran Vérification (pas de navigation morte).
+      creerNotification({
+        type: 'facture_corrigee',
+        titre: '✏️ Facture corrigée',
+        message: `${nomFourn} — facture ${fmt(ancien)} → ${fmt(nouveau)}${dateTxt ? ` (${dateTxt})` : ''}. Raison : ${corrRaison.trim()}`,
+        restaurant_id: pointSelectionne.restaurant_id,
+        cible_role: ['gerant'],
+        created_by: userId || null,
+        screen: null,
+      }).catch(() => {})
+      // Push Expo hors-app vers le(s) gérant(s) du resto (app native).
+      envoyerNotifFactureCorrigee(nomFourn, ancien, nouveau, pointSelectionne.restaurant_id).catch(() => {})
+
+      journaliser('correction_facture_fournisseur', {
+        point_id: pointSelectionne.id,
+        fournisseur_id: t.fournisseur_id,
+        fournisseur: nomFourn,
+        ancienne_facture: ancien,
+        nouvelle_facture: nouveau,
+        raison: corrRaison.trim(),
+      }, { par: userNom || roleActif }).catch(() => {})
+
+      // MAJ locale immédiate (badge + montant) sans recharger tout le point.
+      setDetailPoint(prev => prev && ({
+        ...prev,
+        fournisseurs: prev.fournisseurs.map(f => f.id === t.id ? {
+          ...f,
+          facture: nouveau,
+          reste: nouveauReste,
+          facture_original: original,
+          facture_corrigee_par_nom: userNom || roleActif || null,
+          facture_corrigee_at: nowIso,
+          facture_correction_raison: corrRaison.trim(),
+        } : f),
+      }))
+
+      fermerCorrectionFacture()
+      Alert.alert('✅ Facture corrigée', `Nouveau montant : ${fmt(nouveau)}.\nLe gérant a été notifié.`)
+    } catch (e) {
+      setCorrError(e?.message || 'Erreur inattendue')
+    } finally {
+      setCorrSaving(false)
+    }
   }
 
   function toggleSection(section) {
@@ -463,9 +918,16 @@ export default function VerificationScreen() {
     }
   }
 
-  // Ouvre le modal d'annulation : calcule sens + écart restant (déduction faite
-  // des régularisations déjà posées dans Litiges, pour ne pas doubler).
-  function ouvrirAnnulerMachine() {
+  // Ouvre le modal : calcule sens + écart restant (déduction faite des
+  // régularisations déjà posées dans Litiges, pour ne pas doubler).
+  //
+  // Deux modes partagent ce calcul, et c'est volontaire :
+  //   • 'fond'      → « 🚫 Annuler » : solde l'écart ET corrige ajustement_fond ;
+  //   • 'sans_fond' → « ✔️ Justifier » : solde l'écart, ne touche à AUCUN fond.
+  // Le second sert aux écarts qui ne sont qu'une erreur de saisie (mauvaise vente
+  // machine tapée, shift absent du cumul) : aucun argent n'a bougé, corriger le
+  // fond fabriquerait un faux fond qui se reporte ensuite de journée en journée.
+  function ouvrirAnnulerMachine(mode = 'fond') {
     const p = pointSelectionne
     if (!p) return
     const cumulShifts = (detailPoint?.shifts || []).reduce((s, sh) => s + (sh.vente_shift || 0), 0)
@@ -480,6 +942,7 @@ export default function VerificationScreen() {
     const restant = Math.round(Math.abs(ecartEff))
     setAnnulerMontant(restant ? String(restant) : '')
     setModalAnnulerMachine({
+      mode,
       sens,
       restant,
       explication: (p.explication_ecart_machine || '').trim(),
@@ -488,16 +951,19 @@ export default function VerificationScreen() {
     })
   }
 
-  // Confirme l'annulation : écrit une régularisation + ajuste ajustement_fond sur
-  // le dernier point validé — réplique exacte de enregistrerRegularisation() (litiges.js).
+  // Confirme la décision : écrit une régularisation, et — en mode 'fond' seulement —
+  // ajuste ajustement_fond sur le dernier point validé (réplique exacte de
+  // enregistrerRegularisation() dans litiges.js).
   async function confirmerAnnulationMachine() {
     const p = pointSelectionne
     const ctx = modalAnnulerMachine
     if (!p || !ctx) return
+    const sansFond = ctx.mode === 'sans_fond'
+    const verbe = sansFond ? 'justifier' : 'annuler'
     const montant = Math.round(parseFloat(annulerMontant) || 0)
     if (montant <= 0) { Alert.alert('Montant invalide', 'Saisissez un montant supérieur à 0.'); return }
     if (montant > ctx.restant) {
-      Alert.alert('Montant trop élevé', `Vous ne pouvez annuler que ${fmt(ctx.restant)} maximum sur cet écart.`)
+      Alert.alert('Montant trop élevé', `Vous ne pouvez ${verbe} que ${fmt(ctx.restant)} maximum sur cet écart.`)
       return
     }
     setAnnulerSaving(true)
@@ -507,32 +973,52 @@ export default function VerificationScreen() {
 
       // La correction de fond atterrit sur le dernier point validé du resto (« fond actuel »),
       // jamais sur le jour de l'écart : l'argent bouge aujourd'hui, on ne réécrit pas l'historique.
-      const { data: cible } = await supabase.from('points')
-        .select('id, ajustement_fond')
-        .eq('restaurant_id', p.restaurant_id).eq('valide', true)
-        .order('date', { ascending: false }).limit(1).single()
-      const cibleId = cible?.id || p.id
+      // En mode « justifier », on ne cherche même pas la journée cible : aucun fond ne bouge.
+      let cible = null
+      if (!sansFond) {
+        ;({ data: cible } = await supabase.from('points')
+          .select('id, ajustement_fond')
+          .eq('restaurant_id', p.restaurant_id).eq('valide', true)
+          .order('date', { ascending: false }).limit(1).single())
+      }
+      const cibleId = sansFond ? null : (cible?.id || p.id)
 
       const record = {
         sens: ctx.sens,
         montant,
-        motif: ctx.explication || 'Écart annulé par le manager (vérification)',
+        motif: ctx.explication || (sansFond
+          ? 'Écart justifié sans incidence sur le fond (vérification)'
+          : 'Écart annulé par le manager (vérification)'),
         photos: ctx.photos,
         par_id: userId || null,
         par_nom: userNom || null,
         created_at: new Date().toISOString(),
         fond_point_id: cibleId, // point qui a reçu la correction (pour le reverse depuis Litiges)
+        // Marqueur lu par litiges.js : à la suppression, il n'y a AUCUN fond à rendre.
+        // Sans lui, fond_point_id null ferait passer le record pour une régularisation
+        // héritée et la suppression irait modifier reste_fc.
+        sans_fond: sansFond,
         source: 'verification',
       }
       const nouvelles = [...ctx.regulsExistantes, record]
-      const statutMaj = {
-        explication_machine_statut: 'annulee',
+
+      // Le statut « annulee » neutralise TOUT l'écart côté Litiges. On ne le
+      // pose donc que si la régularisation solde l'écart entièrement. Sinon,
+      // annuler 8 000 sur un manquant de 10 000 affichait 0 au lieu de 2 000.
+      const soldeApres = Math.round(ctx.restant - montant)
+      const statutMaj = soldeApres <= 0 ? {
+        explication_machine_statut: sansFond ? 'justifiee' : 'annulee',
         explication_machine_statut_par: userNom || roleActif || 'Manager',
         explication_machine_statut_at: new Date().toISOString(),
-      }
+      } : {}
 
       let error
-      if (cibleId === p.id) {
+      if (sansFond) {
+        // Un seul UPDATE, sur le point de l'écart. Ni ajustement_fond ni reste_fc.
+        ;({ error } = await supabase.from('points').update({
+          ecart_regularisations: nouvelles, ...statutMaj,
+        }).eq('id', p.id))
+      } else if (cibleId === p.id) {
         ;({ error } = await supabase.from('points').update({
           ecart_regularisations: nouvelles,
           ajustement_fond: (cible?.ajustement_fond || 0) + deltaFc,
@@ -554,22 +1040,29 @@ export default function VerificationScreen() {
       setPoints(prev => prev.map(pt => pt.id === p.id ? { ...pt, ...statutMaj, ecart_regularisations: nouvelles } : pt))
 
       creerNotification({
-        type: 'explication_machine_annulee',
-        titre: '🚫 Écart annulé',
-        message: `L'écart de vente machine du ${formatDate(p.date)} (${ctx.sens}) a été annulé par le manager : ${fmt(montant)} neutralisé sur le fond.`,
+        type: sansFond ? 'explication_machine_justifiee' : 'explication_machine_annulee',
+        titre: sansFond ? '✔️ Écart justifié' : '🚫 Écart annulé',
+        message: sansFond
+          ? `L'écart de vente machine du ${formatDate(p.date)} (${ctx.sens}) a été justifié par le manager : ${fmt(montant)} neutralisé, sans correction du fond.`
+          : `L'écart de vente machine du ${formatDate(p.date)} (${ctx.sens}) a été annulé par le manager : ${fmt(montant)} neutralisé sur le fond.`,
         restaurant_id: p.restaurant_id,
         cible_role: ['gerant'],
         created_by: userId || null,
         screen: 'recap-point',
       }).catch(() => {})
 
-      journaliser('annulation_ecart_machine', {
+      journaliser(sansFond ? 'justification_ecart_machine' : 'annulation_ecart_machine', {
         point_id: p.id, sens: ctx.sens, montant, fond_point_id: cibleId,
       }, { par: userNom || roleActif }).catch(() => {})
 
       setModalAnnulerMachine(null)
       setAnnulerMontant('')
-      Alert.alert('🚫 Écart annulé', `${fmt(montant)} neutralisé sur le fond. Le gérant a été notifié.\n\nRéversible depuis l'écran Litiges.`)
+      Alert.alert(
+        sansFond ? '✔️ Écart justifié' : '🚫 Écart annulé',
+        sansFond
+          ? `${fmt(montant)} neutralisé. Le fond n'a pas été modifié et le gérant a été notifié.\n\nRéversible depuis l'écran Litiges.`
+          : `${fmt(montant)} neutralisé sur le fond. Le gérant a été notifié.\n\nRéversible depuis l'écran Litiges.`
+      )
     } catch (e) {
       Alert.alert('Erreur', e?.message || 'Action impossible')
     } finally {
@@ -611,13 +1104,6 @@ export default function VerificationScreen() {
     setShowGalerie(true)
   }
 
-  function formatAuteur(caissierNom) {
-    if (!caissierNom) return null
-    const parts = caissierNom.trim().split(' ')
-    if (parts.length < 2) return caissierNom
-    return parts[0] + ' ' + parts[1][0] + '.'
-  }
-
   function getToutesPhotos() {
     if (!detailPoint) return []
     const photos = []
@@ -639,8 +1125,31 @@ export default function VerificationScreen() {
   }
 
   // ─── Vignette photo ──────────────────────────────────────────
+  // Bloc « corriger la facture » — affiché uniquement sur une VRAIE
+  // transaction_fournisseurs (pas les entrées draft/historique du gérant).
+  function LigneCorrigerFacture({ f }) {
+    const estTransaction = !!f?.id && (detailPoint?.fournisseurs || []).some(tx => tx.id === f.id)
+    if (!estTransaction || (parseFloat(f.facture) || 0) <= 0) return null
+    const corrige = !!f.facture_corrigee_at
+    return (
+      <View style={{ marginTop: 5 }}>
+        {corrige && (
+          <Text style={styles.factCorrBadge}>
+            {`✏️ Corrigé : ${fmt(parseFloat(f.facture_original) || 0)} → ${fmt(parseFloat(f.facture) || 0)}${f.facture_corrigee_par_nom ? ` · ${f.facture_corrigee_par_nom}` : ''}`}
+          </Text>
+        )}
+        <TouchableOpacity style={styles.factCorrBtn} onPress={() => ouvrirCorrectionFacture(f)} activeOpacity={0.8}>
+          <Text style={styles.factCorrBtnTxt}>{corrige ? '✏️ Re-corriger la facture' : '✏️ Corriger la facture'}</Text>
+        </TouchableOpacity>
+      </View>
+    )
+  }
+
   function PhotoVignette({ uri, label, montant, onPress }) {
-    const aPhoto = !!uri
+    // « Une URL est présente » ne veut pas dire « la photo est consultable » :
+    // une URI locale ou un jeton en attente doivent rester non cliquables.
+    const aPhoto = photoConsultable(uri)
+    const renseignee = !!uri
     return (
       <TouchableOpacity
         style={[styles.photoVignette, !aPhoto && styles.photoVignetteManquante]}
@@ -648,8 +1157,8 @@ export default function VerificationScreen() {
         disabled={!aPhoto}
         activeOpacity={aPhoto ? 0.7 : 1}
       >
-        {aPhoto ? (
-          <Image source={{ uri }} style={styles.photoThumb} resizeMode="cover" />
+        {renseignee ? (
+          <PhotoJustificatif uri={uri} style={styles.photoThumb} compact />
         ) : (
           <View style={styles.photoAbsente}>
             <Text style={styles.photoAbsenteIcon}>❌</Text>
@@ -1053,7 +1562,7 @@ export default function VerificationScreen() {
                               photo.uri ? (
                                 <TouchableOpacity key={i} style={styles.canalPhotoTouchable}
                                   onPress={() => { const idx = toutes.findIndex(x => x.uri === photo.uri); ouvriGalerie(toutes, idx >= 0 ? idx : 0) }}>
-                                  <Image source={{ uri: photo.uri }} style={styles.canalPhotoMini} resizeMode="cover" />
+                                  <PhotoJustificatif uri={photo.uri} style={styles.canalPhotoMini} compact />
                                   <Text style={styles.canalPhotoLabel}>📷 {photo.label} — Tap pour agrandir</Text>
                                 </TouchableOpacity>
                               ) : <Text key={i} style={styles.aucunePhoto}>Aucune photo CSE enregistrée</Text>
@@ -1071,7 +1580,7 @@ export default function VerificationScreen() {
                             {p?.photo_yango_tab ? (
                               <TouchableOpacity style={styles.canalPhotoTouchable}
                                 onPress={() => { const idx = toutes.findIndex(x => x.uri === p.photo_yango_tab); ouvriGalerie(toutes, idx >= 0 ? idx : 0) }}>
-                                <Image source={{ uri: p.photo_yango_tab }} style={styles.canalPhotoMini} resizeMode="cover" />
+                                <PhotoJustificatif uri={p.photo_yango_tab} style={styles.canalPhotoMini} compact />
                                 <Text style={styles.canalPhotoLabel}>📷 Photo TAB Yango — Tap pour agrandir</Text>
                               </TouchableOpacity>
                             ) : <Text style={styles.aucunePhoto}>Aucune photo TAB enregistrée</Text>}
@@ -1109,7 +1618,7 @@ export default function VerificationScreen() {
                               photo.uri ? (
                                 <TouchableOpacity key={i} style={styles.canalPhotoTouchable}
                                   onPress={() => { const idx = toutes.findIndex(x => x.uri === photo.uri); ouvriGalerie(toutes, idx >= 0 ? idx : 0) }}>
-                                  <Image source={{ uri: photo.uri }} style={styles.canalPhotoMini} resizeMode="cover" />
+                                  <PhotoJustificatif uri={photo.uri} style={styles.canalPhotoMini} compact />
                                   <Text style={styles.canalPhotoLabel}>📷 {photo.label} — Tap pour agrandir</Text>
                                 </TouchableOpacity>
                               ) : <Text key={i} style={styles.aucunePhoto}>Aucune photo CSE enregistrée</Text>
@@ -1127,7 +1636,7 @@ export default function VerificationScreen() {
                             {p?.photo_glovo_tab ? (
                               <TouchableOpacity style={styles.canalPhotoTouchable}
                                 onPress={() => { const idx = toutes.findIndex(x => x.uri === p.photo_glovo_tab); ouvriGalerie(toutes, idx >= 0 ? idx : 0) }}>
-                                <Image source={{ uri: p.photo_glovo_tab }} style={styles.canalPhotoMini} resizeMode="cover" />
+                                <PhotoJustificatif uri={p.photo_glovo_tab} style={styles.canalPhotoMini} compact />
                                 <Text style={styles.canalPhotoLabel}>📷 Photo TAB Glovo — Tap pour agrandir</Text>
                               </TouchableOpacity>
                             ) : <Text style={styles.aucunePhoto}>Aucune photo TAB enregistrée</Text>}
@@ -1160,9 +1669,51 @@ export default function VerificationScreen() {
                       </View>
                     )}
 
+                    {/* Nombre de commandes livraison → base du litige « contacts ».
+                        Le gérant peut s'être trompé : manager/directeur corrigent ici.
+                        Toujours affiché, même sans montant Yango/Glovo sur le point :
+                        c'est justement quand le nombre est faux qu'il faut le corriger. */}
+                    {(() => {
+                      const calc = calculerLitigeContact(p, detailPoint.nbContactsTotal || 0)
+                      return (
+                        <View style={styles.corrCmdBox}>
+                          <View style={styles.canalRow}>
+                            <Text style={styles.canalLabel}>Commandes livraison saisies</Text>
+                            <Text style={styles.canalVal}>
+                              Yango {calc.nbYango} · Glovo {calc.nbGlovo}
+                            </Text>
+                          </View>
+                          <View style={styles.canalRow}>
+                            <Text style={styles.canalLabel}>Contacts pris</Text>
+                            <Text style={styles.canalVal}>
+                              {calc.nbContacts} / {calc.nbCommandes}
+                              {calc.nbCommandes > 0 && calc.ecart > 0 ? ` (${calc.taux}% manquants)` : ''}
+                              {calc.ecart < 0 ? ` (surplus de ${Math.abs(calc.ecart)})` : ''}
+                            </Text>
+                          </View>
+                          {calc.litige > 0 && (
+                            <Text style={styles.corrCmdLitige}>
+                              ⚠️ Litige contacts : {fmt(calc.litige)}
+                              {calc.forceParManager ? ' (montant forcé)' : ''}
+                            </Text>
+                          )}
+                          {calc.nbCorrige && (
+                            <Text style={styles.corrCmdBadge}>
+                              ✏️ Corrigé (avant : Yango {calc.nbYangoOriginal ?? '—'} · Glovo {calc.nbGlovoOriginal ?? '—'})
+                              {calc.nbCorrigePar ? ` — ${calc.nbCorrigePar}` : ''}
+                              {calc.nbCorrigeMotif ? `\n${calc.nbCorrigeMotif}` : ''}
+                            </Text>
+                          )}
+                          <TouchableOpacity style={styles.corrCmdBtn} onPress={ouvrirCorrectionCommandes}>
+                            <Text style={styles.corrCmdBtnTxt}>✏️ Corriger le nombre de commandes</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )
+                    })()}
+
                     {!hasYango && !hasGlovo && !hasAutres && (
                       <View style={styles.emptySection}>
-                        <Text style={styles.emptySectionTxt}>Aucune donnée enregistrée</Text>
+                        <Text style={styles.emptySectionTxt}>Aucun montant enregistré sur les canaux</Text>
                       </View>
                     )}
                   </View>
@@ -1259,7 +1810,7 @@ export default function VerificationScreen() {
                                 onPress={() => ouvriGalerie(p.ecart_photos.map((u, j) => ({ uri: u, label: `Justificatif ${j + 1}` })))}
                                 activeOpacity={0.85}
                               >
-                                <Image source={{ uri }} style={{ width: 80, height: 80, borderRadius: 8 }} />
+                                <PhotoJustificatif uri={uri} style={{ width: 80, height: 80, borderRadius: 8 }} compact />
                               </TouchableOpacity>
                             ))}
                           </View>
@@ -1272,9 +1823,9 @@ export default function VerificationScreen() {
                           activeOpacity={0.85}
                         >
                           <Text style={[styles.recapLabel, { marginBottom: 8 }]}>📷 Photo vente machine :</Text>
-                          <Image
-                            source={{ uri: p.photo_vente_machine }}
-                            style={{ width: '100%', height: 180, borderRadius: 10, resizeMode: 'cover' }}
+                          <PhotoJustificatif
+                            uri={p.photo_vente_machine}
+                            style={{ width: '100%', height: 180, borderRadius: 10 }}
                           />
                           <Text style={{ fontSize: 11, color: '#888', textAlign: 'center', marginTop: 6 }}>
                             Appuyer pour agrandir
@@ -1301,12 +1852,12 @@ export default function VerificationScreen() {
                           )}
                           <View style={styles.machineBtnRow}>
                             <TouchableOpacity
-                              style={[styles.machineBtn, styles.machineBtnValider, statuantMachine && { opacity: 0.5 }]}
-                              onPress={() => confirmerStatutMachine('validee')}
+                              style={[styles.machineBtn, styles.machineBtnJustifier, statuantMachine && { opacity: 0.5 }]}
+                              onPress={() => ouvrirAnnulerMachine('sans_fond')}
                               disabled={statuantMachine}
                               activeOpacity={0.85}
                             >
-                              <Text style={styles.machineBtnTxt}>✅ Valider</Text>
+                              <Text style={styles.machineBtnTxt}>✔️ Justifier</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                               style={[styles.machineBtn, styles.machineBtnRefuser, statuantMachine && { opacity: 0.5 }]}
@@ -1318,14 +1869,14 @@ export default function VerificationScreen() {
                             </TouchableOpacity>
                             <TouchableOpacity
                               style={[styles.machineBtn, styles.machineBtnAnnuler, statuantMachine && { opacity: 0.5 }]}
-                              onPress={ouvrirAnnulerMachine}
+                              onPress={() => ouvrirAnnulerMachine('fond')}
                               disabled={statuantMachine}
                               activeOpacity={0.85}
                             >
                               <Text style={styles.machineBtnTxt}>🚫 Annuler</Text>
                             </TouchableOpacity>
                           </View>
-                          <Text style={styles.machineDecisionNote}>Le gérant est notifié. « Annuler » régularise aussi le fond.</Text>
+                          <Text style={styles.machineDecisionNote}>Le gérant est notifié. « Justifier » ne touche pas au fond, « Annuler » le corrige.</Text>
                         </View>
                       )}
                     </View>
@@ -1392,6 +1943,7 @@ export default function VerificationScreen() {
                                   Facture: {fmt(f.facture || 0)} — Payé: {fmt(f.paye || 0)}
                                 </Text>
                                 {reste > 0 && <Text style={[styles.listSub, { color: '#A32D2D' }]}>Reste dû: {fmt(reste)}</Text>}
+                                <LigneCorrigerFacture f={f} />
                               </View>
                               <View style={styles.listRight}>
                                 <View style={{ alignItems: 'flex-end' }}>
@@ -1400,7 +1952,7 @@ export default function VerificationScreen() {
                                 </View>
                                 {f.photo_url ? (
                                   <TouchableOpacity onPress={() => voirPhoto(f.photo_url, f.fournisseurs?.nom)}>
-                                    <Image source={{ uri: f.photo_url }} style={styles.miniThumb} resizeMode="cover" />
+                                    <PhotoJustificatif uri={f.photo_url} style={styles.miniThumb} compact />
                                   </TouchableOpacity>
                                 ) : (
                                   <View style={styles.photoAbsenteThumb}>
@@ -1490,6 +2042,7 @@ export default function VerificationScreen() {
                                     📦 {detailPoint.invParFournisseur[f.fournisseur_id].map(l => `${l.produit_nom} — ${l.entrees}`).join(' / ')}
                                   </Text>
                                 )}
+                                <LigneCorrigerFacture f={f} />
                               </View>
                               <View style={styles.listRight}>
                                 <View style={{ alignItems: 'flex-end' }}>
@@ -1500,7 +2053,7 @@ export default function VerificationScreen() {
                                 </View>
                                 {f.photo_url ? (
                                   <TouchableOpacity onPress={() => voirPhoto(f.photo_url, f.fournisseurs?.nom)}>
-                                    <Image source={{ uri: f.photo_url }} style={styles.miniThumb} resizeMode="cover" />
+                                    <PhotoJustificatif uri={f.photo_url} style={styles.miniThumb} compact />
                                   </TouchableOpacity>
                                 ) : (
                                   <View style={styles.photoAbsenteThumb}>
@@ -1978,8 +2531,8 @@ export default function VerificationScreen() {
                     bouncesZoom
                   >
                     {galeriePhotos[galerieIndex]?.uri && (
-                      <Image
-                        source={{ uri: galeriePhotos[galerieIndex].uri }}
+                      <PhotoJustificatif
+                        uri={galeriePhotos[galerieIndex].uri}
                         style={{ width: SW, height: SW * 1.3 }}
                         resizeMode="contain"
                       />
@@ -2005,8 +2558,8 @@ export default function VerificationScreen() {
                     keyExtractor={(_, idx) => String(idx)}
                     renderItem={({ item }) => (
                       <View style={{ width: SW, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                        <Image
-                          source={{ uri: item.uri }}
+                        <PhotoJustificatif
+                          uri={item.uri}
                           style={{ width: SW, height: SW * 1.1 }}
                           resizeMode="contain"
                         />
@@ -2033,7 +2586,7 @@ export default function VerificationScreen() {
               <Text style={styles.photoModalLabel}>{photoSelectionnee?.label}</Text>
               <View style={styles.photoModalImgWrapper}>
                 {photoSelectionnee?.uri && (
-                  <Image source={{ uri: photoSelectionnee.uri }} style={styles.photoModalImg} resizeMode="contain" />
+                  <PhotoJustificatif uri={photoSelectionnee.uri} style={styles.photoModalImg} resizeMode="contain" />
                 )}
               </View>
               <TouchableOpacity style={styles.photoModalFermer} onPress={() => setModalPhoto(false)}>
@@ -2073,7 +2626,8 @@ export default function VerificationScreen() {
               <Text style={styles.emptySub}>L'inventaire de ce jour n'a pas encore été saisi</Text>
             </View>
           ) : (() => {
-            const { shiftsNouveauFormat, shiftsAncienFormat, useNouveauFormat } = detailInventaire
+            const { shiftsNouveauFormat, shiftsAncienFormat, useNouveauFormat,
+              entreesParFournisseur = [], nbEntrees = 0 } = detailInventaire
             const peutVoirEcarts = roleActif === 'manager' || roleActif === 'directeur'
 
             // ─── Calcul des lignes avec écart ───────────────────────
@@ -2093,6 +2647,7 @@ export default function VerificationScreen() {
                     const montantDeduit = l.montant_deduit != null ? l.montant_deduit : diffInexpliquee * prix
                     toutesLignesEcart.push({
                       ...l, ecart, nombreExplique, diffInexpliquee, prix, montantDeduit,
+                      inventaireId: shift.id,
                       caissierNom: shift.caissierNom, shiftLabel: shift.shiftLabel,
                       heureDebut: shift.heure_debut, heureFin: shift.heure_fin,
                     })
@@ -2184,6 +2739,227 @@ export default function VerificationScreen() {
                   )}
                 </View>
 
+                {/* ══ Entrées de produits reçues, par fournisseur ═══════ */}
+                {entreesParFournisseur.length > 0 && (
+                  <>
+                    <Text style={styles.sectionTitre}>📥 Entrées de produits ({nbEntrees})</Text>
+                    <View style={styles.invResumeCard}>
+                      {entreesParFournisseur.map((f, i) => (
+                        <View
+                          key={f.fournisseur}
+                          style={[styles.invEntreeFourn, i > 0 && styles.invEntreeFournSep]}
+                        >
+                          <Text style={styles.invEntreeFournNom}>🧾 {f.fournisseur}</Text>
+                          {f.produits.map(p => (
+                            <View key={`${p.nom}|${p.auteur}`} style={styles.invEntreeLigne}>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.invEntreeProduit} numberOfLines={1}>{p.nom}</Text>
+                                <Text style={styles.invEntreeAuteur} numberOfLines={1}>
+                                  👤 {p.auteur}{p.shift ? ` · ${p.shift}` : ''}
+                                </Text>
+                              </View>
+                              <Text style={styles.invEntreeQte}>
+                                +{Number(p.quantite).toLocaleString('fr-FR')}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                {/* ══ Comptage du vérificateur → répartition ═══════════ */}
+                {deducMigration && (
+                  <View style={styles.deducAlerte}>
+                    <Text style={styles.deducAlerteTxt}>
+                      ⚠️ Script supabase_deductions_verification.sql non passé : les montants
+                      issus des comptages ne sont pas enregistrés.
+                    </Text>
+                  </View>
+                )}
+                {Object.entries(repartition).map(([lot, parts]) => {
+                  const ref = parts[0] || {}
+                  const plafond = ref.montant_plafond ?? 0
+                  const justif = Math.max(0, Math.min(plafond, Number(justifie[lot]) || 0))
+                  const aRepartir = plafond - justif
+                  const ctrl = repartitionValide(parts, aRepartir)
+                  // Une décision prise reste modifiable : le bouton « Modifier »
+                  // rouvre le comptage, rien n'est jamais définitif.
+                  const tranche = ref.statut === 'repartie' || ref.statut === 'validee'
+                  const fige = tranche && !rouverts[lot]
+                  return (
+                    <View key={lot}>
+                      <Text style={styles.sectionTitre}>
+                        🔍 Comptage vérificateur — {fmt(plafond)} à répartir
+                      </Text>
+
+                      <View style={styles.invResumeCard}>
+                        <Text style={styles.deducMeta}>
+                          {ref.nb_produits} produit(s) en écart : {ref.produits_resume || '—'}
+                        </Text>
+                        {ref.montant_ecart > plafond && (
+                          <View style={styles.deducAlerte}>
+                            <Text style={styles.deducAlerteTxt}>
+                              ⚖️ Écart réel {fmt(ref.montant_ecart)} — plafond de {fmt(PLAFOND_COMPTAGE)}
+                              {' '}par comptage appliqué.
+                            </Text>
+                          </View>
+                        )}
+                        {ref.explication ? (
+                          <Text style={styles.deducExpl}>💬 {ref.explication}</Text>
+                        ) : (
+                          <Text style={styles.deducExplVide}>Aucune explication donnée au vérificateur</Text>
+                        )}
+
+                        {!fige && peutVoirEcarts && (
+                          <View style={styles.justifLigne}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.justifLbl}>✓ Montant justifié</Text>
+                              <Text style={styles.justifAide}>
+                                Part reconnue comme expliquée — elle ne sera déduite à personne.
+                              </Text>
+                            </View>
+                            <TextInput
+                              style={styles.repartInput}
+                              value={String(justif)}
+                              onChangeText={v => setJustifie(prev => ({
+                                ...prev, [lot]: Math.max(0, parseInt(String(v).replace(/\D/g, ''), 10) || 0),
+                              }))}
+                              keyboardType="numeric"
+                              selectTextOnFocus
+                            />
+                          </View>
+                        )}
+
+                        {aRepartir > 0 && parts.map((p, i) => (
+                          <View key={`${lot}-${i}`} style={styles.repartLigne}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.repartNom}>
+                                {p.beneficiaire_type === 'gerant' ? '🧑‍💼 ' : '👤 '}{p.caissier_nom}
+                              </Text>
+                              <Text style={styles.repartMeta}>
+                                {p.shift_libelle || 'Gérant du restaurant'}
+                                {p.role_dans_ecart === 'en_poste' ? ' · en poste'
+                                  : p.role_dans_ecart === 'shift_precedent' ? ' · shift précédent' : ''}
+                                {p.montant_propose ? ` · proposé ${fmt(p.montant_propose)}` : ''}
+                              </Text>
+                            </View>
+                            {fige || !peutVoirEcarts ? (
+                              <Text style={styles.deducMontant}>{fmt(p.montant)}</Text>
+                            ) : (
+                              <>
+                                <TextInput
+                                  style={styles.repartInput}
+                                  value={String(p.montant ?? 0)}
+                                  onChangeText={v => majMontant(lot, i, v)}
+                                  keyboardType="numeric"
+                                  selectTextOnFocus
+                                />
+                                <TouchableOpacity onPress={() => retirerPart(lot, i)} style={styles.repartRetirer}>
+                                  <Text style={styles.repartRetirerTxt}>✕</Text>
+                                </TouchableOpacity>
+                              </>
+                            )}
+                          </View>
+                        ))}
+
+                        {!fige && peutVoirEcarts && (
+                          <>
+                            <View style={styles.repartTotalBox}>
+                              <Text style={styles.repartTotalLbl}>
+                                {aRepartir > 0 ? 'À répartir' : 'Intégralement justifié'}
+                              </Text>
+                              <Text style={[styles.repartTotalVal, { color: ctrl.ok ? '#3B6D11' : '#A32D2D' }]}>
+                                {aRepartir > 0
+                                  ? `${fmt(ctrl.somme)} / ${fmt(aRepartir)}${ctrl.ok ? '  ✓' : ctrl.reste > 0 ? `  · reste ${fmt(ctrl.reste)}` : '  · dépassement'}`
+                                  : 'rien à déduire  ✓'}
+                              </Text>
+                            </View>
+
+                            <Text style={styles.repartAjoutTitre}>Ajouter une personne</Text>
+                            <View style={styles.repartChips}>
+                              {caissiersDuJour
+                                .filter(c => !parts.some(p => p.caissier_id === c.caissier_id))
+                                .map(c => (
+                                  <TouchableOpacity
+                                    key={c.caissier_id}
+                                    style={styles.repartChip}
+                                    onPress={() => ajouterPart(lot, { ...c, beneficiaire_type: 'caissier' })}
+                                  >
+                                    <Text style={styles.repartChipTxt}>+ {c.caissier_nom}</Text>
+                                  </TouchableOpacity>
+                                ))}
+                              {!parts.some(p => p.beneficiaire_type === 'gerant') && (
+                                <TouchableOpacity
+                                  style={[styles.repartChip, styles.repartChipGerant]}
+                                  onPress={() => ajouterPart(lot, {
+                                    beneficiaire_type: 'gerant',
+                                    caissier_id: null,
+                                    caissier_nom: 'Gérant du restaurant',
+                                    shift_libelle: null,
+                                  })}
+                                >
+                                  <Text style={styles.repartChipGerantTxt}>+ 🧑‍💼 Gérant</Text>
+                                </TouchableOpacity>
+                              )}
+                            </View>
+
+                            <View style={styles.deducActions}>
+                              <TouchableOpacity
+                                style={[styles.deducBtn, styles.deducBtnValider]}
+                                disabled={deducEnCours === lot}
+                                onPress={() => setJustifie(prev => ({ ...prev, [lot]: plafond }))}
+                              >
+                                <Text style={styles.deducBtnValiderTxt}>Tout justifier</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={[styles.deducBtn, styles.deducBtnRefuser, !(ctrl.ok || aRepartir <= 0) && { opacity: 0.45 }]}
+                                disabled={deducEnCours === lot || !(ctrl.ok || aRepartir <= 0)}
+                                onPress={() => enregistrerRepartition(lot)}
+                              >
+                                <Text style={styles.deducBtnRefuserTxt}>✓ Confirmer</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </>
+                        )}
+
+                        {fige && (
+                          <>
+                            <Text style={[styles.deducStatut, { color: ref.statut === 'validee' ? '#185FA5' : '#A32D2D' }]}>
+                              {ref.statut === 'validee' ? '✓ Intégralement justifié — rien à déduire' : '✓ Répartition confirmée'}
+                              {Number(ref.montant_justifie) > 0 && ref.statut !== 'validee'
+                                ? ` · ${fmt(ref.montant_justifie)} justifiés` : ''}
+                              {ref.decide_par_nom ? ` · par ${ref.decide_par_nom}` : ''}
+                            </Text>
+                            {peutVoirEcarts && (
+                              <TouchableOpacity
+                                style={styles.deducModifier}
+                                onPress={() => {
+                                  setRouverts(prev => ({ ...prev, [lot]: true }))
+                                  // Si tout avait été justifié, les parts sont à zéro :
+                                  // on remet une répartition égale pour repartir d'une base.
+                                  if (parts.every(x => !Number(x.montant))) {
+                                    const base = Math.floor(plafond / parts.length)
+                                    const reste = plafond - base * parts.length
+                                    setJustifie(prev => ({ ...prev, [lot]: 0 }))
+                                    setRepartition(prev => ({
+                                      ...prev,
+                                      [lot]: prev[lot].map((x, k) => ({ ...x, montant: base + (k < reste ? 1 : 0) })),
+                                    }))
+                                  }
+                                }}
+                              >
+                                <Text style={styles.deducModifierTxt}>✎ Modifier cette décision</Text>
+                              </TouchableOpacity>
+                            )}
+                          </>
+                        )}
+                      </View>
+                    </View>
+                  )
+                })}
+
                 {/* ══ SECTION 2 : Produits avec écarts (manager/directeur) ══ */}
                 {peutVoirEcarts && nbAvecEcart > 0 && (
                   <>
@@ -2237,6 +3013,55 @@ export default function VerificationScreen() {
                               {e.montantDeduit > 0 ? fmt(e.montantDeduit) : '0 FCFA ✅'}
                             </Text>
                           </View>
+
+                          {e.explication_statut ? (
+                            <View style={styles.decisionInvBox}>
+                              {e.explication_statut === 'en_attente' ? (
+                                <>
+                                  <Text style={styles.decisionInvPending}>⏳ Explication en attente de votre décision</Text>
+                                  {peutVoirEcarts && e.id && (
+                                    <TouchableOpacity style={styles.decisionInvBtn} onPress={() => ouvrirDecisionInv(e)}>
+                                      <Text style={styles.decisionInvBtnTxt}>⚖️ Valider / Refuser l'explication</Text>
+                                    </TouchableOpacity>
+                                  )}
+                                </>
+                              ) : e.explication_statut === 'validee' ? (
+                                <>
+                                  <Text style={[styles.decisionInvStatut, { color: '#3B6D11' }]}>
+                                    ✅ Explication validée{e.quantite_acceptee != null ? ` · accepté ${e.quantite_acceptee}` : ''} · déduit {fmt(e.montantDeduit)}
+                                  </Text>
+                                  {peutVoirEcarts && e.id && (
+                                    <TouchableOpacity onPress={() => ouvrirDecisionInv(e)}><Text style={styles.decisionInvModifier}>✏️ Modifier la décision</Text></TouchableOpacity>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  <Text style={[styles.decisionInvStatut, { color: '#A32D2D' }]}>
+                                    ❌ Explication refusée · déduction pleine {fmt(e.montantDeduit)}
+                                  </Text>
+                                  {peutVoirEcarts && e.id && (
+                                    <TouchableOpacity onPress={() => ouvrirDecisionInv(e)}><Text style={styles.decisionInvModifier}>✏️ Modifier la décision</Text></TouchableOpacity>
+                                  )}
+                                </>
+                              )}
+                            </View>
+                          ) : e.deduction_annulee ? (
+                            <View style={styles.deducAnnuleeBadge}>
+                              <Text style={styles.deducAnnuleeTxt}>
+                                🚫 Déduction annulée{e.montant_deduit_annule > 0 ? ` (${fmt(e.montant_deduit_annule)})` : ''}
+                              </Text>
+                            </View>
+                          ) : (e.montantDeduit > 0 && e.id && (
+                            <TouchableOpacity
+                              style={[styles.annulDeducBtn, annulDeducSaving === e.id && { opacity: 0.6 }]}
+                              onPress={() => confirmerAnnulationDeduction(e)}
+                              disabled={!!annulDeducSaving}
+                            >
+                              {annulDeducSaving === e.id
+                                ? <ActivityIndicator color="#A32D2D" size="small" />
+                                : <Text style={styles.annulDeducBtnTxt}>🚫 Annuler la déduction de ce produit</Text>}
+                            </TouchableOpacity>
+                          ))}
 
                           {(e.caissierNom || e.heureDebut) && (
                             <View style={styles.invFicheCaissier}>
@@ -2387,12 +3212,16 @@ export default function VerificationScreen() {
       </Modal>
 
       {/* ══════════════════════════════════════════
-          MODAL ANNULER ÉCART (régularise le fond)
+          MODAL SOLDER L'ÉCART
+          mode 'fond'      → « Annuler » : régularise le fond
+          mode 'sans_fond' → « Justifier » : ne touche à aucun fond
       ══════════════════════════════════════════ */}
       <Modal visible={modalAnnulerMachine != null} animationType="fade" transparent onRequestClose={() => setModalAnnulerMachine(null)}>
         <View style={styles.annulerOverlay}>
           <View style={styles.annulerCard}>
-            <Text style={styles.annulerTitre}>{"🚫 Annuler l'écart"}</Text>
+            <Text style={styles.annulerTitre}>
+              {modalAnnulerMachine?.mode === 'sans_fond' ? "✔️ Justifier l'écart" : "🚫 Annuler l'écart"}
+            </Text>
             {modalAnnulerMachine && (
               <>
                 <View style={[styles.annulerSensBadge, { backgroundColor: modalAnnulerMachine.sens === 'manquant' ? '#FCEBEB' : '#FAEEDA' }]}>
@@ -2402,16 +3231,20 @@ export default function VerificationScreen() {
                 </View>
 
                 <Text style={styles.annulerEffet}>
-                  {modalAnnulerMachine.sens === 'manquant'
-                    ? '→ Le fond actuel sera AUGMENTÉ du montant annulé.'
-                    : '→ Le fond actuel sera DIMINUÉ du montant annulé.'}
+                  {modalAnnulerMachine.mode === 'sans_fond'
+                    ? "→ Le fond actuel n'est pas modifié."
+                    : modalAnnulerMachine.sens === 'manquant'
+                      ? '→ Le fond actuel sera AUGMENTÉ du montant annulé.'
+                      : '→ Le fond actuel sera DIMINUÉ du montant annulé.'}
                 </Text>
 
                 {modalAnnulerMachine.restant <= 0 ? (
                   <Text style={styles.annulerDejaTxt}>✅ Cet écart est déjà entièrement régularisé.</Text>
                 ) : (
                   <>
-                    <Text style={styles.annulerLabel}>Montant à annuler</Text>
+                    <Text style={styles.annulerLabel}>
+                      {modalAnnulerMachine.mode === 'sans_fond' ? 'Montant à justifier' : 'Montant à annuler'}
+                    </Text>
                     <TextInput
                       style={styles.annulerInput}
                       keyboardType="numeric"
@@ -2437,13 +3270,208 @@ export default function VerificationScreen() {
                   </TouchableOpacity>
                   {modalAnnulerMachine.restant > 0 && (
                     <TouchableOpacity
-                      style={[styles.annulerBtn, styles.annulerBtnConfirm, annulerSaving && { opacity: 0.5 }]}
+                      style={[
+                        styles.annulerBtn,
+                        modalAnnulerMachine.mode === 'sans_fond' ? styles.annulerBtnJustifier : styles.annulerBtnConfirm,
+                        annulerSaving && { opacity: 0.5 },
+                      ]}
                       onPress={confirmerAnnulationMachine}
                       disabled={annulerSaving}
                     >
                       <Text style={styles.annulerBtnConfirmTxt}>{annulerSaving ? '...' : 'Confirmer'}</Text>
                     </TouchableOpacity>
                   )}
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ══════════════════════════════════════════
+          MODAL DÉCISION ÉCART INVENTAIRE (valider/refuser explication)
+      ══════════════════════════════════════════ */}
+      <Modal visible={decisionInv != null} animationType="fade" transparent onRequestClose={() => setDecisionInv(null)}>
+        <View style={styles.annulerOverlay}>
+          <View style={styles.annulerCard}>
+            <Text style={styles.annulerTitre}>⚖️ Décision sur l'écart</Text>
+            {decisionInv && (() => {
+              const ecartAbs = Math.abs(decisionInv.ecart || 0)
+              const prix = decisionInv.prix || 0
+              const qAcc = Math.max(0, Math.min(ecartAbs, parseFloat(qteAcceptee) || 0))
+              const montantValide = Math.round(Math.max(0, ecartAbs - qAcc) * prix)
+              const montantRefuse = Math.round(ecartAbs * prix)
+              return (
+                <>
+                  <Text style={styles.decisionModalNom}>{decisionInv.produit_nom}</Text>
+                  <View style={styles.decisionModalInfo}>
+                    <Text style={styles.decisionModalInfoTxt}>Écart : {ecartAbs.toFixed(2)}  ·  Prix unitaire : {fmt(prix)}</Text>
+                    {decisionInv.nombreExplique > 0 && (
+                      <Text style={styles.decisionModalInfoTxt}>Quantité expliquée par le caissier : {decisionInv.nombreExplique}</Text>
+                    )}
+                    {!!decisionInv.explication && (
+                      <Text style={styles.decisionModalExpl}>💬 "{decisionInv.explication}"</Text>
+                    )}
+                  </View>
+
+                  <Text style={styles.annulerLabel}>Quantité acceptée (justifiée)</Text>
+                  <TextInput
+                    style={styles.annulerInput}
+                    keyboardType="numeric"
+                    value={qteAcceptee}
+                    onChangeText={setQteAcceptee}
+                    placeholder="0"
+                    placeholderTextColor="#bbb"
+                  />
+                  <Text style={styles.annulerHint}>{`Max ${ecartAbs.toFixed(2)} — accepter tout l'écart = déduction 0`}</Text>
+
+                  <View style={styles.decisionPreviewRow}>
+                    <Text style={styles.decisionPreviewTxt}>→ Si validé : déduction <Text style={{ fontWeight: '800', color: '#3B6D11' }}>{fmt(montantValide)}</Text></Text>
+                    <Text style={styles.decisionPreviewTxt}>→ Si refusé : déduction <Text style={{ fontWeight: '800', color: '#A32D2D' }}>{fmt(montantRefuse)}</Text></Text>
+                  </View>
+
+                  <View style={styles.annulerBtnRow}>
+                    <TouchableOpacity style={[styles.annulerBtn, styles.annulerBtnCancel]} onPress={() => setDecisionInv(null)} disabled={decisionSaving}>
+                      <Text style={styles.annulerBtnCancelTxt}>Retour</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.annulerBtn, { backgroundColor: '#C62828' }, decisionSaving && { opacity: 0.5 }]} onPress={() => enregistrerDecisionInv('refusee')} disabled={decisionSaving}>
+                      <Text style={styles.annulerBtnConfirmTxt}>❌ Refuser</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.annulerBtn, { backgroundColor: '#2E7D32' }, decisionSaving && { opacity: 0.5 }]} onPress={() => enregistrerDecisionInv('validee')} disabled={decisionSaving}>
+                      <Text style={styles.annulerBtnConfirmTxt}>{decisionSaving ? '...' : '✅ Valider'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )
+            })()}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ══════════════════════════════════════════
+          MODAL CORRECTION NOMBRE DE COMMANDES
+      ══════════════════════════════════════════ */}
+      <Modal visible={corrCmdOuvert} animationType="fade" transparent onRequestClose={() => setCorrCmdOuvert(false)}>
+        <View style={styles.annulerOverlay}>
+          <View style={styles.annulerCard}>
+            <Text style={styles.annulerTitre}>✏️ Corriger le nombre de commandes</Text>
+            <Text style={styles.corrAncien}>
+              Saisi par le gérant : Yango {pointSelectionne?.yango_nb_commandes || 0} ·
+              Glovo {pointSelectionne?.glovo_nb_commandes || 0}
+            </Text>
+
+            <Text style={styles.annulerLabel}>Commandes Yango</Text>
+            <TextInput
+              style={styles.annulerInput}
+              keyboardType="numeric"
+              value={corrCmdYango}
+              onChangeText={v => setCorrCmdYango(v.replace(/[^0-9]/g, ''))}
+              placeholder="0" placeholderTextColor="#bbb"
+            />
+
+            <Text style={[styles.annulerLabel, { marginTop: 12 }]}>Commandes Glovo</Text>
+            <TextInput
+              style={styles.annulerInput}
+              keyboardType="numeric"
+              value={corrCmdGlovo}
+              onChangeText={v => setCorrCmdGlovo(v.replace(/[^0-9]/g, ''))}
+              placeholder="0" placeholderTextColor="#bbb"
+            />
+
+            <Text style={[styles.annulerLabel, { marginTop: 12 }]}>Motif (optionnel)</Text>
+            <TextInput
+              style={[styles.annulerInput, styles.corrRaisonInput]}
+              value={corrCmdMotif}
+              onChangeText={setCorrCmdMotif}
+              placeholder="Ex. le gérant a tapé 40 au lieu de 14"
+              placeholderTextColor="#bbb"
+              multiline
+            />
+
+            <Text style={styles.annulerHint}>
+              Le litige « contacts » est recalculé automatiquement dans Litiges et Charges. Le gérant sera notifié.
+            </Text>
+            {corrCmdError ? <Text style={styles.corrError}>{corrCmdError}</Text> : null}
+
+            <View style={styles.annulerBtnRow}>
+              <TouchableOpacity
+                style={[styles.annulerBtn, styles.annulerBtnCancel]}
+                onPress={() => setCorrCmdOuvert(false)}
+                disabled={corrCmdSaving}
+              >
+                <Text style={styles.annulerBtnCancelTxt}>Retour</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.annulerBtn, styles.annulerBtnConfirm, corrCmdSaving && { opacity: 0.5 }]}
+                onPress={sauvegarderCorrectionCommandes}
+                disabled={corrCmdSaving}
+              >
+                <Text style={styles.annulerBtnConfirmTxt}>{corrCmdSaving ? '...' : 'Corriger'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ══════════════════════════════════════════
+          MODAL CORRECTION FACTURE FOURNISSEUR
+      ══════════════════════════════════════════ */}
+      <Modal visible={corrFacture != null} animationType="fade" transparent onRequestClose={fermerCorrectionFacture}>
+        <View style={styles.annulerOverlay}>
+          <View style={styles.annulerCard}>
+            <Text style={styles.annulerTitre}>✏️ Corriger la facture</Text>
+            {corrFacture && (
+              <>
+                <Text style={styles.corrFourn}>{corrFacture.fournisseurs?.nom || 'Fournisseur'}</Text>
+                <Text style={styles.corrAncien}>Montant saisi : {fmt(parseFloat(corrFacture.facture) || 0)}</Text>
+
+                {corrFacture.photo_url ? (
+                  <TouchableOpacity onPress={() => voirPhoto(corrFacture.photo_url, corrFacture.fournisseurs?.nom)} activeOpacity={0.85}>
+                    <PhotoJustificatif uri={corrFacture.photo_url} style={styles.corrPhoto} />
+                    <Text style={styles.corrPhotoHint}>Toucher pour agrandir la facture</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={styles.corrPhotoHint}>Aucune photo de facture enregistrée</Text>
+                )}
+
+                <Text style={styles.annulerLabel}>Nouveau montant (d’après la facture)</Text>
+                <TextInput
+                  style={styles.annulerInput}
+                  keyboardType="numeric"
+                  value={corrMontant}
+                  onChangeText={setCorrMontant}
+                  placeholder={String(Math.round(parseFloat(corrFacture.facture) || 0))}
+                  placeholderTextColor="#bbb"
+                />
+
+                <Text style={[styles.annulerLabel, { marginTop: 12 }]}>Raison de la correction</Text>
+                <TextInput
+                  style={[styles.annulerInput, styles.corrRaisonInput]}
+                  value={corrRaison}
+                  onChangeText={setCorrRaison}
+                  placeholder="Ex. La facture indique 10 000, saisi 12 000"
+                  placeholderTextColor="#bbb"
+                  multiline
+                />
+
+                <Text style={styles.annulerHint}>Le gérant sera notifié. Sans impact sur le fond ; le solde du fournisseur est recalculé.</Text>
+                {corrError ? <Text style={styles.corrError}>{corrError}</Text> : null}
+
+                <View style={styles.annulerBtnRow}>
+                  <TouchableOpacity
+                    style={[styles.annulerBtn, styles.annulerBtnCancel]}
+                    onPress={fermerCorrectionFacture}
+                    disabled={corrSaving}
+                  >
+                    <Text style={styles.annulerBtnCancelTxt}>Retour</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.annulerBtn, styles.annulerBtnConfirm, corrSaving && { opacity: 0.5 }]}
+                    onPress={sauvegarderCorrectionFacture}
+                    disabled={corrSaving}
+                  >
+                    <Text style={styles.annulerBtnConfirmTxt}>{corrSaving ? '...' : 'Corriger'}</Text>
+                  </TouchableOpacity>
                 </View>
               </>
             )}
@@ -2737,7 +3765,7 @@ function makeStyles(colors) { return StyleSheet.create({
   machineStatutTxt: { fontSize: 13, fontWeight: '700' },
   machineBtnRow: { flexDirection: 'row', gap: 8 },
   machineBtn: { flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
-  machineBtnValider: { backgroundColor: '#3B6D11' },
+  machineBtnJustifier: { backgroundColor: '#3B6D11' },
   machineBtnRefuser: { backgroundColor: '#A32D2D' },
   machineBtnAnnuler: { backgroundColor: '#854F0B' },
   machineBtnTxt: { fontSize: 13, fontWeight: '700', color: '#fff' },
@@ -2764,7 +3792,27 @@ function makeStyles(colors) { return StyleSheet.create({
   annulerBtnCancel: { backgroundColor: '#eee' },
   annulerBtnCancelTxt: { fontSize: 14, fontWeight: '600', color: '#555' },
   annulerBtnConfirm: { backgroundColor: '#854F0B' },
+  annulerBtnJustifier: { backgroundColor: '#3B6D11' },
   annulerBtnConfirmTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  // Correction de facture fournisseur
+  corrFourn: { fontSize: 15, fontWeight: '800', color: colors.text, textAlign: 'center' },
+  corrAncien: { fontSize: 12, color: colors.textMuted, textAlign: 'center', marginTop: 2, marginBottom: 10 },
+  corrPhoto: { width: '100%', height: 150, borderRadius: 12, backgroundColor: colors.background, marginBottom: 4 },
+  corrPhotoHint: { fontSize: 11, color: colors.textMuted, textAlign: 'center', marginBottom: 12 },
+  corrRaisonInput: { fontSize: 14, fontWeight: '500', textAlign: 'left', minHeight: 60, textAlignVertical: 'top' },
+  corrError: { fontSize: 12, color: '#A32D2D', fontWeight: '600', marginTop: 8, textAlign: 'center' },
+  // Correction du nombre de commandes livraison (base du litige contacts)
+  corrCmdBox: {
+    backgroundColor: colors.surface, borderRadius: 12, padding: 12, marginTop: 4,
+    borderWidth: 0.5, borderColor: colors.border, borderLeftWidth: 3, borderLeftColor: '#534AB7',
+  },
+  corrCmdLitige: { fontSize: 12, color: '#A32D2D', fontWeight: '700', marginTop: 4 },
+  corrCmdBadge: { fontSize: 11, color: '#854F0B', fontWeight: '600', marginTop: 4, lineHeight: 15 },
+  corrCmdBtn: { alignSelf: 'flex-start', backgroundColor: '#E8F0FE', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginTop: 8 },
+  corrCmdBtnTxt: { fontSize: 12, color: '#1B4B9E', fontWeight: '700' },
+  factCorrBadge: { fontSize: 11, color: '#854F0B', fontWeight: '700', marginBottom: 3 },
+  factCorrBtn: { alignSelf: 'flex-start', backgroundColor: '#E8F0FE', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, marginTop: 1 },
+  factCorrBtnTxt: { fontSize: 12, color: '#1B4B9E', fontWeight: '700' },
   // ─── Inventaire Résumé global ───
   invResumeCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 0.5, borderColor: colors.border },
   invResumeRow: { flexDirection: 'row', gap: 10 },
@@ -2772,6 +3820,48 @@ function makeStyles(colors) { return StyleSheet.create({
   invResumeBadgeNum: { fontSize: 24, fontWeight: '700', marginBottom: 2 },
   invResumeBadgeLbl: { fontSize: 11, fontWeight: '500', textAlign: 'center' },
   invResumeTotalBox: { borderRadius: 10, padding: 12, marginTop: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  deducAlerte: { backgroundColor: '#FFF4E0', borderRadius: 8, padding: 10, marginBottom: 10, borderWidth: 1, borderColor: '#E8C98A' },
+  deducAlerteTxt: { fontSize: 12, color: '#7A4800', lineHeight: 17 },
+  deducMontant: { fontSize: 14, fontWeight: '800', color: '#A32D2D' },
+  deducMontantAnnule: { color: colors.textMuted, textDecorationLine: 'line-through' },
+  deducRetenu: { fontSize: 12, fontWeight: '800', color: '#A32D2D', marginTop: 1 },
+  repartLigne: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.borderLight, gap: 8 },
+  repartNom: { fontSize: 13, fontWeight: '700', color: colors.text },
+  repartMeta: { fontSize: 10, color: colors.textMuted, marginTop: 2 },
+  repartInput: { width: 96, borderWidth: 1, borderColor: colors.inputBorder, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 7, fontSize: 13, fontWeight: '700', color: colors.text, backgroundColor: colors.inputBg, textAlign: 'right' },
+  repartRetirer: { paddingHorizontal: 6, paddingVertical: 4 },
+  repartRetirerTxt: { fontSize: 15, color: '#A32D2D', fontWeight: '700' },
+  repartTotalBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 2, borderTopColor: colors.border },
+  repartTotalLbl: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+  repartTotalVal: { fontSize: 14, fontWeight: '800' },
+  repartAjoutTitre: { fontSize: 11, color: colors.textMuted, marginTop: 12, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
+  repartChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  repartChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, backgroundColor: colors.badgeBg },
+  repartChipTxt: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
+  repartChipGerant: { backgroundColor: colors.primaryLight },
+  repartChipGerantTxt: { fontSize: 12, color: colors.primaryDark, fontWeight: '700' },
+  justifLigne: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.borderLight },
+  justifLbl: { fontSize: 13, fontWeight: '700', color: '#185FA5' },
+  justifAide: { fontSize: 10, color: colors.textMuted, marginTop: 2 },
+  deducModifier: { marginTop: 10, paddingVertical: 9, borderRadius: 8, backgroundColor: colors.badgeBg, alignItems: 'center' },
+  deducModifierTxt: { fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+  deducMeta: { fontSize: 11, color: colors.textSecondary, marginTop: 3 },
+  deducExpl: { fontSize: 12, color: colors.text, marginTop: 6, fontStyle: 'italic' },
+  deducExplVide: { fontSize: 11, color: colors.textMuted, marginTop: 6, fontStyle: 'italic' },
+  deducActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  deducBtn: { flex: 1, paddingVertical: 9, borderRadius: 8, alignItems: 'center' },
+  deducBtnValider: { backgroundColor: '#E6F1FB' },
+  deducBtnValiderTxt: { fontSize: 12, fontWeight: '700', color: '#185FA5' },
+  deducBtnRefuser: { backgroundColor: '#FCEBEB' },
+  deducBtnRefuserTxt: { fontSize: 12, fontWeight: '700', color: '#A32D2D' },
+  deducStatut: { fontSize: 12, fontWeight: '700', marginTop: 8 },
+  invEntreeFourn: { paddingVertical: 8 },
+  invEntreeFournSep: { borderTopWidth: 1, borderTopColor: colors.borderLight, marginTop: 2 },
+  invEntreeFournNom: { fontSize: 13, fontWeight: '700', color: colors.primary, marginBottom: 5 },
+  invEntreeLigne: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingVertical: 3, paddingLeft: 10 },
+  invEntreeProduit: { fontSize: 12, color: colors.textSecondary },
+  invEntreeAuteur: { fontSize: 10, color: colors.textMuted, marginTop: 1 },
+  invEntreeQte: { fontSize: 12, fontWeight: '700', color: '#3B6D11', marginLeft: 10 },
   invResumeTotalLabel: { fontSize: 13, fontWeight: '600' },
   invResumeTotalVal: { fontSize: 16, fontWeight: '800' },
   // ─── Fiche produit avec écart ───
@@ -2785,6 +3875,22 @@ function makeStyles(colors) { return StyleSheet.create({
   invFicheExplicationTxt: { fontSize: 12, color: '#444', fontStyle: 'italic', lineHeight: 18 },
   invFicheCaissier: { marginTop: 10, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: '#f0f0f0', gap: 4 },
   invFicheCaissierTxt: { fontSize: 11, color: colors.textMuted },
+  annulDeducBtn: { marginTop: 10, backgroundColor: '#FCEBEB', borderWidth: 1, borderColor: '#F09595', borderRadius: 8, paddingVertical: 10, alignItems: 'center', justifyContent: 'center', minHeight: 40 },
+  annulDeducBtnTxt: { color: '#A32D2D', fontWeight: '700', fontSize: 13 },
+  deducAnnuleeBadge: { marginTop: 10, backgroundColor: '#EFEFEF', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
+  deducAnnuleeTxt: { color: colors.textMuted, fontWeight: '600', fontSize: 12, textDecorationLine: 'line-through' },
+  decisionInvBox: { marginTop: 10, backgroundColor: '#FFF9EC', borderWidth: 1, borderColor: '#F0D28A', borderRadius: 8, padding: 10 },
+  decisionInvPending: { color: '#854F0B', fontWeight: '700', fontSize: 12, textAlign: 'center', marginBottom: 8 },
+  decisionInvBtn: { backgroundColor: '#EF9F27', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
+  decisionInvBtnTxt: { color: '#412402', fontWeight: '800', fontSize: 13 },
+  decisionInvStatut: { fontWeight: '700', fontSize: 12, textAlign: 'center' },
+  decisionInvModifier: { color: '#185FA5', fontWeight: '600', fontSize: 12, textAlign: 'center', marginTop: 6 },
+  decisionModalNom: { fontSize: 15, fontWeight: '800', color: colors.text, textAlign: 'center', marginBottom: 8 },
+  decisionModalInfo: { backgroundColor: '#F7F7F7', borderRadius: 8, padding: 10, marginBottom: 12 },
+  decisionModalInfoTxt: { fontSize: 12, color: colors.textMuted, marginBottom: 2 },
+  decisionModalExpl: { fontSize: 12, color: '#185FA5', marginTop: 4, fontStyle: 'italic' },
+  decisionPreviewRow: { marginTop: 10, gap: 4 },
+  decisionPreviewTxt: { fontSize: 12, color: colors.text },
   // ─── Bilan financier ───
   invBilanCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: colors.border },
   invBilanRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5' },

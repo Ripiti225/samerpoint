@@ -28,8 +28,8 @@ import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { getRestaurants, getUtilisateurs, getUtilisateursGlobaux } from '../lib/api'
 import { SPRINGS } from '../lib/animations'
-
-const ROLES_GLOBAUX = ['manager', 'rh', 'directeur', 'verificateur']
+import { ROLES_GLOBAUX } from '../lib/constants'
+import { separerComptesPOS } from '../lib/sourcePoint'
 
 // ─── Bouton PIN animé ────────────────────────────────────────
 function PinButton({ label, onPress, disabled, colors }) {
@@ -581,8 +581,14 @@ export default function LoginScreen() {
   if (etape === 3) {
     const couleur = selectedResto?.couleur === 'vert' ? '#1FAD6B' : '#F0A020'
     const globaux = utilisateurs.filter(u => ROLES_GLOBAUX.includes(u.role))
-    const specifiques = utilisateurs.filter(u => !ROLES_GLOBAUX.includes(u.role))
     const modeGlobal = !selectedResto
+    // Sur un site passé au POS, les caissiers ne saisissent plus ici : leurs
+    // comptes sortent de la liste (jamais désactivés — un UPDATE sur
+    // restaurants.source_point les fait revenir au prochain chargement).
+    const { visibles: specifiques, reprisParLePOS } = separerComptesPOS(
+      selectedResto,
+      utilisateurs.filter(u => !ROLES_GLOBAUX.includes(u.role)),
+    )
 
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
@@ -635,7 +641,29 @@ export default function LoginScreen() {
               />
             )}
             ListEmptyComponent={
-              <Text style={[styles.empty, { color: colors.textMuted }]}>Aucun utilisateur pour ce restaurant</Text>
+              reprisParLePOS.length > 0 ? null : (
+                <Text style={[styles.empty, { color: colors.textMuted }]}>Aucun utilisateur pour ce restaurant</Text>
+              )
+            }
+            ListFooterComponent={
+              reprisParLePOS.length > 0 ? (
+                // Un compte qui disparaît sans un mot déclenche un appel au
+                // support : on explique l'absence là où elle se constate.
+                <View style={[styles.posCard, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+                  <Text style={styles.posCardIcone}>🖥️</Text>
+                  <Text style={[styles.posCardTitre, { color: colors.textSecondary }]}>
+                    {reprisParLePOS.length > 1 ? 'Les caissières se connectent sur la caisse' : 'La caissière se connecte sur la caisse'}
+                  </Text>
+                  <Text style={[styles.posCardTexte, { color: colors.textMuted }]}>
+                    Ce restaurant est équipé du POS. Le point de shift, les dépenses et
+                    l'inventaire s'y font, et arrivent ici automatiquement.
+                  </Text>
+                  <Text style={[styles.posCardTexte, { color: colors.textMuted, marginTop: 8 }]}>
+                    Manager : en cas de panne de la caisse, rétablissez la saisie depuis
+                    Paramètres → Restaurants. Les comptes sont intacts.
+                  </Text>
+                </View>
+              ) : null
             }
           />
         )}
@@ -784,6 +812,11 @@ const styles = StyleSheet.create({
   userSubtitle: { fontSize: 12, marginTop: 3 },
   // Misc
   empty:   { textAlign: 'center', marginTop: 40, fontSize: 14 },
+  // Encart « les caissiers sont sur la caisse » (site passé au POS)
+  posCard:      { marginTop: 16, borderRadius: 14, borderWidth: 1, borderStyle: 'dashed', padding: 16, alignItems: 'center' },
+  posCardIcone: { fontSize: 22, marginBottom: 6 },
+  posCardTitre: { fontSize: 14, fontWeight: '700', textAlign: 'center', marginBottom: 6 },
+  posCardTexte: { fontSize: 12.5, lineHeight: 18, textAlign: 'center' },
   backBtn: { alignSelf: 'flex-start', paddingHorizontal: 20, paddingVertical: 10 },
   backTxt: { fontSize: 15, color: '#F0A020', fontWeight: '600' },
   pinScrollContent: { alignItems: 'center', paddingBottom: 40, paddingTop: 8, width: '100%' },

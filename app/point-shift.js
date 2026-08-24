@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
     ActivityIndicator,
     Alert,
-    Image,
     Modal,
     Platform,
     SafeAreaView, ScrollView,
@@ -13,11 +12,14 @@ import {
     TouchableOpacity,
     View
 } from 'react-native'
+import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { savePointShiftData } from '../lib/api'
+import { archiverSuppressionShift, supprimerLignesArchivees } from '../lib/corbeille'
 import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifShiftValide } from '../lib/notifications'
+import { estPhotoValide } from '../lib/photoQueue'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
 
@@ -108,7 +110,7 @@ function PhotoInput({ label, value, setter, dossier, obligatoire, onGererPhoto, 
         ) : null}
       </View>
       {value && (
-        <Image source={{ uri: value }} style={styles.photoPreview} resizeMode="cover" />
+        <PhotoJustificatif uri={value} style={styles.photoPreview} />
       )}
       <TouchableOpacity
         style={styles.photoBtn}
@@ -189,7 +191,7 @@ export default function PointShiftScreen() {
     dateJour,
     depensesJour, fournisseursJour,
     userId, userNom, resetJour,
-    totalDepenses, totalFournisseurs,
+    totalDepenses, totalFournisseurs, fournisseursNonEnregistres,
   } = useApp()
 
   const { prendrePhoto, choisirPhoto } = usePhoto()
@@ -245,13 +247,22 @@ export default function PointShiftScreen() {
   const [shiftDetail, setShiftDetail] = useState(null)
   const [shiftDetailData, setShiftDetailData] = useState({ depenses: [], fournisseurs: [], presences: [], inventaire: null, loading: false })
   const [photoPleinEcranUrl, setPhotoPleinEcranUrl] = useState(null)
+  const [fournNoms, setFournNoms] = useState({})
 
   useEffect(() => {
     if (isGerant || isManager || isDirecteur) chargerShiftsGerant()
     else setLoading(false)
     verifierHeure()
     if (isCaissier && pointId && userId) chargerStatutInventaire()
+    if (isCaissier && restaurantId) chargerFournNoms()
   }, [])
+
+  async function chargerFournNoms() {
+    const { data } = await supabase.from('fournisseurs').select('id, nom').eq('restaurant_id', restaurantId)
+    const map = {}
+    ;(data || []).forEach(f => { map[f.id] = f.nom })
+    setFournNoms(map)
+  }
 
   async function chargerStatutInventaire() {
     const { data } = await supabase
@@ -397,23 +408,10 @@ export default function PointShiftScreen() {
         return
       }
 
-      if (shift.caissier_id) {
-        await supabase.from('presences').delete()
-          .eq('point_id', shift.point_id).eq('caissier_id', shift.caissier_id)
-      }
-      // Scoper au caissier du shift supprimé : ne pas effacer les dépenses /
-      // transactions des AUTRES caissiers du même point.
-      let delDep = supabase.from('depenses').delete()
-        .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
-      let delTx = supabase.from('transactions_fournisseurs').delete()
-        .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
-      if (shift.caissier_nom) {
-        delDep = delDep.eq('caissier_nom', shift.caissier_nom)
-        delTx = delTx.eq('caissier_nom', shift.caissier_nom)
-      }
-      await delDep
-      await delTx
-      await supabase.from('points_shifts').delete().eq('id', shift.id)
+      // Archiver d'abord : sans filet, on ne supprime pas. L'archivage renvoie
+      // les identifiants exacts à effacer, scopés au caissier de ce shift.
+      const ids = await archiverSuppressionShift(shift, { userId, userNom })
+      await supprimerLignesArchivees(ids)
 
       setConfirmSupprShift(null)
       await chargerShiftsGerant()
@@ -431,7 +429,6 @@ export default function PointShiftScreen() {
 
     const selectedShifts = shiftsGerant.filter(s => shiftsSelectionnes.has(s.id))
     const pointIds = [...new Set(selectedShifts.map(s => s.point_id))]
-    const shiftIds = selectedShifts.map(s => s.id)
 
     try {
       const { data: points } = await supabase
@@ -447,25 +444,9 @@ export default function PointShiftScreen() {
         return
       }
 
-      // Suppression scopée par caissier de chaque shift : ne pas toucher aux
-      // dépenses / transactions des autres caissiers d'un même point.
-      for (const shift of selectedShifts) {
-        if (shift.caissier_id) {
-          await supabase.from('presences').delete()
-            .eq('point_id', shift.point_id).eq('caissier_id', shift.caissier_id)
-        }
-        let delDep = supabase.from('depenses').delete()
-          .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
-        let delTx = supabase.from('transactions_fournisseurs').delete()
-          .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
-        if (shift.caissier_nom) {
-          delDep = delDep.eq('caissier_nom', shift.caissier_nom)
-          delTx = delTx.eq('caissier_nom', shift.caissier_nom)
-        }
-        await delDep
-        await delTx
-      }
-      await supabase.from('points_shifts').delete().in('id', shiftIds)
+      // Une archive par shift, pour pouvoir en restaurer un seul plus tard.
+      const ids = await archiverSuppressionShift(selectedShifts, { userId, userNom })
+      await supprimerLignesArchivees(ids)
 
       setModeSelection(false)
       setShiftsSelectionnes(new Set())
@@ -509,13 +490,22 @@ export default function PointShiftScreen() {
 
   function verifierPhotosManquantes() {
     const manquantes = []
-    if (parseFloat(kdo) > 0 && !photoKdo) manquantes.push('KDO')
-    if (parseFloat(retour) > 0 && !photoRetour) manquantes.push('Retour')
-    if (parseFloat(yangoCse) > 0 && !photoYangoCse) manquantes.push('Yango CSE')
-    if (parseFloat(glovoCse) > 0 && !photoGlovoCse) manquantes.push('Glovo CSE')
-    if (parseFloat(wave) > 0 && !photoWave) manquantes.push('Wave')
-    if (parseFloat(djamo) > 0 && !photoDjamo) manquantes.push('Djamo')
-    if (parseFloat(om) > 0 && !photoOm) manquantes.push('Orange Money')
+    // estPhotoValide au lieu d'un simple test de présence : une URI locale
+    // (`file:///…`) n'est consultable sur aucun autre appareil et ne vaut donc
+    // pas justificatif. Une photo en attente d'envoi reste acceptée.
+    if (parseFloat(kdo) > 0 && !estPhotoValide(photoKdo)) manquantes.push('KDO')
+    if (parseFloat(retour) > 0 && !estPhotoValide(photoRetour)) manquantes.push('Retour')
+    if (parseFloat(yangoCse) > 0 && !estPhotoValide(photoYangoCse)) manquantes.push('Yango CSE')
+    if (parseFloat(glovoCse) > 0 && !estPhotoValide(photoGlovoCse)) manquantes.push('Glovo CSE')
+    if (parseFloat(wave) > 0 && !estPhotoValide(photoWave)) manquantes.push('Wave')
+    if (parseFloat(djamo) > 0 && !estPhotoValide(photoDjamo)) manquantes.push('Djamo')
+    if (parseFloat(om) > 0 && !estPhotoValide(photoOm)) manquantes.push('Orange Money')
+    // Factures fournisseurs sans photo : même exigence que côté gérant (obligatoire).
+    Object.entries(fournisseursJour || {}).forEach(([id, t]) => {
+      if ((parseFloat(t?.facture) || 0) > 0 && !estPhotoValide(t?.photoUri)) {
+        manquantes.push(`Facture ${fournNoms[id] || 'fournisseur'}`)
+      }
+    })
     return manquantes
   }
 
@@ -554,6 +544,17 @@ export default function PointShiftScreen() {
   function validerShift() {
     if (!heureDebut || !heureFin) {
       Alert.alert('Erreur', 'Veuillez indiquer les heures de début et de fin du shift')
+      return
+    }
+    // Bloquer s'il reste des saisies fournisseurs non enregistrées (elles n'ont pas eu
+    // de photo obligatoire et ne comptent pas dans la vente tant qu'elles ne sont pas enregistrées).
+    const nonEnr = fournisseursNonEnregistres()
+    if (nonEnr.length > 0) {
+      const noms = nonEnr.map(id => fournNoms[id] || 'fournisseur').join(', ')
+      Alert.alert(
+        '⚠️ Saisies fournisseurs non enregistrées',
+        `Vous avez des saisies non enregistrées pour :\n\n${noms}\n\nRetournez dans Fournisseurs pour les enregistrer (photo obligatoire) ou les supprimer avant de valider.`
+      )
       return
     }
     if (isCaissier && !inventaireCaissierOk) {
@@ -1321,7 +1322,7 @@ export default function PointShiftScreen() {
                           { label: 'Orange Money', url: shiftDetail?.photo_om },
                         ].filter(p => p.url).map((p, i) => (
                           <TouchableOpacity key={i} style={styles.photoThumb} onPress={() => setPhotoPleinEcranUrl(p.url)}>
-                            <Image source={{ uri: p.url }} style={styles.photoThumbImg} resizeMode="cover" />
+                            <PhotoJustificatif uri={p.url} style={styles.photoThumbImg} compact />
                             <Text style={styles.photoThumbLabel}>{p.label}</Text>
                           </TouchableOpacity>
                         ))}
@@ -1533,8 +1534,8 @@ export default function PointShiftScreen() {
             <Text style={styles.photoPleinEcranCloseTxt}>✕</Text>
           </TouchableOpacity>
           {photoPleinEcranUrl && (
-            <Image
-              source={{ uri: photoPleinEcranUrl }}
+            <PhotoJustificatif
+              uri={photoPleinEcranUrl}
               style={styles.photoPleinEcranImg}
               resizeMode="contain"
             />

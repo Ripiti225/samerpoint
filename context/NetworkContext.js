@@ -20,6 +20,7 @@ export function NetworkProvider({ children }) {
   const [lastSyncAt, setLastSyncAt] = useState(null)
   const syncTimeoutRef = useRef(null)
   const isSyncingRef = useRef(false)
+  const isOnlineRef = useRef(true)
 
   const refreshQueueSize = useCallback(async () => {
     try {
@@ -54,10 +55,20 @@ export function NetworkProvider({ children }) {
   useEffect(() => {
     refreshQueueSize()
 
+    // Relance périodique : une photo peut rester en attente sans qu'on soit
+    // jamais passé hors ligne (upload refusé, coupure trop brève pour NetInfo).
+    // Sans ce filet, elle ne repartirait qu'à la prochaine vraie reconnexion.
+    const intervalId = setInterval(async () => {
+      if (!isOnlineRef.current || isSyncingRef.current) return
+      await refreshQueueSize()
+      syncNow()
+    }, 60000)
+
     const unsubscribe = NetInfo.addEventListener(state => {
       const online = !!(state.isConnected && state.isInternetReachable !== false)
       setIsOnline(online)
       setOnlineStatus(online)
+      isOnlineRef.current = online
 
       if (online) {
         // Délai pour laisser la connexion se stabiliser avant de synchroniser
@@ -71,6 +82,7 @@ export function NetworkProvider({ children }) {
 
     return () => {
       unsubscribe()
+      clearInterval(intervalId)
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
     }
   }, [syncNow, refreshQueueSize])

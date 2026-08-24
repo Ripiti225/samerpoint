@@ -162,7 +162,17 @@ export function AppProvider({ children }) {
   }
 
   function totalFournisseurs() {
-    return Math.round(Object.values(fournisseursJour).reduce((sum, t) => sum + (parseFloat(t?.paye) || 0), 0))
+    // Ne compter QUE les lignes réellement enregistrées (marqueur `saved`).
+    // Une saisie tapée mais non enregistrée ne doit pas entrer dans la vente.
+    return Math.round(Object.values(fournisseursJour).reduce((sum, t) => sum + (t?.saved ? (parseFloat(t?.paye) || 0) : 0), 0))
+  }
+
+  // Saisies fournisseurs tapées mais NON enregistrées (facture ou payé > 0 sans `saved`).
+  // Sert à bloquer la validation tant qu'elles ne sont pas enregistrées (photo obligatoire) ou supprimées.
+  function fournisseursNonEnregistres() {
+    return Object.entries(fournisseursJour)
+      .filter(([, t]) => !t?.saved && ((parseFloat(t?.facture) || 0) > 0 || (parseFloat(t?.paye) || 0) > 0))
+      .map(([id]) => id)
   }
 
   function totalDepensesCat() {
@@ -374,6 +384,7 @@ export function AppProvider({ children }) {
       paiesGerantCaisse, setPaiesGerantCaisse,
       totalPaie,
       totalFournisseurs,
+      fournisseursNonEnregistres,
       totalDepenses,
       totalVentes,
       totalDepensesGerantCaisse,

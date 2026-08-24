@@ -8,17 +8,18 @@
  *     GENERATED ALWAYS AS (nouveau_credit - ancien_credit) STORED;
  */
 
-import * as FileSystem from 'expo-file-system'
+import * as FileSystem from 'expo-file-system/legacy'
 import * as Print from 'expo-print'
 import { router } from 'expo-router'
 import * as Sharing from 'expo-sharing'
 import { useEffect, useMemo, useState } from 'react'
 import {
-  ActivityIndicator, Alert, Image, Modal, Platform,
+  ActivityIndicator, Alert, Modal, Platform,
   SafeAreaView, ScrollView, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native'
 import * as XLSX from 'xlsx'
+import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { journaliser } from '../lib/journal'
@@ -34,6 +35,20 @@ function fmtDate(dateStr) {
   if (parts.length < 3) return dateStr
   const mois = ['jan', 'fév', 'mar', 'avr', 'mai', 'juin', 'jul', 'aoû', 'sep', 'oct', 'nov', 'déc']
   return `${parseInt(parts[2])} ${mois[parseInt(parts[1]) - 1]}`
+}
+function moisLabel(key) {
+  const [y, m] = key.split('-').map(Number)
+  const noms = ['janv', 'févr', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc']
+  return `${noms[m - 1]} ${y}`
+}
+function derniersMois(n) {
+  const arr = []
+  const d = new Date()
+  for (let i = 0; i < n; i++) {
+    arr.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+    d.setMonth(d.getMonth() - 1)
+  }
+  return arr
 }
 
 export default function CreditsFournisseursScreen() {
@@ -74,6 +89,11 @@ export default function CreditsFournisseursScreen() {
   const [archivageErreur, setArchivageErreur] = useState(null)
   const [modalPhotoUri, setModalPhotoUri] = useState(null)
 
+  // Vue « mouvements par mois » (factures + paiements enregistrés du mois)
+  const [moisSel, setMoisSel] = useState(null)      // null = vue soldes ; 'YYYY-MM' = vue mois
+  const [mouvMois, setMouvMois] = useState(null)    // { totalFacture, totalPaye, parFourn: [] }
+  const [loadingMois, setLoadingMois] = useState(false)
+
   const today = new Date().toISOString().split('T')[0]
   const [formCredit, setFormCredit] = useState({ montant: '', motif: '' })
   const firstOfMonth = `${today.slice(0, 7)}-01`
@@ -112,9 +132,67 @@ export default function CreditsFournisseursScreen() {
       else if (restoFilter) query = query.eq('restaurant_id', restoFilter)
       query = query.order('nom')
       const { data: fourn } = await query
+      // Source de vérité affichée = credit_actuel (solde officiel maintenu par les
+      // saisies gérant/caissier et les déductions). On n'aligne PAS sur la dernière
+      // transaction : la chaîne de transactions ne contient pas les déductions gérant.
       setFournisseurs((fourn || []).map(f => ({ ...f, restaurant_nom: restoMap[f.restaurant_id] || '' })))
     } catch {}
     setLoading(false)
+  }
+
+  // ── Mouvements enregistrés d'un mois (factures + paiements) ──────────────
+  useEffect(() => {
+    if (moisSel) chargerMois(moisSel)
+    else setMouvMois(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moisSel, restoFilter, restaurantId])
+
+  async function chargerMois(mois) {
+    setLoadingMois(true)
+    try {
+      const debut = `${mois}-01`
+      const [y, m] = mois.split('-').map(Number)
+      const finExcl = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
+
+      // Points du mois pour le périmètre restaurant courant
+      let pQ = supabase.from('points').select('id, restaurant_id').gte('date', debut).lt('date', finExcl)
+      if (isGerant) pQ = pQ.eq('restaurant_id', restaurantId)
+      else if (restoFilter) pQ = pQ.eq('restaurant_id', restoFilter)
+      const { data: pts } = await pQ
+      const pointIds = (pts || []).map(p => p.id)
+      if (pointIds.length === 0) {
+        setMouvMois({ totalFacture: 0, totalPaye: 0, parFourn: [] })
+        setLoadingMois(false)
+        return
+      }
+
+      const { data: trans } = await supabase
+        .from('transactions_fournisseurs')
+        .select('fournisseur_id, fournisseur_nom, facture, paye')
+        .in('point_id', pointIds)
+
+      const agg = {}
+      let totalFacture = 0, totalPaye = 0
+      ;(trans || []).forEach(t => {
+        const fa = parseFloat(t.facture) || 0
+        const pa = parseFloat(t.paye) || 0
+        totalFacture += fa; totalPaye += pa
+        const g = (agg[t.fournisseur_id] ||= { id: t.fournisseur_id, nom: t.fournisseur_nom || '', facture: 0, paye: 0 })
+        g.facture += fa; g.paye += pa
+      })
+      // Compléter les noms manquants depuis la liste déjà chargée
+      const nomById = {}
+      fournisseurs.forEach(f => { nomById[f.id] = f.nom })
+      const parFourn = Object.values(agg)
+        .map(g => ({ ...g, nom: g.nom || nomById[g.id] || 'Fournisseur' }))
+        .filter(g => g.facture !== 0 || g.paye !== 0)
+        .sort((a, b) => (b.facture + b.paye) - (a.facture + a.paye))
+
+      setMouvMois({ totalFacture, totalPaye, parFourn })
+    } catch {
+      setMouvMois({ totalFacture: 0, totalPaye: 0, parFourn: [] })
+    }
+    setLoadingMois(false)
   }
 
   // ── Modifier le crédit (delta +/-) ──────────────────────────────────────
@@ -160,7 +238,35 @@ export default function CreditsFournisseursScreen() {
       .eq('fournisseur_id', f.id)
       .order('created_at', { ascending: false })
 
-    setHistoMouvements(transactions || [])
+    const liste = transactions || []
+
+    // `date_point` = date de la JOURNÉE de la facture, renseignée par le
+    // déclencheur de supabase_date_point_transactions.sql. Tant que cette
+    // migration n'est pas passée elle est vide : on retombe alors sur la date
+    // du point. Sans ça, une facture réinjectée s'affiche à la date de la
+    // réinjection et remonte en tête de liste, ce qui induit en erreur.
+    const aResoudre = [...new Set(liste.filter(t => !t.date_point && t.point_id).map(t => t.point_id))]
+    if (aResoudre.length) {
+      const parPoint = {}
+      for (let i = 0; i < aResoudre.length; i += 60) {   // lots courts : URL PostgREST
+        const { data: pts } = await supabase.from('points')
+          .select('id, date').in('id', aResoudre.slice(i, i + 60))
+        ;(pts || []).forEach(p => { parPoint[p.id] = p.date })
+      }
+      liste.forEach(t => { if (!t.date_point) t.date_point = parPoint[t.point_id] || null })
+    }
+
+    // Tri sur la date de journée : une facture réinjectée reprend sa vraie
+    // place chronologique. C'est déjà l'ordre qu'utilise le recalcul des soldes.
+    const jour = t => t.date_point || String(t.created_at || '').slice(0, 10)
+    liste.sort((a, b) => {
+      const da = jour(a)
+      const db = jour(b)
+      if (da !== db) return da < db ? 1 : -1
+      return String(a.created_at) < String(b.created_at) ? 1 : -1
+    })
+
+    setHistoMouvements(liste)
     setLoadingHisto(false)
   }
 
@@ -626,13 +732,18 @@ ${mouvements.map(m => {
           <Text style={styles.headerTitre}>Fournisseurs & Cotisations</Text>
           <Text style={styles.headerSub}>Statut automatique selon solde</Text>
         </View>
-        <View style={{ width: 80, alignItems: 'flex-end' }}>
+        <View style={{ width: 80, alignItems: 'flex-end', gap: 6 }}>
           {peutModifier && (
             <TouchableOpacity style={styles.exportBtn} onPress={() => {
               setExportFilters(p => ({ ...p, restoId: restoFilter, fournId: null }))
               setShowExportModal(true)
             }}>
               <Text style={styles.exportBtnTxt}>📄 Export</Text>
+            </TouchableOpacity>
+          )}
+          {peutModifier && (
+            <TouchableOpacity style={styles.exportBtn} onPress={() => router.push('/brouillons-fournisseurs')}>
+              <Text style={styles.exportBtnTxt}>🗂 Brouillons</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -674,31 +785,104 @@ ${mouvements.map(m => {
         </TouchableOpacity>
       )}
 
-      <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-        {/* ─── Section Fournisseurs ─── */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitre}>🔴 FOURNISSEURS</Text>
-          <Text style={styles.sectionSub}>{fournList.length} · {fmt(totalDu)}</Text>
-        </View>
-        {fournList.length === 0 ? (
-          <View style={styles.emptySection}>
-            <Text style={styles.emptySectionTxt}>Aucun fournisseur</Text>
-          </View>
-        ) : (
-          fournList.map(f => renderCard(f))
-        )}
+      {/* Sélecteur de mois : soldes actuels ou mouvements d'un mois */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.moisBar}
+        contentContainerStyle={{ paddingHorizontal: 12, gap: 8, alignItems: 'center' }}
+      >
+        <TouchableOpacity
+          style={[styles.moisChip, !moisSel && styles.moisChipActive]}
+          onPress={() => setMoisSel(null)}
+        >
+          <Text style={[styles.moisChipTxt, !moisSel && styles.moisChipTxtActive]}>Soldes actuels</Text>
+        </TouchableOpacity>
+        {derniersMois(6).map(mk => (
+          <TouchableOpacity
+            key={mk}
+            style={[styles.moisChip, moisSel === mk && styles.moisChipActive]}
+            onPress={() => setMoisSel(mk)}
+          >
+            <Text style={[styles.moisChipTxt, moisSel === mk && styles.moisChipTxtActive]}>{moisLabel(mk)}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
-        {/* ─── Section Cotisations ─── */}
-        <View style={[styles.sectionHeader, { marginTop: 10 }]}>
-          <Text style={[styles.sectionTitre, { color: '#3B6D11' }]}>🟢 COTISATIONS</Text>
-          <Text style={styles.sectionSub}>{cotisList.length} · {fmt(totalAvances)}</Text>
-        </View>
-        {cotisList.length === 0 ? (
-          <View style={styles.emptySection}>
-            <Text style={styles.emptySectionTxt}>Aucune cotisation</Text>
-          </View>
+      <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+        {moisSel ? (
+          /* ─── Vue : mouvements du mois (factures + paiements) ─── */
+          loadingMois ? (
+            <View style={[styles.loadingBox, { paddingVertical: 40 }]}>
+              <ActivityIndicator size="large" color="#EF9F27" />
+            </View>
+          ) : (
+            <>
+              <View style={styles.moisTotalRow}>
+                <View style={styles.moisTotalBox}>
+                  <Text style={styles.kpiLabel}>Factures {moisLabel(moisSel)}</Text>
+                  <Text style={[styles.kpiVal, { color: '#A32D2D' }]}>{fmt(mouvMois?.totalFacture || 0)}</Text>
+                </View>
+                <View style={[styles.moisTotalBox, { borderLeftWidth: 0.5, borderLeftColor: colors.border }]}>
+                  <Text style={styles.kpiLabel}>Payé {moisLabel(moisSel)}</Text>
+                  <Text style={[styles.kpiVal, { color: '#3B6D11' }]}>{fmt(mouvMois?.totalPaye || 0)}</Text>
+                </View>
+              </View>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitre}>📅 MOUVEMENTS DU MOIS</Text>
+                <Text style={styles.sectionSub}>{mouvMois?.parFourn?.length || 0} fournisseur(s)</Text>
+              </View>
+              {(mouvMois?.parFourn?.length || 0) === 0 ? (
+                <View style={styles.emptySection}>
+                  <Text style={styles.emptySectionTxt}>Aucun mouvement enregistré ce mois</Text>
+                </View>
+              ) : (
+                mouvMois.parFourn.map(g => (
+                  <View key={g.id} style={styles.moisCard}>
+                    <Text style={styles.moisCardNom} numberOfLines={1}>{g.nom}</Text>
+                    <View style={styles.moisCardVals}>
+                      <View style={styles.moisCardVal}>
+                        <Text style={styles.moisCardValLabel}>📦 Factures</Text>
+                        <Text style={[styles.moisCardValNum, { color: '#A32D2D' }]}>{fmt(g.facture)}</Text>
+                      </View>
+                      <View style={styles.moisCardVal}>
+                        <Text style={styles.moisCardValLabel}>💳 Payé</Text>
+                        <Text style={[styles.moisCardValNum, { color: '#3B6D11' }]}>{fmt(g.paye)}</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))
+              )}
+            </>
+          )
         ) : (
-          cotisList.map(f => renderCard(f))
+          <>
+            {/* ─── Section Fournisseurs ─── */}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitre}>🔴 FOURNISSEURS</Text>
+              <Text style={styles.sectionSub}>{fournList.length} · {fmt(totalDu)}</Text>
+            </View>
+            {fournList.length === 0 ? (
+              <View style={styles.emptySection}>
+                <Text style={styles.emptySectionTxt}>Aucun fournisseur</Text>
+              </View>
+            ) : (
+              fournList.map(f => renderCard(f))
+            )}
+
+            {/* ─── Section Cotisations ─── */}
+            <View style={[styles.sectionHeader, { marginTop: 10 }]}>
+              <Text style={[styles.sectionTitre, { color: '#3B6D11' }]}>🟢 COTISATIONS</Text>
+              <Text style={styles.sectionSub}>{cotisList.length} · {fmt(totalAvances)}</Text>
+            </View>
+            {cotisList.length === 0 ? (
+              <View style={styles.emptySection}>
+                <Text style={styles.emptySectionTxt}>Aucune cotisation</Text>
+              </View>
+            ) : (
+              cotisList.map(f => renderCard(f))
+            )}
+          </>
         )}
 
         <View style={{ height: 40 }} />
@@ -778,10 +962,23 @@ ${mouvements.map(m => {
                 // Crédit reporté de la veille = reste - facture + paye
                 const creditVeille = solde - facture + paye
 
+                // Date de la JOURNÉE en principal, date de SAISIE en second et
+                // seulement si elle diffère : c'est ce qui révèle qu'une facture
+                // a été réinjectée après coup.
+                const jourFacture = m.date_point || m.created_at
+                const jourSaisie = String(m.created_at || '').slice(0, 10)
+                const saisieDecalee = jourFacture && jourSaisie
+                  && String(jourFacture).slice(0, 10) !== jourSaisie
+
                 return (
                   <View key={`t-${m.id || idx}`} style={styles.histoMvtCard}>
                     <View style={styles.histoMvtHeader}>
-                      <Text style={styles.histoMvtDate}>📅 {fmtDate(m.created_at)}</Text>
+                      <View>
+                        <Text style={styles.histoMvtDate}>📅 {fmtDate(jourFacture)}</Text>
+                        {saisieDecalee && (
+                          <Text style={styles.histoMvtSaisie}>saisi le {fmtDate(m.created_at)}</Text>
+                        )}
+                      </View>
                       <View style={[styles.histoMvtBadge, { backgroundColor: sourceInfo.bg }]}>
                         <Text style={[styles.histoMvtBadgeTxt, { color: sourceInfo.txt }]}>{sourceInfo.icon} {sourceInfo.label}</Text>
                       </View>
@@ -820,7 +1017,7 @@ ${mouvements.map(m => {
 
                     {m.photo_url && (
                       <TouchableOpacity style={styles.histoMvtPhoto} onPress={() => setModalPhotoUri(m.photo_url)}>
-                        <Image source={{ uri: m.photo_url }} style={styles.histoMvtPhotoThumb} resizeMode="cover" />
+                        <PhotoJustificatif uri={m.photo_url} style={styles.histoMvtPhotoThumb} compact />
                         <Text style={styles.histoMvtPhotoTxt}>📷 Voir la facture</Text>
                       </TouchableOpacity>
                     )}
@@ -1149,8 +1346,8 @@ ${mouvements.map(m => {
             <Text style={{ fontSize: 30, color: '#fff', fontWeight: '300' }}>✕</Text>
           </TouchableOpacity>
           {modalPhotoUri && (
-            <Image
-              source={{ uri: modalPhotoUri }}
+            <PhotoJustificatif
+              uri={modalPhotoUri}
               style={{ width: '92%', height: '70%' }}
               resizeMode="contain"
             />
@@ -1187,6 +1384,19 @@ function makeStyles(colors) { return StyleSheet.create({
   restoSelectorIcon: { fontSize: 16 },
   restoSelectorTxt: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.text },
   restoSelectorArrow: { fontSize: 12, color: colors.textMuted },
+  moisBar: { flexGrow: 0, backgroundColor: colors.surface, borderBottomWidth: 0.5, borderBottomColor: colors.border, paddingVertical: 8 },
+  moisChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 0.5, borderColor: colors.border, backgroundColor: colors.bg },
+  moisChipActive: { backgroundColor: '#EF9F27', borderColor: '#EF9F27' },
+  moisChipTxt: { fontSize: 12, fontWeight: '600', color: colors.textMuted },
+  moisChipTxtActive: { color: '#412402', fontWeight: '800' },
+  moisTotalRow: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 14, borderWidth: 0.5, borderColor: colors.border, paddingVertical: 14, marginBottom: 14 },
+  moisTotalBox: { flex: 1, alignItems: 'center' },
+  moisCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 0.5, borderColor: colors.border },
+  moisCardNom: { flex: 1, fontSize: 13, fontWeight: '700', color: colors.text },
+  moisCardVals: { flexDirection: 'row', gap: 18 },
+  moisCardVal: { alignItems: 'flex-end' },
+  moisCardValLabel: { fontSize: 9, color: colors.textMuted },
+  moisCardValNum: { fontSize: 13, fontWeight: '700' },
   pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   pickerBox: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingBottom: 32 },
   pickerTitre: { fontSize: 13, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, paddingHorizontal: 20, marginBottom: 8 },
@@ -1267,6 +1477,7 @@ function makeStyles(colors) { return StyleSheet.create({
   histoMvtCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: colors.border },
   histoMvtHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   histoMvtDate: { fontSize: 13, fontWeight: '600', color: colors.text },
+  histoMvtSaisie: { fontSize: 10, color: colors.textMuted, marginTop: 1 },
   histoMvtBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   histoMvtBadgeTxt: { fontSize: 10, fontWeight: '600' },
   histoMvtChiffres: { flexDirection: 'row', borderTopWidth: 0.5, borderTopColor: colors.border, paddingTop: 10 },

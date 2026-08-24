@@ -32,7 +32,7 @@ export default function LivraisonsScreen() {
   const [form, setForm] = useState({ numero: '', contact: '', plat: '' })
   const [saving, setSaving] = useState(false)
   const [sauvegardé, setSauvegardé] = useState(false)
-  const { livraisonsJour, setLivraisonsJour, pointId, userId } = useApp()
+  const { livraisonsJour, setLivraisonsJour, pointId, userId, restaurantId } = useApp()
 
   // Chargement : contexte en priorité, sinon Supabase.
   // Dépend de pointId et userId pour se ré-exécuter au re-login
@@ -73,7 +73,7 @@ export default function LivraisonsScreen() {
   // Sauvegarde immédiate silencieuse après chaque ajout/suppression
   function sauvegarder(nouvellesCommandes) {
     setLivraisonsJour(nouvellesCommandes)
-    if (pointId) saveCommandes(pointId, nouvellesCommandes, userId).catch(() => {})
+    if (pointId) saveCommandes(pointId, nouvellesCommandes, userId, restaurantId).catch(() => {})
   }
 
   // Sauvegarde explicite avec retour visuel — déclenchée par le bouton Sauvegarder
@@ -82,7 +82,7 @@ export default function LivraisonsScreen() {
     setLivraisonsJour(commandes)
     if (pointId) {
       try {
-        await saveCommandes(pointId, commandes, userId)
+        await saveCommandes(pointId, commandes, userId, restaurantId)
       } catch {
         setSaving(false)
         Alert.alert('Erreur', 'La sauvegarde a échoué. Réessayez.')
@@ -224,7 +224,7 @@ export default function LivraisonsScreen() {
 
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
             <View style={{ flex: 1 }} />
           </TouchableWithoutFeedback>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>

@@ -340,7 +340,7 @@ export default function DocumentsScreen() {
 
       {/* Modal ajout/édition */}
       <Modal visible={modalDoc} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
           <View style={styles.modalOverlay}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
               <ScrollView style={styles.modal} showsVerticalScrollIndicator={false}>

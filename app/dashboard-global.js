@@ -10,12 +10,17 @@ import {
     View
 } from 'react-native'
 import { Calendar } from 'react-native-calendars'
+import {
+  VictoryArea, VictoryAxis, VictoryBar,
+  VictoryChart, VictoryLine, VictoryTheme,
+} from 'victory-native'
 import { useTheme } from '../context/ThemeContext'
 import { getDepensesPeriode, getFournisseursPeriodePaye, getPaiesGerantPeriode, getPresencesPeriode } from '../lib/api'
 import { FOURNISSEURS_LABOR, FOURNISSEURS_NON_FOOD } from '../lib/constants'
 import { supabase } from '../lib/supabase'
 
 const { width } = Dimensions.get('window')
+const CHART_WIDTH = width - 48
 
 function couleurResto(c) {
   return { vert: '#2D7D46', bleu: '#185FA5', rouge: '#A32D2D', violet: '#534AB7' }[c] || '#EF9F27'
@@ -163,6 +168,31 @@ export default function DashboardGlobalScreen() {
   }
 
   const restosVus = restoFiltre ? restaurants.filter(r => r.id === restoFiltre) : restaurants
+
+  // ── Série quotidienne agrégée (courbes d'évolution, comme le portail gérant) ──
+  // Somme par date sur les restaurants vus (respecte le filtre restaurant).
+  const serieJours = (() => {
+    const byDate = {}
+    restosVus.forEach(r => {
+      (points[r.id] || []).forEach(p => {
+        if (!p.date) return
+        const g = (byDate[p.date] ||= { date: p.date, vente_total: 0, depense_total: 0, benefice_sc: 0 })
+        g.vente_total += p.vente_total || 0
+        g.depense_total += p.depense_total || 0
+        g.benefice_sc += p.benefice_sc || 0
+      })
+    })
+    return Object.values(byDate).sort((a, b) => (a.date < b.date ? -1 : 1))
+  })()
+  const axisLabelJour = (d) => {
+    if (!d) return ''
+    const [, m, dd] = d.split('-')
+    const mois = ['jan', 'fév', 'mar', 'avr', 'mai', 'juin', 'jul', 'aoû', 'sep', 'oct', 'nov', 'déc']
+    return `${parseInt(dd)} ${mois[parseInt(m) - 1]}`
+  }
+  const dataVentesEvo = serieJours.map((p, i) => ({ x: i + 1, y: (p.vente_total || 0) / 1000 }))
+  const dataBeneficeEvo = serieJours.map((p, i) => ({ x: i + 1, y: (p.benefice_sc || 0) / 1000 }))
+  const dataRentaEvo = serieJours.map((p, i) => ({ x: i + 1, y: p.vente_total ? (p.benefice_sc / p.vente_total * 100) : 0 }))
 
   function totalGlobal(champ) {
     return restosVus.reduce((sum, r) => sum + totalResto(r.id, champ), 0)
@@ -469,6 +499,55 @@ export default function DashboardGlobalScreen() {
               </Text>
             </View>
           </View>
+
+          {/* ── ÉVOLUTION DANS LE TEMPS (courbes comme le portail gérant) — AJOUT ── */}
+          {serieJours.length > 1 && (<>
+            <View style={styles.graphCard}>
+              <Text style={styles.graphTitre}>📈 Évolution des ventes (en milliers FCFA)</Text>
+              <VictoryChart width={CHART_WIDTH} height={200} theme={VictoryTheme.material} padding={{ top: 20, bottom: 40, left: 50, right: 20 }}>
+                <VictoryAxis tickValues={serieJours.map((_, i) => i + 1)} tickFormat={serieJours.map(p => axisLabelJour(p.date))} style={{ tickLabels: { fontSize: 8, fill: '#888', angle: -30 } }} />
+                <VictoryAxis dependentAxis style={{ tickLabels: { fontSize: 8, fill: '#888' } }} />
+                <VictoryLine data={dataVentesEvo} style={{ data: { stroke: '#EF9F27', strokeWidth: 2.5 } }} interpolation="monotoneX" />
+                <VictoryLine data={dataBeneficeEvo} style={{ data: { stroke: '#3B6D11', strokeWidth: 2, strokeDasharray: '4,4' } }} interpolation="monotoneX" />
+              </VictoryChart>
+              <View style={styles.legende}>
+                <View style={styles.legendeItem}><View style={[styles.legendeColor, { backgroundColor: '#EF9F27' }]} /><Text style={styles.legendeTxt}>Ventes</Text></View>
+                <View style={styles.legendeItem}><View style={[styles.legendeColor, { backgroundColor: '#3B6D11' }]} /><Text style={styles.legendeTxt}>Bénéfice SC</Text></View>
+              </View>
+            </View>
+
+            <View style={styles.graphCard}>
+              <Text style={styles.graphTitre}>📊 Ventes vs Dépenses (en milliers FCFA)</Text>
+              <VictoryChart width={CHART_WIDTH} height={200} theme={VictoryTheme.material} padding={{ top: 20, bottom: 40, left: 50, right: 20 }} domainPadding={{ x: 20 }}>
+                <VictoryAxis tickValues={serieJours.map((_, i) => i + 1)} tickFormat={serieJours.map(p => axisLabelJour(p.date))} style={{ tickLabels: { fontSize: 8, fill: '#888', angle: -30 } }} />
+                <VictoryAxis dependentAxis style={{ tickLabels: { fontSize: 8, fill: '#888' } }} />
+                <VictoryBar data={serieJours.map((p, i) => ({ x: i + 1 - 0.2, y: (p.vente_total || 0) / 1000 }))} style={{ data: { fill: '#EF9F27', width: 8 } }} />
+                <VictoryBar data={serieJours.map((p, i) => ({ x: i + 1 + 0.2, y: (p.depense_total || 0) / 1000 }))} style={{ data: { fill: '#A32D2D', width: 8, opacity: 0.7 } }} />
+              </VictoryChart>
+              <View style={styles.legende}>
+                <View style={styles.legendeItem}><View style={[styles.legendeColor, { backgroundColor: '#EF9F27' }]} /><Text style={styles.legendeTxt}>Ventes</Text></View>
+                <View style={styles.legendeItem}><View style={[styles.legendeColor, { backgroundColor: '#A32D2D' }]} /><Text style={styles.legendeTxt}>Dépenses</Text></View>
+              </View>
+            </View>
+
+            <View style={styles.graphCard}>
+              <Text style={styles.graphTitre}>📉 Évolution de la rentabilité (%)</Text>
+              <VictoryChart width={CHART_WIDTH} height={200} theme={VictoryTheme.material} padding={{ top: 20, bottom: 40, left: 50, right: 20 }}>
+                <VictoryAxis tickValues={serieJours.map((_, i) => i + 1)} tickFormat={serieJours.map(p => axisLabelJour(p.date))} style={{ tickLabels: { fontSize: 8, fill: '#888', angle: -30 } }} />
+                <VictoryAxis dependentAxis style={{ tickLabels: { fontSize: 8, fill: '#888' } }} />
+                <VictoryArea data={dataRentaEvo} style={{ data: { fill: '#185FA520', stroke: '#185FA5', strokeWidth: 2 } }} interpolation="monotoneX" />
+              </VictoryChart>
+            </View>
+
+            <View style={styles.graphCard}>
+              <Text style={styles.graphTitre}>🏆 Bénéfice SC par jour (en milliers FCFA)</Text>
+              <VictoryChart width={CHART_WIDTH} height={200} theme={VictoryTheme.material} padding={{ top: 20, bottom: 40, left: 50, right: 20 }} domainPadding={{ x: 15 }}>
+                <VictoryAxis tickValues={serieJours.map((_, i) => i + 1)} tickFormat={serieJours.map(p => axisLabelJour(p.date))} style={{ tickLabels: { fontSize: 8, fill: '#888', angle: -30 } }} />
+                <VictoryAxis dependentAxis style={{ tickLabels: { fontSize: 8, fill: '#888' } }} />
+                <VictoryBar data={serieJours.map((p, i) => ({ x: i + 1, y: (p.benefice_sc || 0) / 1000, fill: (p.benefice_sc || 0) >= 0 ? '#3B6D11' : '#A32D2D' }))} style={{ data: { fill: ({ datum }) => datum.fill, width: 12 } }} />
+              </VictoryChart>
+            </View>
+          </>)}
 
           {/* GRAPHIQUE 1 — Ventes par restaurant */}
           <GraphiqueBarres

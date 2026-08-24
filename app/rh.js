@@ -1,5 +1,5 @@
 import * as DocumentPicker from 'expo-document-picker'
-import * as FileSystem from 'expo-file-system'
+import * as FileSystem from 'expo-file-system/legacy'
 import * as ImagePicker from 'expo-image-picker'
 import { router } from 'expo-router'
 import * as Sharing from 'expo-sharing'
@@ -25,9 +25,11 @@ import * as XLSX from 'xlsx'
 import FormulaireTravailleur from '../components/FormulaireTravailleur'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
+import { aujourdhuiISO } from '../lib/contrats'
 import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifNouveauTravailleur } from '../lib/notifications'
 import { supabase } from '../lib/supabase'
+import { uploaderFichier } from '../lib/uploadFichier'
 import { usePhoto } from '../lib/usePhoto'
 
 const STATUT_COLORS = {
@@ -251,6 +253,14 @@ export default function RHScreen() {
       await supabase.from('travailleurs')
         .update({ nom: formTravailleur.nom, ...champsCommunsUpdate })
         .eq('id', travailleurEdition.id)
+      creerNotification({
+        type: 'travailleur_modifie',
+        titre: '✏️ Travailleur modifié',
+        message: `${formTravailleur.nom} — ${restoSelectionne.nom}`,
+        restaurant_id: restoSelectionne.id,
+        cible_role: ['manager', 'directeur'],
+        screen: 'rh',
+      }).catch(() => {})
     } else {
       const { data: ins } = await supabase.from('travailleurs').insert({
         nom: formTravailleur.nom,
@@ -280,6 +290,14 @@ export default function RHScreen() {
           description: p.fichier_type,
         }))
       )
+      creerNotification({
+        type: 'nouveau_document',
+        titre: '📄 Document(s) travailleur',
+        message: `${papiersDraft.length} document(s) ajouté(s) — ${formTravailleur.nom}`,
+        restaurant_id: restoSelectionne?.id || null,
+        cible_role: ['manager', 'directeur'],
+        screen: 'rh',
+      }).catch(() => {})
     }
     setPapiersDraft([])
     setSavingTravailleur(false)
@@ -319,6 +337,21 @@ export default function RHScreen() {
       archived_at: new Date().toISOString(),
       archive_motif: motifFinal,
     }).eq('id', travailleurAction.id)
+    // Archiver, c'est rompre le contrat. Sans cette clôture, le cron continuerait
+    // d'envoyer des alertes d'échéance pour quelqu'un qui est parti.
+    await supabase.from('contrats_travailleurs')
+      .update({ cloture_le: aujourdhuiISO(), cloture_motif: motifFinal })
+      .eq('travailleur_id', travailleurAction.id)
+      .is('cloture_le', null)
+      .or(`date_fin.is.null,date_fin.gte.${aujourdhuiISO()}`)
+    creerNotification({
+      type: 'travailleur_archive',
+      titre: '📦 Travailleur archivé',
+      message: `${travailleurAction.nom} archivé (${motifFinal})`,
+      restaurant_id: travailleurAction.restaurant_id || restoSelectionne?.id || null,
+      cible_role: ['manager', 'directeur'],
+      screen: 'rh',
+    }).catch(() => {})
     setSavingArchive(false)
     setModalArchiveAction(false)
     setTravailleurAction(null)
@@ -340,6 +373,14 @@ export default function RHScreen() {
     setModalTravailleur(false)
     chargerDonnees()
     const restoNom = restaurants.find(r => r.id === restoTransfertId)?.nom || ''
+    creerNotification({
+      type: 'travailleur_transfere',
+      titre: '🔀 Travailleur transféré',
+      message: `${travailleurSelectionne.nom} transféré vers ${restoNom}`,
+      restaurant_id: restoTransfertId,
+      cible_role: ['manager', 'directeur'],
+      screen: 'rh',
+    }).catch(() => {})
     Alert.alert('Transféré', `${travailleurSelectionne.nom} a été transféré vers ${restoNom}.`)
   }
 
@@ -350,6 +391,14 @@ export default function RHScreen() {
       archived_at: null,
       archive_motif: null,
     }).eq('id', trav.id)
+    creerNotification({
+      type: 'travailleur_reactive',
+      titre: '♻️ Travailleur réactivé',
+      message: `${trav.nom} réactivé`,
+      restaurant_id: trav.restaurant_id || null,
+      cible_role: ['manager', 'directeur'],
+      screen: 'rh',
+    }).catch(() => {})
     chargerArchives()
     Alert.alert('Réactivé', `${trav.nom} a été réactivé.`)
   }
@@ -357,7 +406,7 @@ export default function RHScreen() {
   function supprimerTravailleur(trav) {
     Alert.alert(
       '⚠️ Suppression définitive',
-      `Supprimer définitivement ${trav.nom} ? Toutes ses présences et documents seront effacés. Cette action est irréversible.`,
+      `Supprimer définitivement ${trav.nom} ? Toutes ses présences, ses documents et ses contrats seront effacés. Cette action est irréversible.`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -376,7 +425,16 @@ export default function RHScreen() {
                     await supabase.from('presences').delete().eq('travailleur_id', trav.id)
                     await supabase.from('demandes').delete().eq('travailleur_id', trav.id)
                     await supabase.from('documents_travailleurs').delete().eq('travailleur_id', trav.id)
+                    await supabase.from('contrats_travailleurs').delete().eq('travailleur_id', trav.id)
                     await supabase.from('travailleurs').delete().eq('id', trav.id)
+                    creerNotification({
+                      type: 'travailleur_supprime',
+                      titre: '🗑️ Travailleur supprimé',
+                      message: `${trav.nom} supprimé définitivement`,
+                      restaurant_id: trav.restaurant_id || null,
+                      cible_role: ['manager', 'directeur'],
+                      screen: 'rh',
+                    }).catch(() => {})
                     chargerArchives()
                     Alert.alert('Supprimé', `${trav.nom} a été supprimé définitivement.`)
                   },
@@ -387,14 +445,6 @@ export default function RHScreen() {
         },
       ]
     )
-  }
-
-  function choisirFichierPapier(typeDoc) {
-    Alert.alert(typeDoc, 'Type de fichier', [
-      { text: 'Photo (JPG/PNG)', onPress: () => choisirPhotoPapier(typeDoc) },
-      { text: 'Document PDF', onPress: () => choisirPDFPapier(typeDoc) },
-      { text: 'Annuler', style: 'cancel' },
-    ])
   }
 
   async function choisirPhotoPapier(typeDoc) {
@@ -415,29 +465,14 @@ export default function RHScreen() {
   async function uploaderFichierPapier(uri, typeDoc, fichierType) {
     setUploadingPapier(true)
     try {
-      const ext = fichierType === 'pdf' ? 'pdf' : 'jpg'
-      const filename = `papier_${Date.now()}.${ext}`
-      const contentType = fichierType === 'pdf' ? 'application/pdf' : 'image/jpeg'
-
-      let blob
-      if (Platform.OS === 'web') {
-        const resp = await fetch(uri)
-        blob = await resp.blob()
-      } else {
-        const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 })
-        const byteChars = atob(b64)
-        const byteArr = new Uint8Array(byteChars.length)
-        for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i)
-        blob = new Blob([byteArr], { type: contentType })
-      }
-
-      const { error } = await supabase.storage
-        .from('documents-travailleurs')
-        .upload(filename, blob, { contentType, upsert: true })
-      if (error) throw error
-
-      const { data: urlData } = supabase.storage.from('documents-travailleurs').getPublicUrl(filename)
-      setPapiersDraft(prev => [...prev, { type_document: typeDoc, fichier_url: urlData.publicUrl, fichier_type: fichierType }])
+      const { url, type } = await uploaderFichier({
+        uri, dossier: 'documents-travailleurs', prefixe: 'papier',
+        estPDF: fichierType === 'pdf',
+      })
+      setPapiersDraft(prev => [...prev, {
+        type_document: typeDoc, fichier_url: url,
+        fichier_type: type === 'pdf' ? 'pdf' : 'image',
+      }])
     } catch {
       Alert.alert('Erreur', "Impossible d'uploader le fichier")
     }
@@ -1090,7 +1125,7 @@ export default function RHScreen() {
     if (!travailleurAction) return null
     return (
       <Modal visible={modalArchiveAction} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
           <View style={styles.modalOverlay}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
               <ScrollView style={styles.modal} showsVerticalScrollIndicator={false}>
@@ -1374,7 +1409,7 @@ export default function RHScreen() {
     const canSave = formTravailleur.nom.trim() && formTravailleur.poste.trim()
     return (
       <Modal visible={modalFormTravailleur} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
           <View style={styles.modalOverlay}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
               <ScrollView style={styles.modal} showsVerticalScrollIndicator={false}>
@@ -1421,7 +1456,7 @@ export default function RHScreen() {
 
                 <Text style={styles.modalLabel}>Papiers</Text>
                 <View style={{ marginBottom: 14 }}>
-                  {['CNI', 'Passeport', 'Permis de conduire', 'Contrat', 'Autre'].map(type => {
+                  {['CNI', 'Passeport', 'Permis de conduire', 'Autre'].map(type => {
                     const existant = papiersDraft.find(p => p.type_document === type)
                     return (
                       <View key={type} style={styles.papierRow}>
@@ -1434,13 +1469,25 @@ export default function RHScreen() {
                             </TouchableOpacity>
                           </View>
                         ) : (
-                          <TouchableOpacity
-                            style={[styles.papierBtn, uploadingPapier && { opacity: 0.5 }]}
-                            onPress={() => choisirFichierPapier(type)}
-                            disabled={uploadingPapier}
-                          >
-                            <Text style={styles.papierBtnTxt}>{uploadingPapier ? '…' : '+ Ajouter'}</Text>
-                          </TouchableOpacity>
+                          <View style={{ flexDirection: 'row', gap: 6 }}>
+                            {/* Deux boutons distincts : sur le web, un menu
+                                Alert se réduit à window.confirm et le choix
+                                PDF ne serait jamais atteignable. */}
+                            <TouchableOpacity
+                              style={[styles.papierBtn, uploadingPapier && { opacity: 0.5 }]}
+                              onPress={() => choisirPhotoPapier(type)}
+                              disabled={uploadingPapier}
+                            >
+                              <Text style={styles.papierBtnTxt}>{uploadingPapier ? '…' : '📷 Photo'}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.papierBtn, uploadingPapier && { opacity: 0.5 }]}
+                              onPress={() => choisirPDFPapier(type)}
+                              disabled={uploadingPapier}
+                            >
+                              <Text style={styles.papierBtnTxt}>{uploadingPapier ? '…' : '📄 PDF'}</Text>
+                            </TouchableOpacity>
+                          </View>
                         )}
                       </View>
                     )
@@ -1835,14 +1882,6 @@ function makeStyles(colors) { return StyleSheet.create({
   modalClose: { fontSize: 18, color: colors.textMuted },
   modalLabel: { fontSize: 11, fontWeight: '600', color: colors.textMuted, letterSpacing: 0.5, marginBottom: 6, textTransform: 'uppercase' },
   modalInput: { backgroundColor: colors.bg, borderRadius: 12, padding: 14, fontSize: 15, color: colors.text, marginBottom: 14 },
-  contratChoix: {
-    flex: 1, padding: 10, borderRadius: 10,
-    backgroundColor: colors.bg, alignItems: 'center',
-    borderWidth: 0.5, borderColor: colors.border
-  },
-  contratChoixActive: { backgroundColor: '#185FA5', borderColor: '#185FA5' },
-  contratChoixTxt: { fontSize: 13, color: colors.textMuted },
-  contratChoixTxtActive: { color: '#fff', fontWeight: '600' },
   etapeRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   etapeBadge: { flex: 1, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, backgroundColor: colors.bg, alignItems: 'center' },
   etapeBadgeActive: { backgroundColor: '#185FA5' },

@@ -18,6 +18,7 @@ import {
 } from 'react-native'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
+import { calculerLitigeContact, chargerPointsContact, compterContacts } from '../lib/litigeContacts'
 
 const MOIS_NOMS = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -160,25 +161,11 @@ export default function ChargesScreen() {
 
     // Contacts : écart entre nb commandes (points) et contacts pris (commandes)
     let contact = 0
-    const { data: ptsCmds } = await supabase
-      .from('points').select('id, yango_nb_commandes, glovo_nb_commandes')
-      .eq('restaurant_id', restoSelectionne.id).gte('date', debut).lte('date', fin)
+    const ptsCmds = await chargerPointsContact(restoSelectionne.id, debut, fin)
     if (ptsCmds?.length) {
-      const ptIds = ptsCmds.map(p => p.id)
-      const { data: cmdsContact } = await supabase
-        .from('commandes').select('point_id, contact_client').in('point_id', ptIds)
-      const contactsByPt = {}
-      ;(cmdsContact || []).forEach(c => {
-        if (c.contact_client && c.contact_client.trim() !== '') {
-          contactsByPt[c.point_id] = (contactsByPt[c.point_id] || 0) + 1
-        }
-      })
+      const { parPoint: contactsByPt } = await compterContacts(ptsCmds.map(p => p.id))
       ptsCmds.forEach(p => {
-        const nbCmds = (p.yango_nb_commandes || 0) + (p.glovo_nb_commandes || 0)
-        const nbContacts = contactsByPt[p.id] || 0
-        const ecartPt = nbCmds - nbContacts
-        const taux = nbCmds > 0 ? ecartPt / nbCmds : 0
-        if (taux > 0.2) contact += ecartPt * 500
+        contact += calculerLitigeContact(p, contactsByPt[p.id] || 0).litige
       })
     }
 
@@ -531,7 +518,7 @@ export default function ChargesScreen() {
       {/* Modal ajout/édition charge */}
       <Modal visible={modalCharge} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
             <View style={{ flex: 1 }} />
           </TouchableWithoutFeedback>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>

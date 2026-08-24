@@ -3,13 +3,101 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTheme } from '../context/ThemeContext'
 import {
     ActivityIndicator,
+    Alert,
     SafeAreaView, ScrollView,
     StyleSheet,
-    Text, TouchableOpacity,
+    Text, TextInput, TouchableOpacity,
     View
 } from 'react-native'
 import { supabase } from '../lib/supabase'
+import '../lib/webAlert'   // remplace Alert.alert par les dialogues du navigateur
 
+
+// ─── Objectif de CA mensuel ────────────────────────────────────────────────
+// Saisi ici, lu par le rapport mensuel (onglet Rapports → Mensuel) pour
+// afficher le taux d'atteinte par restaurant.
+
+function ObjectifMensuel({ resto, onEnregistre }) {
+  const { colors } = useTheme()
+  const styles = useMemo(() => makeStyles(colors), [colors])
+  const [edition, setEdition] = useState(false)
+  const [valeur, setValeur] = useState('')
+  const [sauvegarde, setSauvegarde] = useState(false)
+
+  const objectif = resto.objectif_mensuel
+
+  function ouvrir() {
+    setValeur(objectif == null ? '' : String(Math.round(objectif)))
+    setEdition(true)
+  }
+
+  async function enregistrer() {
+    const brut = valeur.replace(/[\s.]/g, '').trim()
+    const montant = brut === '' ? null : Number(brut)
+    if (montant !== null && (!Number.isFinite(montant) || montant < 0)) {
+      Alert.alert('Montant invalide', 'Saisissez un nombre positif, ou laissez vide pour retirer l\'objectif.')
+      return
+    }
+    setSauvegarde(true)
+    const { error } = await supabase.from('restaurants')
+      .update({ objectif_mensuel: montant }).eq('id', resto.id)
+    setSauvegarde(false)
+    if (error) {
+      Alert.alert(
+        'Enregistrement impossible',
+        /objectif_mensuel/.test(error.message)
+          ? "La colonne « objectif_mensuel » n'existe pas encore. Passez le script supabase_rapport_mensuel.sql dans Supabase, puis réessayez."
+          : error.message,
+      )
+      return
+    }
+    setEdition(false)
+    onEnregistre?.(resto.id, montant)
+  }
+
+  if (!edition) {
+    return (
+      <TouchableOpacity style={styles.objectifRow} onPress={ouvrir}>
+        <Text style={styles.objectifLabel}>🎯 Objectif mensuel</Text>
+        <Text style={[styles.objectifVal, objectif == null && styles.objectifVide]}>
+          {objectif == null
+            ? 'À définir'
+            : Math.round(objectif).toLocaleString('fr-FR') + ' FCFA'}
+        </Text>
+        <Text style={styles.objectifCrayon}>✏️</Text>
+      </TouchableOpacity>
+    )
+  }
+
+  return (
+    <View style={styles.objectifEdit}>
+      <TextInput
+        style={styles.objectifInput}
+        value={valeur}
+        onChangeText={setValeur}
+        keyboardType="numeric"
+        placeholder="Ex. 3000000"
+        placeholderTextColor={colors.textPlaceholder}
+        autoFocus
+        editable={!sauvegarde}
+      />
+      <TouchableOpacity
+        style={[styles.objectifBtn, styles.objectifBtnOk]}
+        onPress={enregistrer}
+        disabled={sauvegarde}
+      >
+        <Text style={styles.objectifBtnOkTxt}>{sauvegarde ? '…' : 'OK'}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.objectifBtn}
+        onPress={() => setEdition(false)}
+        disabled={sauvegarde}
+      >
+        <Text style={styles.objectifBtnTxt}>Annuler</Text>
+      </TouchableOpacity>
+    </View>
+  )
+}
 
 export default function RestaurantsScreen() {
   const { colors } = useTheme()
@@ -24,7 +112,16 @@ export default function RestaurantsScreen() {
 
   async function chargerRestaurants() {
     setLoading(true)
-    const { data } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation').order('nom')
+    // `objectif_mensuel` vient de supabase_rapport_mensuel.sql : tant que la
+    // migration n'est pas passée, on recharge sans la colonne plutôt que de
+    // laisser l'écran vide.
+    const COLONNES = 'id, nom, couleur, photo_url, localisation'
+    let { data, error } = await supabase.from('restaurants')
+      .select(`${COLONNES}, objectif_mensuel`).order('nom')
+    if (error) {
+      console.warn('[Restaurants] objectif_mensuel absent :', error.message)
+      ;({ data } = await supabase.from('restaurants').select(COLONNES).order('nom'))
+    }
     setRestos(data || [])
 
     const statsData = {}
@@ -43,6 +140,12 @@ export default function RestaurantsScreen() {
     }
     setStats(statsData)
     setLoading(false)
+  }
+
+  // Mise à jour locale après saisie d'un objectif : évite de tout recharger
+  // (les stats par restaurant coûtent une requête chacune).
+  function majObjectif(id, montant) {
+    setRestos(liste => liste.map(r => (r.id === id ? { ...r, objectif_mensuel: montant } : r)))
   }
 
   function fmt(n) { return Math.round(n).toLocaleString('fr-FR') + ' FCFA' }
@@ -127,6 +230,7 @@ export default function RestaurantsScreen() {
                       <Text style={styles.restoStatLabel}>Travailleurs</Text>
                     </View>
                   </View>
+                  <ObjectifMensuel resto={r} onEnregistre={majObjectif} />
                 </View>
               )
             })}
@@ -166,6 +270,7 @@ export default function RestaurantsScreen() {
                       <Text style={styles.restoStatLabel}>Travailleurs</Text>
                     </View>
                   </View>
+                  <ObjectifMensuel resto={r} onEnregistre={majObjectif} />
                 </View>
               )
             })}
@@ -201,4 +306,17 @@ function makeStyles(colors) { return StyleSheet.create({
   restoStat: { flex: 1, alignItems: 'center', borderRightWidth: 0.5, borderRightColor: colors.borderLight },
   restoStatVal: { fontSize: 12, fontWeight: '600', color: colors.text },
   restoStatLabel: { fontSize: 9, color: colors.textMuted, marginTop: 2 },
+
+  objectifRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.borderLight },
+  objectifLabel: { fontSize: 12, color: colors.textMuted, flex: 1 },
+  objectifVal: { fontSize: 13, fontWeight: '700', color: colors.text },
+  objectifVide: { color: colors.textPlaceholder, fontWeight: '500', fontStyle: 'italic' },
+  objectifCrayon: { fontSize: 13 },
+
+  objectifEdit: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.borderLight },
+  objectifInput: { flex: 1, backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.inputBorder, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, fontSize: 13, color: colors.text },
+  objectifBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: colors.bg },
+  objectifBtnTxt: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
+  objectifBtnOk: { backgroundColor: colors.primary },
+  objectifBtnOkTxt: { fontSize: 12, color: '#fff', fontWeight: '700' },
 }) }

@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react'
 import {
     ActivityIndicator,
     Alert,
-    Image,
     SafeAreaView, ScrollView,
     StyleSheet,
     Text,
@@ -11,9 +10,11 @@ import {
     TouchableOpacity,
     View
 } from 'react-native'
+import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { saveOneTransactionFournisseur } from '../lib/api'
+import { estPhotoEnAttente, estPhotoValide } from '../lib/photoQueue'
 import { usePhoto } from '../lib/usePhoto'
 import { supabase } from '../lib/supabase'
 
@@ -168,6 +169,7 @@ export default function FournisseursScreen() {
                 paye: String(t.paye ?? ''),
                 hasPhoto: !!t.photo_url,
                 photoUri: t.photo_url || null,
+                saved: true,
               }
               changed = true
             }
@@ -242,7 +244,10 @@ export default function FournisseursScreen() {
     const factureAmount = parseFloat(t.facture) || 0
     const payeAmount = parseFloat(t.paye) || 0
     if (!factureAmount && !payeAmount) return { ok: true, skip: true }
-    if (factureAmount > 0 && !t.photoUri) return { ok: false, raison: 'photo' }
+    // Test volontairement strict : `!t.photoUri` acceptait une URI locale
+    // (`file:///…`) et laissait passer une facture dont la photo n'existait sur
+    // aucun serveur. Un jeton en attente reste accepté (travail hors ligne).
+    if (factureAmount > 0 && !estPhotoValide(t.photoUri)) return { ok: false, raison: 'photo' }
     if (factureAmount > 0) {
       const saisiParCourant = roleActif === 'caissier' ? 'caissier' : 'gerant'
       const { data: existants } = await supabase
@@ -263,10 +268,9 @@ export default function FournisseursScreen() {
     const ok = await saveOneTransactionFournisseur(pointId, f.id, t, credit, saisiPar, userNom, restaurantId, userId, f.nom)
     if (ok) {
       const nouveauReste = credit + (parseFloat(t.facture) || 0) - (parseFloat(t.paye) || 0)
-      // Ne mettre à jour credit_actuel que pour le gérant — les caissiers ne doivent pas écraser le solde officiel
-      if (saisiPar !== 'caissier') {
-        await supabase.from('fournisseurs').update({ credit_actuel: nouveauReste }).eq('id', f.id)
-      }
+      // credit_actuel mis à jour pour TOUTE saisie (gérant ET caissier) : le solde officiel
+      // doit toujours refléter la dernière transaction (plus de blocage caissier).
+      await supabase.from('fournisseurs').update({ credit_actuel: nouveauReste }).eq('id', f.id)
       // Motif spécifique par rôle pour permettre la déduplication lors de la validation du shift caissier
       const motifPrefix = saisiPar === 'caissier'
         ? `caissier|${today}|`
@@ -301,9 +305,17 @@ export default function FournisseursScreen() {
         // Garder creditsVeille au crédit d'origine (avant la transaction du jour)
         // — évite le double-comptage si le gérant corrige et re-valide sur le même point
         setCreditsVeille(prev => ({ ...prev, [f.id]: credit }))
+        // Conserver les montants à l'écran (verrouillés) au lieu de les vider.
+        // Le marqueur `saved` évite qu'ils soient ré-enregistrés (ex. à la validation
+        // du shift caissier → sinon doublon).
         setFournisseursJour(prev => ({
           ...prev,
-          [f.id]: { facture: '', paye: '', hasPhoto: prev[f.id]?.hasPhoto || false, photoUri: prev[f.id]?.photoUri || null },
+          [f.id]: {
+            facture: t.facture, paye: t.paye,
+            hasPhoto: prev[f.id]?.hasPhoto || !!t.photoUri,
+            photoUri: prev[f.id]?.photoUri || t.photoUri || null,
+            saved: true,
+          },
         }))
       }
     } else {
@@ -319,6 +331,7 @@ export default function FournisseursScreen() {
     if (!pointId) { Alert.alert('Erreur', 'Aucun point actif'); return }
     const aSauver = fournisseurs.filter(f => {
       const t = getTransaction(f.id)
+      if (t.saved) return false // déjà enregistré → ne pas ré-enregistrer
       return (parseFloat(t.facture) || 0) > 0 || (parseFloat(t.paye) || 0) > 0
     })
     if (aSauver.length === 0) {
@@ -328,7 +341,7 @@ export default function FournisseursScreen() {
     // Photos obligatoires pour les factures > 0
     const sansPhoto = aSauver.filter(f => {
       const t = getTransaction(f.id)
-      return (parseFloat(t.facture) || 0) > 0 && !t.photoUri
+      return (parseFloat(t.facture) || 0) > 0 && !estPhotoValide(t.photoUri)
     })
     if (sansPhoto.length) {
       Alert.alert('Photo manquante', `Ajoutez une photo de la facture pour :\n${sansPhoto.map(f => `• ${f.nom}`).join('\n')}`)
@@ -375,14 +388,13 @@ export default function FournisseursScreen() {
             }
             await delQ
 
-            // 2) Rétablir credit_actuel au solde d'avant (gérant uniquement)
+            // 2) Rétablir credit_actuel au solde d'avant (gérant ET caissier) : la suppression
+            // d'une transaction doit toujours ramener le solde officiel à sa valeur précédente.
             const creditAvant = creditVeille(f.id)
-            if (saisiPar !== 'caissier') {
-              await supabase.from('fournisseurs').update({ credit_actuel: creditAvant }).eq('id', f.id)
-              setFournisseurs(prev => prev.map(item =>
-                item.id === f.id ? { ...item, credit_actuel: creditAvant } : item
-              ))
-            }
+            await supabase.from('fournisseurs').update({ credit_actuel: creditAvant }).eq('id', f.id)
+            setFournisseurs(prev => prev.map(item =>
+              item.id === f.id ? { ...item, credit_actuel: creditAvant } : item
+            ))
 
             // 3) Supprimer les lignes d'historique de cette transaction
             const motifPrefix = saisiPar === 'caissier' ? `caissier|${today}|` : `Journée du ${dateJour || today}: `
@@ -517,12 +529,13 @@ export default function FournisseursScreen() {
                             <View style={styles.inputsRow}>
                               <View style={styles.inputBox}>
                                 <Text style={styles.inputLabel}>
-                                  Facture {parseFloat(t.facture) > 0 && !t.photoUri ? '⚠️' : ''}
+                                  Facture {parseFloat(t.facture) > 0 && !estPhotoValide(t.photoUri) ? '⚠️' : ''}
                                 </Text>
                                 <TextInput
-                                  style={styles.input}
+                                  style={[styles.input, t.saved && styles.inputLocked]}
                                   value={t.facture}
                                   onChangeText={v => setTransaction(f.id, 'facture', v)}
+                                  editable={!t.saved}
                                   keyboardType="numeric"
                                   placeholder="0"
                                   placeholderTextColor="#bbb"
@@ -533,9 +546,10 @@ export default function FournisseursScreen() {
                                   Payé
                                 </Text>
                                 <TextInput
-                                  style={[styles.input, { backgroundColor: '#FAEEDA' }]}
+                                  style={[styles.input, { backgroundColor: '#FAEEDA' }, t.saved && styles.inputLocked]}
                                   value={t.paye}
                                   onChangeText={v => setTransaction(f.id, 'paye', v)}
+                                  editable={!t.saved}
                                   keyboardType="numeric"
                                   placeholder="0"
                                   placeholderTextColor="#bbb"
@@ -552,28 +566,30 @@ export default function FournisseursScreen() {
                             </View>
 
                             {/* Photo obligatoire si facture saisie, optionnelle sinon */}
-                            {(parseFloat(t.facture) > 0 || t.photoUri) && (
+                            {(parseFloat(t.facture) > 0 || estPhotoValide(t.photoUri)) && (
                               <View style={styles.photoRow}>
                                 <TouchableOpacity style={[
                                   styles.photoBtn,
-                                  parseFloat(t.facture) > 0 && !t.photoUri && styles.photoBtnRequired
+                                  parseFloat(t.facture) > 0 && !estPhotoValide(t.photoUri) && styles.photoBtnRequired
                                 ]} onPress={() => prendrePhoto(f.id)}>
                                   <Text style={styles.photoBtnTxt}>📷 Photo</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity style={[
                                   styles.photoBtn,
-                                  parseFloat(t.facture) > 0 && !t.photoUri && styles.photoBtnRequired
+                                  parseFloat(t.facture) > 0 && !estPhotoValide(t.photoUri) && styles.photoBtnRequired
                                 ]} onPress={() => choisirPhoto(f.id)}>
                                   <Text style={styles.photoBtnTxt}>🖼 Galerie</Text>
                                 </TouchableOpacity>
-                                {t.photoUri && (
-                                  <Image source={{ uri: t.photoUri }} style={styles.photoThumb} />
-                                )}
+                                {estPhotoEnAttente(t.photoUri)
+                                  ? <Text style={styles.photoAttente}>⏳ envoi en attente</Text>
+                                  : estPhotoValide(t.photoUri) && (
+                                      <PhotoJustificatif uri={t.photoUri} style={styles.photoThumb} compact />
+                                    )}
                               </View>
                             )}
 
                             {/* Boutons photo quand pas encore de facture mais on peut quand même ajouter une photo */}
-                            {!parseFloat(t.facture) && !t.photoUri && (
+                            {!parseFloat(t.facture) && !estPhotoValide(t.photoUri) && (
                               <View style={styles.photoRow}>
                                 <TouchableOpacity style={styles.photoBtn} onPress={() => prendrePhoto(f.id)}>
                                   <Text style={styles.photoBtnTxt}>📷 Photo</Text>
@@ -584,7 +600,7 @@ export default function FournisseursScreen() {
                               </View>
                             )}
 
-                            {parseFloat(t.facture) > 0 && !t.photoUri && (
+                            {parseFloat(t.facture) > 0 && !estPhotoValide(t.photoUri) && (
                               <Text style={styles.photoWarning}>⚠️ Photo de la facture obligatoire</Text>
                             )}
 
@@ -722,6 +738,7 @@ function makeStyles(colors) { return StyleSheet.create({
   inputBox: { flex: 1, alignItems: 'center' },
   inputLabel: { fontSize: 10, color: colors.textMuted, marginBottom: 4 },
   input: { width: '100%', backgroundColor: colors.inputBg, borderRadius: 8, padding: 8, fontSize: 13, textAlign: 'center', color: colors.text },
+  inputLocked: { opacity: 0.55 },
   resteVal: { fontSize: 13, fontWeight: '600', marginTop: 8 },
   readOnly: { fontSize: 13, fontWeight: '500', color: colors.text, marginTop: 8 },
   photoRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 4 },
@@ -730,6 +747,7 @@ function makeStyles(colors) { return StyleSheet.create({
   photoBtnTxt: { fontSize: 12, color: colors.textSecondary },
   photoThumb: { width: 40, height: 40, borderRadius: 8 },
   photoWarning: { fontSize: 11, color: '#A32D2D', marginTop: 6, textAlign: 'center', fontWeight: '500' },
+  photoAttente: { fontSize: 11, color: colors.textMuted, fontWeight: '500' },
   recapCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 0.5, borderColor: colors.border },
   recapTitre: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 12 },
   recapRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 7, borderBottomWidth: 0.5, borderBottomColor: colors.bg },

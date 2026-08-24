@@ -29,4 +29,9 @@ RewriteRule ^ index.html [L]
   <FilesMatch "index\.html$">
     Header set Cache-Control "no-cache"
   </FilesMatch>
+  # Service worker : JAMAIS en cache long, sinon les mises à jour du push
+  # (sw.js) ne se propagent plus. Doit passer APRÈS la règle .js ci-dessus.
+  <Files "sw.js">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </Files>
 </IfModule>

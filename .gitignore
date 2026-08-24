@@ -43,3 +43,9 @@ app-example
 /ios
 /android
 .vercel
+
+# Supabase CLI (état local)
+supabase/.temp/
+
+# Rapports générés (données de production)
+factures_sans_photo.csv

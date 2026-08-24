@@ -50,7 +50,8 @@ export default function RecapPointScreen() {
     depensesGerantCaisse, fournisseursGerantCaisse, paiesGerantCaisse,
     totalDepensesGerantCaisse,
     inventaireTermine,
-    restaurantId, restaurantNom, userId,
+    restaurantId, restaurantNom, userId, userNom,
+    fournisseursNonEnregistres,
   } = useApp()
 
   const isGerant = roleActif === 'gerant'
@@ -69,6 +70,15 @@ export default function RecapPointScreen() {
   const [inventairesShifts, setInventairesShifts] = useState([])
   const [comparaison, setComparaison] = useState(null)
   const [loadingComparaison, setLoadingComparaison] = useState(false)
+
+  // Un shift avec pos_service_id est arrivé automatiquement du POS : le POS ne
+  // pousse pas encore l'inventaire (mapping produit ↔ articles pas fait côté
+  // POS), donc le verrou inventaire de Samtrackly ne pourra jamais être levé
+  // par la voie normale sur ces jours-là. On se base sur la PREUVE (un shift
+  // du POS déjà arrivé sur ce point), pas sur restaurants.source_point, qui
+  // reste volontairement à 'SAMTRACKLY' pendant la semaine d'observation du
+  // pilote (cf. lib/sourcePoint.js, lib/basculePOS.js).
+  const pointVenuDuPOS = shifts.some(s => s.pos_service_id)
 
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
@@ -224,7 +234,18 @@ export default function RecapPointScreen() {
   }
 
   function valider() {
-    const invOk = inventaireTermine || inventairesShifts.some(s => s.valide)
+    // Bloquer s'il reste des saisies fournisseurs (Saisir Ventes) non enregistrées :
+    // elles n'ont pas eu de photo obligatoire et ne comptent pas tant qu'elles ne sont pas enregistrées.
+    const nonEnrFour = fournisseursNonEnregistres()
+    if (nonEnrFour.length > 0) {
+      Alert.alert(
+        '⚠️ Saisies fournisseurs non enregistrées',
+        `Vous avez ${nonEnrFour.length} saisie(s) fournisseur non enregistrée(s).\n\nRetournez dans Fournisseurs pour les enregistrer (photo obligatoire) ou les supprimer avant de valider le point.`
+      )
+      return
+    }
+
+    const invOk = inventaireTermine || inventairesShifts.some(s => s.valide) || pointVenuDuPOS
     if (!invOk) {
       Alert.alert(
         '🔒 Inventaire requis',
@@ -358,7 +379,21 @@ export default function RecapPointScreen() {
         saisi_par: 'gerant',
       }))
     if (fourGerantRows.length > 0) {
-      await supabase.from('transactions_fournisseurs').insert(fourGerantRows)
+      // Ne PAS réécrire un fournisseur déjà enregistré depuis Déductions gérant :
+      // cet écran écrit avec saisi_par = 'gerant_caissier', que la suppression
+      // ci-dessus (ciblée sur 'gerant') ne touche pas. Sans ce filtre, le même
+      // paiement était compté deux fois et le crédit du fournisseur doublait.
+      // Le garde-fou équivalent existe déjà dans lib/api.js pour l'autre chemin.
+      const { data: dejaGerant } = await supabase
+        .from('transactions_fournisseurs')
+        .select('fournisseur_id')
+        .eq('point_id', pointId)
+        .eq('saisi_par', 'gerant_caissier')
+      const dejaEnregistres = new Set((dejaGerant || []).map(t => t.fournisseur_id))
+      const aInserer = fourGerantRows.filter(r => !dejaEnregistres.has(r.fournisseur_id))
+      if (aInserer.length > 0) {
+        await supabase.from('transactions_fournisseurs').insert(aInserer)
+      }
     }
 
     const venteTheo = cumulShifts?.venteTotal || totalVentes()
@@ -385,6 +420,11 @@ export default function RecapPointScreen() {
       reste_fc: fcCalc(),
       fc_compte: parseFloat(ventesJour.fc_recu) || 0,
       benefice_sc: beneficeSCCalc(),
+    }, {
+      restaurantId,
+      restaurantNom,
+      dateJour,
+      userNom,
     })
 
     // ── 2. Colonnes étendues (ignorées si pas encore créées) ─
@@ -405,7 +445,7 @@ export default function RecapPointScreen() {
     if (ok) {
       setPointValide(true)
       // Notifier les directeurs en arrière-plan — ne bloque jamais la validation
-      envoyerNotifValidation(dateJour, restaurantId, pointId).catch(() => {})
+      envoyerNotifValidation(dateJour, restaurantId, pointId, restaurantNom).catch(() => {})
       creerNotification({
         type: 'point_valide',
         titre: '✅ Point validé',
@@ -767,14 +807,14 @@ export default function RecapPointScreen() {
               <Text style={styles.modifTxt}>✏️ Retourner modifier</Text>
             </TouchableOpacity>
 
-            {!(inventaireTermine || inventairesShifts.some(s => s.valide)) && (
+            {!(inventaireTermine || inventairesShifts.some(s => s.valide) || pointVenuDuPOS) && (
               <View style={styles.invRequisBanner}>
                 <Text style={styles.invRequisTxt}>🔒 Inventaire du jour requis avant validation</Text>
               </View>
             )}
 
             <TouchableOpacity
-              style={[styles.validerBtn, (validating || !(inventaireTermine || inventairesShifts.some(s => s.valide))) && { opacity: 0.5 }]}
+              style={[styles.validerBtn, (validating || !(inventaireTermine || inventairesShifts.some(s => s.valide) || pointVenuDuPOS)) && { opacity: 0.5 }]}
               onPress={valider}
               disabled={validating}
             >

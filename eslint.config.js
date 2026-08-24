@@ -7,4 +7,11 @@ module.exports = defineConfig([
   {
     ignores: ['dist/*'],
   },
+  {
+    rules: {
+      // App en français : les apostrophes (l', d', n'…) et guillemets dans le
+      // texte JSX sont volontaires et sans risque. On évite le bruit permanent.
+      'react/no-unescaped-entities': 'off',
+    },
+  },
 ]);
