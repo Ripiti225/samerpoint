@@ -18,7 +18,7 @@ Les contrats deviennent un écran à part entière, `/contrats`, où tout se gè
 | Question | Décision |
 |---|---|
 | Organisation de la liste | Une ligne par **travailleur**, montrant le contrat qui fait foi. L'historique reste dans la fiche. |
-| Onglet Contrats dans RH | Supprimé. Le bloc de la fiche travailleur reste, en lecture seule. |
+| Onglet Contrats dans RH | Supprimé, ainsi que le bloc de la fiche travailleur et le type de papier « Contrat ». L'écran Contrats est le **seul** endroit où un contrat s'enregistre. |
 | Actions sur un contrat | Renouveler, rompre, corriger, supprimer — les quatre. |
 | Contrat fini + suivant pas encore démarré | On affiche le **contrat terminé**, mention « suite prévue le JJ/MM ». Le travailleur reste dans « Expirés ». |
 | Nombre de contrats | Illimité, y compris plusieurs du même type à la suite. |
@@ -184,8 +184,13 @@ va dans des modules purs testables, l'écran orchestre.
 - `lib/menus.js` : la tuile `contrats` pointe sur `/contrats` au lieu de `/rh?onglet=Contrats`.
 - `app/rh.js` : suppression de l'onglet Contrats, de `renderContrats`, de `chargerTousContrats`,
   des états `tousContrats` / `filtreContrats`, et de la lecture du paramètre `onglet`.
-- `app/rh.js` : le bloc de la fiche travailleur passe en lecture seule (plus de `onAjouter`),
-  avec un renvoi « à gérer dans l'écran Contrats ».
+- `app/rh.js` : le bloc Contrat de la fiche travailleur est retiré, `components/BlocContrats.js`
+  supprimé, et « Contrat » retiré de la liste des papiers du formulaire travailleur.
+
+  Ce dernier point est le plus important : joindre un papier « Contrat » n'écrivait rien dans
+  `contrats_travailleurs`. L'écran Contrats aurait continué d'afficher « Aucun contrat » alors
+  qu'un document était bien attaché — deux endroits pour « ajouter un contrat », deux vérités
+  contradictoires. Un seul point d'entrée supprime le risque.
 
 Accès : manager, directeur et RH, comme `app/equipe.js` (`roleActif`). La tuile est déjà
 configurée pour ces trois rôles.

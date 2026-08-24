@@ -22,7 +22,6 @@ import {
 } from 'react-native'
 import { Calendar } from 'react-native-calendars'
 import * as XLSX from 'xlsx'
-import BlocContrats from '../components/BlocContrats'
 import FormulaireTravailleur from '../components/FormulaireTravailleur'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
@@ -75,7 +74,6 @@ export default function RHScreen() {
   // Vue détail travailleur
   const [travailleurSelectionne, setTravailleurSelectionne] = useState(null)
   const [modalTravailleur, setModalTravailleur] = useState(false)
-  const [contratsTravailleur, setContratsTravailleur] = useState([])
   const [periodeTravailleur, setPeriodeTravailleur] = useState('month')
   const [presencesTravailleur, setPresencesTravailleur] = useState([])
   const [loadingTravailleur, setLoadingTravailleur] = useState(false)
@@ -232,7 +230,6 @@ export default function RHScreen() {
     setTravailleurSelectionne(t)
     setPeriodeTravailleur('month')
     setModalTravailleur(true)
-    chargerContrats(t.id)
   }
 
   async function sauvegarderTravailleur() {
@@ -328,16 +325,6 @@ export default function RHScreen() {
       .order('archived_at', { ascending: false })
     setArchivesTravail(data || [])
     setLoadingArchives(false)
-  }
-
-  async function chargerContrats(travailleurId) {
-    if (!travailleurId) { setContratsTravailleur([]); return }
-    const { data } = await supabase
-      .from('contrats_travailleurs')
-      .select('*')
-      .eq('travailleur_id', travailleurId)
-      .order('date_debut', { ascending: true })
-    setContratsTravailleur(data || [])
   }
 
   async function archiverTravailleur() {
@@ -1257,11 +1244,6 @@ export default function RHScreen() {
             </View>
           ) : (
             <ScrollView style={{ padding: 16 }} showsVerticalScrollIndicator={false}>
-              <BlocContrats
-                travailleur={travailleurSelectionne}
-                contrats={contratsTravailleur}
-                colors={colors}
-              />
               <View style={styles.travStatsGrid}>
                 <View style={[styles.travStatCard, { backgroundColor: '#EAF3DE' }]}>
                   <Text style={styles.travStatVal}>{s.present}</Text>
@@ -1474,7 +1456,7 @@ export default function RHScreen() {
 
                 <Text style={styles.modalLabel}>Papiers</Text>
                 <View style={{ marginBottom: 14 }}>
-                  {['CNI', 'Passeport', 'Permis de conduire', 'Contrat', 'Autre'].map(type => {
+                  {['CNI', 'Passeport', 'Permis de conduire', 'Autre'].map(type => {
                     const existant = papiersDraft.find(p => p.type_document === type)
                     return (
                       <View key={type} style={styles.papierRow}>
@@ -1900,14 +1882,6 @@ function makeStyles(colors) { return StyleSheet.create({
   modalClose: { fontSize: 18, color: colors.textMuted },
   modalLabel: { fontSize: 11, fontWeight: '600', color: colors.textMuted, letterSpacing: 0.5, marginBottom: 6, textTransform: 'uppercase' },
   modalInput: { backgroundColor: colors.bg, borderRadius: 12, padding: 14, fontSize: 15, color: colors.text, marginBottom: 14 },
-  contratChoix: {
-    flex: 1, padding: 10, borderRadius: 10,
-    backgroundColor: colors.bg, alignItems: 'center',
-    borderWidth: 0.5, borderColor: colors.border
-  },
-  contratChoixActive: { backgroundColor: '#185FA5', borderColor: '#185FA5' },
-  contratChoixTxt: { fontSize: 13, color: colors.textMuted },
-  contratChoixTxtActive: { color: '#fff', fontWeight: '600' },
   etapeRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   etapeBadge: { flex: 1, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, backgroundColor: colors.bg, alignItems: 'center' },
   etapeBadgeActive: { backgroundColor: '#185FA5' },
