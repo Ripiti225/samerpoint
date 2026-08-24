@@ -16,6 +16,7 @@ import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { savePointShiftData } from '../lib/api'
+import { archiverSuppressionShift, supprimerLignesArchivees } from '../lib/corbeille'
 import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifShiftValide } from '../lib/notifications'
 import { estPhotoValide } from '../lib/photoQueue'
@@ -407,23 +408,10 @@ export default function PointShiftScreen() {
         return
       }
 
-      if (shift.caissier_id) {
-        await supabase.from('presences').delete()
-          .eq('point_id', shift.point_id).eq('caissier_id', shift.caissier_id)
-      }
-      // Scoper au caissier du shift supprimé : ne pas effacer les dépenses /
-      // transactions des AUTRES caissiers du même point.
-      let delDep = supabase.from('depenses').delete()
-        .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
-      let delTx = supabase.from('transactions_fournisseurs').delete()
-        .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
-      if (shift.caissier_nom) {
-        delDep = delDep.eq('caissier_nom', shift.caissier_nom)
-        delTx = delTx.eq('caissier_nom', shift.caissier_nom)
-      }
-      await delDep
-      await delTx
-      await supabase.from('points_shifts').delete().eq('id', shift.id)
+      // Archiver d'abord : sans filet, on ne supprime pas. L'archivage renvoie
+      // les identifiants exacts à effacer, scopés au caissier de ce shift.
+      const ids = await archiverSuppressionShift(shift, { userId, userNom })
+      await supprimerLignesArchivees(ids)
 
       setConfirmSupprShift(null)
       await chargerShiftsGerant()
@@ -441,7 +429,6 @@ export default function PointShiftScreen() {
 
     const selectedShifts = shiftsGerant.filter(s => shiftsSelectionnes.has(s.id))
     const pointIds = [...new Set(selectedShifts.map(s => s.point_id))]
-    const shiftIds = selectedShifts.map(s => s.id)
 
     try {
       const { data: points } = await supabase
@@ -457,25 +444,9 @@ export default function PointShiftScreen() {
         return
       }
 
-      // Suppression scopée par caissier de chaque shift : ne pas toucher aux
-      // dépenses / transactions des autres caissiers d'un même point.
-      for (const shift of selectedShifts) {
-        if (shift.caissier_id) {
-          await supabase.from('presences').delete()
-            .eq('point_id', shift.point_id).eq('caissier_id', shift.caissier_id)
-        }
-        let delDep = supabase.from('depenses').delete()
-          .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
-        let delTx = supabase.from('transactions_fournisseurs').delete()
-          .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
-        if (shift.caissier_nom) {
-          delDep = delDep.eq('caissier_nom', shift.caissier_nom)
-          delTx = delTx.eq('caissier_nom', shift.caissier_nom)
-        }
-        await delDep
-        await delTx
-      }
-      await supabase.from('points_shifts').delete().in('id', shiftIds)
+      // Une archive par shift, pour pouvoir en restaurer un seul plus tard.
+      const ids = await archiverSuppressionShift(selectedShifts, { userId, userNom })
+      await supprimerLignesArchivees(ids)
 
       setModeSelection(false)
       setShiftsSelectionnes(new Set())

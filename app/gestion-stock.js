@@ -2,6 +2,7 @@ import { router } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   SafeAreaView,
   ScrollView,
@@ -15,6 +16,10 @@ import { Calendar } from 'react-native-calendars'
 import { useTheme } from '../context/ThemeContext'
 import { CATEGORIES_INVENTAIRE } from '../lib/constants'
 import { supabase } from '../lib/supabase'
+import {
+  chargerDetailProduit, exporterDetailXlsx, exporterDetailPdf, formaterDateFr,
+} from '../lib/detailProduitStock'
+import '../lib/webAlert'   // remplace Alert.alert par les dialogues du navigateur
 
 // Index produit_id → catégorie (+ ordre d'affichage des catégories)
 const PRODUIT_CAT = {}
@@ -69,6 +74,14 @@ export default function GestionStockScreen() {
   const [loading, setLoading] = useState(true)
   const [categoriesRepliees, setCategoriesRepliees] = useState({})
 
+  // Mode « un seul produit » : le détail mouvement par mouvement, avec la
+  // ventilation des entrées par fournisseur.
+  const [produitFilter, setProduitFilter] = useState(null)   // { id, nom }
+  const [showProduitPicker, setShowProduitPicker] = useState(false)
+  const [detail, setDetail] = useState(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
+  const [exportEnCours, setExportEnCours] = useState(null)
+
   function toggleCat(nom) {
     setCategoriesRepliees(prev => ({ ...prev, [nom]: !prev[nom] }))
   }
@@ -119,6 +132,35 @@ export default function GestionStockScreen() {
     setLoading(false)
   }
 
+  useEffect(() => {
+    if (!produitFilter) { setDetail(null); return }
+    let vivant = true
+    setLoadingDetail(true)
+    chargerDetailProduit({
+      produitId: produitFilter.id, produitNom: produitFilter.nom,
+      restaurantId: restoFilter, debut, fin,
+    })
+      .then(d => { if (vivant) setDetail(d) })
+      .catch(e => {
+        console.error('[gestion-stock] détail', e)
+        if (vivant) { setDetail(null); Alert.alert('Erreur', e.message || 'Chargement impossible') }
+      })
+      .finally(() => { if (vivant) setLoadingDetail(false) })
+    return () => { vivant = false }
+  }, [produitFilter, restoFilter, debut, fin])
+
+  async function exporter(format) {
+    if (!detail || exportEnCours) return
+    setExportEnCours(format)
+    try {
+      await (format === 'pdf' ? exporterDetailPdf(detail) : exporterDetailXlsx(detail))
+    } catch (e) {
+      console.error('[gestion-stock] export', e)
+      Alert.alert('Export impossible', e.message || 'Une erreur est survenue.')
+    }
+    setExportEnCours(null)
+  }
+
   const totalSorties = produits.reduce((s, p) => s + p.sorties, 0)
   const totalEntrees = produits.reduce((s, p) => s + p.entrees, 0)
   const restoNom = restoFilter ? restaurants.find(r => r.id === restoFilter)?.nom || 'Restaurant' : 'Tous les restaurants'
@@ -151,7 +193,15 @@ export default function GestionStockScreen() {
       {/* Filtre restaurant */}
       <View style={styles.filtersRow}>
         <TouchableOpacity style={styles.restoBtn} onPress={() => setShowRestoPicker(true)}>
-          <Text style={styles.restoBtnTxt}>🏪 {restoNom} ▾</Text>
+          <Text style={styles.restoBtnTxt} numberOfLines={1}>🏪 {restoNom} ▾</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.restoBtn, produitFilter && styles.restoBtnActif]}
+          onPress={() => setShowProduitPicker(true)}
+        >
+          <Text style={[styles.restoBtnTxt, produitFilter && styles.restoBtnTxtActif]} numberOfLines={1}>
+            📦 {produitFilter ? produitFilter.nom : 'Tous les produits'} ▾
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -167,7 +217,17 @@ export default function GestionStockScreen() {
         <Text style={styles.periodeTxt}>📅 {fmtDateCourt(debut)} → {fmtDateCourt(fin)}</Text>
       </TouchableOpacity>
 
-      {loading ? (
+      {produitFilter ? (
+        <DetailProduit
+          detail={detail}
+          loading={loadingDetail}
+          exportEnCours={exportEnCours}
+          onExporter={exporter}
+          onFermer={() => setProduitFilter(null)}
+          styles={styles}
+          colors={colors}
+        />
+      ) : loading ? (
         <View style={styles.loadingBox}><ActivityIndicator size="large" color="#534AB7" /></View>
       ) : (
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
@@ -245,6 +305,57 @@ export default function GestionStockScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
+      {/* Picker produit */}
+      <Modal visible={showProduitPicker} transparent animationType="slide">
+        <TouchableWithoutFeedback onPress={() => setShowProduitPicker(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.pickerModal}>
+                <Text style={styles.pickerTitre}>Choisir un produit</Text>
+                <ScrollView>
+                  <TouchableOpacity
+                    style={styles.pickerItem}
+                    onPress={() => { setProduitFilter(null); setShowProduitPicker(false) }}
+                  >
+                    <Text style={[styles.pickerItemTxt, !produitFilter && { fontWeight: '700', color: '#534AB7' }]}>
+                      📦 Tous les produits
+                    </Text>
+                  </TouchableOpacity>
+                  {categories.map(cat => (
+                    <View key={cat.nom}>
+                      <Text style={styles.pickerGroupe}>{cat.nom}</Text>
+                      {cat.produits.map(p => (
+                        <TouchableOpacity
+                          key={p.produit_id}
+                          style={styles.pickerItem}
+                          onPress={() => {
+                            setProduitFilter({ id: p.produit_id, nom: p.produit_nom })
+                            setShowProduitPicker(false)
+                          }}
+                        >
+                          <Text style={[styles.pickerItemTxt,
+                            produitFilter?.id === p.produit_id && { fontWeight: '700', color: '#534AB7' }]}>
+                            {p.produit_nom}
+                          </Text>
+                          <Text style={styles.pickerItemMeta}>
+                            +{p.entrees.toLocaleString('fr-FR')} · −{p.sorties.toLocaleString('fr-FR')}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ))}
+                  {categories.length === 0 && (
+                    <Text style={styles.pickerVide}>
+                      Aucun produit sur cette période. Élargissez les dates ou changez de restaurant.
+                    </Text>
+                  )}
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       {/* Calendrier période personnalisée */}
       <Modal visible={showCalendar} transparent animationType="slide">
         <TouchableWithoutFeedback onPress={() => setShowCalendar(false)}>
@@ -296,6 +407,152 @@ export default function GestionStockScreen() {
   )
 }
 
+// ─── Vue « un seul produit » ───────────────────────────────────────────────
+// Les mouvements sont regroupés par journée : c'est l'unité à laquelle le
+// gérant raisonne, et ça évite de répéter la date sur chaque shift.
+
+function DetailProduit({ detail, loading, exportEnCours, onExporter, onFermer, styles, colors }) {
+  const parJour = useMemo(() => {
+    if (!detail) return []
+    const map = new Map()
+    detail.mouvements.forEach(m => {
+      if (!map.has(m.date)) map.set(m.date, [])
+      map.get(m.date).push(m)
+    })
+    return [...map.entries()].map(([date, mouvements]) => ({
+      date,
+      mouvements,
+      entrees: mouvements.reduce((s, x) => s + x.entrees, 0),
+      sorties: mouvements.reduce((s, x) => s + x.sorties, 0),
+    }))
+  }, [detail])
+
+  if (loading) {
+    return (
+      <View style={styles.loadingBox}>
+        <ActivityIndicator size="large" color="#534AB7" />
+        <Text style={styles.loadingTxt}>Chargement du détail…</Text>
+      </View>
+    )
+  }
+  if (!detail || detail.mouvements.length === 0) {
+    return (
+      <View style={styles.emptyBox}>
+        <Text style={styles.emptyIcon}>📦</Text>
+        <Text style={styles.emptyTxt}>Aucun mouvement pour ce produit sur la période</Text>
+        <TouchableOpacity style={styles.retourListeBtn} onPress={onFermer}>
+          <Text style={styles.retourListeTxt}>← Revenir à tous les produits</Text>
+        </TouchableOpacity>
+      </View>
+    )
+  }
+
+  const t = detail.totaux
+  return (
+    <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+      <View style={styles.totauxRow}>
+        <View style={[styles.totalCard, { borderColor: '#3B6D11' }]}>
+          <Text style={styles.totalLabel}>Entrées</Text>
+          <Text style={[styles.totalVal, { color: '#3B6D11' }]}>{t.entrees.toLocaleString('fr-FR')}</Text>
+        </View>
+        <View style={[styles.totalCard, { borderColor: '#A32D2D' }]}>
+          <Text style={styles.totalLabel}>Sorties</Text>
+          <Text style={[styles.totalVal, { color: '#A32D2D' }]}>{t.sorties.toLocaleString('fr-FR')}</Text>
+        </View>
+        <View style={[styles.totalCard, { borderColor: t.ecart < 0 ? '#A32D2D' : colors.border }]}>
+          <Text style={styles.totalLabel}>Écart</Text>
+          <Text style={[styles.totalVal, { color: t.ecart < 0 ? '#A32D2D' : colors.text }]}>
+            {t.ecart.toLocaleString('fr-FR')}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={styles.detailMeta}>
+        {t.nbMouvements} mouvement{t.nbMouvements > 1 ? 's' : ''} sur {t.nbJours} journée
+        {t.nbJours > 1 ? 's' : ''}
+        {t.montantDeduit > 0 ? ` · ${t.montantDeduit.toLocaleString('fr-FR')} F déduits` : ''}
+      </Text>
+
+      <View style={styles.exportRow}>
+        <TouchableOpacity
+          style={[styles.exportBtn, exportEnCours && styles.exportBtnBloque]}
+          disabled={!!exportEnCours}
+          onPress={() => onExporter('xlsx')}
+        >
+          <Text style={styles.exportTxt}>
+            {exportEnCours === 'xlsx' ? '…' : '📊'} Excel
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.exportBtn, exportEnCours && styles.exportBtnBloque]}
+          disabled={!!exportEnCours}
+          onPress={() => onExporter('pdf')}
+        >
+          <Text style={styles.exportTxt}>
+            {exportEnCours === 'pdf' ? '…' : '📕'} PDF
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.exportBtnSecondaire} onPress={onFermer}>
+          <Text style={styles.exportTxtSecondaire}>← Tous</Text>
+        </TouchableOpacity>
+      </View>
+
+      {t.fournisseurs.length > 0 && (
+        <View style={styles.catBloc}>
+          <View style={styles.catHead}>
+            <Text style={styles.catTitre}>Fournisseurs sur la période</Text>
+          </View>
+          {t.fournisseurs.map(f => (
+            <View key={f.nom} style={styles.row}>
+              <Text style={styles.rowProduit} numberOfLines={1}>{f.nom}</Text>
+              <Text style={styles.rowEntrees}>{f.quantite.toLocaleString('fr-FR')}</Text>
+              <Text style={styles.rowPart}>
+                {t.entrees ? Math.round((f.quantite / t.entrees) * 100) + ' %' : '—'}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {parJour.map(j => (
+        <View key={j.date} style={styles.catBloc}>
+          <View style={styles.catHead}>
+            <Text style={styles.catTitre}>{formaterDateFr(j.date)}</Text>
+            <View style={styles.catTotaux}>
+              <Text style={styles.catEntrees}>+{j.entrees.toLocaleString('fr-FR')}</Text>
+              <Text style={styles.catSorties}>−{j.sorties.toLocaleString('fr-FR')}</Text>
+            </View>
+          </View>
+          {j.mouvements.map((m, i) => (
+            <View key={i} style={styles.mvtBloc}>
+              <Text style={styles.mvtEntete}>
+                {m.shift} · {m.restaurant}
+                {m.caissier !== '—' ? ` · ${m.caissier}` : ''}
+                {!m.valide ? '  (non validé)' : ''}
+              </Text>
+              <View style={styles.mvtChiffres}>
+                <Text style={styles.mvtCase}>initial {m.stockInitial.toLocaleString('fr-FR')}</Text>
+                <Text style={[styles.mvtCase, { color: '#3B6D11' }]}>+{m.entrees.toLocaleString('fr-FR')}</Text>
+                <Text style={[styles.mvtCase, { color: '#A32D2D' }]}>−{m.sorties.toLocaleString('fr-FR')}</Text>
+                <Text style={styles.mvtCase}>final {m.stockFinal == null ? '—' : m.stockFinal.toLocaleString('fr-FR')}</Text>
+                {m.ecart !== 0 && (
+                  <Text style={[styles.mvtCase, styles.mvtEcart]}>écart {m.ecart.toLocaleString('fr-FR')}</Text>
+                )}
+              </View>
+              {m.fournisseurs.map((f, k) => (
+                <Text key={k} style={styles.mvtFournisseur}>
+                  └ {f.nom} — {f.quantite.toLocaleString('fr-FR')}
+                </Text>
+              ))}
+            </View>
+          ))}
+        </View>
+      ))}
+      <View style={{ height: 40 }} />
+    </ScrollView>
+  )
+}
+
 function makeStyles(colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
@@ -303,7 +560,35 @@ function makeStyles(colors) {
     back: { fontSize: 16, color: '#534AB7', fontWeight: '500' },
     headerTitre: { fontSize: 18, fontWeight: '700', color: colors.text },
     filtersRow: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
-    restoBtn: { backgroundColor: colors.surface, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, alignSelf: 'flex-start', borderWidth: 1, borderColor: colors.border },
+    restoBtn: { flex: 1, backgroundColor: colors.surface, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: colors.border },
+    restoBtnActif: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
+    restoBtnTxtActif: { color: colors.primaryDark, fontWeight: '700' },
+
+    pickerGroupe: { fontSize: 11, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4 },
+    pickerItemMeta: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+    pickerVide: { fontSize: 13, color: colors.textMuted, textAlign: 'center', padding: 24, lineHeight: 19 },
+
+    loadingTxt: { marginTop: 12, fontSize: 13, color: colors.textMuted },
+    detailMeta: { fontSize: 12, color: colors.textMuted, textAlign: 'center', marginBottom: 12 },
+
+    exportRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+    exportBtn: { flex: 1, backgroundColor: colors.primaryLight, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
+    exportBtnBloque: { opacity: 0.4 },
+    exportTxt: { fontSize: 13, fontWeight: '600', color: colors.primaryDark },
+    exportBtnSecondaire: { paddingHorizontal: 14, justifyContent: 'center', borderRadius: 10, backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border },
+    exportTxtSecondaire: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
+
+    retourListeBtn: { marginTop: 16, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primaryLight },
+    retourListeTxt: { fontSize: 13, color: colors.primaryDark, fontWeight: '600' },
+
+    rowPart: { width: 58, textAlign: 'right', fontSize: 12, color: colors.textMuted },
+
+    mvtBloc: { paddingHorizontal: 16, paddingVertical: 9, borderTopWidth: 1, borderTopColor: colors.borderLight },
+    mvtEntete: { fontSize: 12, fontWeight: '600', color: colors.text, marginBottom: 5 },
+    mvtChiffres: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    mvtCase: { fontSize: 12, color: colors.textSecondary },
+    mvtEcart: { color: '#A32D2D', fontWeight: '700' },
+    mvtFournisseur: { fontSize: 11, color: colors.textMuted, marginTop: 4, marginLeft: 6 },
     restoBtnTxt: { fontSize: 14, color: colors.text, fontWeight: '500' },
     presetRow: { paddingVertical: 8, flexGrow: 0 },
     presetBtn: { backgroundColor: colors.surface, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, borderColor: colors.border },

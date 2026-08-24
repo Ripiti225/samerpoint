@@ -71,6 +71,15 @@ export default function RecapPointScreen() {
   const [comparaison, setComparaison] = useState(null)
   const [loadingComparaison, setLoadingComparaison] = useState(false)
 
+  // Un shift avec pos_service_id est arrivé automatiquement du POS : le POS ne
+  // pousse pas encore l'inventaire (mapping produit ↔ articles pas fait côté
+  // POS), donc le verrou inventaire de Samtrackly ne pourra jamais être levé
+  // par la voie normale sur ces jours-là. On se base sur la PREUVE (un shift
+  // du POS déjà arrivé sur ce point), pas sur restaurants.source_point, qui
+  // reste volontairement à 'SAMTRACKLY' pendant la semaine d'observation du
+  // pilote (cf. lib/sourcePoint.js, lib/basculePOS.js).
+  const pointVenuDuPOS = shifts.some(s => s.pos_service_id)
+
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
 
@@ -236,7 +245,7 @@ export default function RecapPointScreen() {
       return
     }
 
-    const invOk = inventaireTermine || inventairesShifts.some(s => s.valide)
+    const invOk = inventaireTermine || inventairesShifts.some(s => s.valide) || pointVenuDuPOS
     if (!invOk) {
       Alert.alert(
         '🔒 Inventaire requis',
@@ -798,14 +807,14 @@ export default function RecapPointScreen() {
               <Text style={styles.modifTxt}>✏️ Retourner modifier</Text>
             </TouchableOpacity>
 
-            {!(inventaireTermine || inventairesShifts.some(s => s.valide)) && (
+            {!(inventaireTermine || inventairesShifts.some(s => s.valide) || pointVenuDuPOS) && (
               <View style={styles.invRequisBanner}>
                 <Text style={styles.invRequisTxt}>🔒 Inventaire du jour requis avant validation</Text>
               </View>
             )}
 
             <TouchableOpacity
-              style={[styles.validerBtn, (validating || !(inventaireTermine || inventairesShifts.some(s => s.valide))) && { opacity: 0.5 }]}
+              style={[styles.validerBtn, (validating || !(inventaireTermine || inventairesShifts.some(s => s.valide) || pointVenuDuPOS)) && { opacity: 0.5 }]}
               onPress={valider}
               disabled={validating}
             >

@@ -300,7 +300,10 @@ export default function LitigesScreen() {
       if (ecartBrut < 0) ecart = Math.min(0, ecartBrut + totalRegul)
       else if (ecartBrut > 0) ecart = Math.max(0, ecartBrut - totalRegul)
       // Écart annulé dans Vérification → neutralisé (écart 0), quel que soit le mode d'annulation.
-      const annule = p.explication_machine_statut === 'annulee'
+      const annule = ['annulee', 'justifiee'].includes(p.explication_machine_statut)
+      // Les deux statuts soldent l'écart, mais pas de la même manière : 'annulee'
+      // a corrigé le fond, 'justifiee' non. Le libellé doit le dire.
+      const justifie = p.explication_machine_statut === 'justifiee'
       if (annule) ecart = 0
       return {
         id: p.id,
@@ -310,6 +313,7 @@ export default function LitigesScreen() {
         ecartBrut,
         ecart,
         annule,
+        justifie,
         regularisations: reguls,
         totalRegul,
         resteFc: p.reste_fc || 0,
@@ -445,7 +449,9 @@ export default function LitigesScreen() {
     if (!r) return
     Alert.alert(
       'Supprimer cette régularisation ?',
-      `Le montant de ${fmt(r.montant)} sera réintégré dans l'écart et le fond actuel sera recalculé.`,
+      r.sans_fond
+        ? `Le montant de ${fmt(r.montant)} sera réintégré dans l'écart. Le fond n'est pas concerné.`
+        : `Le montant de ${fmt(r.montant)} sera réintégré dans l'écart et le fond actuel sera recalculé.`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -456,7 +462,13 @@ export default function LitigesScreen() {
             await supabase.from('points')
               .update({ ecart_regularisations: nouvelles })
               .eq('id', item.id)
-            if (r.fond_point_id) {
+            if (r.sans_fond) {
+              // Justifié sans incidence sur le fond (bouton « ✔️ Justifier » de
+              // Vérification) : aucun fond n'a été corrigé, donc rien à rendre.
+              // Ce cas DOIT passer avant le test fond_point_id : ces records ont
+              // fond_point_id null et tomberaient sinon dans la branche héritée
+              // ci-dessous, qui irait modifier reste_fc — le faux fond qu'on évite.
+            } else if (r.fond_point_id) {
               // Nouveau format : la correction de fond vit sur la journée cible → reverse là-bas
               const { data: pf } = await supabase.from('points')
                 .select('ajustement_fond').eq('id', r.fond_point_id).single()
@@ -650,6 +662,9 @@ export default function LitigesScreen() {
         .from('points').select('id, date, vente_machine, explication_machine_statut, ecart_regularisations')
         .eq('restaurant_id', resto.id).gte('date', debut).lte('date', fin)
       let ecartTotal = 0
+      // Points dont l'écart ne pèse plus rien : annulé, justifié, entièrement
+      // régularisé, ou simple surplus. Sert à filtrer les responsables plus bas.
+      const pointsSoldes = new Set()
       if (pointsData?.length) {
         const ids = pointsData.map(p => p.id)
         const { data: shifts } = await supabase
@@ -657,13 +672,18 @@ export default function LitigesScreen() {
         const byPoint = {}
         ;(shifts || []).forEach(s => { byPoint[s.point_id] = (byPoint[s.point_id] || 0) + (s.vente_shift || 0) })
         pointsData.forEach(p => {
-          if (p.explication_machine_statut === 'annulee') return // écart soldé → 0
+          if (['annulee', 'justifiee'].includes(p.explication_machine_statut)) { // écart soldé → 0
+            pointsSoldes.add(p.id)
+            return
+          }
           const brut = (p.vente_machine || 0) - (byPoint[p.id] || 0)
           // Les régularisations partielles réduisent l'écart : sans ça, annuler
           // 8 000 sur un manquant de 10 000 laissait 10 000 dans le total.
           const reguls = Array.isArray(p.ecart_regularisations) ? p.ecart_regularisations : []
           const totalRegul = reguls.reduce((s2, r) => s2 + (parseFloat(r.montant) || 0), 0)
-          ecartTotal += Math.max(0, brut - totalRegul)
+          const reste = Math.max(0, brut - totalRegul)
+          if (reste <= 0) pointsSoldes.add(p.id)
+          ecartTotal += reste
         })
       }
 
@@ -684,11 +704,23 @@ export default function LitigesScreen() {
 
       // Responsables des écarts : le total ci-dessus ne dit pas QUI doit quoi.
       // C'est pourtant le plus gros poste de litiges, et chaque ligne porte un nom.
-      const { data: responsables } = await supabase
+      const { data: responsablesBruts } = await supabase
         .from('litiges_responsables')
-        .select('date, responsable_nom, role, montant, type')
+        .select('point_id, date, responsable_nom, role, montant, type')
         .eq('restaurant_id', resto.id).gte('date', debut).lte('date', fin)
         .order('montant', { ascending: false })
+
+      // Deux filtres, pour que le détail affiché colle enfin au montant annoncé :
+      //   • les surplus ne sont pas des litiges — ecartTotal les exclut déjà, mais
+      //     ils s'affichaient quand même sous « Écart point », en rouge ;
+      //   • un écart soldé n'a plus de responsable à montrer. litiges_responsables
+      //     n'est réécrite que par ventes.js (syncLitigesResponsables) : elle ignore
+      //     tout des annulations et justifications décidées dans Vérification.
+      // Une ligne sans point_id (format ancien) est conservée : on ne peut pas la
+      // rattacher à une journée, mieux vaut l'afficher que la perdre.
+      const responsables = (responsablesBruts || []).filter(r =>
+        r.type !== 'surplus' && !(r.point_id && pointsSoldes.has(r.point_id))
+      )
 
       // Inventaire + détail
       const { data: invShifts } = await supabase
@@ -751,7 +783,7 @@ export default function LitigesScreen() {
 
       return {
         restaurant: resto, ecartTotal, invTotal, invEnriched,
-        responsables: responsables || [],
+        responsables,
         avis: avis || [], avisTotal,
         yango: yango || [], yangoTotal,
         glovo: glovo || [], glovoTotal,
@@ -767,6 +799,15 @@ export default function LitigesScreen() {
 
     setDonneesGlobales(resultats)
     setLoading(false)
+  }
+
+  // Définition UNIQUE du « restaurant sans litige ». L'écran et le PDF avaient
+  // chacun la leur : un resto pouvait s'afficher « ✅ Aucun litige » dans l'app
+  // et sortir avec des lignes dans le rapport envoyé.
+  function restoSansLitige(d) {
+    return !d.ecartTotal && !d.invTotal && !d.avis.length && !d.yango.length
+      && !d.glovo.length && !d.contactTotal && !d.pasFaitTotal
+      && !d.responsables.length && !d.verifRetenu
   }
 
   // ── Génération PDF + partage natif ───────────────────────────
@@ -813,8 +854,7 @@ export default function LitigesScreen() {
           <span class="resto-tot ${tc}">${d.total > 0 ? '+' : ''}${Math.round(d.total).toLocaleString('fr-FR')} FCFA</span>
         </div>`
 
-        const vide = !d.ecartTotal && !d.invTotal && !d.avis.length && !d.yango.length
-          && !d.glovo.length && !d.contactTotal && !d.pasFaitTotal && !d.responsables.length && !d.verifRetenu
+        const vide = restoSansLitige(d)
         if (vide) {
           html += `<div class="volet"><span class="ok">✅ Aucun litige sur la période</span></div>`
         }
@@ -970,7 +1010,7 @@ export default function LitigesScreen() {
         {/* Un card par restaurant */}
         {donneesGlobales.map(d => {
           const tc = d.total > 0 ? '#C62828' : d.total < 0 ? '#2E7D32' : colors.textMuted
-          const vide = !d.ecartTotal && !d.invTotal && !d.avis.length && !d.yango.length && !d.glovo.length && !d.contactTotal && !d.pasFaitTotal
+          const vide = restoSansLitige(d)
           return (
             <View key={d.restaurant.id} style={styles.restoGlobalCard}>
               {/* Header restaurant */}
@@ -1494,6 +1534,11 @@ export default function LitigesScreen() {
                     </TouchableOpacity>
                   )}
                 </View>
+                {r.sans_fond && (
+                  <View style={styles.regulSansFondBadge}>
+                    <Text style={styles.regulSansFondTxt}>sans incidence sur le fond</Text>
+                  </View>
+                )}
                 {r.motif ? <Text style={styles.regulMotif}>{r.motif}</Text> : null}
                 {Array.isArray(r.photos) && r.photos.length > 0 && (
                   <View style={styles.regulPhotosRow}>
@@ -1551,16 +1596,22 @@ export default function LitigesScreen() {
             backgroundColor: item.ecart !== 0 ? (item.ecart > 0 ? '#FFF0F0' : '#FFF8E1') : '#F0FFF4',
             borderColor: c + '44',
           }]}>
-            <Text style={styles.ecartLabel}>{item.annule ? '🚫 Écart annulé' : item.totalRegul > 0 ? 'Écart restant' : 'Écart constaté'}</Text>
+            <Text style={styles.ecartLabel}>
+              {item.annule ? (item.justifie ? '✔️ Écart justifié' : '🚫 Écart annulé')
+                : item.totalRegul > 0 ? 'Écart restant' : 'Écart constaté'}
+            </Text>
             <Text style={[styles.ecartValeur, { color: c }]}>{item.ecart > 0 ? '+' : ''}{fmt(item.ecart)}</Text>
             <Text style={[styles.ecartSous, { color: c }]}>
-              {item.annule ? '🚫 Annulé dans Vérification — non pris en compte'
+              {item.annule
+                ? (item.justifie
+                    ? '✔️ Justifié dans Vérification — fond non modifié'
+                    : '🚫 Annulé dans Vérification — non pris en compte')
                 : item.ecart > 0 ? 'Machine supérieure aux shifts déclarés'
                 : item.ecart < 0 ? 'Shifts supérieurs à la machine'
                 : (item.totalRegul > 0 ? '✅ Écart entièrement régularisé' : '✅ Aucun écart — tout est aligné')}
             </Text>
             {item.annule && item.ecartBrut !== 0 ? (
-              <Text style={styles.ecartRegulHint}>Écart initial {item.ecartBrut > 0 ? '+' : ''}{fmt(item.ecartBrut)} · annulé</Text>
+              <Text style={styles.ecartRegulHint}>Écart initial {item.ecartBrut > 0 ? '+' : ''}{fmt(item.ecartBrut)} · {item.justifie ? 'justifié' : 'annulé'}</Text>
             ) : item.totalRegul > 0 ? (
               <Text style={styles.ecartRegulHint}>
                 Écart initial {item.ecartBrut > 0 ? '+' : ''}{fmt(item.ecartBrut)} · régularisé {fmt(item.totalRegul)}
@@ -1595,7 +1646,7 @@ export default function LitigesScreen() {
               >
                 {aDetails && <Text style={styles.ligneChevron}>{ouvert ? '▾' : '▸'}</Text>}
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.ligneNom}>{j.date}{j.annule ? '  ·  🚫 annulé' : ''}</Text>
+                  <Text style={styles.ligneNom}>{j.date}{j.annule ? (j.justifie ? '  ·  ✔️ justifié' : '  ·  🚫 annulé') : ''}</Text>
                   <Text style={styles.ligneSous}>Machine {fmtShort(j.venteMachine)} — Shifts {fmtShort(j.cumulShifts)} ({j.nbShifts})</Text>
                 </View>
                 <Text style={[styles.montantTxt, { color: cj }]}>{j.ecart > 0 ? '+' : ''}{fmtShort(j.ecart)}</Text>
@@ -2777,6 +2828,8 @@ function makeStyles(colors) { return StyleSheet.create({
   },
   regulCardTitre: { fontSize: 13, fontWeight: '700', color: colors.text, flex: 1 },
   regulDelTxt: { fontSize: 16, color: '#C62828', fontWeight: '700', paddingLeft: 8 },
+  regulSansFondBadge: { alignSelf: 'flex-start', marginTop: 6, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 8, backgroundColor: colors.surfaceAlt || '#EFEFEF' },
+  regulSansFondTxt: { fontSize: 11, fontWeight: '600', color: colors.textMuted },
   regulMotif: { fontSize: 13, color: colors.textSecondary, marginTop: 6, lineHeight: 18 },
   regulMeta: { fontSize: 11, color: colors.textMuted, marginTop: 6 },
   regulPhotosRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, marginBottom: 12 },

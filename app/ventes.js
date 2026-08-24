@@ -16,6 +16,8 @@ import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { COEFFICIENTS } from '../lib/constants'
+import { ecartsParCaissier } from '../lib/ecartPOS'
+import { estRempliParLePOS } from '../lib/sourcePoint'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
 
@@ -39,13 +41,31 @@ export default function VentesScreen() {
   const [cumulShifts, setCumulShifts] = useState(null)
   const [travailleursEquipe, setTravailleursEquipe] = useState([])
   const [showResponsablePicker, setShowResponsablePicker] = useState(false)
+  // Fiche du restaurant, pour savoir si son point vient du POS. Un site
+  // basculé remplit lui-même la vente machine : le gérant ne doit plus
+  // pouvoir la retaper par-dessus celle du système.
+  const [restaurant, setRestaurant] = useState(null)
   const isGerant = roleActif === 'gerant'
   const isManager = roleActif === 'manager'
   const bloque = estBloque(pointValide)
+  // Sur un site dont le point vient du POS, la vente machine est écrite par le
+  // pont : le gérant la lit, il ne la saisit plus. Repli sûr — tant que la
+  // fiche restaurant n'est pas chargée, on garde la saisie ouverte.
+  const venteMachineDuPOS = estRempliParLePOS(restaurant, 'vente_machine')
 
   useEffect(() => {
     if ((isGerant || isManager) && pointId) chargerCumulShifts()
   }, [pointId])
+
+  // `source_point` avec repli : sans la migration supabase_pos_bascule.sql, ou
+  // si la lecture échoue, on retombe sur le comportement historique (saisie
+  // ouverte) plutôt que de bloquer un gérant qui a besoin de travailler.
+  useEffect(() => {
+    if (!restaurantId) return
+    supabase.from('restaurants').select('id, nom, source_point').eq('id', restaurantId).maybeSingle()
+      .then(({ data }) => setRestaurant(data || null))
+      .catch(() => setRestaurant(null))
+  }, [restaurantId])
 
   // Responsables possibles d'un manquant — uniquement caissiers et gérants du restaurant
   useEffect(() => {
@@ -81,6 +101,10 @@ export default function VentesScreen() {
         espece: shifts.reduce((s, sh) => s + (sh.espece || 0), 0),
         venteTotal: shifts.reduce((s, sh) => s + (sh.vente_shift || 0), 0),
         nbShifts: shifts.length,
+        // Écarts mesurés par le POS au comptage à l'aveugle, une ligne par
+        // caissière. Sur un site basculé c'est LE vrai écart : `ecart_caisse`
+        // calculé plus bas y vaut structurellement 0 (cf. lib/ecartPOS.js).
+        ecartsPOS: ecartsParCaissier(shifts),
       }
       setCumulShifts(cumul)
 
@@ -200,7 +224,7 @@ export default function VentesScreen() {
     const manquantes = []
     if (parseFloat(ventesJour.yangoTab) > 0 && !ventesJour.photo_yango_tab) manquantes.push('Yango TAB')
     if (parseFloat(ventesJour.glovoTab) > 0 && !ventesJour.photo_glovo_tab) manquantes.push('Glovo TAB')
-    if ((isGerant || isManager) && parseFloat(ventesJour.venteMachine) > 0 && !ventesJour.photoVenteMachine) {
+    if (!venteMachineDuPOS && (isGerant || isManager) && parseFloat(ventesJour.venteMachine) > 0 && !ventesJour.photoVenteMachine) {
       manquantes.push('Photo vente machine')
     }
     return manquantes
@@ -670,29 +694,90 @@ export default function VentesScreen() {
                     </View>
                   )}
 
-                  {/* Saisie vente machine */}
+                  {/* Écarts mesurés par le POS, une ligne par caissière.
+                      Sur un site basculé, l'écart calculé plus bas (vente des
+                      shifts − vente machine) vaut structurellement 0 : sans ce
+                      bloc, le gérant lirait « aucun écart » un jour où il
+                      manque de l'argent. */}
+                  {cumulShifts?.ecartsPOS?.mesures > 0 && (
+                    <View style={styles.ecpBloc}>
+                      <View style={styles.ecpHead}>
+                        <Text style={styles.ecpTitre}>Écart de caisse par caissier</Text>
+                        <View style={styles.ecpBadge}><Text style={styles.ecpBadgeTxt}>Mesuré au POS</Text></View>
+                      </View>
+
+                      {cumulShifts.ecartsPOS.lignes.map((l, i) => (
+                        <View key={i} style={styles.ecpLigne}>
+                          <Text style={styles.ecpNom} numberOfLines={1}>{l.nom}</Text>
+                          <Text style={[styles.ecpVal, {
+                            color: l.ecart < 0 ? colors.error : l.ecart > 0 ? colors.success : colors.textMuted,
+                          }]}>
+                            {l.ecart > 0 ? '+' : ''}{fmt(l.ecart)}
+                          </Text>
+                        </View>
+                      ))}
+
+                      <View style={styles.ecpTotal}>
+                        <Text style={styles.ecpTotalLbl}>Écart total</Text>
+                        <Text style={[styles.ecpTotalVal, {
+                          color: cumulShifts.ecartsPOS.total < 0 ? colors.error
+                               : cumulShifts.ecartsPOS.total > 0 ? colors.success : colors.textMuted,
+                        }]}>
+                          {cumulShifts.ecartsPOS.total > 0 ? '+' : ''}{fmt(cumulShifts.ecartsPOS.total)}
+                        </Text>
+                      </View>
+
+                      {cumulShifts.ecartsPOS.sansMesure > 0 && (
+                        <Text style={styles.ecpNote}>
+                          {cumulShifts.ecartsPOS.sansMesure} shift
+                          {cumulShifts.ecartsPOS.sansMesure > 1 ? 's saisis' : ' saisi'} à la main
+                          {cumulShifts.ecartsPOS.sansMesure > 1 ? ' ne sont' : ' n\'est'} pas
+                          {cumulShifts.ecartsPOS.sansMesure > 1 ? ' comptés' : ' compté'} ci-dessus.
+                        </Text>
+                      )}
+                    </View>
+                  )}
+
+                  {/* Saisie vente machine — grisée sur un site dont le point
+                      vient du POS : la machine connaît son chiffre exactement,
+                      le retaper à la main ne pourrait que le contredire. */}
                   <View style={[styles.vmRow, { alignItems: 'flex-start', paddingTop: 14 }]}>
                     <View style={styles.vmRowLeft}>
                       <Text style={[styles.vmLabel, { fontWeight: '600', color: colors.text }]}>
                         Vente machine
                       </Text>
                       <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 2 }}>
-                        Montant lu sur la caisse / POS
+                        {venteMachineDuPOS
+                          ? 'Remplie automatiquement par le POS'
+                          : 'Montant lu sur la caisse / POS'}
                       </Text>
                     </View>
-                    <TextInput
-                      style={styles.vmInput}
-                      value={ventesJour.venteMachine || ''}
-                      onChangeText={v => setVente('venteMachine', v)}
-                      keyboardType="numeric"
-                      placeholder="Saisir..."
-                      placeholderTextColor="#bbb"
-                      editable={!bloque || isManager}
-                    />
+                    {venteMachineDuPOS ? (
+                      <View style={styles.vmVerrou}>
+                        <Text style={styles.vmVerrouVal}>
+                          {ventesJour.venteMachine
+                            ? fmt(parseFloat(ventesJour.venteMachine) || 0)
+                            : 'en attente du POS'}
+                        </Text>
+                        <Text style={styles.vmVerrouTxt}>🔒 Rempli par le POS</Text>
+                      </View>
+                    ) : (
+                      <TextInput
+                        style={styles.vmInput}
+                        value={ventesJour.venteMachine || ''}
+                        onChangeText={v => setVente('venteMachine', v)}
+                        keyboardType="numeric"
+                        placeholder="Saisir..."
+                        placeholderTextColor="#bbb"
+                        editable={!bloque || isManager}
+                      />
+                    )}
                   </View>
 
-                  {/* Photo vente machine */}
-                  {(!bloque || isManager) && (
+                  {/* Photo vente machine — sans objet quand le chiffre vient du
+                      système : il n'y a plus d'écran à photographier pour
+                      prouver un montant que la machine a écrit elle-même. */}
+                  {!venteMachineDuPOS && (!bloque || isManager) && (
                     <View style={[styles.photoBlock,
                       !ventesJour.photoVenteMachine && styles.photoBlockRequired
                     ]}>
@@ -1085,6 +1170,23 @@ function makeStyles(colors) { return StyleSheet.create({
   vmRowLeft: { flex: 1 },
   vmLabel: { fontSize: 13, color: colors.textSecondary },
   vmValAuto: { fontSize: 14, fontWeight: '600', color: colors.text },
+  // Vente machine verrouillée (site alimenté par le POS)
+  vmVerrou:    { alignItems: 'flex-end', gap: 3 },
+  vmVerrouVal: { fontSize: 15, fontWeight: '700', color: colors.textSecondary },
+  vmVerrouTxt: { fontSize: 9.5, fontWeight: '800', color: colors.primary, backgroundColor: colors.primaryLight, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' },
+  // Écarts mesurés par le POS, ventilés par caissier
+  ecpBloc:     { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.borderLight, gap: 6 },
+  ecpHead:     { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
+  ecpTitre:    { fontSize: 12, fontWeight: '700', color: colors.text, flexShrink: 1 },
+  ecpBadge:    { backgroundColor: colors.primaryLight, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
+  ecpBadgeTxt: { fontSize: 9, fontWeight: '800', color: colors.primary },
+  ecpLigne:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingVertical: 3 },
+  ecpNom:      { fontSize: 13, color: colors.textSecondary, flexShrink: 1 },
+  ecpVal:      { fontSize: 13, fontWeight: '700' },
+  ecpTotal:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4, paddingTop: 8, borderTopWidth: 1.5, borderTopColor: colors.border },
+  ecpTotalLbl: { fontSize: 11, fontWeight: '800', color: colors.textSecondary, letterSpacing: 0.5, textTransform: 'uppercase' },
+  ecpTotalVal: { fontSize: 17, fontWeight: '700' },
+  ecpNote:     { fontSize: 11, color: colors.textMuted, lineHeight: 15, marginTop: 4 },
   vmInput: {
     width: 140, backgroundColor: colors.bg, borderRadius: 10,
     padding: 10, fontSize: 15, color: colors.text, textAlign: 'right',

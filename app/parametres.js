@@ -25,6 +25,9 @@ import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
 import { connecterOneDrive, deconnecterOneDrive, estatConnecte } from '../lib/onedrive'
 import { ROLES_GLOBAUX } from '../lib/constants'
+import { ACTIONS, journaliser } from '../lib/journal'
+import { diagnosticBascule, ETAT_BASCULE, compterShiftsParRestaurant } from '../lib/basculePOS'
+import { SOURCE_POS, SOURCE_SAMTRACKLY, estSurPOS } from '../lib/sourcePoint'
 import {
   TUILES, ROLES_CONFIGURABLES, LABELS_ROLES, ACCES_DEFAUT,
   chargerAccesConfig, enregistrerAccesRole,
@@ -39,13 +42,14 @@ const SECTIONS = [
 ]
 
 export default function ParametresScreen() {
-  const { isManager } = useApp()
+  const { isManager, userId, userNom } = useApp()
   const { colors, isDark, mode, setThemeMode } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
   const { prendrePhoto, choisirPhoto } = usePhoto()
 
   const [sectionActive, setSectionActive] = useState('restaurants')
   const [restaurants, setRestaurants] = useState([])
+  const [comptesShifts, setComptesShifts] = useState(null)
   const [travailleurs, setTravailleurs] = useState([])
   const [utilisateurs, setUtilisateurs] = useState([])
   const [fournisseurs, setFournisseurs] = useState([])
@@ -105,6 +109,25 @@ export default function ParametresScreen() {
     }
   }
 
+  /**
+   * D'où viennent les shifts des 7 derniers jours, par restaurant. C'est ce qui
+   * dit si la remontée du POS fonctionne pour un site — et donc s'il peut être
+   * basculé sans faire disparaître ses caissières.
+   *
+   * Deux colonnes seulement, sur 7 jours : ~150 lignes pour les 7 sites, très
+   * loin de la limite de 1000 lignes de Supabase (qui tronque en silence).
+   */
+  async function chargerComptesShifts() {
+    const depuis = new Date(Date.now() - 7 * 86400_000).toISOString().split('T')[0]
+    const { data, error } = await supabase
+      .from('points_shifts')
+      .select('restaurant_id, pos_service_id')
+      .gte('date', depuis)
+    // Colonne pos_service_id absente (migration pas passée) : on ne prétend
+    // rien savoir, et aucun site ne pourra être basculé depuis cet écran.
+    setComptesShifts(error ? null : compterShiftsParRestaurant(data))
+  }
+
   async function chargerTousRestaurants() {
     const { data } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation').order('nom')
     setTousRestaurants(data || [])
@@ -113,9 +136,14 @@ export default function ParametresScreen() {
   async function chargerDonnees() {
     setLoading(true)
     if (sectionActive === 'restaurants') {
-      const { data } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation, pin').order('nom')
+      // `source_point` avec repli : sans la migration supabase_pos_bascule.sql,
+      // tous les sites restent sur Samtrackly (cf. lib/sourcePoint.js).
+      const quete = (cols) => supabase.from('restaurants').select(cols).order('nom')
+      let { data, error } = await quete('id, nom, couleur, photo_url, localisation, pin, source_point')
+      if (error) ({ data } = await quete('id, nom, couleur, photo_url, localisation, pin'))
       setRestaurants(data || [])
       setTousRestaurants(data || [])
+      await chargerComptesShifts()
     }
     if (sectionActive === 'travailleurs') {
       const { data } = await supabase.from('travailleurs').select('*, restaurants(nom)').order('nom')
@@ -547,6 +575,72 @@ export default function ParametresScreen() {
     ])
   }
 
+  /**
+   * Bascule un restaurant entre Samtrackly et le POS.
+   *
+   * Vers le POS : refusé tant qu'aucun shift n'est arrivé du POS pour ce site.
+   * C'est la garde qui aurait évité l'incident du 2026-08-17 — Angré 7E avait la
+   * caisse installée mais aucune remontée, et basculer ce jour-là aurait fait
+   * disparaître trois caissières sans rien mettre à la place.
+   *
+   * Vers Samtrackly : jamais refusé. C'est la sortie de secours du soir où un
+   * mini-PC meurt, elle ne se discute pas.
+   */
+  async function basculerRestaurant(resto, versPOS) {
+    const diag = diagnosticBascule(resto, comptesShifts?.[resto.id])
+
+    if (versPOS && !diag.peutBasculer) {
+      Alert.alert('Bascule impossible', diag.message)
+      return
+    }
+
+    const titre = versPOS ? `Basculer ${resto.nom} vers le POS ?` : `Rendre la saisie à ${resto.nom} ?`
+    const corps = versPOS
+      ? `Les caissières de ${resto.nom} ne s'afficheront plus à la connexion. Leur point, `
+        + `leurs dépenses et leur inventaire devront arriver du POS.\n\n`
+        + `Leurs comptes ne sont pas supprimés : cette bascule s'annule en un geste.`
+      : `Les caissières de ${resto.nom} pourront de nouveau se connecter et faire leur point ici.\n\n`
+        + `À utiliser si la caisse du site est en panne. Pensez à vérifier qu'un même shift `
+        + `ne soit pas saisi deux fois.`
+
+    Alert.alert(titre, corps, [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: versPOS ? 'Basculer' : 'Rendre la saisie',
+        style: versPOS ? 'destructive' : 'default',
+        onPress: async () => {
+          const cible = versPOS ? SOURCE_POS : SOURCE_SAMTRACKLY
+          const { data, error } = await supabase
+            .from('restaurants')
+            .update({ source_point: cible })
+            .eq('id', resto.id)
+            .select('id, source_point')
+
+          // Un UPDATE qui ne touche aucune ligne ne lève pas d'erreur : sans ce
+          // contrôle on croirait le site basculé alors que rien n'a bougé.
+          if (error || !data?.length) {
+            Alert.alert('Échec', error?.message || 'Aucune ligne modifiée — le site n\'a pas été basculé.')
+            return
+          }
+
+          journaliser(
+            ACTIONS.BASCULE_POS,
+            { restaurant: resto.nom, vers: cible, diagnostic: diag.etat },
+            { restaurantId: resto.id, userId, userNom },
+          ).catch(() => {})
+
+          Alert.alert(
+            versPOS ? '✅ Site basculé' : '✅ Saisie rendue',
+            versPOS
+              ? `${resto.nom} est sur le POS. Ses caissières ne se connectent plus ici.`
+              : `${resto.nom} est revenu sur Samtrackly. Ses caissières peuvent se reconnecter.`,
+          )
+          chargerDonnees()
+        },
+      },
+    ])
+  }
+
   function SelectRestaurant() {
     return (
       <>
@@ -654,7 +748,8 @@ export default function ParametresScreen() {
           <Text style={styles.addTxt}>+ Ajouter un restaurant</Text>
         </TouchableOpacity>
         {restaurants.map(r => (
-          <View key={r.id} style={styles.itemCard}>
+          <View key={r.id}>
+          <View style={styles.itemCard}>
             <View style={styles.itemLeft}>
               {r.photo_url ? (
                 <Image source={{ uri: r.photo_url }} style={{ width: 40, height: 40, borderRadius: 10 }} />
@@ -678,8 +773,67 @@ export default function ParametresScreen() {
               </TouchableOpacity>
             </View>
           </View>
+          <CarteBascule resto={r} />
+          </View>
         ))}
       </>
+    )
+  }
+
+  /**
+   * Sous la carte d'un restaurant : d'où vient son point, et le geste pour
+   * changer ça. Le diagnostic est toujours affiché, y compris quand la bascule
+   * est impossible — c'est justement là qu'il faut expliquer pourquoi.
+   */
+  function CarteBascule({ resto: r }) {
+    const surPOS = estSurPOS(r)
+    const diag = diagnosticBascule(r, comptesShifts?.[r.id])
+    const inconnu = comptesShifts === null
+
+    const teinte = surPOS
+      ? (diag.etat === ETAT_BASCULE.INCOHERENT ? colors.error : colors.success)
+      : (diag.etat === ETAT_BASCULE.PRET ? colors.primary : colors.textMuted)
+
+    return (
+      <View style={[styles.bascCard, { borderColor: colors.border, backgroundColor: colors.surfaceAlt }]}>
+        <View style={styles.bascHead}>
+          <View style={[styles.bascPuce, { backgroundColor: teinte }]} />
+          <Text style={[styles.bascSource, { color: colors.text }]}>
+            {surPOS ? 'Point reçu du POS' : 'Point saisi dans Samtrackly'}
+          </Text>
+          {diag.etat === ETAT_BASCULE.INCOHERENT && (
+            <Text style={[styles.bascAlerte, { color: colors.error, backgroundColor: colors.errorLight }]}>
+              à vérifier
+            </Text>
+          )}
+        </View>
+
+        <Text style={[styles.bascMsg, { color: colors.textSecondary }]}>
+          {inconnu
+            ? 'Impossible de savoir si la remontée du POS fonctionne pour ce site (migration supabase_pos_bascule.sql pas encore passée). La bascule reste indisponible.'
+            : diag.message}
+        </Text>
+
+        {!inconnu && diag.peutBasculer && (
+          <TouchableOpacity
+            style={[styles.bascBtn, { backgroundColor: colors.primary }]}
+            onPress={() => basculerRestaurant(r, true)}
+          >
+            <Text style={styles.bascBtnTxt}>Basculer vers le POS</Text>
+          </TouchableOpacity>
+        )}
+
+        {diag.peutRevenir && (
+          <TouchableOpacity
+            style={[styles.bascBtn, { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.error }]}
+            onPress={() => basculerRestaurant(r, false)}
+          >
+            <Text style={[styles.bascBtnTxt, { color: colors.error }]}>
+              Rendre la saisie à Samtrackly
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
     )
   }
 
@@ -1622,6 +1776,15 @@ function makeStyles(colors) { return StyleSheet.create({
   itemSub: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
   itemSub2: { fontSize: 10, color: colors.textPlaceholder, marginTop: 1 },
   itemPin: { fontSize: 10, color: colors.primary, marginTop: 2, fontWeight: '500' },
+  // Bascule POS ↔ Samtrackly (sous chaque carte restaurant)
+  bascCard:   { borderWidth: 1, borderRadius: 12, padding: 12, marginTop: -6, marginBottom: 12, gap: 8 },
+  bascHead:   { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  bascPuce:   { width: 8, height: 8, borderRadius: 4 },
+  bascSource: { fontSize: 13, fontWeight: '700', flexShrink: 1 },
+  bascAlerte: { fontSize: 10, fontWeight: '800', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' },
+  bascMsg:    { fontSize: 12, lineHeight: 17 },
+  bascBtn:    { minHeight: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
+  bascBtnTxt: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
   itemActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   editBtn: { padding: 6 },
   editTxt: { fontSize: 16 },

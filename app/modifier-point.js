@@ -14,12 +14,15 @@ import {
 import { Calendar } from 'react-native-calendars'
 import { supabase } from '../lib/supabase'
 import { journaliser } from '../lib/journal'
+import { archiverSuppressionShift, supprimerLignesArchivees } from '../lib/corbeille'
+import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 
 const ONGLETS = ['Résumé', 'Shifts', 'Ventes', 'Dépenses', 'Fournisseurs', 'Présences', 'Dép. Gérant']
 const CATS_DEPENSES = ['Marché', 'Légumes', 'Fruits', 'Dépenses annexes']
 
 export default function ModifierPointScreen() {
+  const { userId, userNom } = useApp()
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
   const [etape, setEtape] = useState(1)
@@ -309,28 +312,18 @@ export default function ModifierPointScreen() {
     setSuppressionEnCours(true)
     try {
       const venteAvant = point ? (parseFloat(form.vente_total) || 0) : 0
-      if (shift.caissier_id) {
-        await supabase.from('presences').delete()
-          .eq('point_id', shift.point_id).eq('caissier_id', shift.caissier_id)
-      }
-      if (shift.caissier_nom) {
-        await supabase.from('depenses').delete()
-          .eq('point_id', shift.point_id).eq('caissier_nom', shift.caissier_nom)
-        await supabase.from('transactions_fournisseurs').delete()
-          .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
-      } else {
-        await supabase.from('depenses').delete()
-          .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
-        await supabase.from('transactions_fournisseurs').delete()
-          .eq('point_id', shift.point_id).eq('saisi_par', 'caissier')
-      }
-      await supabase.from('points_shifts').delete().eq('id', shift.id)
+
+      // Archiver d'abord : sans filet, on ne supprime pas. L'archivage renvoie
+      // les identifiants exacts à effacer — c'est ce qui empêche d'emporter au
+      // passage la facture d'une autre caissière du même point.
+      const ids = await archiverSuppressionShift(shift, { userId, userNom })
+      await supprimerLignesArchivees(ids)
       setConfirmSupprShift(null)
       const { total } = await rechargerShiftsEtTotal(point.id)
       journaliser('suppression_shift', {
         caissier: shift.caissier_nom, vente_avant: venteAvant, vente_apres: total,
         point_valide: !!point?.valide,
-      }, { pointId: point.id }).catch(() => {})
+      }, { pointId: point.id, userId, userNom }).catch(() => {})
       afficherToast(`✅ Shift supprimé — Point total recalculé : ${fmt(total)}`)
     } catch (err) {
       Alert.alert('Erreur', err.message)
@@ -343,20 +336,10 @@ export default function ModifierPointScreen() {
     setSuppressionEnCours(true)
     setConfirmSupprMultiple(false)
     const selectedShifts = shifts.filter(s => shiftsSelectionnes.has(s.id))
-    const pointIds = [...new Set(selectedShifts.map(s => s.point_id))]
-    const shiftIds = selectedShifts.map(s => s.id)
     try {
-      for (const shift of selectedShifts) {
-        if (shift.caissier_id) {
-          await supabase.from('presences').delete()
-            .eq('point_id', shift.point_id).eq('caissier_id', shift.caissier_id)
-        }
-      }
-      await supabase.from('depenses').delete()
-        .in('point_id', pointIds).eq('saisi_par', 'caissier')
-      await supabase.from('transactions_fournisseurs').delete()
-        .in('point_id', pointIds).eq('saisi_par', 'caissier')
-      await supabase.from('points_shifts').delete().in('id', shiftIds)
+      // Une archive par shift, pour pouvoir en restaurer un seul plus tard.
+      const ids = await archiverSuppressionShift(selectedShifts, { userId, userNom })
+      await supprimerLignesArchivees(ids)
       setModeSelShifts(false)
       setShiftsSelectionnes(new Set())
       const { total } = await rechargerShiftsEtTotal(point.id)

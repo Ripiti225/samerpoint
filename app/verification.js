@@ -26,6 +26,9 @@ const { width: SW } = Dimensions.get('window')
 // Décision du manager sur l'explication d'écart « vente machine ».
 // Sert à la fois au badge affiché et au contenu de la notification gérant.
 const STATUT_MACHINE = {
+  // Statut d'historique : le bouton « ✅ Valider » a été remplacé par « ✔️ Justifier »
+  // le 15/08/2026. Plus aucune action ne pose ce statut, mais les points déjà validés
+  // doivent continuer d'afficher leur badge.
   validee: {
     label: '✅ Explication validée',
     box: { backgroundColor: '#EAF3DE', borderColor: '#3B6D11' },
@@ -33,6 +36,14 @@ const STATUT_MACHINE = {
     titreNotif: '✅ Explication validée',
     msgNotif: (d) => `L'écart de vente machine du ${d} a été validé par le manager. Aucune correction nécessaire.`,
     confirm: 'Valider cette explication ? Le gérant sera notifié.',
+  },
+  justifiee: {
+    label: '✔️ Écart justifié',
+    box: { backgroundColor: '#EAF3DE', borderColor: '#3B6D11' },
+    txt: '#3B6D11',
+    titreNotif: '✔️ Écart justifié',
+    msgNotif: (d) => `L'écart de vente machine du ${d} a été justifié par le manager. Le fond n'a pas été modifié.`,
+    confirm: 'Justifier cet écart ? Le gérant sera notifié.',
   },
   refusee: {
     label: '❌ Explication refusée',
@@ -907,9 +918,16 @@ export default function VerificationScreen() {
     }
   }
 
-  // Ouvre le modal d'annulation : calcule sens + écart restant (déduction faite
-  // des régularisations déjà posées dans Litiges, pour ne pas doubler).
-  function ouvrirAnnulerMachine() {
+  // Ouvre le modal : calcule sens + écart restant (déduction faite des
+  // régularisations déjà posées dans Litiges, pour ne pas doubler).
+  //
+  // Deux modes partagent ce calcul, et c'est volontaire :
+  //   • 'fond'      → « 🚫 Annuler » : solde l'écart ET corrige ajustement_fond ;
+  //   • 'sans_fond' → « ✔️ Justifier » : solde l'écart, ne touche à AUCUN fond.
+  // Le second sert aux écarts qui ne sont qu'une erreur de saisie (mauvaise vente
+  // machine tapée, shift absent du cumul) : aucun argent n'a bougé, corriger le
+  // fond fabriquerait un faux fond qui se reporte ensuite de journée en journée.
+  function ouvrirAnnulerMachine(mode = 'fond') {
     const p = pointSelectionne
     if (!p) return
     const cumulShifts = (detailPoint?.shifts || []).reduce((s, sh) => s + (sh.vente_shift || 0), 0)
@@ -924,6 +942,7 @@ export default function VerificationScreen() {
     const restant = Math.round(Math.abs(ecartEff))
     setAnnulerMontant(restant ? String(restant) : '')
     setModalAnnulerMachine({
+      mode,
       sens,
       restant,
       explication: (p.explication_ecart_machine || '').trim(),
@@ -932,16 +951,19 @@ export default function VerificationScreen() {
     })
   }
 
-  // Confirme l'annulation : écrit une régularisation + ajuste ajustement_fond sur
-  // le dernier point validé — réplique exacte de enregistrerRegularisation() (litiges.js).
+  // Confirme la décision : écrit une régularisation, et — en mode 'fond' seulement —
+  // ajuste ajustement_fond sur le dernier point validé (réplique exacte de
+  // enregistrerRegularisation() dans litiges.js).
   async function confirmerAnnulationMachine() {
     const p = pointSelectionne
     const ctx = modalAnnulerMachine
     if (!p || !ctx) return
+    const sansFond = ctx.mode === 'sans_fond'
+    const verbe = sansFond ? 'justifier' : 'annuler'
     const montant = Math.round(parseFloat(annulerMontant) || 0)
     if (montant <= 0) { Alert.alert('Montant invalide', 'Saisissez un montant supérieur à 0.'); return }
     if (montant > ctx.restant) {
-      Alert.alert('Montant trop élevé', `Vous ne pouvez annuler que ${fmt(ctx.restant)} maximum sur cet écart.`)
+      Alert.alert('Montant trop élevé', `Vous ne pouvez ${verbe} que ${fmt(ctx.restant)} maximum sur cet écart.`)
       return
     }
     setAnnulerSaving(true)
@@ -951,21 +973,31 @@ export default function VerificationScreen() {
 
       // La correction de fond atterrit sur le dernier point validé du resto (« fond actuel »),
       // jamais sur le jour de l'écart : l'argent bouge aujourd'hui, on ne réécrit pas l'historique.
-      const { data: cible } = await supabase.from('points')
-        .select('id, ajustement_fond')
-        .eq('restaurant_id', p.restaurant_id).eq('valide', true)
-        .order('date', { ascending: false }).limit(1).single()
-      const cibleId = cible?.id || p.id
+      // En mode « justifier », on ne cherche même pas la journée cible : aucun fond ne bouge.
+      let cible = null
+      if (!sansFond) {
+        ;({ data: cible } = await supabase.from('points')
+          .select('id, ajustement_fond')
+          .eq('restaurant_id', p.restaurant_id).eq('valide', true)
+          .order('date', { ascending: false }).limit(1).single())
+      }
+      const cibleId = sansFond ? null : (cible?.id || p.id)
 
       const record = {
         sens: ctx.sens,
         montant,
-        motif: ctx.explication || 'Écart annulé par le manager (vérification)',
+        motif: ctx.explication || (sansFond
+          ? 'Écart justifié sans incidence sur le fond (vérification)'
+          : 'Écart annulé par le manager (vérification)'),
         photos: ctx.photos,
         par_id: userId || null,
         par_nom: userNom || null,
         created_at: new Date().toISOString(),
         fond_point_id: cibleId, // point qui a reçu la correction (pour le reverse depuis Litiges)
+        // Marqueur lu par litiges.js : à la suppression, il n'y a AUCUN fond à rendre.
+        // Sans lui, fond_point_id null ferait passer le record pour une régularisation
+        // héritée et la suppression irait modifier reste_fc.
+        sans_fond: sansFond,
         source: 'verification',
       }
       const nouvelles = [...ctx.regulsExistantes, record]
@@ -975,13 +1007,18 @@ export default function VerificationScreen() {
       // annuler 8 000 sur un manquant de 10 000 affichait 0 au lieu de 2 000.
       const soldeApres = Math.round(ctx.restant - montant)
       const statutMaj = soldeApres <= 0 ? {
-        explication_machine_statut: 'annulee',
+        explication_machine_statut: sansFond ? 'justifiee' : 'annulee',
         explication_machine_statut_par: userNom || roleActif || 'Manager',
         explication_machine_statut_at: new Date().toISOString(),
       } : {}
 
       let error
-      if (cibleId === p.id) {
+      if (sansFond) {
+        // Un seul UPDATE, sur le point de l'écart. Ni ajustement_fond ni reste_fc.
+        ;({ error } = await supabase.from('points').update({
+          ecart_regularisations: nouvelles, ...statutMaj,
+        }).eq('id', p.id))
+      } else if (cibleId === p.id) {
         ;({ error } = await supabase.from('points').update({
           ecart_regularisations: nouvelles,
           ajustement_fond: (cible?.ajustement_fond || 0) + deltaFc,
@@ -1003,22 +1040,29 @@ export default function VerificationScreen() {
       setPoints(prev => prev.map(pt => pt.id === p.id ? { ...pt, ...statutMaj, ecart_regularisations: nouvelles } : pt))
 
       creerNotification({
-        type: 'explication_machine_annulee',
-        titre: '🚫 Écart annulé',
-        message: `L'écart de vente machine du ${formatDate(p.date)} (${ctx.sens}) a été annulé par le manager : ${fmt(montant)} neutralisé sur le fond.`,
+        type: sansFond ? 'explication_machine_justifiee' : 'explication_machine_annulee',
+        titre: sansFond ? '✔️ Écart justifié' : '🚫 Écart annulé',
+        message: sansFond
+          ? `L'écart de vente machine du ${formatDate(p.date)} (${ctx.sens}) a été justifié par le manager : ${fmt(montant)} neutralisé, sans correction du fond.`
+          : `L'écart de vente machine du ${formatDate(p.date)} (${ctx.sens}) a été annulé par le manager : ${fmt(montant)} neutralisé sur le fond.`,
         restaurant_id: p.restaurant_id,
         cible_role: ['gerant'],
         created_by: userId || null,
         screen: 'recap-point',
       }).catch(() => {})
 
-      journaliser('annulation_ecart_machine', {
+      journaliser(sansFond ? 'justification_ecart_machine' : 'annulation_ecart_machine', {
         point_id: p.id, sens: ctx.sens, montant, fond_point_id: cibleId,
       }, { par: userNom || roleActif }).catch(() => {})
 
       setModalAnnulerMachine(null)
       setAnnulerMontant('')
-      Alert.alert('🚫 Écart annulé', `${fmt(montant)} neutralisé sur le fond. Le gérant a été notifié.\n\nRéversible depuis l'écran Litiges.`)
+      Alert.alert(
+        sansFond ? '✔️ Écart justifié' : '🚫 Écart annulé',
+        sansFond
+          ? `${fmt(montant)} neutralisé. Le fond n'a pas été modifié et le gérant a été notifié.\n\nRéversible depuis l'écran Litiges.`
+          : `${fmt(montant)} neutralisé sur le fond. Le gérant a été notifié.\n\nRéversible depuis l'écran Litiges.`
+      )
     } catch (e) {
       Alert.alert('Erreur', e?.message || 'Action impossible')
     } finally {
@@ -1808,12 +1852,12 @@ export default function VerificationScreen() {
                           )}
                           <View style={styles.machineBtnRow}>
                             <TouchableOpacity
-                              style={[styles.machineBtn, styles.machineBtnValider, statuantMachine && { opacity: 0.5 }]}
-                              onPress={() => confirmerStatutMachine('validee')}
+                              style={[styles.machineBtn, styles.machineBtnJustifier, statuantMachine && { opacity: 0.5 }]}
+                              onPress={() => ouvrirAnnulerMachine('sans_fond')}
                               disabled={statuantMachine}
                               activeOpacity={0.85}
                             >
-                              <Text style={styles.machineBtnTxt}>✅ Valider</Text>
+                              <Text style={styles.machineBtnTxt}>✔️ Justifier</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                               style={[styles.machineBtn, styles.machineBtnRefuser, statuantMachine && { opacity: 0.5 }]}
@@ -1825,14 +1869,14 @@ export default function VerificationScreen() {
                             </TouchableOpacity>
                             <TouchableOpacity
                               style={[styles.machineBtn, styles.machineBtnAnnuler, statuantMachine && { opacity: 0.5 }]}
-                              onPress={ouvrirAnnulerMachine}
+                              onPress={() => ouvrirAnnulerMachine('fond')}
                               disabled={statuantMachine}
                               activeOpacity={0.85}
                             >
                               <Text style={styles.machineBtnTxt}>🚫 Annuler</Text>
                             </TouchableOpacity>
                           </View>
-                          <Text style={styles.machineDecisionNote}>Le gérant est notifié. « Annuler » régularise aussi le fond.</Text>
+                          <Text style={styles.machineDecisionNote}>Le gérant est notifié. « Justifier » ne touche pas au fond, « Annuler » le corrige.</Text>
                         </View>
                       )}
                     </View>
@@ -3168,12 +3212,16 @@ export default function VerificationScreen() {
       </Modal>
 
       {/* ══════════════════════════════════════════
-          MODAL ANNULER ÉCART (régularise le fond)
+          MODAL SOLDER L'ÉCART
+          mode 'fond'      → « Annuler » : régularise le fond
+          mode 'sans_fond' → « Justifier » : ne touche à aucun fond
       ══════════════════════════════════════════ */}
       <Modal visible={modalAnnulerMachine != null} animationType="fade" transparent onRequestClose={() => setModalAnnulerMachine(null)}>
         <View style={styles.annulerOverlay}>
           <View style={styles.annulerCard}>
-            <Text style={styles.annulerTitre}>{"🚫 Annuler l'écart"}</Text>
+            <Text style={styles.annulerTitre}>
+              {modalAnnulerMachine?.mode === 'sans_fond' ? "✔️ Justifier l'écart" : "🚫 Annuler l'écart"}
+            </Text>
             {modalAnnulerMachine && (
               <>
                 <View style={[styles.annulerSensBadge, { backgroundColor: modalAnnulerMachine.sens === 'manquant' ? '#FCEBEB' : '#FAEEDA' }]}>
@@ -3183,16 +3231,20 @@ export default function VerificationScreen() {
                 </View>
 
                 <Text style={styles.annulerEffet}>
-                  {modalAnnulerMachine.sens === 'manquant'
-                    ? '→ Le fond actuel sera AUGMENTÉ du montant annulé.'
-                    : '→ Le fond actuel sera DIMINUÉ du montant annulé.'}
+                  {modalAnnulerMachine.mode === 'sans_fond'
+                    ? "→ Le fond actuel n'est pas modifié."
+                    : modalAnnulerMachine.sens === 'manquant'
+                      ? '→ Le fond actuel sera AUGMENTÉ du montant annulé.'
+                      : '→ Le fond actuel sera DIMINUÉ du montant annulé.'}
                 </Text>
 
                 {modalAnnulerMachine.restant <= 0 ? (
                   <Text style={styles.annulerDejaTxt}>✅ Cet écart est déjà entièrement régularisé.</Text>
                 ) : (
                   <>
-                    <Text style={styles.annulerLabel}>Montant à annuler</Text>
+                    <Text style={styles.annulerLabel}>
+                      {modalAnnulerMachine.mode === 'sans_fond' ? 'Montant à justifier' : 'Montant à annuler'}
+                    </Text>
                     <TextInput
                       style={styles.annulerInput}
                       keyboardType="numeric"
@@ -3218,7 +3270,11 @@ export default function VerificationScreen() {
                   </TouchableOpacity>
                   {modalAnnulerMachine.restant > 0 && (
                     <TouchableOpacity
-                      style={[styles.annulerBtn, styles.annulerBtnConfirm, annulerSaving && { opacity: 0.5 }]}
+                      style={[
+                        styles.annulerBtn,
+                        modalAnnulerMachine.mode === 'sans_fond' ? styles.annulerBtnJustifier : styles.annulerBtnConfirm,
+                        annulerSaving && { opacity: 0.5 },
+                      ]}
                       onPress={confirmerAnnulationMachine}
                       disabled={annulerSaving}
                     >
@@ -3709,7 +3765,7 @@ function makeStyles(colors) { return StyleSheet.create({
   machineStatutTxt: { fontSize: 13, fontWeight: '700' },
   machineBtnRow: { flexDirection: 'row', gap: 8 },
   machineBtn: { flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
-  machineBtnValider: { backgroundColor: '#3B6D11' },
+  machineBtnJustifier: { backgroundColor: '#3B6D11' },
   machineBtnRefuser: { backgroundColor: '#A32D2D' },
   machineBtnAnnuler: { backgroundColor: '#854F0B' },
   machineBtnTxt: { fontSize: 13, fontWeight: '700', color: '#fff' },
@@ -3736,6 +3792,7 @@ function makeStyles(colors) { return StyleSheet.create({
   annulerBtnCancel: { backgroundColor: '#eee' },
   annulerBtnCancelTxt: { fontSize: 14, fontWeight: '600', color: '#555' },
   annulerBtnConfirm: { backgroundColor: '#854F0B' },
+  annulerBtnJustifier: { backgroundColor: '#3B6D11' },
   annulerBtnConfirmTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
   // Correction de facture fournisseur
   corrFourn: { fontSize: 15, fontWeight: '800', color: colors.text, textAlign: 'center' },
