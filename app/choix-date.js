@@ -107,6 +107,33 @@ export default function ChoixDateScreen() {
       }))
     }
 
+    // Ce qui est DÉJÀ enregistré sur le point lui-même. `resetJour()` vient de
+    // vider `ventesJour` : sans cette relecture, la vente machine remontée par
+    // le POS (points.vente_machine, somme des shifts) n'existait nulle part
+    // côté app, et l'écran Ventes affichait « en attente du POS » alors que la
+    // valeur était en base depuis la synchro.
+    //
+    // ⚠ `0` est une vente reçue valide : seul `null` vaut « rien reçu ». D'où
+    // le test sur `== null` et non sur la valeur.
+    const champsPoint = 'vente_machine, photo_vente_machine, explication_ecart_machine, ecart_responsables, ecart_photos'
+    let { data: point } = await supabase
+      .from('points').select(champsPoint).eq('id', pointId).maybeSingle()
+    if (!point) {
+      // Repli si une colonne manque encore en base : la vente machine seule.
+      ;({ data: point } = await supabase
+        .from('points').select('vente_machine').eq('id', pointId).maybeSingle())
+    }
+    if (point) {
+      setVentesJour(prev => ({
+        ...prev,
+        venteMachine: point.vente_machine == null ? '' : String(point.vente_machine),
+        photoVenteMachine: point.photo_vente_machine ?? prev.photoVenteMachine,
+        explicacionEcartMachine: point.explication_ecart_machine ?? prev.explicacionEcartMachine,
+        ecartResponsables: Array.isArray(point.ecart_responsables) ? point.ecart_responsables : prev.ecartResponsables,
+        ecartPhotos: Array.isArray(point.ecart_photos) ? point.ecart_photos : prev.ecartPhotos,
+      }))
+    }
+
     // Charger les séquences existantes
     const seqData = await getSequences(pointId)
     if (seqData && seqData.length > 0) {

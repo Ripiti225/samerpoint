@@ -1,5 +1,5 @@
-import { router } from 'expo-router'
-import { useEffect, useMemo, useState } from 'react'
+import { router, useFocusEffect } from 'expo-router'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -60,6 +60,31 @@ export default function VentesScreen() {
   useEffect(() => {
     if ((isGerant || isManager) && pointId) chargerCumulShifts()
   }, [pointId])
+
+  // La synchro POS peut arriver APRÈS l'ouverture du point : le gérant ouvre sa
+  // journée le matin, la caissière clôture son service à midi. On relit donc
+  // `points.vente_machine` (somme des vente_systeme_pos, cf.
+  // supabase_pos_vente_systeme.sql) chaque fois que l'écran revient au premier
+  // plan, plutôt que d'imposer une reconnexion pour voir le chiffre arriver.
+  //
+  // ⚠ Deux garde-fous : on ne touche à rien quand le secours manuel est ouvert
+  // (sinon on effacerait ce que le gérant est en train de taper), et `null`
+  // reste vide — une remontée absente ne devient jamais 0.
+  const chargerVenteMachinePOS = useCallback(async () => {
+    if (!pointId || !venteMachineDuPOS || saisieManuelleVenteMachine) return
+    const { data, error } = await supabase
+      .from('points').select('vente_machine').eq('id', pointId).maybeSingle()
+    if (error) {
+      console.warn('Vente machine POS illisible :', error.message)
+      return
+    }
+    setVentesJour(prev => ({
+      ...prev,
+      venteMachine: data?.vente_machine == null ? '' : String(data.vente_machine),
+    }))
+  }, [pointId, venteMachineDuPOS, saisieManuelleVenteMachine, setVentesJour])
+
+  useFocusEffect(useCallback(() => { chargerVenteMachinePOS() }, [chargerVenteMachinePOS]))
 
   // `source_point` avec repli : sans la migration supabase_pos_bascule.sql, ou
   // si la lecture échoue, on retombe sur le comportement historique (saisie
