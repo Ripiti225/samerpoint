@@ -283,9 +283,19 @@ désormais dans `lib/contactsPOS.js`, partagée par les trois écrans :
   transmet `pos_nb_contacts` sur tous les shifts de la journée — il n'y a plus de
   drapeau à retirer à la main.
 
-Reste à faire côté POS : le pont ne remplit encore ni `pos_nb_contacts`, ni
-`pos_nb_yango`, ni `pos_nb_glovo` (vérifié le 28/08 : NULL sur les 33 shifts depuis
-la bascule). Les contacts ventilés par partenaire (`pos_nb_contacts_yango` /
+Côté POS, corrigé le 2026-08-28 dans `pos-samer` : le rapport Z calculait déjà
+`partenaires.{YANGO,GLOVO,…}.{nb,contacts}`, c'est le pont cloud
+(`supabase/functions/_shared/samtrackly-shift.ts`) qui perdait ces compteurs à la
+frontière. Il remplit désormais `pos_nb_yango`, `pos_nb_glovo` et `pos_nb_contacts`
+(contacts cumulés de TOUS les partenaires, livraison maison comprise). Reste à
+déployer : au 28/08 les 70 shifts en base sont encore à NULL.
+
+⚠ Le pont convertit un rapport Z sans bloc `partenaires` en **zéros**, pas en NULL.
+Une resynchronisation des journées du 17 au 25 août — antérieures au champ contact —
+rendrait donc « 0 contact pris » sur 22 commandes déclarées, soit le retour des
+103 000 FCFA. `calculerLitigeContact` suspend pour cette raison tout calcul où le POS
+ne rapporte AUCUNE commande partenaire alors que le gérant en a déclaré : les deux
+sources se contredisent, on ne tranche pas contre les caissières. Les contacts ventilés par partenaire (`pos_nb_contacts_yango` /
 `_glovo`) n'existent pas non plus : Vérification affiche « détail non transmis par
 le POS » au lieu d'inventer une répartition.
 
