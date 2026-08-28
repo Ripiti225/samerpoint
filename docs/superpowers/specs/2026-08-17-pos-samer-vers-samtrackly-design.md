@@ -269,6 +269,26 @@ manuelle, plus de pagination.
 
 **En attendant**, le volet Contacts est débranché des litiges sur les sites POS.
 
+**Fait le 2026-08-28** — le débranchement décrit ci-dessus n'avait jamais été codé :
+Vérification, Litiges et Charges comparaient les commandes déclarées par le gérant à
+une table `commandes` restée vide depuis la bascule, soit 100 % de contacts manquants
+et **103 000 FCFA de faux litiges sur Angré 7E du 17 au 25 août**. La règle est
+désormais dans `lib/contactsPOS.js`, partagée par les trois écrans :
+
+- site `SAMTRACKLY` → `commandes.contact_client` (inchangé) ;
+- site `POS` → somme de `points_shifts.pos_nb_contacts`, jamais additionnée à la
+  précédente ;
+- compteur absent (`null`) ou partiel → **calcul suspendu**, aucune retenue, motif
+  affiché. Le litige se rebranche tout seul, point par point, dès que le pont POS
+  transmet `pos_nb_contacts` sur tous les shifts de la journée — il n'y a plus de
+  drapeau à retirer à la main.
+
+Reste à faire côté POS : le pont ne remplit encore ni `pos_nb_contacts`, ni
+`pos_nb_yango`, ni `pos_nb_glovo` (vérifié le 28/08 : NULL sur les 33 shifts depuis
+la bascule). Les contacts ventilés par partenaire (`pos_nb_contacts_yango` /
+`_glovo`) n'existent pas non plus : Vérification affiche « détail non transmis par
+le POS » au lieu d'inventer une répartition.
+
 ## 11. Points ouverts
 
 - Les autres règles dont le boss se souviendra — ce document est fait pour les

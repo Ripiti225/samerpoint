@@ -15,7 +15,10 @@ import {
 } from '../lib/deductionsVerification'
 import { useTheme } from '../context/ThemeContext'
 import { journaliser } from '../lib/journal'
-import { calculerLitigeContact, corrigerNbCommandes } from '../lib/litigeContacts'
+import {
+  calculerLitigeContact, chargerRestaurantsContact, choisirNombreContacts,
+  compterCommandesPOS, contactsViennentDuPOS, corrigerNbCommandes,
+} from '../lib/litigeContacts'
 import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifFactureCorrigee } from '../lib/notifications'
 import PhotoJustificatif, { photoConsultable } from '../components/PhotoJustificatif'
@@ -147,9 +150,8 @@ export default function VerificationScreen() {
 
   async function chargerRestaurants() {
     setLoading(true)
-    const { data, error } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation').order('nom')
-    if (error) { setLoading(false); return }
-    const restos = data || []
+    const restos = await chargerRestaurantsContact()
+    if (!restos.length) { setLoading(false); return }
     setRestaurants(restos)
 
     const restoInitial = paramRestoId
@@ -232,11 +234,23 @@ export default function VerificationScreen() {
         contactsParPartenaire[c.partenaire] = (contactsParPartenaire[c.partenaire] || 0) + 1
       }
     })
-    // Total des contacts pris — base du litige « contacts ». Compté comme dans
-    // Litiges/Charges (tout contact renseigné, partenaire connu ou non), sinon
-    // les deux écrans afficheraient des litiges différents pour le même point.
-    const nbContactsTotal = (commandes || [])
+    // Total des contacts pris — base du litige « contacts ». La source dépend du
+    // restaurant : compteurs du POS sur un site basculé (les caissières n'ont
+    // plus Samtrackly), `commandes.contact_client` sinon. Jamais les deux
+    // additionnées, et exactement le même calcul que Litiges/Charges — sinon
+    // les écrans afficheraient trois montants pour la même journée.
+    const contactsSamtrackly = (commandes || [])
       .filter(c => c.contact_client && c.contact_client.trim() !== '').length
+    const infoContacts = choisirNombreContacts({
+      sourcePoint: contactsViennentDuPOS(restoSelectionne) ? 'POS' : 'SAMTRACKLY',
+      shifts: shifts || [],
+      contactsSamtrackly,
+    })
+    const nbContactsTotal = infoContacts.nombre
+    // Commandes comptées par le POS : information de contrôle croisé. Le nombre
+    // qui fait foi pour le litige reste celui saisi par le gérant (décision du
+    // 2026-08-17, cf. CHAMPS_REMPLIS_PAR_LE_POS dans lib/sourcePoint.js).
+    const commandesPOS = compterCommandesPOS(shifts || [])
 
     // Inventaire groupé par shift
     const invParShift = {}
@@ -265,6 +279,8 @@ export default function VerificationScreen() {
       invParFournisseur,
       contactsParPartenaire,
       nbContactsTotal,
+      infoContacts,
+      commandesPOS,
       invShifts: Object.values(invParShift).sort((a, b) => a.numero - b.numero),
       historiquesFournisseurs: historiquesFournisseurs || [],
       deverouillages: deverouillages || [],
@@ -1530,6 +1546,9 @@ export default function VerificationScreen() {
                 const especeShifts = detailPoint.shifts.reduce((s, sh) => s + (sh.espece || 0), 0)
                 const yangoContacts = detailPoint.contactsParPartenaire?.['Yango'] || 0
                 const glovoContacts = detailPoint.contactsParPartenaire?.['Glovo'] || 0
+                // Le POS envoie un total de contacts, pas leur ventilation par
+                // partenaire : sur un site basculé on ne prétend pas la connaître.
+                const contactsDuPOS = detailPoint.infoContacts?.source === 'POS'
                 const hasYango = yangoCseTotal > 0 || yangoTab > 0
                 const hasGlovo = glovoCseTotal > 0 || glovoTab > 0
                 const hasAutres = waveTotal > 0 || omTotal > 0 || djamoTotal > 0 || especeShifts > 0
@@ -1595,7 +1614,9 @@ export default function VerificationScreen() {
                             </View>
                             <View style={styles.canalRow}>
                               <Text style={styles.canalLabel}>Contacts pris</Text>
-                              <Text style={styles.canalVal}>{yangoContacts} contacts</Text>
+                              <Text style={styles.canalVal}>
+                                {contactsDuPOS ? 'détail non transmis par le POS' : `${yangoContacts} contacts`}
+                              </Text>
                             </View>
                           </>
                         )}
@@ -1651,7 +1672,9 @@ export default function VerificationScreen() {
                             </View>
                             <View style={styles.canalRow}>
                               <Text style={styles.canalLabel}>Contacts pris</Text>
-                              <Text style={styles.canalVal}>{glovoContacts} contacts</Text>
+                              <Text style={styles.canalVal}>
+                                {contactsDuPOS ? 'détail non transmis par le POS' : `${glovoContacts} contacts`}
+                              </Text>
                             </View>
                           </>
                         )}
@@ -1674,7 +1697,11 @@ export default function VerificationScreen() {
                         Toujours affiché, même sans montant Yango/Glovo sur le point :
                         c'est justement quand le nombre est faux qu'il faut le corriger. */}
                     {(() => {
-                      const calc = calculerLitigeContact(p, detailPoint.nbContactsTotal || 0)
+                      const calc = calculerLitigeContact(
+                        p, detailPoint.nbContactsTotal || 0, detailPoint.infoContacts
+                      )
+                      const cmdPOS = detailPoint.commandesPOS
+                      const contactsDuPOS = calc.contactsSource === 'POS'
                       return (
                         <View style={styles.corrCmdBox}>
                           <View style={styles.canalRow}>
@@ -1683,14 +1710,40 @@ export default function VerificationScreen() {
                               Yango {calc.nbYango} · Glovo {calc.nbGlovo}
                             </Text>
                           </View>
+                          {/* Contrôle croisé : ce que le POS a compté de son côté.
+                              Le nombre qui fait foi reste celui du gérant. */}
+                          {contactsDuPOS && cmdPOS?.disponible && (
+                            <View style={styles.canalRow}>
+                              <Text style={styles.canalLabel}>Commandes comptées par le POS</Text>
+                              <Text style={styles.canalVal}>
+                                Yango {cmdPOS.yango} · Glovo {cmdPOS.glovo}
+                              </Text>
+                            </View>
+                          )}
                           <View style={styles.canalRow}>
                             <Text style={styles.canalLabel}>Contacts pris</Text>
                             <Text style={styles.canalVal}>
-                              {calc.nbContacts} / {calc.nbCommandes}
-                              {calc.nbCommandes > 0 && calc.ecart > 0 ? ` (${calc.taux}% manquants)` : ''}
-                              {calc.ecart < 0 ? ` (surplus de ${Math.abs(calc.ecart)})` : ''}
+                              {!calc.contactsDisponibles
+                                ? 'en attente du POS'
+                                : `${calc.nbContacts} / ${calc.nbCommandes}`
+                                  + (calc.nbCommandes > 0 && calc.ecart > 0 ? ` (${calc.taux}% manquants)` : '')
+                                  + (calc.ecart < 0 ? ` (surplus de ${Math.abs(calc.ecart)})` : '')}
                             </Text>
                           </View>
+                          {contactsDuPOS && (
+                            <Text style={styles.corrCmdBadge}>Source : POS</Text>
+                          )}
+                          {calc.contactsIncomplets && (
+                            <Text style={[styles.corrCmdLitige, { color: '#B06E00' }]}>
+                              ⚠️ Comptage incomplet : {calc.shiftsSansContact} shift
+                              {calc.shiftsSansContact > 1 ? 's' : ''} sans données contacts POS
+                            </Text>
+                          )}
+                          {calc.calculSuspendu && calc.nbCommandes > 0 && (
+                            <Text style={[styles.corrCmdLitige, { color: '#B06E00' }]}>
+                              ⏳ {calc.motifSuspension}
+                            </Text>
+                          )}
                           {calc.litige > 0 && (
                             <Text style={styles.corrCmdLitige}>
                               ⚠️ Litige contacts : {fmt(calc.litige)}

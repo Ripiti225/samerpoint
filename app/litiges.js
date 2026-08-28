@@ -14,6 +14,7 @@ import { supabase } from '../lib/supabase'
 import { annulerDeductionInventaire } from '../lib/api'
 import {
   calculerLitigeContact, chargerPointsContact, compterContacts,
+  chargerShiftsContact, chargerRestaurantsContact, choisirNombreContacts, contactsViennentDuPOS,
   corrigerNbCommandes, forcerLitigeContact,
 } from '../lib/litigeContacts'
 import { PLAFOND_COMPTAGE } from '../lib/deductionsVerification'
@@ -219,7 +220,7 @@ export default function LitigesScreen() {
   }, [modeGlobal, restoSelectionne, plage])
 
   async function chargerRestaurants() {
-    const { data } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation').order('nom')
+    const data = await chargerRestaurantsContact()
     setRestaurants(data || [])
     if (data?.length) {
       if (isGerant && restaurantId) {
@@ -607,11 +608,14 @@ export default function LitigesScreen() {
 
     const pointIds = points.map(p => p.id)
 
-    // Shifts pour avoir les noms caissiers
+    // Shifts : noms des caissières ET compteurs de contacts du POS.
     const { data: shifts } = await supabase
-      .from('points_shifts').select('point_id, caissier_nom, heure_debut, heure_fin')
+      .from('points_shifts')
+      .select('point_id, caissier_nom, heure_debut, heure_fin, pos_nb_contacts')
       .in('point_id', pointIds)
       .order('created_at', { ascending: true })
+
+    const sourceResto = contactsViennentDuPOS(restoSelectionne) ? 'POS' : 'SAMTRACKLY'
 
     // Contacts pris (commandes avec contact_client renseigné) — paginé :
     // au-delà de 1000 commandes sur la période, Supabase tronquait
@@ -637,8 +641,15 @@ export default function LitigesScreen() {
     })
 
     setEcartContacts(points.map(p => {
-      const calc = calculerLitigeContact(p, contactsByPoint[p.id] || 0)
       const shiftsJour = shiftsByPoint[p.id] || []
+      // Une source et une seule : POS pour un site basculé, commandes
+      // Samtrackly sinon. Jamais la somme des deux.
+      const infoContacts = choisirNombreContacts({
+        sourcePoint: sourceResto,
+        shifts: shiftsJour,
+        contactsSamtrackly: contactsByPoint[p.id] || 0,
+      })
+      const calc = calculerLitigeContact(p, infoContacts.nombre, infoContacts)
       const caissiers = shiftsJour.map(s =>
         `${s.caissier_nom || '—'}${s.heure_debut ? ` (${s.heure_debut}→${s.heure_fin})` : ''}`
       ).join(' · ')
@@ -765,13 +776,27 @@ export default function LitigesScreen() {
       const ptsContact = await chargerPointsContact(resto.id, debut, fin)
       let contacts = []
       let contactTotal = 0
+      let contactsEnAttente = 0
       if (ptsContact?.length) {
-        const { parPoint: contactsByPoint } = await compterContacts(ptsContact.map(p => p.id))
-        contacts = ptsContact.map(p => ({
-          date: p.date,
-          ...calculerLitigeContact(p, contactsByPoint[p.id] || 0),
-        })).filter(r => r.litige > 0)
+        const idsContact = ptsContact.map(p => p.id)
+        const sourceContacts = contactsViennentDuPOS(resto) ? 'POS' : 'SAMTRACKLY'
+        const surPOS = sourceContacts === 'POS'
+        const [{ parPoint: contactsByPoint }, { parPoint: shiftsParPoint }] = await Promise.all([
+          surPOS ? Promise.resolve({ parPoint: {} }) : compterContacts(idsContact),
+          surPOS ? chargerShiftsContact(idsContact) : Promise.resolve({ parPoint: {} }),
+        ])
+        const calculs = ptsContact.map(p => {
+          const infoContacts = choisirNombreContacts({
+            sourcePoint: sourceContacts,
+            shifts: shiftsParPoint[p.id] || [],
+            contactsSamtrackly: contactsByPoint[p.id] || 0,
+          })
+          return { date: p.date, ...calculerLitigeContact(p, infoContacts.nombre, infoContacts) }
+        })
+        contacts = calculs.filter(r => r.litige > 0)
         contactTotal = contacts.reduce((s, r) => s + r.litige, 0)
+        // Journées dont le comptage POS n'est pas arrivé : signalées, jamais facturées.
+        contactsEnAttente = calculs.filter(r => r.calculSuspendu && r.nbCommandes > 0).length
       }
 
       // Point pas fait
@@ -787,7 +812,7 @@ export default function LitigesScreen() {
         avis: avis || [], avisTotal,
         yango: yango || [], yangoTotal,
         glovo: glovo || [], glovoTotal,
-        contacts, contactTotal,
+        contacts, contactTotal, contactsEnAttente,
         pasFait: pasFait || [], pasFaitTotal,
         verifLignes, verifRetenu, verifReel,
         // Le total du restaurant n'intègre que le montant RETENU (plafonné),
@@ -1195,6 +1220,15 @@ export default function LitigesScreen() {
                         </View>
                       ))}
                     </>
+                  )}
+                  {/* Comptage POS pas encore arrivé : signalé, jamais facturé */}
+                  {d.contactsEnAttente > 0 && (
+                    <View style={styles.globalVoletRow}>
+                      <Text style={[styles.globalVoletLabel, { color: '#B06E00' }]}>
+                        ⏳ Contacts POS en attente ({d.contactsEnAttente} j)
+                      </Text>
+                      <Text style={[styles.globalVoletVal, { color: '#B06E00' }]}>calcul suspendu</Text>
+                    </View>
                   )}
                   {/* Point pas fait */}
                   {d.pasFaitTotal > 0 && (
@@ -2056,8 +2090,20 @@ export default function LitigesScreen() {
                     <Text style={[styles.ligneNom, { color: colors.text }]}>📅 {item.date}</Text>
                     {item.caissiers ? <Text style={styles.ligneSous}>👤 {item.caissiers}</Text> : null}
                     <Text style={styles.ligneSous}>
-                      Cmds : {item.nbCommandes} (Y {item.nbYango} · G {item.nbGlovo})  ·  Contacts : {item.nbContacts}  ·  Écart : {item.ecart}  ·  {item.taux}%
+                      Cmds : {item.nbCommandes} (Y {item.nbYango} · G {item.nbGlovo})  ·  Contacts :{' '}
+                      {item.contactsDisponibles ? item.nbContacts : 'en attente du POS'}
+                      {item.contactsDisponibles ? `  ·  Écart : ${item.ecart}  ·  ${item.taux}%` : ''}
+                      {item.contactsSource === 'POS' ? '  ·  Source : POS' : ''}
                     </Text>
+                    {item.contactsIncomplets && (
+                      <Text style={[styles.ligneSous, { color: '#B06E00' }]}>
+                        ⚠️ Comptage incomplet : {item.shiftsSansContact} shift
+                        {item.shiftsSansContact > 1 ? 's' : ''} sans données contacts POS
+                      </Text>
+                    )}
+                    {item.calculSuspendu && item.nbCommandes > 0 && (
+                      <Text style={[styles.ligneSous, { color: '#B06E00' }]}>⏳ {item.motifSuspension}</Text>
+                    )}
                     {item.nbCorrige && (
                       <Text style={styles.corrBadge}>
                         ✏️ Nb corrigé (avant : Y {item.nbYangoOriginal ?? '—'} · G {item.nbGlovoOriginal ?? '—'})

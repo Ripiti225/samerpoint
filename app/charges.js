@@ -18,7 +18,10 @@ import {
 } from 'react-native'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
-import { calculerLitigeContact, chargerPointsContact, compterContacts } from '../lib/litigeContacts'
+import {
+  calculerLitigeContact, chargerPointsContact, chargerRestaurantsContact,
+  chargerShiftsContact, choisirNombreContacts, compterContacts, contactsViennentDuPOS,
+} from '../lib/litigeContacts'
 
 const MOIS_NOMS = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -56,7 +59,7 @@ export default function ChargesScreen() {
   const [bscMois, setBscMois] = useState(0)
   const [pointsValideCount, setPointsValideCount] = useState(0)
   const [recalculating, setRecalculating] = useState(false)
-  const [litigesCharges, setLitigesCharges] = useState({ ecart: 0, inventaire: 0, avis: 0, yango: 0, glovo: 0, contact: 0 })
+  const [litigesCharges, setLitigesCharges] = useState({ ecart: 0, inventaire: 0, avis: 0, yango: 0, glovo: 0, contact: 0, contactsEnAttente: 0 })
 
   useEffect(() => { chargerRestaurants() }, [])
   useEffect(() => {
@@ -64,7 +67,7 @@ export default function ChargesScreen() {
   }, [restoSelectionne, moisSelectionne])
 
   async function chargerRestaurants() {
-    const { data } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation').order('nom')
+    const data = await chargerRestaurantsContact()
     setRestaurants(data || [])
     if (data && data.length > 0) setRestoSelectionne(data[0])
   }
@@ -159,17 +162,33 @@ export default function ChargesScreen() {
     const yango = (yangoD || []).reduce((s, x) => s + (x.montant || 0), 0)
     const glovo = (glovoD || []).reduce((s, x) => s + (x.montant || 0), 0)
 
-    // Contacts : écart entre nb commandes (points) et contacts pris (commandes)
+    // Contacts : écart entre nb commandes (points) et contacts pris. Source
+    // unique par restaurant — POS ou Samtrackly, jamais les deux additionnées
+    // (lib/contactsPOS.js). Une journée dont le comptage POS n'est pas arrivé
+    // ne produit aucune retenue.
     let contact = 0
+    let contactsEnAttente = 0
     const ptsCmds = await chargerPointsContact(restoSelectionne.id, debut, fin)
     if (ptsCmds?.length) {
-      const { parPoint: contactsByPt } = await compterContacts(ptsCmds.map(p => p.id))
+      const idsCmds = ptsCmds.map(p => p.id)
+      const surPOS = contactsViennentDuPOS(restoSelectionne)
+      const [{ parPoint: contactsByPt }, { parPoint: shiftsByPt }] = await Promise.all([
+        surPOS ? Promise.resolve({ parPoint: {} }) : compterContacts(idsCmds),
+        surPOS ? chargerShiftsContact(idsCmds) : Promise.resolve({ parPoint: {} }),
+      ])
       ptsCmds.forEach(p => {
-        contact += calculerLitigeContact(p, contactsByPt[p.id] || 0).litige
+        const infoContacts = choisirNombreContacts({
+          sourcePoint: surPOS ? 'POS' : 'SAMTRACKLY',
+          shifts: shiftsByPt[p.id] || [],
+          contactsSamtrackly: contactsByPt[p.id] || 0,
+        })
+        const calc = calculerLitigeContact(p, infoContacts.nombre, infoContacts)
+        contact += calc.litige
+        if (calc.calculSuspendu && calc.nbCommandes > 0) contactsEnAttente++
       })
     }
 
-    setLitigesCharges({ ecart, inventaire, avis, yango, glovo, contact })
+    setLitigesCharges({ ecart, inventaire, avis, yango, glovo, contact, contactsEnAttente })
   }
 
   async function recalculerBSC() {
@@ -459,7 +478,7 @@ export default function ChargesScreen() {
           )}
 
           {/* Section Litiges du mois — chargé automatiquement */}
-          {!isRH && totalLitiges() !== 0 && (
+          {!isRH && (totalLitiges() !== 0 || litigesCharges.contactsEnAttente > 0) && (
             <View>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitre}>⚖️ Litiges du mois</Text>
@@ -480,6 +499,14 @@ export default function ChargesScreen() {
                     </Text>
                   </View>
                 ))}
+                {litigesCharges.contactsEnAttente > 0 && (
+                  <View style={styles.chargeRow}>
+                    <Text style={[styles.chargeLibelle, { color: '#B06E00', flex: 1 }]}>
+                      ⏳ Calcul suspendu : données contacts POS incomplètes
+                      {` (${litigesCharges.contactsEnAttente} journée${litigesCharges.contactsEnAttente > 1 ? 's' : ''})`}
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.totalRow}>
                   <Text style={styles.totalLabel}>Impact total litiges</Text>
                   <Text style={[styles.totalVal, { color: totalLitiges() > 0 ? '#A32D2D' : '#3B6D11' }]}>
