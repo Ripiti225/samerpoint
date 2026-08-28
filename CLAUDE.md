@@ -20,12 +20,34 @@ npm run ios
 # Lint
 npm run lint
 
-# Build via EAS
-eas build --profile development
-eas build --profile production
+# Tests unitaires (node:test, pas de framework)
+for f in lib/*.test.mjs; do node "$f"; done
 ```
 
-There is no test suite. Verification is manual via the running app.
+## Déploiement — TOUJOURS en mise à jour automatique
+
+**Règle non négociable : tout déploiement se fait en mise à jour automatique (OTA), jamais en nouveau build.**
+Les gérants ne réinstallent pas l'application ; un nouveau build (APK / TestFlight) ne leur parvient pas.
+
+```bash
+# 1. Web (PWA iOS Safari) → https://samtrackly.vercel.app
+npx expo export -p web
+npx vercel deploy --prod --yes
+
+# 2. Application installée (Android + iOS) → canal EAS Update « production »
+npx eas-cli update --branch production --message "description courte en français"
+```
+
+- Le canal `production` est déjà branché sur la branche EAS `production` (`runtimeVersion: 1`).
+  L'app télécharge l'update au démarrage suivant, sans réinstallation.
+- `eas build` est réservé aux changements **natifs** (nouvelle dépendance native, permission Android/iOS,
+  changement d'icône/splash, montée de version d'Expo SDK) — donc quasi jamais. Ne pas en lancer un
+  pour du code JS : une mise à jour OTA suffit et couvre déjà tous les appareils.
+- Toujours `git add -A` + commit + push **avant** de publier : l'update embarque le commit courant.
+- Avant publication : `npm run lint` (0 erreur) et les tests `lib/*.test.mjs` (0 échec).
+
+Tests unitaires purs (`lib/*.test.mjs`, `node:test`) sur la logique métier ; le reste se vérifie
+manuellement dans l'app.
 
 ## Architecture
 
