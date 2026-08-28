@@ -12,6 +12,7 @@ import { Calendar } from 'react-native-calendars'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { getOrCreatePoint, getSequences } from '../lib/api'
+import { estSurPOS } from '../lib/sourcePoint'
 import { supabase } from '../lib/supabase'
 
 export default function ChoixDateScreen() {
@@ -77,6 +78,18 @@ export default function ChoixDateScreen() {
     setDateSelectionnee(day.dateString)
   }
 
+  // Le point de ce restaurant arrive-t-il du POS ? Repli volontaire : au
+  // moindre doute (colonne absente, lecture en échec, hors ligne) on répond
+  // NON, et le parcours reste celui des sites Samtrackly.
+  async function pointVientDuPOS() {
+    if (!restaurantId) return false
+    try {
+      const { data } = await supabase
+        .from('restaurants').select('source_point').eq('id', restaurantId).maybeSingle()
+      return estSurPOS(data)
+    } catch { return false }
+  }
+
   async function chargerDonneesPoint(pointId) {
     // Charger le cumul des shifts pour pré-remplir les ventes gérant
     const { data: shifts } = await supabase
@@ -107,31 +120,37 @@ export default function ChoixDateScreen() {
       }))
     }
 
-    // Ce qui est DÉJÀ enregistré sur le point lui-même. `resetJour()` vient de
-    // vider `ventesJour` : sans cette relecture, la vente machine remontée par
-    // le POS (points.vente_machine, somme des shifts) n'existait nulle part
-    // côté app, et l'écran Ventes affichait « en attente du POS » alors que la
-    // valeur était en base depuis la synchro.
+    // ── Relecture du point : SITES POS UNIQUEMENT ─────────────────────────
+    // Sur un site basculé, `resetJour()` vidait `ventesJour` et plus rien ne
+    // relisait `points.vente_machine` (la somme des shifts remontée par le
+    // POS) : l'écran Ventes affichait « en attente du POS » alors que la
+    // valeur était en base.
     //
-    // ⚠ `0` est une vente reçue valide : seul `null` vaut « rien reçu ». D'où
-    // le test sur `== null` et non sur la valeur.
-    const champsPoint = 'vente_machine, photo_vente_machine, explication_ecart_machine, ecart_responsables, ecart_photos'
-    let { data: point } = await supabase
-      .from('points').select(champsPoint).eq('id', pointId).maybeSingle()
-    if (!point) {
-      // Repli si une colonne manque encore en base : la vente machine seule.
-      ;({ data: point } = await supabase
-        .from('points').select('vente_machine').eq('id', pointId).maybeSingle())
-    }
-    if (point) {
-      setVentesJour(prev => ({
-        ...prev,
-        venteMachine: point.vente_machine == null ? '' : String(point.vente_machine),
-        photoVenteMachine: point.photo_vente_machine ?? prev.photoVenteMachine,
-        explicacionEcartMachine: point.explication_ecart_machine ?? prev.explicacionEcartMachine,
-        ecartResponsables: Array.isArray(point.ecart_responsables) ? point.ecart_responsables : prev.ecartResponsables,
-        ecartPhotos: Array.isArray(point.ecart_photos) ? point.ecart_photos : prev.ecartPhotos,
-      }))
+    // ⚠ RIEN NE DOIT CHANGER POUR LES SITES SANS POS. Sur ces sites le gérant
+    // tape lui-même sa vente machine : la pré-remplir depuis la base rendait
+    // `aDonneesSaisies()` vrai à l'ouverture d'une journée et faisait surgir
+    // la confirmation « Remettre à zéro ? » en plein parcours du point. On ne
+    // relit donc rien du tout : le comportement est exactement celui d'avant.
+    if (await pointVientDuPOS()) {
+      const champsPoint = 'vente_machine, photo_vente_machine, explication_ecart_machine, ecart_responsables, ecart_photos'
+      let { data: point } = await supabase
+        .from('points').select(champsPoint).eq('id', pointId).maybeSingle()
+      if (!point) {
+        // Repli si une colonne manque encore en base : la vente machine seule.
+        ;({ data: point } = await supabase
+          .from('points').select('vente_machine').eq('id', pointId).maybeSingle())
+      }
+      if (point) {
+        setVentesJour(prev => ({
+          ...prev,
+          // `0` est une vente reçue valide : seul `null` vaut « rien reçu ».
+          venteMachine: point.vente_machine == null ? '' : String(point.vente_machine),
+          photoVenteMachine: point.photo_vente_machine ?? prev.photoVenteMachine,
+          explicacionEcartMachine: point.explication_ecart_machine ?? prev.explicacionEcartMachine,
+          ecartResponsables: Array.isArray(point.ecart_responsables) ? point.ecart_responsables : prev.ecartResponsables,
+          ecartPhotos: Array.isArray(point.ecart_photos) ? point.ecart_photos : prev.ecartPhotos,
+        }))
+      }
     }
 
     // Charger les séquences existantes
