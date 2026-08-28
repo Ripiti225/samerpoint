@@ -17,7 +17,7 @@ import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { COEFFICIENTS } from '../lib/constants'
 import { ecartsParCaissier } from '../lib/ecartPOS'
-import { estRempliParLePOS, peutSaisirVenteMachineManuellement } from '../lib/sourcePoint'
+import { estRempliParLePOS, peutSaisirVenteMachineManuellement, venteMachineEstRecue } from '../lib/sourcePoint'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
 
@@ -56,6 +56,14 @@ export default function VentesScreen() {
   const secoursVenteMachineDisponible = peutSaisirVenteMachineManuellement(
     restaurant, ventesJour.venteMachine, pointValide
   )
+  // Reçue ≠ non nulle : une journée à 0 FCFA transmise par le POS est une
+  // mesure, pas une absence (lib/sourcePoint.js).
+  const venteMachineRecue = venteMachineEstRecue(ventesJour.venteMachine)
+  // Le POS est la source : Samtrackly ne réécrit `vente_machine` que sur un
+  // site non basculé, ou après ouverture explicite du secours manuel. Sans ce
+  // garde-fou, un enregistrement du gérant renvoyait une valeur locale périmée
+  // par-dessus le chiffre du système.
+  const peutEcrireVenteMachine = !venteMachineDuPOS || saisieManuelleVenteMachine
 
   useEffect(() => {
     if ((isGerant || isManager) && pointId) chargerCumulShifts()
@@ -265,8 +273,12 @@ export default function VentesScreen() {
     const photos = ['photo_yango_tab', 'photo_glovo_tab']
     photos.forEach(p => { if (ventesJour[p]) updates[p] = ventesJour[p] })
     if (ventesJour.photoVenteMachine) updates.photo_vente_machine = ventesJour.photoVenteMachine
-    if (ventesJour.venteMachine !== '') {
-      updates.vente_machine = parseFloat(ventesJour.venteMachine) || 0
+    if (venteMachineRecue) {
+      // L'écart et ses responsables restent à la charge du gérant, même sur un
+      // site POS ; seule la vente machine elle-même est protégée.
+      if (peutEcrireVenteMachine) {
+        updates.vente_machine = parseFloat(ventesJour.venteMachine) || 0
+      }
       const venteTheo = cumulShifts?.venteTotal || 0
       const ecart = venteTheo - (parseFloat(ventesJour.venteMachine) || 0)
       updates.ecart_caisse = ecart
@@ -301,7 +313,7 @@ export default function VentesScreen() {
       await supabase.from('litiges_responsables').delete().eq('point_id', pointId)
       const venteTheo = cumulShifts?.venteTotal || 0
       const ecart = venteTheo - (parseFloat(ventesJour.venteMachine) || 0)
-      if (ventesJour.venteMachine === '' || ecart === 0) return
+      if (!venteMachineRecue || ecart === 0) return
       const type = ecart < 0 ? 'manquant' : 'surplus'
       const lignes = (ventesJour.ecartResponsables || [])
         .filter(r => (parseFloat(r.montant) || 0) > 0)
@@ -323,7 +335,7 @@ export default function VentesScreen() {
     if (!pointId) { Alert.alert('Erreur', 'Aucun point actif'); return }
     if (!isManager) {
       // Vérifier explication écart machine obligatoire
-      if (cumulShifts && ventesJour.venteMachine !== '') {
+      if (cumulShifts && venteMachineRecue) {
         const ecartSigne = cumulShifts.venteTotal - (parseFloat(ventesJour.venteMachine) || 0)
         const ecart = Math.abs(ecartSigne)
         if (ecart > 0 && (ventesJour.explicacionEcartMachine || '').trim().length < 10) {
@@ -789,7 +801,7 @@ export default function VentesScreen() {
                     {venteMachineDuPOS && !saisieManuelleVenteMachine ? (
                       <View style={styles.vmVerrou}>
                         <Text style={styles.vmVerrouVal}>
-                          {ventesJour.venteMachine
+                          {venteMachineRecue
                             ? fmt(parseFloat(ventesJour.venteMachine) || 0)
                             : 'en attente du POS'}
                         </Text>
@@ -861,7 +873,7 @@ export default function VentesScreen() {
                   )}
 
                   {/* Écart */}
-                  {ventesJour.venteMachine !== '' && cumulShifts && (() => {
+                  {venteMachineRecue && cumulShifts && (() => {
                     const ecart = cumulShifts.venteTotal - (parseFloat(ventesJour.venteMachine) || 0)
                     const parfait = Math.abs(ecart) === 0
                     const surplus = ecart > 0
@@ -882,7 +894,7 @@ export default function VentesScreen() {
                   })()}
 
                   {/* Explication écart obligatoire */}
-                  {ventesJour.venteMachine !== '' && cumulShifts && Math.abs(cumulShifts.venteTotal - (parseFloat(ventesJour.venteMachine) || 0)) > 0 && (!bloque || isManager) && (
+                  {venteMachineRecue && cumulShifts && Math.abs(cumulShifts.venteTotal - (parseFloat(ventesJour.venteMachine) || 0)) > 0 && (!bloque || isManager) && (
                     <View style={styles.explicacionCard}>
                       <Text style={styles.explicacionLabel}>📝 Explication obligatoire</Text>
                       <Text style={styles.explicacionSub}>
@@ -910,7 +922,7 @@ export default function VentesScreen() {
                   )}
 
                   {/* Écart (manquant ou surplus) — responsables imputés + photos justificatives */}
-                  {ventesJour.venteMachine !== '' && cumulShifts && (!bloque || isManager) && (() => {
+                  {venteMachineRecue && cumulShifts && (!bloque || isManager) && (() => {
                     const ecart = cumulShifts.venteTotal - (parseFloat(ventesJour.venteMachine) || 0)
                     if (ecart === 0) return null
                     const estManquant = ecart < 0
