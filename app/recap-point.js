@@ -14,6 +14,7 @@ import { creerNotification } from '../lib/notificationsInterne'
 import { verifierEtGenererRapportHebdo } from '../lib/rapportHebdo'
 import { sauvegarderSurOneDrive, estatConnecte } from '../lib/onedrive'
 import { COEFFICIENTS } from '../lib/constants'
+import { venteMachineVientDuPOS } from '../lib/sourcePoint'
 import { supabase } from '../lib/supabase'
 
 const STATUT_COLORS = {
@@ -79,6 +80,15 @@ export default function RecapPointScreen() {
   // reste volontairement à 'SAMTRACKLY' pendant la semaine d'observation du
   // pilote (cf. lib/sourcePoint.js, lib/basculePOS.js).
   const pointVenuDuPOS = shifts.some(s => s.pos_service_id)
+
+  // La vente machine a-t-elle été écrite par le POS lui-même ? Un shift qui
+  // porte `vente_systeme_pos` a déclenché le trigger qui remplit
+  // `points.vente_machine` (supabase_pos_vente_systeme.sql). Dans ce cas il
+  // n'y a plus d'écran de caisse à photographier : la photo prouvait un
+  // chiffre recopié à la main, et ce chiffre ne l'est plus.
+  // Un site sans POS n'a jamais de shift avec `vente_systeme_pos` : la photo y
+  // reste obligatoire, exactement comme avant.
+  const venteMachineDuPOS = venteMachineVientDuPOS(shifts)
 
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
@@ -262,8 +272,9 @@ export default function RecapPointScreen() {
       )
       return
     }
-    // Photo de la vente machine toujours obligatoire.
-    if (!ventesJour.photoVenteMachine) {
+    // Photo de la vente machine obligatoire — sauf quand c'est le POS qui a
+    // écrit le montant (voir `venteMachineDuPOS` plus haut).
+    if (!venteMachineDuPOS && !ventesJour.photoVenteMachine) {
       Alert.alert(
         '📷 Photo manquante',
         'La photo de la vente machine est obligatoire avant de valider le point.\n\nAjoutez-la dans le module Ventes.'

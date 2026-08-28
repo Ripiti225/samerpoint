@@ -17,7 +17,7 @@ import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { COEFFICIENTS } from '../lib/constants'
 import { ecartsParCaissier } from '../lib/ecartPOS'
-import { estRempliParLePOS, peutSaisirVenteMachineManuellement, venteMachineEstRecue } from '../lib/sourcePoint'
+import { estRempliParLePOS, peutSaisirVenteMachineManuellement, venteMachineEstRecue, venteMachineVientDuPOS } from '../lib/sourcePoint'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
 
@@ -64,6 +64,22 @@ export default function VentesScreen() {
   // garde-fou, un enregistrement du gérant renvoyait une valeur locale périmée
   // par-dessus le chiffre du système.
   const peutEcrireVenteMachine = !venteMachineDuPOS || saisieManuelleVenteMachine
+  // La vente machine de CE point a-t-elle été écrite par le système ?
+  // Deux preuves, et la seconde compte autant que la première : le drapeau
+  // `source_point` du restaurant, OU un shift qui a réellement transmis
+  // `vente_systeme_pos`. Un site sans POS n'a jamais ni l'un ni l'autre et
+  // garde exactement le comportement d'avant. Le secours manuel rouvre la
+  // saisie : dans ce cas plus rien ne vient du système.
+  //
+  // Ce qui en découle, sur les sites POS uniquement :
+  //  - plus de photo de la vente machine : il n'y a aucun écran à
+  //    photographier pour prouver un chiffre que la machine a écrit ;
+  //  - plus d'explication ni de responsable à saisir ici : la caisse les a
+  //    déjà recueillis shift par shift au comptage à l'aveugle
+  //    (`points_shifts.ecart_pos` / `explication_ecart`, cf. lib/ecartPOS.js).
+  //    Les redemander au gérant, c'est lui faire retaper le même écart.
+  const venteMachineDuSysteme =
+    (venteMachineDuPOS || !!cumulShifts?.venteMachineDuPOS) && !saisieManuelleVenteMachine
 
   useEffect(() => {
     if ((isGerant || isManager) && pointId) chargerCumulShifts()
@@ -142,6 +158,8 @@ export default function VentesScreen() {
         // caissière. Sur un site basculé c'est LE vrai écart : `ecart_caisse`
         // calculé plus bas y vaut structurellement 0 (cf. lib/ecartPOS.js).
         ecartsPOS: ecartsParCaissier(shifts),
+        // Preuve que le trigger POS a écrit `points.vente_machine`.
+        venteMachineDuPOS: venteMachineVientDuPOS(shifts),
       }
       setCumulShifts(cumul)
 
@@ -261,7 +279,7 @@ export default function VentesScreen() {
     const manquantes = []
     if (parseFloat(ventesJour.yangoTab) > 0 && !ventesJour.photo_yango_tab) manquantes.push('Yango TAB')
     if (parseFloat(ventesJour.glovoTab) > 0 && !ventesJour.photo_glovo_tab) manquantes.push('Glovo TAB')
-    if ((!venteMachineDuPOS || saisieManuelleVenteMachine) && (isGerant || isManager) && parseFloat(ventesJour.venteMachine) > 0 && !ventesJour.photoVenteMachine) {
+    if (!venteMachineDuSysteme && (isGerant || isManager) && parseFloat(ventesJour.venteMachine) > 0 && !ventesJour.photoVenteMachine) {
       manquantes.push('Photo vente machine')
     }
     return manquantes
@@ -335,7 +353,9 @@ export default function VentesScreen() {
     if (!pointId) { Alert.alert('Erreur', 'Aucun point actif'); return }
     if (!isManager) {
       // Vérifier explication écart machine obligatoire
-      if (cumulShifts && venteMachineRecue) {
+      // Sur un site POS, l'écart est déjà mesuré, expliqué et rattaché à sa
+      // caissière dans la caisse : on ne le refait pas saisir ici.
+      if (cumulShifts && venteMachineRecue && !venteMachineDuSysteme) {
         const ecartSigne = cumulShifts.venteTotal - (parseFloat(ventesJour.venteMachine) || 0)
         const ecart = Math.abs(ecartSigne)
         if (ecart > 0 && (ventesJour.explicacionEcartMachine || '').trim().length < 10) {
@@ -838,7 +858,7 @@ export default function VentesScreen() {
                   {/* Photo vente machine — sans objet quand le chiffre vient du
                       système : il n'y a plus d'écran à photographier pour
                       prouver un montant que la machine a écrit elle-même. */}
-                  {(!venteMachineDuPOS || saisieManuelleVenteMachine) && (!bloque || isManager) && (
+                  {!venteMachineDuSysteme && (!bloque || isManager) && (
                     <View style={[styles.photoBlock,
                       !ventesJour.photoVenteMachine && styles.photoBlockRequired
                     ]}>
@@ -894,7 +914,7 @@ export default function VentesScreen() {
                   })()}
 
                   {/* Explication écart obligatoire */}
-                  {venteMachineRecue && cumulShifts && Math.abs(cumulShifts.venteTotal - (parseFloat(ventesJour.venteMachine) || 0)) > 0 && (!bloque || isManager) && (
+                  {venteMachineRecue && !venteMachineDuSysteme && cumulShifts && Math.abs(cumulShifts.venteTotal - (parseFloat(ventesJour.venteMachine) || 0)) > 0 && (!bloque || isManager) && (
                     <View style={styles.explicacionCard}>
                       <Text style={styles.explicacionLabel}>📝 Explication obligatoire</Text>
                       <Text style={styles.explicacionSub}>
@@ -922,7 +942,7 @@ export default function VentesScreen() {
                   )}
 
                   {/* Écart (manquant ou surplus) — responsables imputés + photos justificatives */}
-                  {venteMachineRecue && cumulShifts && (!bloque || isManager) && (() => {
+                  {venteMachineRecue && !venteMachineDuSysteme && cumulShifts && (!bloque || isManager) && (() => {
                     const ecart = cumulShifts.venteTotal - (parseFloat(ventesJour.venteMachine) || 0)
                     if (ecart === 0) return null
                     const estManquant = ecart < 0
