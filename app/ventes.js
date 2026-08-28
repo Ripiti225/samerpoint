@@ -17,7 +17,7 @@ import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { COEFFICIENTS } from '../lib/constants'
 import { ecartsParCaissier } from '../lib/ecartPOS'
-import { estRempliParLePOS } from '../lib/sourcePoint'
+import { estRempliParLePOS, peutSaisirVenteMachineManuellement } from '../lib/sourcePoint'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
 
@@ -41,6 +41,7 @@ export default function VentesScreen() {
   const [cumulShifts, setCumulShifts] = useState(null)
   const [travailleursEquipe, setTravailleursEquipe] = useState([])
   const [showResponsablePicker, setShowResponsablePicker] = useState(false)
+  const [saisieManuelleVenteMachine, setSaisieManuelleVenteMachine] = useState(false)
   // Fiche du restaurant, pour savoir si son point vient du POS. Un site
   // basculé remplit lui-même la vente machine : le gérant ne doit plus
   // pouvoir la retaper par-dessus celle du système.
@@ -52,6 +53,9 @@ export default function VentesScreen() {
   // pont : le gérant la lit, il ne la saisit plus. Repli sûr — tant que la
   // fiche restaurant n'est pas chargée, on garde la saisie ouverte.
   const venteMachineDuPOS = estRempliParLePOS(restaurant, 'vente_machine')
+  const secoursVenteMachineDisponible = peutSaisirVenteMachineManuellement(
+    restaurant, ventesJour.venteMachine, pointValide
+  )
 
   useEffect(() => {
     if ((isGerant || isManager) && pointId) chargerCumulShifts()
@@ -224,7 +228,7 @@ export default function VentesScreen() {
     const manquantes = []
     if (parseFloat(ventesJour.yangoTab) > 0 && !ventesJour.photo_yango_tab) manquantes.push('Yango TAB')
     if (parseFloat(ventesJour.glovoTab) > 0 && !ventesJour.photo_glovo_tab) manquantes.push('Glovo TAB')
-    if (!venteMachineDuPOS && (isGerant || isManager) && parseFloat(ventesJour.venteMachine) > 0 && !ventesJour.photoVenteMachine) {
+    if ((!venteMachineDuPOS || saisieManuelleVenteMachine) && (isGerant || isManager) && parseFloat(ventesJour.venteMachine) > 0 && !ventesJour.photoVenteMachine) {
       manquantes.push('Photo vente machine')
     }
     return manquantes
@@ -707,13 +711,18 @@ export default function VentesScreen() {
                       </View>
 
                       {cumulShifts.ecartsPOS.lignes.map((l, i) => (
-                        <View key={i} style={styles.ecpLigne}>
-                          <Text style={styles.ecpNom} numberOfLines={1}>{l.nom}</Text>
-                          <Text style={[styles.ecpVal, {
-                            color: l.ecart < 0 ? colors.error : l.ecart > 0 ? colors.success : colors.textMuted,
-                          }]}>
-                            {l.ecart > 0 ? '+' : ''}{fmt(l.ecart)}
-                          </Text>
+                        <View key={i} style={styles.ecpEntree}>
+                          <View style={styles.ecpLigne}>
+                            <Text style={styles.ecpNom} numberOfLines={1}>{l.nom}</Text>
+                            <Text style={[styles.ecpVal, {
+                              color: l.ecart < 0 ? colors.error : l.ecart > 0 ? colors.success : colors.textMuted,
+                            }]}>
+                              {l.ecart > 0 ? '+' : ''}{fmt(l.ecart)}
+                            </Text>
+                          </View>
+                          {l.explication && (
+                            <Text style={styles.ecpExplication}>« {l.explication} »</Text>
+                          )}
                         </View>
                       ))}
 
@@ -752,7 +761,7 @@ export default function VentesScreen() {
                           : 'Montant lu sur la caisse / POS'}
                       </Text>
                     </View>
-                    {venteMachineDuPOS ? (
+                    {venteMachineDuPOS && !saisieManuelleVenteMachine ? (
                       <View style={styles.vmVerrou}>
                         <Text style={styles.vmVerrouVal}>
                           {ventesJour.venteMachine
@@ -760,6 +769,21 @@ export default function VentesScreen() {
                             : 'en attente du POS'}
                         </Text>
                         <Text style={styles.vmVerrouTxt}>🔒 Rempli par le POS</Text>
+                        {secoursVenteMachineDisponible && (
+                          <TouchableOpacity
+                            style={styles.vmSecoursBtn}
+                            onPress={() => Alert.alert(
+                              'Saisie manuelle de secours',
+                              'Le POS n’a transmis aucune vente machine. Confirmez uniquement après avoir vérifié que sa synchronisation est terminée.',
+                              [
+                                { text: 'Annuler', style: 'cancel' },
+                                { text: 'Saisir manuellement', onPress: () => setSaisieManuelleVenteMachine(true) },
+                              ]
+                            )}
+                          >
+                            <Text style={styles.vmSecoursBtnTxt}>Saisir manuellement</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                     ) : (
                       <TextInput
@@ -777,7 +801,7 @@ export default function VentesScreen() {
                   {/* Photo vente machine — sans objet quand le chiffre vient du
                       système : il n'y a plus d'écran à photographier pour
                       prouver un montant que la machine a écrit elle-même. */}
-                  {!venteMachineDuPOS && (!bloque || isManager) && (
+                  {(!venteMachineDuPOS || saisieManuelleVenteMachine) && (!bloque || isManager) && (
                     <View style={[styles.photoBlock,
                       !ventesJour.photoVenteMachine && styles.photoBlockRequired
                     ]}>
@@ -1174,15 +1198,19 @@ function makeStyles(colors) { return StyleSheet.create({
   vmVerrou:    { alignItems: 'flex-end', gap: 3 },
   vmVerrouVal: { fontSize: 15, fontWeight: '700', color: colors.textSecondary },
   vmVerrouTxt: { fontSize: 9.5, fontWeight: '800', color: colors.primary, backgroundColor: colors.primaryLight, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' },
+  vmSecoursBtn: { marginTop: 7, borderWidth: 1, borderColor: '#EF9F27', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 6 },
+  vmSecoursBtnTxt: { fontSize: 11, fontWeight: '700', color: '#854F0B' },
   // Écarts mesurés par le POS, ventilés par caissier
   ecpBloc:     { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.borderLight, gap: 6 },
   ecpHead:     { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
   ecpTitre:    { fontSize: 12, fontWeight: '700', color: colors.text, flexShrink: 1 },
   ecpBadge:    { backgroundColor: colors.primaryLight, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
   ecpBadgeTxt: { fontSize: 9, fontWeight: '800', color: colors.primary },
+  ecpEntree:   { paddingVertical: 3 },
   ecpLigne:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingVertical: 3 },
   ecpNom:      { fontSize: 13, color: colors.textSecondary, flexShrink: 1 },
   ecpVal:      { fontSize: 13, fontWeight: '700' },
+  ecpExplication: { fontSize: 11, lineHeight: 16, color: colors.textMuted, fontStyle: 'italic', paddingRight: 8 },
   ecpTotal:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4, paddingTop: 8, borderTopWidth: 1.5, borderTopColor: colors.border },
   ecpTotalLbl: { fontSize: 11, fontWeight: '800', color: colors.textSecondary, letterSpacing: 0.5, textTransform: 'uppercase' },
   ecpTotalVal: { fontSize: 17, fontWeight: '700' },

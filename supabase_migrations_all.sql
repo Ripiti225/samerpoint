@@ -1,6 +1,6 @@
 -- =====================================================================
 --  MIGRATIONS SAMTRACKLY — SCRIPT UNIQUE CONSOLIDÉ
---  Regroupe les 8 migrations de la branche feature/pos-system.
+--  Regroupe les migrations de la branche feature/pos-system.
 --  100% idempotent (IF NOT EXISTS / OR REPLACE) → rejouable sans risque.
 --  À exécuter UNE FOIS dans Supabase → SQL Editor → Run.
 --
@@ -80,6 +80,12 @@ CREATE TABLE IF NOT EXISTS entrees_shift (
 );
 
 ALTER TABLE points ADD COLUMN IF NOT EXISTS montant_inventaire NUMERIC DEFAULT 0;
+
+
+-- ── 4b. Explication caissier de l'écart mesuré par le POS ───────────
+ALTER TABLE points_shifts ADD COLUMN IF NOT EXISTS explication_ecart TEXT;
+COMMENT ON COLUMN points_shifts.explication_ecart IS
+  'Explication facultative donnée par le caissier dans le POS pour ecart_pos.';
 
 
 -- ── 5. Responsables des écarts (table relationnelle filtrable) ──────
