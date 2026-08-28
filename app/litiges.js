@@ -18,6 +18,10 @@ import {
   corrigerNbCommandes, forcerLitigeContact,
 } from '../lib/litigeContacts'
 import { PLAFOND_COMPTAGE } from '../lib/deductionsVerification'
+import {
+  responsablesEcartPOS, fusionnerResponsablesEcart,
+  CHAMPS_SHIFT_ECART, CHAMPS_SHIFT_ECART_LEGACY,
+} from '../lib/ecartPOS'
 import { exporterPdf } from '../lib/pdfDocuments'
 import { usePhoto } from '../lib/usePhoto'
 
@@ -159,6 +163,11 @@ export default function LitigesScreen() {
 
   // ── Responsables des écarts (table litiges_responsables) ────
   const [responsablesListe, setResponsablesListe] = useState([])
+  // Responsables DÉDUITS des shifts POS (jamais écrits en base, recalculés à
+  // chaque lecture — cf. lib/ecartPOS.js). Sur un site basculé, la caisse a
+  // déjà mesuré l'écart de chaque caissière au comptage à l'aveugle : le
+  // gérant n'a plus à désigner qui que ce soit dans l'écran Ventes.
+  const [responsablesPOS, setResponsablesPOS] = useState([])
   const [filtreType, setFiltreType] = useState('tous')        // 'tous' | 'manquant' | 'surplus'
   const [filtreResponsable, setFiltreResponsable] = useState(null)
 
@@ -257,6 +266,39 @@ export default function LitigesScreen() {
     setLoading(false)
   }
 
+  // Les shifts d'une liste de points, avec les colonnes d'écart du POS.
+  //
+  // Paginé : au-delà de 1000 lignes Supabase tronque SANS erreur, et un shift
+  // manquant fausse le cumul donc l'écart de la journée — le genre de panne
+  // silencieuse qui a déjà fabriqué de faux litiges.
+  //
+  // Repli si supabase_pos_bascule.sql n'est pas passée : on relit sans les
+  // colonnes du POS, et l'écran retombe exactement sur son comportement
+  // d'avant (aucune mesure, donc aucun responsable déduit).
+  async function chargerShiftsEcart(pointIds) {
+    if (!pointIds?.length) return []
+    const PAGE = 1000
+    const req = (champs, debut) => supabase
+      .from('points_shifts').select(champs)
+      .in('point_id', pointIds)
+      .order('id', { ascending: true })   // ordre stable : sans ça la pagination saute des lignes
+      .range(debut, debut + PAGE - 1)
+
+    let champs = `${CHAMPS_SHIFT_ECART}, vente_shift`
+    const tout = []
+    for (let debut = 0; ; debut += PAGE) {
+      let { data, error } = await req(champs, debut)
+      if (error) {
+        champs = `${CHAMPS_SHIFT_ECART_LEGACY}, vente_shift`
+        ;({ data, error } = await req(champs, debut))
+      }
+      if (error || !data?.length) break
+      tout.push(...data)
+      if (data.length < PAGE) break
+    }
+    return tout
+  }
+
   async function chargerEcarts() {
     const { debut, fin } = plage
     const filtrer = (q) => q
@@ -278,17 +320,20 @@ export default function LitigesScreen() {
       }
     }
 
-    if (!pointsData?.length) { setEcartsListe([]); return }
+    if (!pointsData?.length) { setEcartsListe([]); setResponsablesPOS([]); return }
 
     const pointIds = pointsData.map(p => p.id)
-    const { data: allShifts } = await supabase
-      .from('points_shifts').select('point_id, vente_shift').in('point_id', pointIds)
+    const allShifts = await chargerShiftsEcart(pointIds)
 
     const shiftsByPoint = {}
     ;(allShifts || []).forEach(s => {
       if (!shiftsByPoint[s.point_id]) shiftsByPoint[s.point_id] = []
       shiftsByPoint[s.point_id].push(s)
     })
+
+    // Une seule dérivation pour toute la période : elle sert à la fois au
+    // détail d'une journée et à l'onglet « Responsables des écarts ».
+    setResponsablesPOS(responsablesEcartPOS(allShifts))
 
     setEcartsListe(pointsData.map(p => {
       const shifts = shiftsByPoint[p.id] || []
@@ -321,6 +366,9 @@ export default function LitigesScreen() {
         nbShifts: shifts.length,
         explication: p.explication_ecart_machine || '',
         responsablesEcart: Array.isArray(p.ecart_responsables) ? p.ecart_responsables : [],
+        // Mesuré par la caisse, pas saisi par le gérant : affiché à part, pour
+        // qu'un manager sache toujours qui a désigné le responsable.
+        responsablesPOS: responsablesEcartPOS(shifts),
         photosEcart: Array.isArray(p.ecart_photos) ? p.ecart_photos : [],
       }
     }))
@@ -349,6 +397,13 @@ export default function LitigesScreen() {
     const { data, error } = await q
     setResponsablesListe(error ? [] : (data || []))
   }
+
+  // Ce que le gérant a imputé à la main + ce que la caisse a mesuré, sans
+  // jamais compter deux fois la même journée (lib/ecartPOS.js).
+  const responsablesFusionnes = useMemo(
+    () => fusionnerResponsablesEcart(responsablesListe, responsablesPOS),
+    [responsablesListe, responsablesPOS]
+  )
 
   // ── Régularisation d'un écart ────────────────────────────────
   function ouvrirRegularisation(item) {
@@ -673,13 +728,16 @@ export default function LitigesScreen() {
         .from('points').select('id, date, vente_machine, explication_machine_statut, ecart_regularisations')
         .eq('restaurant_id', resto.id).gte('date', debut).lte('date', fin)
       let ecartTotal = 0
+      // Responsables déduits des shifts POS de ce restaurant (lib/ecartPOS.js).
+      // Vide sur un site sans POS : aucun shift n'y porte `ecart_pos`.
+      let mesuresPOS = []
       // Points dont l'écart ne pèse plus rien : annulé, justifié, entièrement
       // régularisé, ou simple surplus. Sert à filtrer les responsables plus bas.
       const pointsSoldes = new Set()
       if (pointsData?.length) {
         const ids = pointsData.map(p => p.id)
-        const { data: shifts } = await supabase
-          .from('points_shifts').select('point_id, vente_shift').in('point_id', ids)
+        const shifts = await chargerShiftsEcart(ids)
+        mesuresPOS = responsablesEcartPOS(shifts)
         const byPoint = {}
         ;(shifts || []).forEach(s => { byPoint[s.point_id] = (byPoint[s.point_id] || 0) + (s.vente_shift || 0) })
         pointsData.forEach(p => {
@@ -717,7 +775,10 @@ export default function LitigesScreen() {
       // C'est pourtant le plus gros poste de litiges, et chaque ligne porte un nom.
       const { data: responsablesBruts } = await supabase
         .from('litiges_responsables')
-        .select('point_id, date, responsable_nom, role, montant, type')
+        // `id` et `restaurant_id` servent à la déduplication avec les mesures
+        // du POS (fusionnerResponsablesEcart) : sans eux, une vieille ligne
+        // sans `point_id` ne serait pas reconnue et l'écart compterait double.
+        .select('id, point_id, restaurant_id, date, responsable_nom, role, montant, type')
         .eq('restaurant_id', resto.id).gte('date', debut).lte('date', fin)
         .order('montant', { ascending: false })
 
@@ -729,9 +790,10 @@ export default function LitigesScreen() {
       //     tout des annulations et justifications décidées dans Vérification.
       // Une ligne sans point_id (format ancien) est conservée : on ne peut pas la
       // rattacher à une journée, mieux vaut l'afficher que la perdre.
-      const responsables = (responsablesBruts || []).filter(r =>
-        r.type !== 'surplus' && !(r.point_id && pointsSoldes.has(r.point_id))
-      )
+      // La caisse complète l'imputation manuelle, elle ne la double jamais :
+      // sur une journée déjà imputée à la main, la main gagne.
+      const responsables = fusionnerResponsablesEcart(responsablesBruts || [], mesuresPOS)
+        .filter(r => r.type !== 'surplus' && !(r.point_id && pointsSoldes.has(r.point_id)))
 
       // Inventaire + détail
       const { data: invShifts } = await supabase
@@ -1518,8 +1580,46 @@ export default function LitigesScreen() {
   // Détails d'un écart : explication du gérant + régularisations + bouton annuler/réduire.
   // Partagé entre la vue 1 jour et les lignes dépliées de la vue période.
   function renderEcartDetails(item) {
+    const mesuresPOS = item.responsablesPOS || []
+    // Sur une journée déjà imputée à la main, la main gagne : on n'affiche pas
+    // les deux, sinon le même écart se lit deux fois (cf. lib/ecartPOS.js).
+    const montrerPOS = mesuresPOS.length > 0 && item.responsablesEcart.length === 0
     return (
       <>
+        {/* Écart mesuré par la caisse, caissière par caissière. Rien n'a été
+            saisi ici : le POS l'a compté au comptage à l'aveugle. */}
+        {montrerPOS && (
+          <View style={styles.explicGerantCard}>
+            <View style={styles.respNomRow}>
+              <Text style={styles.explicGerantTitre}>👤 Écart mesuré au POS</Text>
+              <View style={styles.sourcePOSBadge}>
+                <Text style={styles.sourcePOSBadgeTxt}>Mesuré au POS</Text>
+              </View>
+            </View>
+            <Text style={styles.explicGerantVide}>
+              Un shift = une caissière. La caisse a compté à l&apos;aveugle : personne
+              n&apos;a eu à désigner de responsable.
+            </Text>
+            <View style={{ marginTop: 8 }}>
+              {mesuresPOS.map(r => (
+                <View key={r.id}>
+                  <View style={styles.explicRespRow}>
+                    <Text style={styles.explicRespNom}>
+                      {r.responsable_nom}{r.type === 'surplus' ? ' · surplus' : ''}
+                    </Text>
+                    <Text style={[styles.explicRespMontant, {
+                      color: r.type === 'manquant' ? '#C62828' : '#185FA5',
+                    }]}>{fmt(r.montant)}</Text>
+                  </View>
+                  {r.explication ? (
+                    <Text style={styles.explicGerantTxt}>« {r.explication} »</Text>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
         {/* Explication du gérant (saisie côté Ventes) — aide à décider l'annulation */}
         {item.ecartBrut !== 0 && (item.explication || item.responsablesEcart.length > 0 || item.photosEcart.length > 0) && (
           <View style={styles.explicGerantCard}>
@@ -1670,7 +1770,11 @@ export default function LitigesScreen() {
           const cj = j.ecart > 0 ? '#C62828' : j.ecart < 0 ? '#F57F17' : '#2E7D32'
           const ouvert = expandedEcart === j.date
           // Indices qu'il y a quelque chose à consulter / traiter sur ce jour
-          const aDetails = j.ecartBrut !== 0 && (j.explication || j.responsablesEcart.length > 0 || j.photosEcart.length > 0 || j.regularisations.length > 0 || (peutRegulariser && j.ecart !== 0))
+          // Les mesures du POS ouvrent le détail même quand l'écart du JOUR
+          // vaut 0 : « Marie-Paule +2500 / Hilary −2500 » se compense au
+          // total, et il manque pourtant 2 500 FCFA dans une caisse.
+          const aDetails = (j.responsablesPOS || []).length > 0
+            || (j.ecartBrut !== 0 && (j.explication || j.responsablesEcart.length > 0 || j.photosEcart.length > 0 || j.regularisations.length > 0 || (peutRegulariser && j.ecart !== 0)))
           return (
             <View key={j.date}>
               <TouchableOpacity
@@ -1699,17 +1803,17 @@ export default function LitigesScreen() {
 
   // ── Responsables des écarts (filtres : type, responsable ; resto+période = contrôles du haut) ──
   function renderResponsablesEcarts() {
-    if (!responsablesListe.length) return null
+    if (!responsablesFusionnes.length) return null
     // Agrégat par personne (pour les chips + total imputé)
     const parPersonne = {}
-    responsablesListe.forEach(r => {
+    responsablesFusionnes.forEach(r => {
       const k = r.responsable_id || r.responsable_nom || '—'
       if (!parPersonne[k]) parPersonne[k] = { key: k, nom: r.responsable_nom || '—', total: 0, count: 0 }
       parPersonne[k].total += parseFloat(r.montant) || 0
       parPersonne[k].count += 1
     })
     const personnes = Object.values(parPersonne).sort((a, b) => b.total - a.total)
-    const rows = responsablesListe.filter(r =>
+    const rows = responsablesFusionnes.filter(r =>
       (filtreType === 'tous' || r.type === filtreType) &&
       (!filtreResponsable || (r.responsable_id || r.responsable_nom || '—') === filtreResponsable)
     )
@@ -1749,11 +1853,23 @@ export default function LitigesScreen() {
         {rows.map(r => (
           <View key={r.id} style={styles.ligneCard}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.ligneNom}>{r.responsable_nom}</Text>
+              <View style={styles.respNomRow}>
+                <Text style={styles.ligneNom}>{r.responsable_nom}</Text>
+                {/* Qui a désigné cette personne : la caisse ou le gérant ?
+                    Un manager ne doit jamais avoir à le deviner. */}
+                {r.source === 'POS' && (
+                  <View style={styles.sourcePOSBadge}>
+                    <Text style={styles.sourcePOSBadgeTxt}>Mesuré au POS</Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.ligneSous}>
                 {r.type === 'manquant' ? '📉 Manquant' : '📈 Surplus'} · 📅 {r.date}
                 {r.role ? ` · ${r.role === 'gerant' ? 'Gérant' : 'Caissier'}` : ''}
               </Text>
+              {r.explication ? (
+                <Text style={styles.ligneSous}>« {r.explication} »</Text>
+              ) : null}
             </View>
             <Text style={[styles.montantTxt, { color: r.type === 'manquant' ? '#C62828' : '#185FA5' }]}>{fmtShort(r.montant)}</Text>
           </View>
@@ -2915,6 +3031,14 @@ function makeStyles(colors) { return StyleSheet.create({
   },
   explicRespNom: { fontSize: 13, color: colors.text },
   explicRespMontant: { fontSize: 13, fontWeight: '700', color: '#534AB7' },
+
+  // ── Provenance de l'imputation : mesurée par la caisse, ou saisie à la main ──
+  respNomRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 2 },
+  sourcePOSBadge: {
+    backgroundColor: '#E6F1FB', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
+    borderWidth: 0.5, borderColor: '#185FA555',
+  },
+  sourcePOSBadgeTxt: { fontSize: 10, fontWeight: '700', color: '#185FA5' },
 
   // ── Filtres responsables ──
   respSectionTitre: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 10 },
