@@ -2693,8 +2693,15 @@ export default function VerificationScreen() {
 
             const nbAvecEcart = toutesLignesEcart.length
             const nbSansEcart = Math.max(0, totalProduitsMesures - nbAvecEcart)
-            const nbExpliques = toutesLignesEcart.filter(l => l.diffInexpliquee <= 0.01).length
-            const nbNonExpliques = nbAvecEcart - nbExpliques
+            // Manquants et surplus comptés SÉPARÉMENT (2026-08-24). Les mélanger
+            // sous « avec écart » faisait lire « 7 non expliqués » comme
+            // « 7 produits manquants » alors que les 7 étaient des surplus —
+            // lesquels ne donnent jamais lieu à retenue.
+            const lignesManque = toutesLignesEcart.filter(l => l.ecart < 0)
+            const lignesSurplus = toutesLignesEcart.filter(l => l.ecart > 0)
+            const nbExpliques = lignesManque.filter(l => l.diffInexpliquee <= 0.01).length
+            const nbNonExpliques = lignesManque.length - nbExpliques
+            const nbEnAttente = lignesManque.filter(l => l.explication_statut === 'en_attente').length
             const totalDeduit = toutesLignesEcart.reduce((s, l) => s + (l.montantDeduit || 0), 0)
 
             return (
@@ -2708,12 +2715,20 @@ export default function VerificationScreen() {
                       <Text style={[styles.invResumeBadgeNum, { color: '#3B6D11' }]}>{nbSansEcart}</Text>
                       <Text style={[styles.invResumeBadgeLbl, { color: '#3B6D11' }]}>✅ Produits OK</Text>
                     </View>
-                    <View style={[styles.invResumeBadge, { backgroundColor: nbAvecEcart > 0 ? '#FAEEDA' : '#EAF3DE' }]}>
-                      <Text style={[styles.invResumeBadgeNum, { color: nbAvecEcart > 0 ? '#854F0B' : '#3B6D11' }]}>{nbAvecEcart}</Text>
-                      <Text style={[styles.invResumeBadgeLbl, { color: nbAvecEcart > 0 ? '#854F0B' : '#3B6D11' }]}>⚠️ Avec écart</Text>
+                    <View style={[styles.invResumeBadge, { backgroundColor: lignesManque.length > 0 ? '#FAEEDA' : '#EAF3DE' }]}>
+                      <Text style={[styles.invResumeBadgeNum, { color: lignesManque.length > 0 ? '#854F0B' : '#3B6D11' }]}>{lignesManque.length}</Text>
+                      <Text style={[styles.invResumeBadgeLbl, { color: lignesManque.length > 0 ? '#854F0B' : '#3B6D11' }]}>⚠️ Manquants</Text>
                     </View>
                   </View>
-                  {nbAvecEcart > 0 && (
+                  {lignesSurplus.length > 0 && (
+                    <View style={[styles.invResumeRow, { marginTop: 8 }]}>
+                      <View style={[styles.invResumeBadge, { backgroundColor: '#EDEDF2' }]}>
+                        <Text style={[styles.invResumeBadgeNum, { color: '#5B5B6B' }]}>{lignesSurplus.length}</Text>
+                        <Text style={[styles.invResumeBadgeLbl, { color: '#5B5B6B' }]}>📦 Surplus — aucune retenue</Text>
+                      </View>
+                    </View>
+                  )}
+                  {lignesManque.length > 0 && (
                     <View style={[styles.invResumeRow, { marginTop: 8 }]}>
                       <View style={[styles.invResumeBadge, { backgroundColor: '#E6F1FB' }]}>
                         <Text style={[styles.invResumeBadgeNum, { color: '#185FA5' }]}>{nbExpliques}</Text>
@@ -2722,7 +2737,7 @@ export default function VerificationScreen() {
                       <View style={[styles.invResumeBadge, { backgroundColor: nbNonExpliques > 0 ? '#FCEBEB' : '#EAF3DE' }]}>
                         <Text style={[styles.invResumeBadgeNum, { color: nbNonExpliques > 0 ? '#A32D2D' : '#3B6D11' }]}>{nbNonExpliques}</Text>
                         <Text style={[styles.invResumeBadgeLbl, { color: nbNonExpliques > 0 ? '#A32D2D' : '#3B6D11' }]}>
-                          {nbNonExpliques > 0 ? '❌ Non expliqués' : '✅ Non expliqués'}
+                          {nbNonExpliques > 0 ? '❌ Manquants non expliqués' : '✅ Tous expliqués'}
                         </Text>
                       </View>
                     </View>
@@ -2736,6 +2751,11 @@ export default function VerificationScreen() {
                         {fmt(totalDeduit)}
                       </Text>
                     </View>
+                  )}
+                  {peutVoirEcarts && nbEnAttente > 0 && (
+                    <Text style={{ marginTop: 6, fontSize: 12, fontWeight: '600', color: '#854F0B', textAlign: 'center' }}>
+                      ⏳ Montant non définitif : {nbEnAttente} explication{nbEnAttente > 1 ? 's' : ''} en attente de votre vérification
+                    </Text>
                   )}
                 </View>
 

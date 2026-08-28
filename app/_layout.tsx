@@ -1,13 +1,14 @@
 import '../lib/webAlert' // remplace Alert.alert (no-op sur web) par window.alert/confirm
 import * as Notifications from 'expo-notifications'
 import { router, Stack, useSegments } from 'expo-router'
-import { useEffect, useRef } from 'react'
-import { Platform } from 'react-native'
+import { useCallback, useEffect, useRef } from 'react'
+import { AppState, Platform, View } from 'react-native'
 import NetworkStatusBar from '../components/NetworkStatusBar'
 import { AppProvider, useApp } from '../context/AppContext'
 import { NetworkProvider } from '../context/NetworkContext'
 import { NotificationsProvider } from '../context/NotificationsContext'
 import { ThemeProvider } from '../context/ThemeContext'
+import { estInactif, INACTIVITY_TIMEOUT_MS } from '../lib/inactivityLock'
 
 const PUBLIC_ROUTES = ['login', 'index', '(tabs)', '']
 
@@ -146,6 +147,60 @@ function SessionGuard() {
   return null
 }
 
+function InactivityGuard({ children }) {
+  const { roleActif, verrouillerSession } = useApp()
+  const segments = useSegments()
+  const derniereInteraction = useRef(Date.now())
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const verrouiller = useCallback(() => {
+    if (!roleActif) return
+    verrouillerSession(segments[0] || null)
+    router.replace('/login')
+  }, [roleActif, segments, verrouillerSession])
+
+  const programmerVerrouillage = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current)
+    if (!roleActif) return
+    const restant = Math.max(0, INACTIVITY_TIMEOUT_MS - (Date.now() - derniereInteraction.current))
+    timer.current = setTimeout(verrouiller, restant)
+  }, [roleActif, verrouiller])
+
+  const enregistrerInteraction = useCallback(() => {
+    derniereInteraction.current = Date.now()
+    programmerVerrouillage()
+  }, [programmerVerrouillage])
+
+  useEffect(() => {
+    derniereInteraction.current = Date.now()
+    programmerVerrouillage()
+    return () => { if (timer.current) clearTimeout(timer.current) }
+  }, [roleActif, programmerVerrouillage])
+
+  useEffect(() => {
+    if (!roleActif) return
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') {
+        if (estInactif(derniereInteraction.current)) verrouiller()
+        else programmerVerrouillage()
+      }
+    })
+    if (Platform.OS === 'web') {
+      const interactionWeb = () => enregistrerInteraction()
+      window.addEventListener('keydown', interactionWeb)
+      window.addEventListener('mousedown', interactionWeb)
+      return () => {
+        subscription.remove()
+        window.removeEventListener('keydown', interactionWeb)
+        window.removeEventListener('mousedown', interactionWeb)
+      }
+    }
+    return () => subscription.remove()
+  }, [roleActif, enregistrerInteraction, programmerVerrouillage, verrouiller])
+
+  return <View style={{ flex: 1 }} onTouchStart={enregistrerInteraction}>{children}</View>
+}
+
 export default function RootLayout() {
 
   return (
@@ -155,6 +210,7 @@ export default function RootLayout() {
       <NotificationsProvider>
         <SessionGuard />
         <NetworkStatusBar />
+        <InactivityGuard>
         <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="login" />
@@ -190,6 +246,7 @@ export default function RootLayout() {
         <Stack.Screen name="demandes-admin" />
         <Stack.Screen name="(tabs)" />
       </Stack>
+        </InactivityGuard>
       </NotificationsProvider>
       </NetworkProvider>
     </AppProvider>

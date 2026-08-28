@@ -45,7 +45,11 @@ function sauvegarderDonneesOperationnelles(data) {
       pointValide:              data.pointValide,
       inventaireTermine:        data.inventaireTermine,
       lastRoute:                data.lastRoute,
+      restaurantId:             data.restaurantId,
+      restaurantNom:            data.restaurantNom,
       userId:                   data.userId,
+      userNom:                  data.userNom,
+      sessionVerrouille:        data.sessionVerrouille,
       livraisonsJour:           data.livraisonsJour,
       depensesJour:             data.depensesJour,
       fournisseursJour:         data.fournisseursJour,
@@ -75,6 +79,7 @@ export function AppProvider({ children }) {
   const [userId, setUserId] = useState(session?.userId || null)
   const [userNom, setUserNom] = useState(session?.userNom || null)
   const [lastRoute, setLastRoute] = useState(session?.lastRoute || null)
+  const [sessionVerrouille, setSessionVerrouille] = useState(session?.sessionVerrouille || false)
 
   const [paiesJour, setPaiesJour] = useState(session?.paiesJour || {})
   const [presencesJour, setPresencesJour] = useState(session?.presencesJour || {})
@@ -116,7 +121,7 @@ export function AppProvider({ children }) {
   const sessionRef = useRef({})
   sessionRef.current = {
     roleActif, restaurantId, restaurantNom, userId, userNom,
-    pointId, dateJour, pointValide, inventaireTermine, lastRoute,
+    pointId, dateJour, pointValide, inventaireTermine, lastRoute, sessionVerrouille,
     fournisseursJour, depensesJour, presencesJour,
     livraisonsJour, ventesJour, paiesJour, inventaireJour,
     depensesGerantCaisse, fournisseursGerantCaisse, paiesGerantCaisse,
@@ -126,7 +131,7 @@ export function AppProvider({ children }) {
     if (roleActif) {
       sauvegarderSession({
         roleActif, restaurantId, restaurantNom, userId, userNom,
-        pointId, dateJour, pointValide, inventaireTermine, lastRoute,
+        pointId, dateJour, pointValide, inventaireTermine, lastRoute, sessionVerrouille,
         fournisseursJour, depensesJour, presencesJour,
         livraisonsJour, ventesJour, paiesJour, inventaireJour,
         depensesGerantCaisse, fournisseursGerantCaisse, paiesGerantCaisse,
@@ -134,7 +139,7 @@ export function AppProvider({ children }) {
     }
   }, [
     roleActif, restaurantId, restaurantNom, userId, userNom,
-    pointId, dateJour, pointValide, inventaireTermine, lastRoute,
+    pointId, dateJour, pointValide, inventaireTermine, lastRoute, sessionVerrouille,
     fournisseursJour, depensesJour, presencesJour,
     livraisonsJour, ventesJour, paiesJour, inventaireJour,
     depensesGerantCaisse, fournisseursGerantCaisse, paiesGerantCaisse,
@@ -332,7 +337,7 @@ export function AppProvider({ children }) {
     sessionRef.current = {
       ...sessionRef.current,
       roleActif, restaurantId, restaurantNom, userId, userNom,
-      pointId, dateJour, pointValide, inventaireTermine, lastRoute,
+      pointId, dateJour, pointValide, inventaireTermine, lastRoute, sessionVerrouille: false,
       fournisseursJour, depensesJour, presencesJour,
       livraisonsJour, ventesJour, paiesJour, inventaireJour,
       depensesGerantCaisse, fournisseursGerantCaisse, paiesGerantCaisse,
@@ -341,6 +346,29 @@ export function AppProvider({ children }) {
     setRoleActif(null)
     setRestaurantId(null)
     setRestaurantNom(null)
+    setSessionVerrouille(false)
+  }
+
+  function verrouillerSession(route) {
+    const routeVerrouillage = route || lastRoute
+    const donneesVerrouillees = {
+      ...sessionRef.current,
+      roleActif, restaurantId, restaurantNom, userId, userNom,
+      pointId, dateJour, pointValide, inventaireTermine,
+      lastRoute: routeVerrouillage, sessionVerrouille: true,
+      fournisseursJour, depensesJour, presencesJour,
+      livraisonsJour, ventesJour, paiesJour, inventaireJour,
+      depensesGerantCaisse, fournisseursGerantCaisse, paiesGerantCaisse,
+    }
+    sessionRef.current = donneesVerrouillees
+    sauvegarderDonneesOperationnelles(donneesVerrouillees)
+    setLastRoute(routeVerrouillage)
+    setSessionVerrouille(true)
+    setRoleActif(null)
+  }
+
+  function deverrouillerSession() {
+    setSessionVerrouille(false)
   }
 
   // ─── Flag éphémère : indique que resetShift vient d'être appelé ──────────
@@ -368,6 +396,7 @@ export function AppProvider({ children }) {
       userId, setUserId,
       userNom, setUserNom,
       lastRoute, setLastRoute,
+      sessionVerrouille,
       isManager,
       estBloque,
       paiesJour, setPaiesJour,
@@ -393,6 +422,8 @@ export function AppProvider({ children }) {
       beneficeSC,
       resetJour,
       deconnecter,
+      verrouillerSession,
+      deverrouillerSession,
       resetShift,
       postShiftReset, setPostShiftReset,
     }}>

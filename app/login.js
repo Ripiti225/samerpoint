@@ -30,6 +30,7 @@ import { getRestaurants, getUtilisateurs, getUtilisateursGlobaux } from '../lib/
 import { SPRINGS } from '../lib/animations'
 import { ROLES_GLOBAUX } from '../lib/constants'
 import { separerComptesPOS } from '../lib/sourcePoint'
+import { destinationApresDeverrouillage } from '../lib/inactivityLock'
 
 // ─── Bouton PIN animé ────────────────────────────────────────
 function PinButton({ label, onPress, disabled, colors }) {
@@ -271,7 +272,8 @@ export default function LoginScreen() {
     setRoleActif, resetJour, setLastRoute,
     setRestaurantId, setRestaurantNom,
     setUserId, setUserNom,
-    userId: userIdEnSession,
+    userId: userIdEnSession, restaurantId: restaurantIdEnSession,
+    sessionVerrouille, deverrouillerSession, lastRoute,
   } = useApp()
 
   useEffect(() => {
@@ -298,6 +300,11 @@ export default function LoginScreen() {
     const data = await getRestaurants()
     setRestaurants(data)
     setLoadingRestos(false)
+    if (sessionVerrouille) {
+      const resto = data.find(r => r.id === restaurantIdEnSession)
+      if (resto) choisirRestaurant(resto)
+      else chargerUtilisateursGlobaux()
+    }
   }
 
   function choisirRestaurant(resto) {
@@ -352,6 +359,10 @@ export default function LoginScreen() {
     const data = await getUtilisateurs(selectedResto.id)
     setUtilisateurs(data)
     setLoadingUsers(false)
+    if (sessionVerrouille) {
+      const utilisateur = data.find(u => u.id === userIdEnSession)
+      if (utilisateur) choisirUtilisateur(utilisateur)
+    }
   }
 
   async function chargerUtilisateursGlobaux() {
@@ -361,6 +372,10 @@ export default function LoginScreen() {
     const data = await getUtilisateursGlobaux()
     setUtilisateurs(data)
     setLoadingUsers(false)
+    if (sessionVerrouille) {
+      const utilisateur = data.find(u => u.id === userIdEnSession)
+      if (utilisateur) choisirUtilisateur(utilisateur)
+    }
   }
 
   function choisirUtilisateur(user) {
@@ -425,7 +440,7 @@ export default function LoginScreen() {
     const memeUtilisateur = userIdEnSession === selected.id
     if (!memeUtilisateur) {
       resetJour()
-    } else if (selected.role === 'caissier' || selected.role === 'gerant') {
+    } else if (!sessionVerrouille && (selected.role === 'caissier' || selected.role === 'gerant')) {
       setLastRoute(null)
     }
 
@@ -438,6 +453,15 @@ export default function LoginScreen() {
     const restoNom = estGlobal ? null : selectedResto?.nom
     setRestaurantId(restoId)
     setRestaurantNom(restoNom)
+
+    const destination = sessionVerrouille && destinationApresDeverrouillage(lastRoute)
+    if (sessionVerrouille) {
+      deverrouillerSession()
+      if (destination) {
+        router.replace(destination)
+        return
+      }
+    }
 
     if (selected.role === 'manager' || selected.role === 'directeur') {
       router.replace({ pathname: '/accueil', params: { userId: selected.id, nom: selected.nom, role: selected.role } })
