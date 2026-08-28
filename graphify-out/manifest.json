@@ -72,9 +72,9 @@
     "semantic_hash": ""
   },
   "app/charges.js": {
-    "mtime": 1787567987.4852777,
-    "seen": 1787771727.3184729,
-    "ast_hash": "93e97385b878cba9f2ab5b7f442c7dc6",
+    "mtime": 1787918889.5906472,
+    "seen": 1787919169.166273,
+    "ast_hash": "a3f93de8ae29126e7c5277c3740f9f48",
     "semantic_hash": ""
   },
   "app/choix-date.js": {
@@ -210,9 +210,9 @@
     "semantic_hash": ""
   },
   "app/litiges.js": {
-    "mtime": 1787567987.490275,
-    "seen": 1787771727.318482,
-    "ast_hash": "06c99999c87f1c227a5b6beb150e041f",
+    "mtime": 1787919010.2561297,
+    "seen": 1787919169.166286,
+    "ast_hash": "de928c7a3555aaba4a9b0e076b5dc2ca",
     "semantic_hash": ""
   },
   "app/livraisons.js": {
@@ -318,9 +318,9 @@
     "semantic_hash": ""
   },
   "app/verification.js": {
-    "mtime": 1787913990.213652,
-    "seen": 1787917609.7460601,
-    "ast_hash": "58370dbeb53109b9d5b736f147420511",
+    "mtime": 1787918958.600313,
+    "seen": 1787919169.166294,
+    "ast_hash": "bde305904874373ea808e3ff27be046e",
     "semantic_hash": ""
   },
   "components/FicheContrat.js": {
@@ -606,9 +606,9 @@
     "semantic_hash": ""
   },
   "lib/litigeContacts.js": {
-    "mtime": 1787567987.5100567,
-    "seen": 1787771727.318507,
-    "ast_hash": "05295f7a82cff1f4489d292dff19f4a5",
+    "mtime": 1787918889.5919068,
+    "seen": 1787919169.16632,
+    "ast_hash": "445c2dba25def7cb0f261128bc91be9d",
     "semantic_hash": ""
   },
   "lib/logErreur.js": {
@@ -1068,9 +1068,9 @@
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-08-17-pos-samer-vers-samtrackly-design.md": {
-    "mtime": 1787567987.503567,
-    "seen": 1787771727.318537,
-    "ast_hash": "73e5eecca091c1fb26a3ed0140c33444",
+    "mtime": 1787919118.230184,
+    "seen": 1787919169.166359,
+    "ast_hash": "f52dca4b67039a8efaf19e8cea0131ff",
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-08-18-contrats-travailleurs-design.md": {
@@ -1227,6 +1227,18 @@
     "mtime": 1787917426.506153,
     "seen": 1787917609.746112,
     "ast_hash": "e4244b73a07a06c9014a53f5f650a77c",
+    "semantic_hash": ""
+  },
+  "lib/contactsPOS.js": {
+    "mtime": 1787918889.6017659,
+    "seen": 1787919169.166312,
+    "ast_hash": "ef0cc9218ff9e1d8d17411fc37ea1c4a",
+    "semantic_hash": ""
+  },
+  "lib/contactsPOS.test.mjs": {
+    "mtime": 1787919080.8254333,
+    "seen": 1787919169.166313,
+    "ast_hash": "134b6e2e6f0cc8be55637b01b941c32a",
     "semantic_hash": ""
   }
 }
