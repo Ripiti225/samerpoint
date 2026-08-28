@@ -43,3 +43,118 @@ COMMENT ON COLUMN public.points_shifts.vente_systeme_pos IS
 -- 2026-08-20, `espece` vient du comptage à l'aveugle, donc un manquant en
 -- espèces se retrouve dans les DEUX. C'est le même fait vu de deux façons —
 -- ne jamais déduire deux fois au vérificateur.
+
+-- ════════════════════════════════════════════════════════════════════════════
+--  AGRÉGATION — points.vente_machine = somme des vente_systeme_pos du point
+--  (ajout du 2026-08-28 ; rejouable, à lancer dans SAMTRACKLY)
+--
+--  POURQUOI CE TRIGGER ALORS QUE LE PONT SAIT DÉJÀ SOMMER
+--  Le pont ne repasse que lors d'une synchro. Tout ce qui bouge côté
+--  Samtrackly — un shift corrigé, supprimé, ou déplacé vers un autre jour
+--  depuis `app/modifier-point.js` — laissait `points.vente_machine` figé sur
+--  l'ancienne somme, sans que rien ne le signale. La somme redevient ici ce
+--  qu'elle aurait toujours dû être : un cache recalculé depuis les lignes,
+--  au même titre que `vente_total`.
+--
+--  ⚠ RÈGLE DE SÛRETÉ — ON N'ÉCRIT JAMAIS NULL, ET JAMAIS 0 « PAR DÉFAUT ».
+--  Tant qu'aucun shift du point ne porte de `vente_systeme_pos`, la fonction
+--  ne touche pas à `points.vente_machine`. Sinon elle effacerait :
+--    • la saisie manuelle des 6 sites encore sur SAMTRACKLY (tous leurs shifts
+--      ont `vente_systeme_pos = NULL`, y compris les points déjà validés) ;
+--    • le secours manuel d'un site POS dont la remontée n'est pas arrivée
+--      (cf. `peutSaisirVenteMachineManuellement` dans lib/sourcePoint.js).
+--  Conséquence assumée : si l'on supprime le DERNIER shift POS d'un point, la
+--  somme précédente reste en place au lieu de repasser à NULL. Une valeur
+--  périmée se voit et se corrige ; une valeur effacée ne se récupère pas.
+-- ════════════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE FUNCTION public.recalculer_vente_machine_pos(p_point_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_mesures integer;
+  v_somme   numeric;
+BEGIN
+  IF p_point_id IS NULL THEN
+    RETURN;
+  END IF;
+
+  SELECT COUNT(*) FILTER (WHERE vente_systeme_pos IS NOT NULL),
+         COALESCE(SUM(vente_systeme_pos), 0)
+    INTO v_mesures, v_somme
+    FROM public.points_shifts
+   WHERE point_id = p_point_id;
+
+  -- Aucune remontée POS sur ce point → absence, pas zéro. On ne touche à rien.
+  IF v_mesures = 0 THEN
+    RETURN;
+  END IF;
+
+  UPDATE public.points
+     SET vente_machine = v_somme
+   WHERE id = p_point_id
+     AND vente_machine IS DISTINCT FROM v_somme;
+END;
+$$;
+
+COMMENT ON FUNCTION public.recalculer_vente_machine_pos(uuid) IS
+  'Recalcule points.vente_machine depuis la somme des points_shifts.vente_systeme_pos '
+  'du point. N''écrit rien tant qu''aucun shift ne porte de vente_systeme_pos.';
+
+
+CREATE OR REPLACE FUNCTION public.trg_points_shifts_vente_machine()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    PERFORM public.recalculer_vente_machine_pos(OLD.point_id);
+    RETURN OLD;
+  END IF;
+
+  PERFORM public.recalculer_vente_machine_pos(NEW.point_id);
+
+  -- Shift déplacé vers un autre jour : les DEUX points changent de somme.
+  IF TG_OP = 'UPDATE' AND OLD.point_id IS DISTINCT FROM NEW.point_id THEN
+    PERFORM public.recalculer_vente_machine_pos(OLD.point_id);
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS points_shifts_vente_machine ON public.points_shifts;
+CREATE TRIGGER points_shifts_vente_machine
+AFTER INSERT OR DELETE OR UPDATE OF vente_systeme_pos, point_id
+ON public.points_shifts
+FOR EACH ROW
+EXECUTE FUNCTION public.trg_points_shifts_vente_machine();
+
+
+-- ── Backfill : remet d'aplomb les points déjà en base ───────────────────────
+DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN
+    SELECT DISTINCT point_id
+      FROM public.points_shifts
+     WHERE vente_systeme_pos IS NOT NULL
+       AND point_id IS NOT NULL
+  LOOP
+    PERFORM public.recalculer_vente_machine_pos(r.point_id);
+  END LOOP;
+END $$;
+
+
+-- ── Contrôle d'après-coup : plus aucune ligne ne doit sortir ────────────────
+--
+--   SELECT p.date, p.vente_machine, s.somme_pos
+--     FROM points p
+--     JOIN (SELECT point_id,
+--                  SUM(vente_systeme_pos) AS somme_pos,
+--                  COUNT(*) FILTER (WHERE vente_systeme_pos IS NOT NULL) AS mesures
+--             FROM points_shifts GROUP BY point_id) s ON s.point_id = p.id
+--    WHERE s.mesures > 0
+--      AND p.vente_machine IS DISTINCT FROM s.somme_pos
+--    ORDER BY p.date;

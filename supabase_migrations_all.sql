@@ -257,6 +257,82 @@ DROP POLICY IF EXISTS allow_all ON demandes_explication;
 CREATE POLICY allow_all ON demandes_explication FOR ALL TO public USING (true) WITH CHECK (true);
 
 
+-- ── 11. Vente système du POS → points.vente_machine (somme des shifts) ──
+--  Détail et garde-fous : supabase_pos_vente_systeme.sql
+--  Test rejouable (ROLLBACK) : supabase_pos_vente_systeme_test.sql
+--  ⚠ La fonction n'écrit RIEN tant qu'aucun shift du point ne porte de
+--  vente_systeme_pos : sinon elle effacerait la saisie manuelle des sites
+--  restés sur SAMTRACKLY et le secours manuel des sites POS.
+ALTER TABLE public.points_shifts ADD COLUMN IF NOT EXISTS vente_systeme_pos NUMERIC;
+
+CREATE OR REPLACE FUNCTION public.recalculer_vente_machine_pos(p_point_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+AS $fn$
+DECLARE
+  v_mesures integer;
+  v_somme   numeric;
+BEGIN
+  IF p_point_id IS NULL THEN
+    RETURN;
+  END IF;
+
+  SELECT COUNT(*) FILTER (WHERE vente_systeme_pos IS NOT NULL),
+         COALESCE(SUM(vente_systeme_pos), 0)
+    INTO v_mesures, v_somme
+    FROM public.points_shifts
+   WHERE point_id = p_point_id;
+
+  IF v_mesures = 0 THEN
+    RETURN;
+  END IF;
+
+  UPDATE public.points
+     SET vente_machine = v_somme
+   WHERE id = p_point_id
+     AND vente_machine IS DISTINCT FROM v_somme;
+END;
+$fn$;
+
+CREATE OR REPLACE FUNCTION public.trg_points_shifts_vente_machine()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $fn$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    PERFORM public.recalculer_vente_machine_pos(OLD.point_id);
+    RETURN OLD;
+  END IF;
+
+  PERFORM public.recalculer_vente_machine_pos(NEW.point_id);
+
+  IF TG_OP = 'UPDATE' AND OLD.point_id IS DISTINCT FROM NEW.point_id THEN
+    PERFORM public.recalculer_vente_machine_pos(OLD.point_id);
+  END IF;
+
+  RETURN NEW;
+END;
+$fn$;
+
+DROP TRIGGER IF EXISTS points_shifts_vente_machine ON public.points_shifts;
+CREATE TRIGGER points_shifts_vente_machine
+AFTER INSERT OR DELETE OR UPDATE OF vente_systeme_pos, point_id
+ON public.points_shifts
+FOR EACH ROW
+EXECUTE FUNCTION public.trg_points_shifts_vente_machine();
+
+DO $bf$
+DECLARE r record;
+BEGIN
+  FOR r IN
+    SELECT DISTINCT point_id FROM public.points_shifts
+     WHERE vente_systeme_pos IS NOT NULL AND point_id IS NOT NULL
+  LOOP
+    PERFORM public.recalculer_vente_machine_pos(r.point_id);
+  END LOOP;
+END $bf$;
+
+
 -- =====================================================================
 --  FIN — vérifie le message « Success. No rows returned » après le Run.
 -- =====================================================================
