@@ -5193,7 +5193,7 @@
       "file_type": "code",
       "norm_label": "confirmerannulationdeduction()",
       "source_file": "app/verification.js",
-      "source_location": "L588"
+      "source_location": "L589"
     },
     {
       "id": "app_verification_verificationscreen_enregistrerrepartition",
@@ -5205,7 +5205,7 @@
       "file_type": "code",
       "norm_label": "enregistrerrepartition()",
       "source_file": "app/verification.js",
-      "source_location": "L541"
+      "source_location": "L542"
     },
     {
       "id": "app_verification_verificationscreen_ouvririnventaire",
@@ -5217,7 +5217,7 @@
       "file_type": "code",
       "norm_label": "ouvririnventaire()",
       "source_file": "app/verification.js",
-      "source_location": "L351"
+      "source_location": "L352"
     },
     {
       "id": "lib_api_annulerdeductioninventaire",
@@ -6861,7 +6861,7 @@
       "file_type": "code",
       "norm_label": "ouvrirpoint()",
       "source_file": "app/verification.js",
-      "source_location": "L196"
+      "source_location": "L197"
     },
     {
       "id": "lib_contactspos_calculerlitigecontact",
@@ -9549,7 +9549,7 @@
       "file_type": "code",
       "norm_label": "confirmerannulationmachine()",
       "source_file": "app/verification.js",
-      "source_location": "L973"
+      "source_location": "L974"
     },
     {
       "id": "app_verification_verificationscreen_demandercorrection",
@@ -9561,7 +9561,7 @@
       "file_type": "code",
       "norm_label": "demandercorrection()",
       "source_file": "app/verification.js",
-      "source_location": "L827"
+      "source_location": "L828"
     },
     {
       "id": "app_verification_verificationscreen_enregistrerdecisioninv",
@@ -9573,7 +9573,7 @@
       "file_type": "code",
       "norm_label": "enregistrerdecisioninv()",
       "source_file": "app/verification.js",
-      "source_location": "L623"
+      "source_location": "L624"
     },
     {
       "id": "app_verification_verificationscreen_fmt",
@@ -9585,7 +9585,7 @@
       "file_type": "code",
       "norm_label": "fmt()",
       "source_file": "app/verification.js",
-      "source_location": "L318"
+      "source_location": "L319"
     },
     {
       "id": "app_verification_verificationscreen_sauvegardercorrectionfacture",
@@ -9597,7 +9597,7 @@
       "file_type": "code",
       "norm_label": "sauvegardercorrectionfacture()",
       "source_file": "app/verification.js",
-      "source_location": "L729"
+      "source_location": "L730"
     },
     {
       "id": "lib_api_deciderecartinventaire",
@@ -11661,7 +11661,7 @@
       "file_type": "code",
       "norm_label": "photovignette()",
       "source_file": "app/verification.js",
-      "source_location": "L1164"
+      "source_location": "L1165"
     },
     {
       "id": "app_verification_verificationscreen_voirphoto",
@@ -11673,7 +11673,7 @@
       "file_type": "code",
       "norm_label": "voirphoto()",
       "source_file": "app/verification.js",
-      "source_location": "L663"
+      "source_location": "L664"
     },
     {
       "id": "components_photojustificatif_photoconsultable",
@@ -12861,7 +12861,7 @@
       "file_type": "code",
       "norm_label": "sauvegardercorrectioncommandes()",
       "source_file": "app/verification.js",
-      "source_location": "L690"
+      "source_location": "L691"
     },
     {
       "id": "lib_litigecontacts_chargerpointscontact",
@@ -13809,7 +13809,7 @@
       "file_type": "code",
       "norm_label": "makestyles()",
       "source_file": "app/verification.js",
-      "source_location": "L3645"
+      "source_location": "L3682"
     },
     {
       "id": "app_verification_verificationscreen",
@@ -13821,7 +13821,7 @@
       "file_type": "code",
       "norm_label": "verificationscreen()",
       "source_file": "app/verification.js",
-      "source_location": "L69"
+      "source_location": "L70"
     },
     {
       "id": "app_verification_verificationscreen_ajouterpart",
@@ -13833,7 +13833,7 @@
       "file_type": "code",
       "norm_label": "ajouterpart()",
       "source_file": "app/verification.js",
-      "source_location": "L518"
+      "source_location": "L519"
     },
     {
       "id": "app_verification_verificationscreen_changerresto",
@@ -13845,7 +13845,7 @@
       "file_type": "code",
       "norm_label": "changerresto()",
       "source_file": "app/verification.js",
-      "source_location": "L190"
+      "source_location": "L191"
     },
     {
       "id": "app_verification_verificationscreen_chargerpointsresto",
@@ -13857,7 +13857,7 @@
       "file_type": "code",
       "norm_label": "chargerpointsresto()",
       "source_file": "app/verification.js",
-      "source_location": "L173"
+      "source_location": "L174"
     },
     {
       "id": "app_verification_verificationscreen_chargerrestaurants",
@@ -13869,7 +13869,7 @@
       "file_type": "code",
       "norm_label": "chargerrestaurants()",
       "source_file": "app/verification.js",
-      "source_location": "L151"
+      "source_location": "L152"
     },
     {
       "id": "app_verification_verificationscreen_confirmerstatutmachine",
@@ -13881,7 +13881,7 @@
       "file_type": "code",
       "norm_label": "confirmerstatutmachine()",
       "source_file": "app/verification.js",
-      "source_location": "L879"
+      "source_location": "L880"
     },
     {
       "id": "app_verification_verificationscreen_fermercorrectionfacture",
@@ -13893,7 +13893,7 @@
       "file_type": "code",
       "norm_label": "fermercorrectionfacture()",
       "source_file": "app/verification.js",
-      "source_location": "L723"
+      "source_location": "L724"
     },
     {
       "id": "app_verification_verificationscreen_formatdate",
@@ -13905,7 +13905,7 @@
       "file_type": "code",
       "norm_label": "formatdate()",
       "source_file": "app/verification.js",
-      "source_location": "L320"
+      "source_location": "L321"
     },
     {
       "id": "app_verification_verificationscreen_getprixproduit",
@@ -13917,7 +13917,7 @@
       "file_type": "code",
       "norm_label": "getprixproduit()",
       "source_file": "app/verification.js",
-      "source_location": "L1089"
+      "source_location": "L1090"
     },
     {
       "id": "app_verification_verificationscreen_gettoutesphotos",
@@ -13929,7 +13929,7 @@
       "file_type": "code",
       "norm_label": "gettoutesphotos()",
       "source_file": "app/verification.js",
-      "source_location": "L1123"
+      "source_location": "L1124"
     },
     {
       "id": "app_verification_verificationscreen_lignecorrigerfacture",
@@ -13941,7 +13941,7 @@
       "file_type": "code",
       "norm_label": "lignecorrigerfacture()",
       "source_file": "app/verification.js",
-      "source_location": "L1146"
+      "source_location": "L1147"
     },
     {
       "id": "app_verification_verificationscreen_majmontant",
@@ -13953,7 +13953,7 @@
       "file_type": "code",
       "norm_label": "majmontant()",
       "source_file": "app/verification.js",
-      "source_location": "L506"
+      "source_location": "L507"
     },
     {
       "id": "app_verification_verificationscreen_marquerverifie",
@@ -13965,7 +13965,7 @@
       "file_type": "code",
       "norm_label": "marquerverifie()",
       "source_file": "app/verification.js",
-      "source_location": "L306"
+      "source_location": "L307"
     },
     {
       "id": "app_verification_verificationscreen_onrefresh",
@@ -13977,7 +13977,7 @@
       "file_type": "code",
       "norm_label": "onrefresh()",
       "source_file": "app/verification.js",
-      "source_location": "L184"
+      "source_location": "L185"
     },
     {
       "id": "app_verification_verificationscreen_ouvrigalerie",
@@ -13989,7 +13989,7 @@
       "file_type": "code",
       "norm_label": "ouvrigalerie()",
       "source_file": "app/verification.js",
-      "source_location": "L1116"
+      "source_location": "L1117"
     },
     {
       "id": "app_verification_verificationscreen_ouvrirannulermachine",
@@ -14001,7 +14001,7 @@
       "file_type": "code",
       "norm_label": "ouvrirannulermachine()",
       "source_file": "app/verification.js",
-      "source_location": "L946"
+      "source_location": "L947"
     },
     {
       "id": "app_verification_verificationscreen_ouvrircorrectioncommandes",
@@ -14013,7 +14013,7 @@
       "file_type": "code",
       "norm_label": "ouvrircorrectioncommandes()",
       "source_file": "app/verification.js",
-      "source_location": "L681"
+      "source_location": "L682"
     },
     {
       "id": "app_verification_verificationscreen_ouvrircorrectionfacture",
@@ -14025,7 +14025,7 @@
       "file_type": "code",
       "norm_label": "ouvrircorrectionfacture()",
       "source_file": "app/verification.js",
-      "source_location": "L717"
+      "source_location": "L718"
     },
     {
       "id": "app_verification_verificationscreen_ouvrirdecisioninv",
@@ -14037,7 +14037,7 @@
       "file_type": "code",
       "norm_label": "ouvrirdecisioninv()",
       "source_file": "app/verification.js",
-      "source_location": "L617"
+      "source_location": "L618"
     },
     {
       "id": "app_verification_verificationscreen_photosmanquantespoint",
@@ -14049,7 +14049,7 @@
       "file_type": "code",
       "norm_label": "photosmanquantespoint()",
       "source_file": "app/verification.js",
-      "source_location": "L333"
+      "source_location": "L334"
     },
     {
       "id": "app_verification_verificationscreen_retirerpart",
@@ -14061,7 +14061,7 @@
       "file_type": "code",
       "norm_label": "retirerpart()",
       "source_file": "app/verification.js",
-      "source_location": "L514"
+      "source_location": "L515"
     },
     {
       "id": "app_verification_verificationscreen_statuerexplicationmachine",
@@ -14073,7 +14073,7 @@
       "file_type": "code",
       "norm_label": "statuerexplicationmachine()",
       "source_file": "app/verification.js",
-      "source_location": "L888"
+      "source_location": "L889"
     },
     {
       "id": "app_verification_verificationscreen_statutpoint",
@@ -14085,7 +14085,7 @@
       "file_type": "code",
       "norm_label": "statutpoint()",
       "source_file": "app/verification.js",
-      "source_location": "L327"
+      "source_location": "L328"
     },
     {
       "id": "app_verification_verificationscreen_statutpresencebadge",
@@ -14097,7 +14097,7 @@
       "file_type": "code",
       "norm_label": "statutpresencebadge()",
       "source_file": "app/verification.js",
-      "source_location": "L1193"
+      "source_location": "L1194"
     },
     {
       "id": "app_verification_verificationscreen_telechargerpdf",
@@ -14109,7 +14109,7 @@
       "file_type": "code",
       "norm_label": "telechargerpdf()",
       "source_file": "app/verification.js",
-      "source_location": "L291"
+      "source_location": "L292"
     },
     {
       "id": "app_verification_verificationscreen_telechargerpdfecarts",
@@ -14121,7 +14121,7 @@
       "file_type": "code",
       "norm_label": "telechargerpdfecarts()",
       "source_file": "app/verification.js",
-      "source_location": "L1097"
+      "source_location": "L1098"
     },
     {
       "id": "app_verification_verificationscreen_togglesection",
@@ -14133,7 +14133,7 @@
       "file_type": "code",
       "norm_label": "togglesection()",
       "source_file": "app/verification.js",
-      "source_location": "L821"
+      "source_location": "L822"
     },
     {
       "id": "supabase_functions_rappel_explications_index_json",
@@ -21706,7 +21706,7 @@
       "file_type": "code",
       "norm_label": "statut_machine",
       "source_file": "app/verification.js",
-      "source_location": "L31"
+      "source_location": "L32"
     },
     {
       "id": "app_verification_width_sw",
@@ -21717,7 +21717,7 @@
       "file_type": "code",
       "norm_label": "{ width: sw }",
       "source_file": "app/verification.js",
-      "source_location": "L27"
+      "source_location": "L28"
     },
     {
       "id": "components_photojustificatif",
@@ -35622,7 +35622,19 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1700",
+      "source_location": "L1701",
+      "weight": 1.0
+    },
+    {
+      "source": "app_verification_verificationscreen",
+      "target": "lib_ecartpos_ecartsparcaissier",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "app/verification.js",
+      "source_location": "L1943",
       "weight": 1.0
     },
     {
@@ -35634,7 +35646,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L2859",
+      "source_location": "L2896",
       "weight": 1.0
     },
     {
@@ -35646,7 +35658,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L70",
+      "source_location": "L71",
       "weight": 1.0
     },
     {
@@ -35658,7 +35670,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L71",
+      "source_location": "L72",
       "weight": 1.0
     },
     {
@@ -35670,7 +35682,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L72",
+      "source_location": "L73",
       "weight": 1.0
     },
     {
@@ -35682,7 +35694,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L193",
+      "source_location": "L194",
       "weight": 1.0
     },
     {
@@ -35694,7 +35706,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L153",
+      "source_location": "L154",
       "weight": 1.0
     },
     {
@@ -35706,7 +35718,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L163",
+      "source_location": "L164",
       "weight": 1.0
     },
     {
@@ -35718,7 +35730,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L167",
+      "source_location": "L168",
       "weight": 1.0
     },
     {
@@ -35730,7 +35742,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L593",
+      "source_location": "L594",
       "weight": 1.0
     },
     {
@@ -35742,7 +35754,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L599",
+      "source_location": "L600",
       "weight": 1.0
     },
     {
@@ -35754,7 +35766,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L608",
+      "source_location": "L609",
       "weight": 1.0
     },
     {
@@ -35766,7 +35778,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1058",
+      "source_location": "L1059",
       "weight": 1.0
     },
     {
@@ -35778,7 +35790,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1062",
+      "source_location": "L1063",
       "weight": 1.0
     },
     {
@@ -35790,7 +35802,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1070",
+      "source_location": "L1071",
       "weight": 1.0
     },
     {
@@ -35802,7 +35814,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L982",
+      "source_location": "L983",
       "weight": 1.0
     },
     {
@@ -35814,7 +35826,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L884",
+      "source_location": "L885",
       "weight": 1.0
     },
     {
@@ -35826,7 +35838,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L852",
+      "source_location": "L853",
       "weight": 1.0
     },
     {
@@ -35838,7 +35850,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L858",
+      "source_location": "L859",
       "weight": 1.0
     },
     {
@@ -35850,7 +35862,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L861",
+      "source_location": "L862",
       "weight": 1.0
     },
     {
@@ -35862,7 +35874,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L634",
+      "source_location": "L635",
       "weight": 1.0
     },
     {
@@ -35874,7 +35886,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L643",
+      "source_location": "L644",
       "weight": 1.0
     },
     {
@@ -35886,7 +35898,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L647",
+      "source_location": "L648",
       "weight": 1.0
     },
     {
@@ -35898,7 +35910,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L655",
+      "source_location": "L656",
       "weight": 1.0
     },
     {
@@ -35910,7 +35922,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L550",
+      "source_location": "L551",
       "weight": 1.0
     },
     {
@@ -35922,7 +35934,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L554",
+      "source_location": "L555",
       "weight": 1.0
     },
     {
@@ -35934,7 +35946,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L584",
+      "source_location": "L585",
       "weight": 1.0
     },
     {
@@ -35946,7 +35958,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1154",
+      "source_location": "L1155",
       "weight": 1.0
     },
     {
@@ -35958,7 +35970,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1157",
+      "source_location": "L1158",
       "weight": 1.0
     },
     {
@@ -35970,7 +35982,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L186",
+      "source_location": "L187",
       "weight": 1.0
     },
     {
@@ -35982,7 +35994,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L470",
+      "source_location": "L471",
       "weight": 1.0
     },
     {
@@ -35994,7 +36006,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L244",
+      "source_location": "L245",
       "weight": 1.0
     },
     {
@@ -36006,7 +36018,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L245",
+      "source_location": "L246",
       "weight": 1.0
     },
     {
@@ -36018,7 +36030,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L253",
+      "source_location": "L254",
       "weight": 1.0
     },
     {
@@ -36030,7 +36042,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1167",
+      "source_location": "L1168",
       "weight": 1.0
     },
     {
@@ -36042,7 +36054,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1172",
+      "source_location": "L1173",
       "weight": 1.0
     },
     {
@@ -36054,7 +36066,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1186",
+      "source_location": "L1187",
       "weight": 1.0
     },
     {
@@ -36066,7 +36078,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L695",
+      "source_location": "L696",
       "weight": 1.0
     },
     {
@@ -36078,7 +36090,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L774",
+      "source_location": "L775",
       "weight": 1.0
     },
     {
@@ -36090,7 +36102,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L777",
+      "source_location": "L778",
       "weight": 1.0
     },
     {
@@ -36102,7 +36114,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L780",
+      "source_location": "L781",
       "weight": 1.0
     },
     {
@@ -36114,7 +36126,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L787",
+      "source_location": "L788",
       "weight": 1.0
     },
     {
@@ -36126,7 +36138,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L789",
+      "source_location": "L790",
       "weight": 1.0
     },
     {
@@ -36138,7 +36150,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L812",
+      "source_location": "L813",
       "weight": 1.0
     },
     {
@@ -36150,7 +36162,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L909",
+      "source_location": "L910",
       "weight": 1.0
     },
     {
@@ -36162,7 +36174,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L912",
+      "source_location": "L913",
       "weight": 1.0
     },
     {
@@ -36174,7 +36186,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L919",
+      "source_location": "L920",
       "weight": 1.0
     },
     {
@@ -36186,7 +36198,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L295",
+      "source_location": "L296",
       "weight": 1.0
     },
     {
@@ -36198,7 +36210,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L297",
+      "source_location": "L298",
       "weight": 1.0
     },
     {
@@ -36210,7 +36222,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1101",
+      "source_location": "L1102",
       "weight": 1.0
     },
     {
@@ -36222,7 +36234,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1106",
+      "source_location": "L1107",
       "weight": 1.0
     },
     {
@@ -36234,7 +36246,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L667",
+      "source_location": "L668",
       "weight": 1.0
     },
     {
@@ -36246,7 +36258,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L669",
+      "source_location": "L670",
       "weight": 1.0
     },
     {
@@ -45846,7 +45858,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1089",
+      "source_location": "L1090",
       "weight": 1.0
     },
     {
@@ -45858,7 +45870,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1097",
+      "source_location": "L1098",
       "weight": 1.0
     },
     {
@@ -45870,7 +45882,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1116",
+      "source_location": "L1117",
       "weight": 1.0
     },
     {
@@ -45882,7 +45894,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1123",
+      "source_location": "L1124",
       "weight": 1.0
     },
     {
@@ -45894,7 +45906,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1193",
+      "source_location": "L1194",
       "weight": 1.0
     },
     {
@@ -45906,7 +45918,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L151",
+      "source_location": "L152",
       "weight": 1.0
     },
     {
@@ -45918,7 +45930,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L190",
+      "source_location": "L191",
       "weight": 1.0
     },
     {
@@ -45930,7 +45942,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L196",
+      "source_location": "L197",
       "weight": 1.0
     },
     {
@@ -45942,7 +45954,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L306",
+      "source_location": "L307",
       "weight": 1.0
     },
     {
@@ -45954,7 +45966,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L318",
+      "source_location": "L319",
       "weight": 1.0
     },
     {
@@ -45966,7 +45978,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L320",
+      "source_location": "L321",
       "weight": 1.0
     },
     {
@@ -45978,7 +45990,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L327",
+      "source_location": "L328",
       "weight": 1.0
     },
     {
@@ -45990,7 +46002,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L333",
+      "source_location": "L334",
       "weight": 1.0
     },
     {
@@ -46002,7 +46014,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L351",
+      "source_location": "L352",
       "weight": 1.0
     },
     {
@@ -46014,7 +46026,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L506",
+      "source_location": "L507",
       "weight": 1.0
     },
     {
@@ -46026,7 +46038,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L514",
+      "source_location": "L515",
       "weight": 1.0
     },
     {
@@ -46038,7 +46050,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L518",
+      "source_location": "L519",
       "weight": 1.0
     },
     {
@@ -46050,7 +46062,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L541",
+      "source_location": "L542",
       "weight": 1.0
     },
     {
@@ -46062,7 +46074,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L588",
+      "source_location": "L589",
       "weight": 1.0
     },
     {
@@ -46074,7 +46086,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L617",
+      "source_location": "L618",
       "weight": 1.0
     },
     {
@@ -46086,7 +46098,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L623",
+      "source_location": "L624",
       "weight": 1.0
     },
     {
@@ -46098,7 +46110,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L663",
+      "source_location": "L664",
       "weight": 1.0
     },
     {
@@ -46110,7 +46122,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L821",
+      "source_location": "L822",
       "weight": 1.0
     },
     {
@@ -46122,7 +46134,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L879",
+      "source_location": "L880",
       "weight": 1.0
     },
     {
@@ -46134,7 +46146,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L946",
+      "source_location": "L947",
       "weight": 1.0
     },
     {
@@ -50587,6 +50599,18 @@
       "context": "import",
       "source_file": "app/verification.js",
       "source_location": "L25",
+      "weight": 1.0
+    },
+    {
+      "source": "app_verification",
+      "target": "lib_ecartpos_ecartsparcaissier",
+      "relation": "imports",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "app/verification.js",
+      "source_location": "L26",
       "weight": 1.0
     },
     {
@@ -56779,6 +56803,18 @@
       "context": "import",
       "source_file": "app/verification.js",
       "source_location": "L25",
+      "weight": 1.0
+    },
+    {
+      "source": "app_verification",
+      "target": "lib_ecartpos",
+      "relation": "imports_from",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "import",
+      "source_file": "app/verification.js",
+      "source_location": "L26",
       "weight": 1.0
     },
     {
@@ -63855,7 +63891,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L27",
+      "source_location": "L28",
       "weight": 1.0
     },
     {
@@ -63866,7 +63902,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L31",
+      "source_location": "L32",
       "weight": 1.0
     },
     {
@@ -63877,7 +63913,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L3645",
+      "source_location": "L3682",
       "weight": 1.0
     },
     {
@@ -63888,7 +63924,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L69",
+      "source_location": "L70",
       "weight": 1.0
     },
     {
@@ -63899,7 +63935,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L1146",
+      "source_location": "L1147",
       "weight": 1.0
     },
     {
@@ -63910,7 +63946,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L1164",
+      "source_location": "L1165",
       "weight": 1.0
     },
     {
@@ -63921,7 +63957,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L173",
+      "source_location": "L174",
       "weight": 1.0
     },
     {
@@ -63932,7 +63968,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L184",
+      "source_location": "L185",
       "weight": 1.0
     },
     {
@@ -63943,7 +63979,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L291",
+      "source_location": "L292",
       "weight": 1.0
     },
     {
@@ -63954,7 +63990,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L681",
+      "source_location": "L682",
       "weight": 1.0
     },
     {
@@ -63965,7 +64001,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L690",
+      "source_location": "L691",
       "weight": 1.0
     },
     {
@@ -63976,7 +64012,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L717",
+      "source_location": "L718",
       "weight": 1.0
     },
     {
@@ -63987,7 +64023,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L723",
+      "source_location": "L724",
       "weight": 1.0
     },
     {
@@ -63998,7 +64034,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L729",
+      "source_location": "L730",
       "weight": 1.0
     },
     {
@@ -64009,7 +64045,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L827",
+      "source_location": "L828",
       "weight": 1.0
     },
     {
@@ -64020,7 +64056,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L888",
+      "source_location": "L889",
       "weight": 1.0
     },
     {
@@ -64031,7 +64067,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L973",
+      "source_location": "L974",
       "weight": 1.0
     },
     {
@@ -73704,5 +73740,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "81b4735fcb1f37b7729ef9ddd8b18067a48ef490"
+  "built_at_commit": "26f9f7d7a1c730f4768ca65fbec08d5a2a55af2d"
 }

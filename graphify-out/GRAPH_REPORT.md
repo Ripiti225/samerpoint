@@ -1,16 +1,16 @@
-# Graph Report - samtrackly  (2026-08-28)
+# Graph Report - samtrackly-explications-pos  (2026-09-01)
 
 ## Corpus Check
-- 187 files · ~325,131 words
+- 186 files · ~324,172 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2012 nodes · 4294 edges · 205 communities (136 shown, 69 thin omitted)
+- 2012 nodes · 4297 edges · 205 communities (136 shown, 69 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 43 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `81b4735f`
+- Built from commit: `26f9f7d7`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -196,7 +196,7 @@
 5. `LitigesScreen()` - 59 edges
 6. `supabase` - 56 edges
 7. `expo-router` - 49 edges
-8. `VerificationScreen()` - 44 edges
+8. `VerificationScreen()` - 45 edges
 9. `creerNotification()` - 43 edges
 10. `ModifierPointScreen()` - 40 edges
 

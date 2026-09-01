@@ -23,6 +23,7 @@ import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifFactureCorrigee } from '../lib/notifications'
 import PhotoJustificatif, { photoConsultable } from '../components/PhotoJustificatif'
 import { estPhotoEnAttente } from '../lib/photoQueue'
+import { ecartsParCaissier } from '../lib/ecartPOS'
 
 const { width: SW } = Dimensions.get('window')
 
@@ -1937,6 +1938,42 @@ export default function VerificationScreen() {
                 )
               })()}
 
+              {/* Explications POS attachées au shift et au caissier concerné. */}
+              {(() => {
+                const lignes = ecartsParCaissier(detailPoint.shifts).lignes
+                  .filter((ligne) => ligne.ecart !== 0)
+                if (lignes.length === 0) return null
+                return (
+                  <View style={{ marginBottom: 14 }}>
+                    <Text style={styles.sectionTitre}>💵 Écarts de caisse POS</Text>
+                    <View style={styles.ecartsPosCard}>
+                      {lignes.map((ligne, index) => {
+                        const manquant = ligne.ecart < 0
+                        const couleur = manquant ? '#A32D2D' : '#3B6D11'
+                        return (
+                          <View
+                            key={`${ligne.nom}-${index}`}
+                            style={[styles.ecartPosLigne, index === lignes.length - 1 && { borderBottomWidth: 0 }]}
+                          >
+                            <View style={styles.ecartPosEntete}>
+                              <Text style={styles.ecartPosCaissier}>{ligne.nom}</Text>
+                              <View style={[styles.ecartPosBadge, { backgroundColor: manquant ? '#FCEBEB' : '#EAF3DE' }]}>
+                                <Text style={[styles.ecartPosBadgeTxt, { color: couleur }]}>
+                                  {manquant ? 'Manquant' : 'Surplus'} · {fmt(Math.abs(ligne.ecart))}
+                                </Text>
+                              </View>
+                            </View>
+                            <Text style={ligne.explication ? styles.ecartPosExplication : styles.ecartPosSansExplication}>
+                              {ligne.explication || 'Aucune explication reçue'}
+                            </Text>
+                          </View>
+                        )
+                      })}
+                    </View>
+                  </View>
+                )
+              })()}
+
               {/* ══════════════════════════════════════
                   3. DÉDUCTIONS GÉRANT
               ══════════════════════════════════════ */}
@@ -3706,6 +3743,15 @@ function makeStyles(colors) { return StyleSheet.create({
   recapLabel: { fontSize: 13, color: colors.text },
   recapVal: { fontSize: 13, fontWeight: '500' },
   recapSep: { height: 8 },
+  // ─── Écarts de caisse POS par shift ───
+  ecartsPosCard: { backgroundColor: colors.surface, borderRadius: 14, paddingHorizontal: 14, borderWidth: 0.5, borderColor: colors.border },
+  ecartPosLigne: { paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: colors.border },
+  ecartPosEntete: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  ecartPosCaissier: { flex: 1, fontSize: 13, fontWeight: '700', color: colors.text },
+  ecartPosBadge: { borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4 },
+  ecartPosBadgeTxt: { fontSize: 11, fontWeight: '700' },
+  ecartPosExplication: { marginTop: 7, fontSize: 12, lineHeight: 18, color: colors.textMuted, fontStyle: 'italic' },
+  ecartPosSansExplication: { marginTop: 7, fontSize: 12, lineHeight: 18, color: '#A32D2D', fontWeight: '600' },
   // ─── Canaux ───
   canalCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: colors.border, borderLeftWidth: 3, borderLeftColor: '#EF9F27' },
   canalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingBottom: 8, borderBottomWidth: 0.5, borderBottomColor: '#f0f0f0' },
