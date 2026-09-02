@@ -97,18 +97,12 @@ Deno.serve(async (req) => {
     const reviews = body?.reviews
     if (!Array.isArray(reviews)) return json({ error: 'Payload invalide : « reviews » attendu' }, 400)
 
-    // Correspondances boutique plateforme → restaurant
-    const { data: mappings, error: errMap } = await supabase
-      .from('review_store_mapping')
-      .select('platform, external_store_label, restaurant_id')
-    if (errMap) throw errMap
-    const cle = (p: string, l: string) => `${p}::${l}`
-    const map = new Map((mappings ?? []).map((m) => [cle(m.platform, m.external_store_label), m.restaurant_id]))
-
+    // Le restaurant est résolu côté base : le trigger
+    // trg_resoudre_restaurant_avis lit review_store_mapping sur le libellé
+    // normalisé (espaces compactés, minuscules). Une seule source de vérité —
+    // la fonction n'a pas sa propre copie du mapping à tenir à jour.
     const rows: Record<string, unknown>[] = []
     const vus = new Set<string>()
-    const labels_non_mappes = new Set<string>()
-    let unmapped = 0
     let rejetes = 0
 
     for (const r of reviews) {
@@ -133,12 +127,6 @@ Deno.serve(async (req) => {
       if (vus.has(dedup_hash)) continue
       vus.add(dedup_hash)
 
-      const restaurant_id = map.get(cle(platform, label ?? '')) ?? null
-      if (!restaurant_id) {
-        unmapped++
-        if (label) labels_non_mappes.add(`${platform} · ${label}`)
-      }
-
       // Classification : celle fournie si valide, sinon déduite de la note
       // (Glovo n'a pas de note → la classification est obligatoire côté extraction).
       let classification = texte(r?.classification)
@@ -149,7 +137,6 @@ Deno.serve(async (req) => {
 
       rows.push({
         platform,
-        restaurant_id,
         external_store_label: label,
         external_ref,
         rating_raw,
@@ -165,21 +152,28 @@ Deno.serve(async (req) => {
 
     // Insertion par lots ; ON CONFLICT DO NOTHING sur dedup_hash → seuls les
     // avis réellement nouveaux ressortent, donc seuls eux créent un litige.
-    const inseres: { id: string; classification: string; restaurant_id: string | null; comment: string | null; review_date: string | null; platform: string; external_ref: string | null }[] = []
+    const inseres: { id: string; classification: string; restaurant_id: string | null; comment: string | null; review_date: string | null; platform: string; external_ref: string | null; external_store_label: string | null }[] = []
     for (let i = 0; i < rows.length; i += LOT) {
       const { data, error } = await supabase
         .from('platform_reviews')
         .upsert(rows.slice(i, i + LOT), { onConflict: 'dedup_hash', ignoreDuplicates: true })
-        .select('id, classification, restaurant_id, comment, review_date, platform, external_ref')
+        .select('id, classification, restaurant_id, comment, review_date, platform, external_ref, external_store_label')
       if (error) throw error
       inseres.push(...(data ?? []))
     }
 
+    // Boutiques que le mapping n'a pas reconnues, parmi les avis NOUVEAUX :
+    // les doublons ont déjà été signalés lors du run qui les a fait entrer.
+    const orphelins = inseres.filter((x) => !x.restaurant_id)
+    const labels_non_mappes = new Set(
+      orphelins.filter((x) => x.external_store_label).map((x) => `${x.platform} · ${x.external_store_label}`),
+    )
+
     // ── Litiges pour les NOUVEAUX avis négatifs ──────────────────────
     // Table réelle : litiges_avis_clients (type 'mauvais' = 1000 FCFA à la
-    // charge du restaurant, canal = plateforme). Les avis non rattachés à un
-    // restaurant sont laissés de côté : leur litige est créé au rattachement
-    // (fonction SQL rattacher_avis).
+    // charge du restaurant, canal = plateforme). Les avis dont la boutique
+    // n'est pas reconnue sont laissés de côté : leur litige est créé au
+    // rattachement (fonction SQL rattacher_avis).
     const negatifs = inseres.filter((x) => x.classification === 'negatif' && x.restaurant_id)
     let litiges_crees = 0
     for (let i = 0; i < negatifs.length; i += LOT) {
@@ -208,7 +202,7 @@ Deno.serve(async (req) => {
       inserted: inseres.length,
       duplicates: Math.max(0, vus.size - inseres.length),
       rejected: rejetes,
-      unmapped,
+      unmapped: orphelins.length,
       litiges_crees,
       labels_a_rattacher: [...labels_non_mappes],
     }
