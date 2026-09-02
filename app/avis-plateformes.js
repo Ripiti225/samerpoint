@@ -17,6 +17,7 @@ import {
   ActivityIndicator, Alert, Modal, RefreshControl, SafeAreaView,
   ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native'
+import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { supabase } from '../lib/supabase'
 import { journaliser } from '../lib/journal'
@@ -69,6 +70,7 @@ function etoiles(note) {
 export default function AvisPlateformes() {
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
+  const { userId, userNom } = useApp()
 
   const [onglet, setOnglet] = useState('avis')          // 'avis' | 'rattacher'
   const [periodeKey, setPeriodeKey] = useState('mois')
@@ -147,7 +149,7 @@ export default function AvisPlateformes() {
     try {
       const nb = await rattacherBoutique({ platform, label, restaurantId: restaurant.id })
       journaliser('avis_boutique_rattachee', { platform, label, restaurant: restaurant.nom, avis: nb },
-        { restaurantId: restaurant.id }).catch(() => {})
+        { restaurantId: restaurant.id, userId, userNom }).catch(() => {})
       Alert.alert('Boutique rattachée',
         `${label} → ${restaurant.nom}\n${nb} avis rattaché${nb > 1 ? 's' : ''}. Les avis négatifs deviennent des litiges.`)
       await charger()
