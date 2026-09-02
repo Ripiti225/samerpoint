@@ -75,8 +75,13 @@ CREATE TABLE IF NOT EXISTS review_store_mapping (
 ALTER TABLE litiges_avis_clients ADD COLUMN IF NOT EXISTS review_id UUID REFERENCES platform_reviews(id);
 ALTER TABLE litiges_avis_clients ADD COLUMN IF NOT EXISTS source    TEXT;  -- 'avis_plateforme' | NULL (saisie manuelle)
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_litiges_avis_review
-  ON litiges_avis_clients (review_id) WHERE review_id IS NOT NULL;
+--  Index unique NON partiel volontairement : PostgREST (l'Edge Function)
+--  émet « ON CONFLICT (review_id) DO NOTHING » sans clause WHERE, et
+--  PostgreSQL refuse d'inférer un index partiel dans ce cas. Les litiges
+--  saisis à la main gardent review_id NULL, et les NULL restent distincts
+--  entre eux : aucune gêne pour la saisie manuelle.
+DROP INDEX IF EXISTS uq_litiges_avis_review;
+CREATE UNIQUE INDEX uq_litiges_avis_review ON litiges_avis_clients (review_id);
 
 
 -- ── REV-3 · Journal des extractions du jour ──────────────────────────
@@ -169,7 +174,7 @@ BEGIN
      AND r.external_store_label = p_label
      AND r.restaurant_id = p_restaurant_id
      AND r.classification = 'negatif'
-  ON CONFLICT (review_id) WHERE review_id IS NOT NULL DO NOTHING;
+  ON CONFLICT (review_id) DO NOTHING;
 
   RETURN n;
 END $$;
