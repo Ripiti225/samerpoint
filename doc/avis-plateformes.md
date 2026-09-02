@@ -81,15 +81,29 @@ curl -X POST -H "x-ingest-secret: $INGEST_SECRET" -H "Content-Type: application/
 
 Renvoyer exactement la même requête doit donner `inserted:0, duplicates:1`.
 
-### 4. Rattacher les boutiques
+### 4. Mapping des boutiques
 
-Application → **Avis clients** → onglet **À rattacher** → pour chaque boutique,
-choisir le restaurant. Le rattachement reprend les avis déjà reçus et crée les
-litiges des négatifs concernés.
+Supabase → SQL Editor → `supabase_avis_mapping_boutiques.sql` → Run.
 
-C'est la seule étape manuelle : 9 boutiques Glovo et 17 restaurants Yango pour
-7 restaurants SamerTrackly, les libellés ne se devinent pas. Elle ne se fait
-qu'une fois — ensuite le mapping s'applique tout seul.
+Les 27 correspondances (8 Glovo + 19 Yango) fournies par Ange le 02/09/2026 y
+sont déjà : rien à rattacher à la main au premier run. Un restaurant porte
+plusieurs boutiques — les marques *S Burger*, *S Pizza*, *Al Kayan Pizza* sont
+servies depuis la même cuisine.
+
+| Restaurant | Glovo | Yango |
+|---|---|---|
+| Al Kayan KMS | 2 | 5 |
+| Al Kayan Yop | 1 | 2 |
+| Samer Angré 7E | 1 | 1 |
+| Samer Lavage | 1 | 3 |
+| Samer Maroc | 1 | 3 |
+| Samer Oasis | 1 | 2 |
+| Samer Palmeraie | 1 | 3 |
+
+Une boutique qui apparaîtrait quand même dans l'onglet **À rattacher** est soit
+nouvelle, soit envoyée avec un libellé qui ne correspond pas — voir ci-dessous.
+Le rattachement manuel reste disponible : il reprend les avis déjà reçus et
+crée les litiges des négatifs concernés.
 
 ## Extraction quotidienne (Cowork + Chrome)
 
@@ -109,11 +123,22 @@ Champs par avis :
 | Champ | Yango | Glovo |
 |---|---|---|
 | `platform` | `"yango"` | `"glovo"` |
-| `external_store_label` | nom du restaurant Yango | nom de la boutique Glovo |
+| `external_store_label` | **nom + adresse**, tels qu'affichés | nom de la boutique, tel qu'affiché |
 | `external_ref` | n° de commande (`260901-CI6438910`) | n° de commande (`101760937850`) |
 | `rating_raw` / `rating_scale` | étoiles 1-5 / 5 | absent |
 | `classification` | déduit (< 3 → négatif) | **obligatoire** : `bon` / `negatif` |
 | `comment`, `review_date`, `raw` | oui | oui |
+
+> ⚠️ **Le libellé Yango doit inclure l'adresse.** Le nom seul est ambigu :
+> `Al Kayan (Abidjan, Côte d’Ivoire, )` est **Al Kayan KMS**, tandis que
+> `Al Kayan (Abidjan, Rue S95, )` est **Al Kayan Yop**. Même chose pour
+> `Al Kayan Pizza` et pour les trois `Chez Samer`. Copier le libellé complet
+> tel qu'affiché par le portail, parenthèses comprises. Un libellé tronqué ne
+> matche rien : l'avis part dans « À rattacher » plutôt que d'être attribué au
+> hasard, mais il faut alors le rattacher à la main.
+>
+> Les écarts inoffensifs sont absorbés : espaces en trop, majuscules/minuscules.
+> Les accents et la ponctuation, non.
 
 Sans `external_ref`, le dédoublonnage retombe sur le contenu de l'avis
 (plateforme + boutique + date + note + commentaire) : moins fiable, un même
