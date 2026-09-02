@@ -40,15 +40,30 @@ et que `litiges_avis_clients` a bien `review_id` et `source`.
 
 ### 2. Secret + déploiement de la fonction
 
+> ⚠️ **`--project-ref` est obligatoire.** Le projet lié au CLI est
+> `pos-samer-cloud`, pas Samtrackly : sans le drapeau, le secret et la fonction
+> partent sur le POS.
+
 ```bash
-supabase secrets set INGEST_SECRET="<64 caractères aléatoires>"
-supabase functions deploy ingest-reviews --no-verify-jwt
+# 1. Générer le token — le NOTER, Supabase ne le réaffichera jamais
+openssl rand -hex 32
+
+# 2. Le poser (remplacer <TOKEN> par la valeur affichée)
+supabase secrets set INGEST_SECRET=<TOKEN> --project-ref wlwotzxnzowbkbfcpnyi
+
+# 3. Déployer
+supabase functions deploy ingest-reviews --project-ref wlwotzxnzowbkbfcpnyi --no-verify-jwt
 ```
 
-Générer le token : `openssl rand -hex 32`.
-Ce secret ne doit **jamais** être mis dans l'app : l'app n'écrit pas les avis.
+Ne pas générer le token en ligne avec `$(openssl rand -hex 32)` : la valeur
+ne s'affiche pas et elle est nécessaire telle quelle dans l'en-tête
+`x-ingest-secret` de Cowork. Ce secret ne doit **jamais** être mis dans
+l'app : l'app n'écrit pas les avis.
 
 ### 3. Premier envoi de test
+
+Fait le 02/09/2026 : ingestion, dédoublonnage, rattachement et création du
+litige vérifiés en production, données de test supprimées ensuite.
 
 ```bash
 # Statut du jour
