@@ -2,6 +2,102 @@
 
 > Fichier vivant, réactualisé à chaque compactage de contexte.
 
+---
+
+## Session 2026-08-28 — Écarts POS : Ventes, Recap, Litiges
+
+### Ce qui est fait et poussé sur GitHub
+
+Trois commits sur `main`, poussés (`26f9f7d`) :
+
+| commit | contenu |
+|---|---|
+| `ec7410d` | fix(ventes,recap) : plus de photo ni d'explication d'écart sur les sites POS |
+| `81b4735` | feat(litiges) : la responsabilité d'un écart vient des shifts POS |
+| `26f9f7d` | chore(graphify) : graphe à jour |
+
+**Problème traité.** Sur Angré 7E (seul site avec `restaurants.source_point = 'POS'`),
+la vente machine arrive bien du POS, mais la validation du point réclamait encore
+(a) la photo de la vente machine et (b) une explication + des responsables pour un
+écart que la caisse avait déjà mesuré, caissière par caissière.
+
+**Corrections.**
+1. `lib/sourcePoint.js` → `venteMachineVientDuPOS(shifts)` : un shift qui porte
+   `vente_systeme_pos` prouve que le trigger a écrit `points.vente_machine`.
+   Preuve par la donnée, pas seulement par le drapeau `source_point`.
+2. `app/recap-point.js` : la photo n'est plus exigée quand le POS a écrit le montant.
+   C'était le blocage dur — l'écran Ventes n'affiche déjà plus ce bloc sur un site POS,
+   donc le gérant était renvoyé vers un champ inexistant.
+3. `app/ventes.js` : `venteMachineDuSysteme` coupe photo + explication + responsables
+   sur les sites POS. Le secours manuel les réactive (rien ne vient plus du système).
+4. `lib/ecartPOS.js` → `responsablesEcartPOS()` dérive les responsables depuis
+   `points_shifts.ecart_pos` (**négatif = manquant**), et `fusionnerResponsablesEcart()`
+   garantit qu'une journée déjà imputée à la main n'est jamais comptée deux fois
+   (**la main du gérant gagne**). Rien n'est écrit en base : tout est recalculé à la lecture.
+5. `app/litiges.js` : dérivation branchée sur les 3 vues (détail d'une journée, onglet
+   « Responsables des écarts », mode global + PDF), badge « Mesuré au POS ». Le détail
+   s'ouvre aussi quand l'écart du jour vaut 0 (deux caissières qui se compensent
+   cachaient un manquant réel). Lecture des shifts **paginée** (troncature silencieuse
+   Supabase au-delà de 1000 lignes) + repli si `supabase_pos_bascule.sql` non passée.
+
+**Périmètre respecté** : un site sans POS n'a jamais de shift avec `vente_systeme_pos`,
+donc rien ne change pour lui. Vérifié sur données réelles du 20 au 28/08 :
+Angré 7E n'ajoute que les 2 journées jamais imputées (+1 001 FCFA) ; Palmeraie
+(sans POS) ressort à la ligne près comme avant.
+
+**Aucune migration SQL nécessaire** — tout existe déjà (`supabase_pos_bascule.sql`,
+`supabase_pos_explication_ecart.sql`, `supabase_pos_vente_systeme.sql`).
+
+**Vérifications** : `npm run lint` 0 erreur (71 warnings préexistants) ;
+`for f in lib/*.test.mjs; do node "$f"; done` tout vert, dont 23 tests sur `ecartPOS`
+et 30 sur `sourcePoint`.
+
+### ⚠️ CE QUI RESTE À FAIRE — le déploiement a échoué
+
+**Rien n'est en production.** Les commits sont sur GitHub, mais :
+
+1. **Web (Vercel)** — un déploiement est bien `Ready` et aliasé sur
+   `samtrackly.vercel.app`, **mais il sert l'ancien code**. Vérifié en téléchargeant
+   le bundle servi : les marqueurs `Mesuré au POS` / `Un shift = une caissière` en sont
+   absents, et l'ancien texte `La photo de la vente machine est obligatoire` y est encore.
+   Un `npx vercel deploy --prod --yes --force` a été lancé en fin de session et n'avait
+   pas rendu la main — **vérifier son résultat avant d'en relancer un**.
+
+2. **OTA (EAS)** — **échec** : `Failed to upload — Asset processing timed out` sur les
+   deux bundles `.hbc`. L'app installée n'a rien reçu. À relancer.
+
+**Cause du raté, à ne pas reproduire : `expo export -p web` et `eas update` écrivent
+tous les deux dans `dist/`.** Ils ont été lancés en parallèle, `eas update` a écrasé
+l'export web en cours de déploiement. **Les enchaîner en séquence, jamais en parallèle.**
+
+Procédure de reprise (dans cet ordre, une commande à la fois) :
+
+```bash
+# 1. Web
+npx expo export -p web
+npx vercel deploy --prod --yes --force
+
+# 2. Contrôle décisif : le nouveau code est-il vraiment servi ?
+B=$(curl -s https://samtrackly.vercel.app/ | grep -oE '_expo/static/js/web/[A-Za-z0-9._-]+\.js' | head -1)
+curl -s "https://samtrackly.vercel.app/$B" | grep -c "Mesuré au POS"   # doit être > 0
+
+# 3. OTA seulement une fois le web confirmé
+npx eas-cli update --branch production --message "Litiges : responsable d'un ecart lu depuis le POS"
+```
+
+Note : `vercel.json` a `buildCommand: npx expo export -p web`, donc Vercel reconstruit
+côté cloud ; `--force` évite qu'il réutilise un build en cache.
+
+### Point ouvert (pas un bug, une décision produit)
+
+Sur les sites POS, `litiges_responsables` et `points.ecart_responsables` ne sont plus
+alimentées par le gérant. Litiges affiche désormais la mesure du POS à la place, donc
+rien n'est perdu à l'écran. Mais si un jour on veut **facturer** ces montants (retenues
+sur paie, régularisation de fond), il faudra décider si l'on matérialise ces lignes
+dérivées en base ou si l'on branche la facturation directement sur `ecart_pos`.
+
+---
+
 ## État du projet au 2026-07-10
 
 ### Session courante (2026-07-10)
