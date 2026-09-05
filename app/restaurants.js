@@ -10,8 +10,14 @@ import {
     View
 } from 'react-native'
 import { supabase } from '../lib/supabase'
+import { couleurPourResto, marquePourResto } from '../lib/logos'
 import '../lib/webAlert'   // remplace Alert.alert par les dialogues du navigateur
 
+const GROUPES_RESTAURANTS = [
+  { id: 'samer', label: 'Samer', titre: '🟡 Famille Samer' },
+  { id: 'alkayan', label: 'Al Kayan', titre: '🟢 Famille Al Kayan' },
+  { id: 'alabraise', label: 'À la Braise', titre: '🟠 À la Braise' },
+]
 
 // ─── Objectif de CA mensuel ────────────────────────────────────────────────
 // Saisi ici, lu par le rapport mensuel (onglet Rapports → Mensuel) pour
@@ -115,7 +121,7 @@ export default function RestaurantsScreen() {
     // `objectif_mensuel` vient de supabase_rapport_mensuel.sql : tant que la
     // migration n'est pas passée, on recharge sans la colonne plutôt que de
     // laisser l'écran vide.
-    const COLONNES = 'id, nom, couleur, photo_url, localisation'
+    const COLONNES = 'id, nom, couleur, photo_url, localisation, code, marque, couleur_principale'
     let { data, error } = await supabase.from('restaurants')
       .select(`${COLONNES}, objectif_mensuel`).order('nom')
     if (error) {
@@ -181,99 +187,62 @@ export default function RestaurantsScreen() {
               <Text style={styles.resumeNum}>{restos.length}</Text>
               <Text style={styles.resumeLabel}>Restaurants</Text>
             </View>
-            <View style={styles.resumeCard}>
-              <Text style={styles.resumeNum}>
-                {restos.filter(r => r.couleur === 'orange' || r.famille === 'Samer').length}
-              </Text>
-              <Text style={styles.resumeLabel}>Samer</Text>
-            </View>
-            <View style={styles.resumeCard}>
-              <Text style={styles.resumeNum}>
-                {restos.filter(r => r.couleur === 'vert' || r.famille === 'Al Kayan').length}
-              </Text>
-              <Text style={styles.resumeLabel}>Al Kayan</Text>
-            </View>
+            {GROUPES_RESTAURANTS.map(groupe => (
+              <View key={groupe.id} style={styles.resumeCard}>
+                <Text style={styles.resumeNum}>
+                  {restos.filter(r => marquePourResto(r).id === groupe.id).length}
+                </Text>
+                <Text style={styles.resumeLabel}>{groupe.label}</Text>
+              </View>
+            ))}
           </View>
 
-          <Text style={styles.sectionTitre}>🟡 Famille Samer</Text>
-          {restos
-            .filter(r => r.couleur === 'orange' || r.famille === 'Samer')
-            .map(r => {
-              const s = stats[r.id] || {}
-              return (
-                <View key={r.id} style={[styles.restoCard, { borderLeftColor: '#EF9F27' }]}>
-                  <View style={styles.restoHeader}>
-                    <View style={[styles.restoDot, { backgroundColor: '#EF9F27' }]} />
-                    <Text style={styles.restoNom}>{r.nom}</Text>
-                    <View style={[styles.rentaBadge, { backgroundColor: tauxRenta(s.totalVentes, s.totalBenefice) >= 20 ? '#EAF3DE' : '#FAECE7' }]}>
-                      <Text style={[styles.rentaTxt, { color: tauxRenta(s.totalVentes, s.totalBenefice) >= 20 ? '#3B6D11' : '#993C1D' }]}>
-                        {tauxRenta(s.totalVentes, s.totalBenefice).toFixed(1)}%
-                      </Text>
+          {GROUPES_RESTAURANTS.map((groupe, index) => {
+            const membres = restos.filter(r => marquePourResto(r).id === groupe.id)
+            if (membres.length === 0) return null
+            return (
+              <View key={groupe.id}>
+                <Text style={[styles.sectionTitre, index > 0 && { marginTop: 8 }]}>{groupe.titre}</Text>
+                {membres.map(r => {
+                  const s = stats[r.id] || {}
+                  const couleurResto = couleurPourResto(r)
+                  return (
+                    <View key={r.id} style={[styles.restoCard, { borderLeftColor: couleurResto }]}>
+                      <View style={styles.restoHeader}>
+                        <View style={[styles.restoDot, { backgroundColor: couleurResto }]} />
+                        <Text style={styles.restoNom}>{r.nom}</Text>
+                        <View style={[styles.rentaBadge, { backgroundColor: tauxRenta(s.totalVentes, s.totalBenefice) >= 20 ? '#EAF3DE' : '#FAECE7' }]}>
+                          <Text style={[styles.rentaTxt, { color: tauxRenta(s.totalVentes, s.totalBenefice) >= 20 ? '#3B6D11' : '#993C1D' }]}>
+                            {tauxRenta(s.totalVentes, s.totalBenefice).toFixed(1)}%
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.restoLocalisation}>{r.localisation || 'Abidjan'}</Text>
+                      <View style={styles.restoStats}>
+                        <View style={styles.restoStat}>
+                          <Text style={styles.restoStatVal}>{fmt(s.totalVentes || 0)}</Text>
+                          <Text style={styles.restoStatLabel}>Ventes totales</Text>
+                        </View>
+                        <View style={styles.restoStat}>
+                          <Text style={[styles.restoStatVal, { color: '#3B6D11' }]}>{fmt(s.totalBenefice || 0)}</Text>
+                          <Text style={styles.restoStatLabel}>Bénéfice SC</Text>
+                        </View>
+                        <View style={styles.restoStat}>
+                          <Text style={styles.restoStatVal}>{s.nbPoints || 0}</Text>
+                          <Text style={styles.restoStatLabel}>Pts validés</Text>
+                        </View>
+                        <View style={styles.restoStat}>
+                          <Text style={styles.restoStatVal}>{s.nbTravailleurs || 0}</Text>
+                          <Text style={styles.restoStatLabel}>Travailleurs</Text>
+                        </View>
+                      </View>
+                      <ObjectifMensuel resto={r} onEnregistre={majObjectif} />
                     </View>
-                  </View>
-                  <Text style={styles.restoLocalisation}>{r.localisation || 'Abidjan'}</Text>
-                  <View style={styles.restoStats}>
-                    <View style={styles.restoStat}>
-                      <Text style={styles.restoStatVal}>{fmt(s.totalVentes || 0)}</Text>
-                      <Text style={styles.restoStatLabel}>Ventes totales</Text>
-                    </View>
-                    <View style={styles.restoStat}>
-                      <Text style={[styles.restoStatVal, { color: '#3B6D11' }]}>{fmt(s.totalBenefice || 0)}</Text>
-                      <Text style={styles.restoStatLabel}>Bénéfice SC</Text>
-                    </View>
-                    <View style={styles.restoStat}>
-                      <Text style={styles.restoStatVal}>{s.nbPoints || 0}</Text>
-                      <Text style={styles.restoStatLabel}>Pts validés</Text>
-                    </View>
-                    <View style={styles.restoStat}>
-                      <Text style={styles.restoStatVal}>{s.nbTravailleurs || 0}</Text>
-                      <Text style={styles.restoStatLabel}>Travailleurs</Text>
-                    </View>
-                  </View>
-                  <ObjectifMensuel resto={r} onEnregistre={majObjectif} />
-                </View>
-              )
-            })}
-
-          <Text style={[styles.sectionTitre, { marginTop: 8 }]}>🟢 Famille Al Kayan</Text>
-          {restos
-            .filter(r => r.couleur === 'vert' || r.famille === 'Al Kayan')
-            .map(r => {
-              const s = stats[r.id] || {}
-              return (
-                <View key={r.id} style={[styles.restoCard, { borderLeftColor: '#2D7D46' }]}>
-                  <View style={styles.restoHeader}>
-                    <View style={[styles.restoDot, { backgroundColor: '#2D7D46' }]} />
-                    <Text style={styles.restoNom}>{r.nom}</Text>
-                    <View style={[styles.rentaBadge, { backgroundColor: tauxRenta(s.totalVentes, s.totalBenefice) >= 20 ? '#EAF3DE' : '#FAECE7' }]}>
-                      <Text style={[styles.rentaTxt, { color: tauxRenta(s.totalVentes, s.totalBenefice) >= 20 ? '#3B6D11' : '#993C1D' }]}>
-                        {tauxRenta(s.totalVentes, s.totalBenefice).toFixed(1)}%
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.restoLocalisation}>{r.localisation || 'Abidjan'}</Text>
-                  <View style={styles.restoStats}>
-                    <View style={styles.restoStat}>
-                      <Text style={styles.restoStatVal}>{fmt(s.totalVentes || 0)}</Text>
-                      <Text style={styles.restoStatLabel}>Ventes totales</Text>
-                    </View>
-                    <View style={styles.restoStat}>
-                      <Text style={[styles.restoStatVal, { color: '#3B6D11' }]}>{fmt(s.totalBenefice || 0)}</Text>
-                      <Text style={styles.restoStatLabel}>Bénéfice SC</Text>
-                    </View>
-                    <View style={styles.restoStat}>
-                      <Text style={styles.restoStatVal}>{s.nbPoints || 0}</Text>
-                      <Text style={styles.restoStatLabel}>Pts validés</Text>
-                    </View>
-                    <View style={styles.restoStat}>
-                      <Text style={styles.restoStatVal}>{s.nbTravailleurs || 0}</Text>
-                      <Text style={styles.restoStatLabel}>Travailleurs</Text>
-                    </View>
-                  </View>
-                  <ObjectifMensuel resto={r} onEnregistre={majObjectif} />
-                </View>
-              )
-            })}
+                  )
+                })}
+              </View>
+            )
+          })}
 
           <View style={{ height: 30 }} />
         </ScrollView>
@@ -290,8 +259,8 @@ function makeStyles(colors) { return StyleSheet.create({
   loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   loadingTxt: { fontSize: 13, color: colors.textMuted, marginTop: 12 },
   body: { flex: 1, padding: 14 },
-  resumeRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
-  resumeCard: { flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 0.5, borderColor: colors.border },
+  resumeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
+  resumeCard: { flexGrow: 1, minWidth: 74, backgroundColor: colors.surface, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 0.5, borderColor: colors.border },
   resumeNum: { fontSize: 24, fontWeight: '600', color: colors.primary },
   resumeLabel: { fontSize: 11, color: colors.textMuted, marginTop: 4 },
   sectionTitre: { fontSize: 13, fontWeight: '600', color: colors.textMuted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },

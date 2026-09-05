@@ -276,9 +276,9 @@
     "semantic_hash": ""
   },
   "app/restaurants.js": {
-    "mtime": 1787567987.4929912,
-    "seen": 1788454354.111328,
-    "ast_hash": "78fed74825fef4e431ebcab7e61ebe7d",
+    "mtime": 1788622490.8025177,
+    "seen": 1788622552.365808,
+    "ast_hash": "6a9fd9ccff747d21acb30465229bf703",
     "semantic_hash": ""
   },
   "app/rh.js": {
@@ -612,9 +612,9 @@
     "semantic_hash": ""
   },
   "lib/logos.js": {
-    "mtime": 1787567987.5117033,
-    "seen": 1788454354.1113548,
-    "ast_hash": "de630156bcbd9bdd7dca3353743df532",
+    "mtime": 1788622409.9946575,
+    "seen": 1788622552.3658419,
+    "ast_hash": "122840787037e07b7e719b8e225bf188",
     "semantic_hash": ""
   },
   "lib/menus.js": {
@@ -1293,6 +1293,12 @@
     "mtime": 1788621841.9412465,
     "seen": 1788621858.37976,
     "ast_hash": "213bbaf8967a5f480793004dd9bb8dd3",
+    "semantic_hash": ""
+  },
+  "lib/logos.test.mjs": {
+    "mtime": 1788622388.1768997,
+    "seen": 1788622552.365843,
+    "ast_hash": "bdbdea60b3fb32358dcf7ebc3dd23467",
     "semantic_hash": ""
   }
 }
