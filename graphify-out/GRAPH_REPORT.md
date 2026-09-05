@@ -1,16 +1,16 @@
-# Graph Report - samtrackly  (2026-09-03)
+# Graph Report - samtrackly  (2026-09-05)
 
 ## Corpus Check
-- 195 files · ~335,424 words
+- 196 files · ~335,664 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2082 nodes · 4426 edges · 198 communities (129 shown, 69 thin omitted)
+- 2084 nodes · 4426 edges · 200 communities (130 shown, 70 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 44 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `abebc302`
+- Built from commit: `6072fe58`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -151,6 +151,7 @@
 - supabase_erreurs_client.sql
 - supabase_roles_acces.sql
 - supabase_web_push.sql
+- public.restaurants
 - public.inventaires_shifts
 - public.utilisateurs
 - inventaire_lignes
@@ -208,7 +209,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (198 total, 69 thin omitted)
+## Communities (200 total, 70 thin omitted)
 
 ### Community 0 - "LitigesScreen"
 Cohesion: 0.10
@@ -271,8 +272,8 @@ Cohesion: 0.18
 Nodes (24): AvisPlateformes(), charger(), confirmerRattachement(), onRefresh(), Badge(), etoiles(), fmtDate(), makeStyles() (+16 more)
 
 ### Community 15 - "api.js"
-Cohesion: 0.21
-Nodes (18): getRestaurants(), majPresenceExistante(), saveDepenses(), saveInventaireShift(), saveOnePresence(), saveOneTransactionFournisseur(), savePointShiftData(), savePresences() (+10 more)
+Cohesion: 0.19
+Nodes (20): getUtilisateurs(), getUtilisateursGlobaux(), majPresenceExistante(), saveDepenses(), saveInventaireShift(), saveOnePresence(), saveOneTransactionFournisseur(), savePointShiftData() (+12 more)
 
 ### Community 16 - "Backlog — features à venir (demandées le 2026-07-10)"
 Cohesion: 0.07
@@ -323,8 +324,8 @@ Cohesion: 0.05
 Nodes (48): DeductionsGerantScreen(), chargerDonnees(), fmt(), gererPhoto(), executer(), sauvegarder(), makeStyles(), gererPhotoRegul() (+40 more)
 
 ### Community 28 - "litigeContacts.js"
-Cohesion: 0.11
-Nodes (35): chargerLitigesMois(), chargerRestaurants(), LITIGES_CATS, makeStyles(), MOIS_NOMS, chargerEcartContacts(), sauvegarderCorrLitige(), sauvegarderCorrNbCommandes() (+27 more)
+Cohesion: 0.12
+Nodes (35): chargerLitigesMois(), chargerRestaurants(), LITIGES_CATS, MOIS_NOMS, chargerEcartContacts(), chargerTousRestaurants(), sauvegarderCorrLitige(), sauvegarderCorrNbCommandes() (+27 more)
 
 ### Community 29 - "VentesScreen"
 Cohesion: 0.15
@@ -343,8 +344,8 @@ Cohesion: 0.10
 Nodes (19): Automatisation, Bloc « Contrat » dans la fiche travailleur, Formulaire de contrat (modal), Gestion des contrats de travail (RH), Hors périmètre, Le fichier du contrat, Le statut n'est pas stocké, Limite connue : le PIN survit à la désactivation (+11 more)
 
 ### Community 33 - "offlineCache.js"
-Cohesion: 0.20
-Nodes (18): getFournisseurs(), getOrCreatePoint(), getTravailleurs(), getUtilisateurs(), getUtilisateursGlobaux(), cacheFournisseurs(), cachePoint(), cachePointData() (+10 more)
+Cohesion: 0.22
+Nodes (16): getFournisseurs(), getOrCreatePoint(), getRestaurants(), getTravailleurs(), cacheFournisseurs(), cachePoint(), cachePointData(), cacheRestaurants() (+8 more)
 
 ### Community 34 - "Écran Contrats autonome — design"
 Cohesion: 0.11
@@ -396,7 +397,7 @@ Nodes (3): makeStyles(), ObjectifMensuel(), RestaurantsScreen()
 
 ### Community 46 - "litiges.js"
 Cohesion: 0.13
-Nodes (19): CANAUX_AVIS, getPlage(), chargerTousRestaurants(), makeStyles(), ONGLETS, PERIODES, PRODUIT_TO_CAT, SHIFT_LABELS (+11 more)
+Nodes (18): CANAUX_AVIS, getPlage(), makeStyles(), ONGLETS, PERIODES, PRODUIT_TO_CAT, SHIFT_LABELS, TYPES_AVIS (+10 more)
 
 ### Community 47 - "supabase_avis_plateformes.sql"
 Cohesion: 0.23
@@ -511,8 +512,8 @@ Cohesion: 0.29
 Nodes (5): admin, cors, GLOBAL_ROLES, RESTO_ROLES, Sub
 
 ### Community 82 - "ChargesScreen"
-Cohesion: 0.23
-Nodes (10): ChargesScreen(), beneficeApresCharge(), beneficeReel(), chargerCharges(), recalculerBSC(), sauvegarder(), supprimerCharge(), totalApresCharge() (+2 more)
+Cohesion: 0.21
+Nodes (11): ChargesScreen(), beneficeApresCharge(), beneficeReel(), chargerCharges(), recalculerBSC(), sauvegarder(), supprimerCharge(), totalApresCharge() (+3 more)
 
 ### Community 84 - "Welcome to your Expo app 👋"
 Cohesion: 0.33
@@ -597,7 +598,7 @@ Nodes (5): ios, ITSAppUsesNonExemptEncryption, bundleIdentifier, infoPlist, supp
 ## Knowledge Gaps
 - **444 isolated node(s):** `name`, `slug`, `version`, `orientation`, `icon` (+439 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **69 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **70 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
