@@ -40,3 +40,17 @@ CREATE INDEX IF NOT EXISTS idx_suppressions_archive_date
   ON suppressions_archive (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_suppressions_archive_resto
   ON suppressions_archive (restaurant_id, created_at DESC);
+
+-- L'app utilise la clé Supabase anon avec sa propre authentification par PIN.
+-- Sans politique, activer RLS bloque silencieusement toutes les archives et
+-- rend donc toute suppression de shift impossible.
+ALTER TABLE suppressions_archive ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS allow_all ON suppressions_archive;
+CREATE POLICY allow_all ON suppressions_archive
+  FOR ALL TO public
+  USING (true)
+  WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON suppressions_archive
+  TO anon, authenticated, service_role;
