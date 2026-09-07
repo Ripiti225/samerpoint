@@ -25,6 +25,17 @@ import { supabase } from '../lib/supabase'
 // silence — cf. le commentaire de `charger()`.
 const PAGE_SUPABASE = 1000
 
+// `caissier_nom` posé par une réinjection. Sert à reconnaître nos propres
+// lignes : la contrainte unique de la base interdit d'en écrire deux pour le
+// même point et le même fournisseur.
+const CAISSIER_REINJECTION = 'Réinjecté (manager)'
+
+// Signature d'une entrée : deux montants. Sert à savoir si le brouillon décrit
+// EXACTEMENT une transaction déjà enregistrée, ou une version différente.
+function cleMontants(facture, paye) {
+  return `${parseFloat(facture) || 0}|${parseFloat(paye) || 0}`
+}
+
 function fmt(n) { return Math.round(n || 0).toLocaleString('fr-FR') + ' FCFA' }
 function fmtDate(d) {
   if (!d) return ''
@@ -101,20 +112,35 @@ export default function BrouillonsFournisseursScreen() {
       // `unique_facture_fournisseur_point` (erreur brute à l'écran). Le drapeau
       // « doublon » était faussé de la même façon. Même piège que
       // lib/litigeContacts.js.
-      let gcKey = new Set(), factByPF = {}
+      //
+      // ⚠ COMPARER LES MONTANTS, PAS SEULEMENT LE COUPLE. Écarter une entrée au
+      // seul motif qu'une transaction existe pour ce fournisseur ce jour-là
+      // masquait des corrections réelles : au 07/09, 7 entrées avaient des
+      // montants DIFFÉRENTS de la ligne enregistrée (Al Kayan Yop, Alassane du
+      // 29/07 : le brouillon porte un paiement de 30 000 que la base ignore).
+      // On n'écarte donc que ce qui est déjà enregistré À L'IDENTIQUE.
+      let montantsGC = new Map(), dejaReinjecte = new Set(), factByPF = {}
       if (pointIds.length > 0) {
         const chunks = []
         for (let i = 0; i < pointIds.length; i += 200) chunks.push(pointIds.slice(i, i + 200))
         for (const c of chunks) {
           for (let debut = 0; ; debut += PAGE_SUPABASE) {
             const { data: txs, error } = await supabase.from('transactions_fournisseurs')
-              .select('point_id, fournisseur_id, facture, saisi_par').in('point_id', c)
+              .select('point_id, fournisseur_id, facture, paye, saisi_par, caissier_nom').in('point_id', c)
               .order('id', { ascending: true })   // ordre stable : sans ça la pagination saute des lignes
               .range(debut, debut + PAGE_SUPABASE - 1)
             if (error || !txs?.length) break
             txs.forEach(t => {
-              if (t.saisi_par === 'gerant_caissier') gcKey.add(`${t.point_id}|${t.fournisseur_id}`)
               const k = `${t.point_id}|${t.fournisseur_id}`
+              if (t.saisi_par === 'gerant_caissier') {
+                if (!montantsGC.has(k)) montantsGC.set(k, new Set())
+                montantsGC.get(k).add(cleMontants(t.facture, t.paye))
+                // Une réinjection porte toujours le même `caissier_nom`. La
+                // contrainte unique de la base interdit donc d'en refaire une
+                // seconde sur ce couple, quels que soient les montants : on
+                // écarte l'entrée plutôt que de proposer un bouton qui échoue.
+                if (t.caissier_nom === CAISSIER_REINJECTION) dejaReinjecte.add(k)
+              }
               ;(factByPF[k] ||= new Set()).add(parseFloat(t.facture) || 0)
             })
             if (txs.length < PAGE_SUPABASE) break   // dernière page
@@ -132,7 +158,11 @@ export default function BrouillonsFournisseursScreen() {
           const paye = parseFloat(d?.paye) || 0
           if (facture === 0 && paye === 0) continue
           const k = `${p.id}|${fid}`
-          if (gcKey.has(k)) continue // déjà réinjecté
+          // Déjà enregistré À L'IDENTIQUE, ou déjà réinjecté une fois (la base
+          // refuserait la seconde). Des montants différents, eux, restent
+          // visibles : c'est une correction encore à faire.
+          if (montantsGC.get(k)?.has(cleMontants(facture, paye))) continue
+          if (dejaReinjecte.has(k)) continue
           raw.push({
             key: k, point_id: p.id, date: p.date, jour: String(p.date).split('T')[0],
             restaurant_id: p.restaurant_id,
@@ -201,7 +231,7 @@ export default function BrouillonsFournisseursScreen() {
         paye: entry.paye,
         reste: nouveau,
         saisi_par: 'gerant_caissier',
-        caissier_nom: 'Réinjecté (manager)',
+        caissier_nom: CAISSIER_REINJECTION,
         photo_url: entry.photoUri || null,
       })
       if (txErr) throw txErr
