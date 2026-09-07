@@ -21,6 +21,10 @@ import { useTheme } from '../context/ThemeContext'
 import { journaliser } from '../lib/journal'
 import { supabase } from '../lib/supabase'
 
+// Plafond de lignes d'une réponse PostgREST. Au-delà, Supabase tronque en
+// silence — cf. le commentaire de `charger()`.
+const PAGE_SUPABASE = 1000
+
 function fmt(n) { return Math.round(n || 0).toLocaleString('fr-FR') + ' FCFA' }
 function fmtDate(d) {
   if (!d) return ''
@@ -88,18 +92,33 @@ export default function BrouillonsFournisseursScreen() {
       const pointIds = pts.map(p => p.id)
 
       // Transactions sur ces points : détecter déjà-réinjecté (gerant_caissier) + doublons de facture
+      //
+      // ⚠ PAGINER EST OBLIGATOIRE ICI. PostgREST plafonne toute réponse à 1000
+      // lignes, sans erreur ni avertissement, et un lot de 200 points porte
+      // environ 1950 transactions : la moitié restait invisible. `gcKey` était
+      // donc incomplet, des entrées DÉJÀ réinjectées réapparaissaient dans la
+      // liste, et les réinjecter butait sur la contrainte
+      // `unique_facture_fournisseur_point` (erreur brute à l'écran). Le drapeau
+      // « doublon » était faussé de la même façon. Même piège que
+      // lib/litigeContacts.js.
       let gcKey = new Set(), factByPF = {}
       if (pointIds.length > 0) {
         const chunks = []
         for (let i = 0; i < pointIds.length; i += 200) chunks.push(pointIds.slice(i, i + 200))
         for (const c of chunks) {
-          const { data: txs } = await supabase.from('transactions_fournisseurs')
-            .select('point_id, fournisseur_id, facture, saisi_par').in('point_id', c)
-          ;(txs || []).forEach(t => {
-            if (t.saisi_par === 'gerant_caissier') gcKey.add(`${t.point_id}|${t.fournisseur_id}`)
-            const k = `${t.point_id}|${t.fournisseur_id}`
-            ;(factByPF[k] ||= new Set()).add(parseFloat(t.facture) || 0)
-          })
+          for (let debut = 0; ; debut += PAGE_SUPABASE) {
+            const { data: txs, error } = await supabase.from('transactions_fournisseurs')
+              .select('point_id, fournisseur_id, facture, saisi_par').in('point_id', c)
+              .order('id', { ascending: true })   // ordre stable : sans ça la pagination saute des lignes
+              .range(debut, debut + PAGE_SUPABASE - 1)
+            if (error || !txs?.length) break
+            txs.forEach(t => {
+              if (t.saisi_par === 'gerant_caissier') gcKey.add(`${t.point_id}|${t.fournisseur_id}`)
+              const k = `${t.point_id}|${t.fournisseur_id}`
+              ;(factByPF[k] ||= new Set()).add(parseFloat(t.facture) || 0)
+            })
+            if (txs.length < PAGE_SUPABASE) break   // dernière page
+          }
         }
       }
 
@@ -198,7 +217,21 @@ export default function BrouillonsFournisseursScreen() {
 
       setEntries(prev => prev.filter(e => e.key !== entry.key))
     } catch (err) {
-      Alert.alert('Erreur', err?.message || 'Réinjection impossible')
+      // La base refuse une seconde transaction pour le même fournisseur sur la
+      // même journée : cette facture est donc DÉJÀ enregistrée. Le solde n'a pas
+      // été touché, rien n'est à reprendre — on le dit en français et on retire
+      // l'entrée de la liste, comme le fait `charger()` pour les réinjectées.
+      if (/unique_facture_fournisseur_point|duplicate key value/i.test(err?.message || '')) {
+        Alert.alert(
+          'Facture déjà enregistrée',
+          `${entry.nom} — facture ${fmt(entry.facture)} du ${fmtDate(entry.date)} est déjà enregistrée sur cette journée.\n\n` +
+          'Rien n\'a été modifié : le solde du fournisseur reste inchangé. L\'entrée est retirée de la liste.',
+        )
+        await retirerDuBrouillon(entry).catch(() => {})
+        setEntries(prev => prev.filter(e => e.key !== entry.key))
+      } else {
+        Alert.alert('Erreur', err?.message || 'Réinjection impossible')
+      }
     }
     setBusyId(null)
   }
