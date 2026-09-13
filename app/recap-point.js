@@ -14,6 +14,7 @@ import { creerNotification } from '../lib/notificationsInterne'
 import { verifierEtGenererRapportHebdo } from '../lib/rapportHebdo'
 import { sauvegarderSurOneDrive, estatConnecte } from '../lib/onedrive'
 import { COEFFICIENTS } from '../lib/constants'
+import { cloturesPOS, resumerEcartsGlobaux } from '../lib/cloturesCaisse'
 import { venteMachineVientDuPOS } from '../lib/sourcePoint'
 import { supabase } from '../lib/supabase'
 
@@ -134,6 +135,8 @@ export default function RecapPointScreen() {
         espece: shiftsData.reduce((sum, s) => sum + (s.espece || 0), 0),
         venteTotal: shiftsData.reduce((sum, s) => sum + (s.vente_shift || 0), 0),
         nbShifts: shiftsData.length,
+        cloturesPOS: cloturesPOS(shiftsData),
+        ecartsGlobaux: resumerEcartsGlobaux(shiftsData),
       })
     }
 
@@ -409,7 +412,9 @@ export default function RecapPointScreen() {
 
     const venteTheo = cumulShifts?.venteTotal || totalVentes()
     const venteMachine = parseFloat(ventesJour.venteMachine) || null
-    const ecartCaisse = venteMachine !== null ? venteTheo - venteMachine : null
+    // Sur une clôture POS, l'écart officiel est déjà figé dans rapport_z.diff.
+    // Le calcul historique Samtrackly ne doit ni l'écraser ni le dupliquer.
+    const ecartCaisse = !pointVenuDuPOS && venteMachine !== null ? venteTheo - venteMachine : null
 
     // ── 1. Validation avec les colonnes existantes ─────────
     const ok = await validerPoint(pointId, {
@@ -648,8 +653,45 @@ export default function RecapPointScreen() {
               </>
             )}
 
-            {/* VENTE MACHINE */}
-            {ventesJour.venteMachine !== '' && ventesJour.venteMachine !== undefined && cumulShifts && (
+            {/* CLÔTURES POS — rapport Z officiel */}
+            {pointVenuDuPOS && cumulShifts?.cloturesPOS?.length > 0 && (
+              <>
+                <Text style={styles.sectionTitre}>🖥️ Clôtures de caisse POS</Text>
+                <View style={styles.card}>
+                  {cumulShifts.cloturesPOS.map((cloture, index) => (
+                    <View key={cloture.pos_service_id || cloture.id || index}>
+                      <View style={styles.row}>
+                        <Text style={styles.rowLabel}>{cloture.caissier_nom || 'Caissier non identifié'}</Text>
+                        <Text style={[styles.rowValue, {
+                          color: cloture.ecartGlobal == null ? colors.textMuted
+                            : cloture.ecartGlobal < 0 ? '#A32D2D'
+                            : cloture.ecartGlobal > 0 ? '#3B6D11' : colors.textMuted,
+                        }]}>Écart global · {cloture.ecartGlobalTexte}</Text>
+                      </View>
+                      <View style={styles.row}>
+                        <Text style={styles.rowLabel}>Écart espèces</Text>
+                        <Text style={styles.rowValue}>{cloture.ecartEspecesTexte}</Text>
+                      </View>
+                    </View>
+                  ))}
+                  <View style={[styles.row, { borderBottomWidth: 0 }]}>
+                    <Text style={[styles.rowLabel, { fontWeight: '700' }]}>Écart global</Text>
+                    <Text style={[styles.rowValue, { fontWeight: '700' }]}>
+                      {cumulShifts.ecartsGlobaux.totalTexte}
+                    </Text>
+                  </View>
+                  {cumulShifts.ecartsGlobaux.indisponibles > 0 && (
+                    <Text style={styles.shiftCaissier}>
+                      {cumulShifts.ecartsGlobaux.indisponibles} clôture
+                      {cumulShifts.ecartsGlobaux.indisponibles > 1 ? 's historiques exclues' : ' historique exclue'} du total : rapport Z non disponible.
+                    </Text>
+                  )}
+                </View>
+              </>
+            )}
+
+            {/* VENTE MACHINE — flux historique sans POS */}
+            {!pointVenuDuPOS && ventesJour.venteMachine !== '' && ventesJour.venteMachine !== undefined && cumulShifts && (
               <>
                 <Text style={styles.sectionTitre}>🖥️ Vente machine</Text>
                 <View style={styles.card}>

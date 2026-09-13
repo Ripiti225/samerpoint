@@ -22,6 +22,7 @@ import * as XLSX from 'xlsx'
 import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
+import { agregerMouvementsMensuels } from '../lib/creditsFournisseurs'
 import { journaliser } from '../lib/journal'
 import { supabase } from '../lib/supabase'
 
@@ -168,27 +169,12 @@ export default function CreditsFournisseursScreen() {
 
       const { data: trans } = await supabase
         .from('transactions_fournisseurs')
-        .select('fournisseur_id, fournisseur_nom, facture, paye')
+        .select('id, fournisseur_id, fournisseur_nom, facture, paye, photo_url, date_point, created_at')
         .in('point_id', pointIds)
 
-      const agg = {}
-      let totalFacture = 0, totalPaye = 0
-      ;(trans || []).forEach(t => {
-        const fa = parseFloat(t.facture) || 0
-        const pa = parseFloat(t.paye) || 0
-        totalFacture += fa; totalPaye += pa
-        const g = (agg[t.fournisseur_id] ||= { id: t.fournisseur_id, nom: t.fournisseur_nom || '', facture: 0, paye: 0 })
-        g.facture += fa; g.paye += pa
-      })
-      // Compléter les noms manquants depuis la liste déjà chargée
       const nomById = {}
       fournisseurs.forEach(f => { nomById[f.id] = f.nom })
-      const parFourn = Object.values(agg)
-        .map(g => ({ ...g, nom: g.nom || nomById[g.id] || 'Fournisseur' }))
-        .filter(g => g.facture !== 0 || g.paye !== 0)
-        .sort((a, b) => (b.facture + b.paye) - (a.facture + a.paye))
-
-      setMouvMois({ totalFacture, totalPaye, parFourn })
+      setMouvMois(agregerMouvementsMensuels(trans, nomById))
     } catch {
       setMouvMois({ totalFacture: 0, totalPaye: 0, parFourn: [] })
     }
@@ -839,17 +825,39 @@ ${mouvements.map(m => {
               ) : (
                 mouvMois.parFourn.map(g => (
                   <View key={g.id} style={styles.moisCard}>
-                    <Text style={styles.moisCardNom} numberOfLines={1}>{g.nom}</Text>
-                    <View style={styles.moisCardVals}>
-                      <View style={styles.moisCardVal}>
-                        <Text style={styles.moisCardValLabel}>📦 Factures</Text>
-                        <Text style={[styles.moisCardValNum, { color: '#A32D2D' }]}>{fmt(g.facture)}</Text>
-                      </View>
-                      <View style={styles.moisCardVal}>
-                        <Text style={styles.moisCardValLabel}>💳 Payé</Text>
-                        <Text style={[styles.moisCardValNum, { color: '#3B6D11' }]}>{fmt(g.paye)}</Text>
+                    <View style={styles.moisCardHeader}>
+                      <Text style={styles.moisCardNom} numberOfLines={1}>{g.nom}</Text>
+                      <View style={styles.moisCardVals}>
+                        <View style={styles.moisCardVal}>
+                          <Text style={styles.moisCardValLabel}>📦 Factures</Text>
+                          <Text style={[styles.moisCardValNum, { color: '#A32D2D' }]}>{fmt(g.facture)}</Text>
+                        </View>
+                        <View style={styles.moisCardVal}>
+                          <Text style={styles.moisCardValLabel}>💳 Payé</Text>
+                          <Text style={[styles.moisCardValNum, { color: '#3B6D11' }]}>{fmt(g.paye)}</Text>
+                        </View>
                       </View>
                     </View>
+                    {g.factures.map((facture, index) => (
+                      <View key={facture.id || `${g.id}-${facture.date}-${index}`} style={styles.moisFactureRow}>
+                        {facture.photo_url ? (
+                          <TouchableOpacity onPress={() => setModalPhotoUri(facture.photo_url)} activeOpacity={0.85}>
+                            <PhotoJustificatif uri={facture.photo_url} style={styles.moisFacturePhoto} compact />
+                          </TouchableOpacity>
+                        ) : (
+                          <PhotoJustificatif uri={null} style={styles.moisFacturePhoto} compact />
+                        )}
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.moisFactureDate}>Facture du {fmtDate(facture.date)}</Text>
+                          <Text style={styles.moisFactureMontant}>{fmt(facture.montant)}</Text>
+                        </View>
+                        {facture.photo_url && (
+                          <TouchableOpacity onPress={() => setModalPhotoUri(facture.photo_url)} style={styles.moisFactureVoir}>
+                            <Text style={styles.moisFactureVoirTxt}>Voir</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ))}
                   </View>
                 ))
               )}
@@ -1391,12 +1399,19 @@ function makeStyles(colors) { return StyleSheet.create({
   moisChipTxtActive: { color: '#412402', fontWeight: '800' },
   moisTotalRow: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 14, borderWidth: 0.5, borderColor: colors.border, paddingVertical: 14, marginBottom: 14 },
   moisTotalBox: { flex: 1, alignItems: 'center' },
-  moisCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 0.5, borderColor: colors.border },
+  moisCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 0.5, borderColor: colors.border },
+  moisCardHeader: { flexDirection: 'row', alignItems: 'center' },
   moisCardNom: { flex: 1, fontSize: 13, fontWeight: '700', color: colors.text },
   moisCardVals: { flexDirection: 'row', gap: 18 },
   moisCardVal: { alignItems: 'flex-end' },
   moisCardValLabel: { fontSize: 9, color: colors.textMuted },
   moisCardValNum: { fontSize: 13, fontWeight: '700' },
+  moisFactureRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: colors.borderLight },
+  moisFacturePhoto: { width: 44, height: 44, borderRadius: 8 },
+  moisFactureDate: { fontSize: 11, color: colors.textMuted },
+  moisFactureMontant: { fontSize: 13, fontWeight: '700', color: colors.text, marginTop: 2 },
+  moisFactureVoir: { backgroundColor: '#E6F1FB', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
+  moisFactureVoirTxt: { fontSize: 11, color: '#185FA5', fontWeight: '700' },
   pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   pickerBox: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingBottom: 32 },
   pickerTitre: { fontSize: 13, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, paddingHorizontal: 20, marginBottom: 8 },

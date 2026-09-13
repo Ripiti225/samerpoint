@@ -60,9 +60,9 @@
     "semantic_hash": ""
   },
   "app/brouillons-fournisseurs.js": {
-    "mtime": 1787567987.485024,
-    "seen": 1788454354.1113129,
-    "ast_hash": "3eaa20e5f9c02151bf287ff44a4b73d4",
+    "mtime": 1788788323.5735993,
+    "seen": 1789217192.4381928,
+    "ast_hash": "7376f1957287e373337bfd982bbb5abb",
     "semantic_hash": ""
   },
   "app/charges.js": {
@@ -102,9 +102,9 @@
     "semantic_hash": ""
   },
   "app/credits-fournisseurs.js": {
-    "mtime": 1787567987.4863741,
-    "seen": 1788454354.111316,
-    "ast_hash": "8ed4b87fcd16ba2272b045e5bed3d04d",
+    "mtime": 1789217152.307933,
+    "seen": 1789217192.438197,
+    "ast_hash": "0e1ab9ebae56f377d2fff717a453d884",
     "semantic_hash": ""
   },
   "app/dashboard-global.js": {
@@ -204,9 +204,9 @@
     "semantic_hash": ""
   },
   "app/litiges.js": {
-    "mtime": 1787958238.0966272,
-    "seen": 1788454354.1113229,
-    "ast_hash": "07634f75e466cb247103d350118651f8",
+    "mtime": 1788821797.5539777,
+    "seen": 1789217192.438206,
+    "ast_hash": "5e9566a00a480021cdee403d78c042ca",
     "semantic_hash": ""
   },
   "app/livraisons.js": {
@@ -264,9 +264,9 @@
     "semantic_hash": ""
   },
   "app/recap-point.js": {
-    "mtime": 1787956601.3849516,
-    "seen": 1788454354.111327,
-    "ast_hash": "a75c3ccc4eaeccc237eb65e8fcedd897",
+    "mtime": 1789300369.4274395,
+    "seen": 1789300514.314637,
+    "ast_hash": "acd8cebdc030f52ae72a18bac54e6df9",
     "semantic_hash": ""
   },
   "app/recap-verifications.js": {
@@ -300,9 +300,9 @@
     "semantic_hash": ""
   },
   "app/ventes.js": {
-    "mtime": 1787956591.281469,
-    "seen": 1788454354.11133,
-    "ast_hash": "151b9ffddff72eebb5ca3203567a67be",
+    "mtime": 1789300708.2452688,
+    "seen": 1789300737.370618,
+    "ast_hash": "4af89a75ba0baf36a885004c96f8bdc5",
     "semantic_hash": ""
   },
   "app/verificateur.js": {
@@ -312,9 +312,9 @@
     "semantic_hash": ""
   },
   "app/verification.js": {
-    "mtime": 1788454332.8712387,
-    "seen": 1788454354.111331,
-    "ast_hash": "926e6db7a88b101b43fce70c9fe2479f",
+    "mtime": 1789300708.29016,
+    "seen": 1789300737.3706188,
+    "ast_hash": "303fb43d27064fa0d00cfc3e540eb1bb",
     "semantic_hash": ""
   },
   "components/FicheContrat.js": {
@@ -534,9 +534,9 @@
     "semantic_hash": ""
   },
   "lib/corbeille.js": {
-    "mtime": 1787567987.508137,
-    "seen": 1788454354.111349,
-    "ast_hash": "b51e8a17a1a8053b32537bcea8c3f6ff",
+    "mtime": 1788656172.2480514,
+    "seen": 1789217192.438242,
+    "ast_hash": "c01d92cbe806d033f0eae0f0a517a01a",
     "semantic_hash": ""
   },
   "lib/deductionsVerification.js": {
@@ -552,9 +552,9 @@
     "semantic_hash": ""
   },
   "lib/ecartPOS.js": {
-    "mtime": 1787957329.4462018,
-    "seen": 1788454354.111351,
-    "ast_hash": "ec0acb215efeda92936e3fdf4053acde",
+    "mtime": 1789299167.6607912,
+    "seen": 1789300514.314671,
+    "ast_hash": "2481216519fd36098668fbe8ecefeeb3",
     "semantic_hash": ""
   },
   "lib/ecartPOS.test.mjs": {
@@ -570,9 +570,9 @@
     "semantic_hash": ""
   },
   "lib/exportRapportMensuel.js": {
-    "mtime": 1787567987.5093956,
-    "seen": 1788454354.111352,
-    "ast_hash": "e5309a70b9aa98a1d7afcf80197c4dbc",
+    "mtime": 1789300430.5172274,
+    "seen": 1789300514.314673,
+    "ast_hash": "dfde093bab75819dc282b4fcebbb5fb8",
     "semantic_hash": ""
   },
   "lib/generatePdf.js": {
@@ -600,9 +600,9 @@
     "semantic_hash": ""
   },
   "lib/litigeContacts.js": {
-    "mtime": 1787919739.6091316,
-    "seen": 1788454354.111354,
-    "ast_hash": "0c3d68b9c46c3d5e2a6565b3ed2293c5",
+    "mtime": 1788821789.4843287,
+    "seen": 1789217192.4382489,
+    "ast_hash": "2e69b849cf41b22054799342029532db",
     "semantic_hash": ""
   },
   "lib/logErreur.js": {
@@ -684,9 +684,9 @@
     "semantic_hash": ""
   },
   "lib/rapportMensuel.js": {
-    "mtime": 1787567987.513747,
-    "seen": 1788454354.11136,
-    "ast_hash": "621c6320da194592dcae108404524a9c",
+    "mtime": 1789300430.4717171,
+    "seen": 1789300514.314684,
+    "ast_hash": "f47e404a1489a516acb5f827fecff1d7",
     "semantic_hash": ""
   },
   "lib/sourcePoint.js": {
@@ -810,9 +810,9 @@
     "semantic_hash": ""
   },
   "supabase_corbeille.sql": {
-    "mtime": 1787567987.5188625,
-    "seen": 1788454354.11137,
-    "ast_hash": "0b6c14f7b3b0a50012c5d3bf761e0577",
+    "mtime": 1788656172.286362,
+    "seen": 1789217192.438271,
+    "ast_hash": "4d6b5992d63e95e360edfb707c1c14e3",
     "semantic_hash": ""
   },
   "supabase_correction_facture.sql": {
@@ -912,15 +912,15 @@
     "semantic_hash": ""
   },
   "supabase_migrations_all.sql": {
-    "mtime": 1787917444.322649,
-    "seen": 1788454354.111377,
-    "ast_hash": "3654cd784b729279c04b3446a5e33bf6",
+    "mtime": 1789299167.618868,
+    "seen": 1789300514.3147058,
+    "ast_hash": "943f54f21bf463f3f28161bf30365ed5",
     "semantic_hash": ""
   },
   "supabase_pos_bascule.sql": {
-    "mtime": 1787567987.521478,
-    "seen": 1788454354.111378,
-    "ast_hash": "e37d4ee992e25c2ba1e0f05cc49c94f5",
+    "mtime": 1789301157.197663,
+    "seen": 1789301313.795873,
+    "ast_hash": "c39eb7a4ad24df710a4491dbd1df1ef8",
     "semantic_hash": ""
   },
   "supabase_pos_inventaire.sql": {
@@ -1062,9 +1062,9 @@
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-08-17-pos-samer-vers-samtrackly-design.md": {
-    "mtime": 1787919809.5425715,
-    "seen": 1788454354.111389,
-    "ast_hash": "eb38925204fc24c2f799e81ec9aecfac",
+    "mtime": 1789300462.3652081,
+    "seen": 1789300514.314723,
+    "ast_hash": "8c815e5d1d7411284414a957b31340bc",
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-08-18-contrats-travailleurs-design.md": {
@@ -1299,6 +1299,72 @@
     "mtime": 1788622388.1768997,
     "seen": 1788622552.365843,
     "ast_hash": "bdbdea60b3fb32358dcf7ebc3dd23467",
+    "semantic_hash": ""
+  },
+  "lib/contactsParCaissier.js": {
+    "mtime": 1788823020.4117048,
+    "seen": 1789217192.4382389,
+    "ast_hash": "254a22f319bef05d64a0e2939db4b949",
+    "semantic_hash": ""
+  },
+  "lib/contactsParCaissier.test.mjs": {
+    "mtime": 1788823048.0493183,
+    "seen": 1789217192.43824,
+    "ast_hash": "6c3e7e570e542141ce499f96d78b8de3",
+    "semantic_hash": ""
+  },
+  "lib/corbeille.test.mjs": {
+    "mtime": 1788656135.806626,
+    "seen": 1789217192.438242,
+    "ast_hash": "5ef801ba2e3e1b07705cc3a377dd375e",
+    "semantic_hash": ""
+  },
+  "lib/creditsFournisseurs.js": {
+    "mtime": 1789217152.2653482,
+    "seen": 1789217192.4382432,
+    "ast_hash": "8559349b24f99e13059b091c1bf82801",
+    "semantic_hash": ""
+  },
+  "lib/creditsFournisseurs.test.mjs": {
+    "mtime": 1789217100.5749662,
+    "seen": 1789217192.4382432,
+    "ast_hash": "e869eaf42fe847ee5fe815ff0664c18e",
+    "semantic_hash": ""
+  },
+  "lib/erreursCorbeille.js": {
+    "mtime": 1788656172.2020826,
+    "seen": 1789217192.4382458,
+    "ast_hash": "e62ab2c73820aa458fcca22e3e890e16",
+    "semantic_hash": ""
+  },
+  "graphify-out/memory/query_20260912_124628_pourquoi_les_photos_des_factures_fournisseurs_s_af.md": {
+    "mtime": 1789217188.6739738,
+    "seen": 1789217192.4382982,
+    "ast_hash": "0d95aad619a936d3133bc4e065878481",
+    "semantic_hash": ""
+  },
+  "lib/cloturesCaisse.js": {
+    "mtime": 1789299125.5616202,
+    "seen": 1789300514.314662,
+    "ast_hash": "5264ce44475dfd69905e1c1718c115c7",
+    "semantic_hash": ""
+  },
+  "lib/cloturesCaisse.test.mjs": {
+    "mtime": 1789299095.255554,
+    "seen": 1789300514.314663,
+    "ast_hash": "7b1edbd46d9f06ff46f01d018b9b0920",
+    "semantic_hash": ""
+  },
+  "supabase_pos_ecart_reconciliation.sql": {
+    "mtime": 1789299167.536722,
+    "seen": 1789300514.314707,
+    "ast_hash": "1cbd0b2844a8c3b495f48aa6dc7ace46",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-09-13-ecart-global-clotures-pos.md": {
+    "mtime": 1789300670.1442914,
+    "seen": 1789300701.9555662,
+    "ast_hash": "6ead371cc5646e5b5fc878d56c59e10d",
     "semantic_hash": ""
   }
 }

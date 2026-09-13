@@ -87,18 +87,27 @@ ALTER TABLE public.points_shifts
 --    exclusion constraint matching the ON CONFLICT specification » — trouvé
 --    en production le 2026-08-18, sur les 4 premiers shifts du pont.
 --
---    Rejouable : DROP puis ADD, car ADD CONSTRAINT n'a pas de IF NOT EXISTS.
+--    Rejouable : une contrainte UNIQUE crée elle-même un index du même nom.
+--    Il faut donc tester la contrainte AVANT l'index, sinon un second passage
+--    tente de supprimer l'index requis par la contrainte et échoue en 2BP01.
 DO $$
 BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'un_points_shifts_pos_service'
+      AND conrelid = 'public.points_shifts'::regclass
+  ) THEN
+    RETURN;
+  END IF;
+
+  -- Un ancien index autonome du même nom empêcherait l'ADD CONSTRAINT.
   IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'un_points_shifts_pos_service') THEN
     DROP INDEX public.un_points_shifts_pos_service;
   END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'un_points_shifts_pos_service'
-  ) THEN
-    ALTER TABLE public.points_shifts
-      ADD CONSTRAINT un_points_shifts_pos_service UNIQUE (pos_service_id);
-  END IF;
+
+  ALTER TABLE public.points_shifts
+    ADD CONSTRAINT un_points_shifts_pos_service UNIQUE (pos_service_id);
 END $$;
 
 --    Les retours : articles envoyés en cuisine puis supprimés par un
@@ -121,8 +130,20 @@ ALTER TABLE public.points_shifts
   ADD COLUMN IF NOT EXISTS ecart_pos NUMERIC;
 
 COMMENT ON COLUMN public.points_shifts.ecart_pos IS
-  'Écart mesuré par le POS (comptées − théorique), négatif = manquant. MESURÉ, '
-  'à ne pas confondre avec points.ecart_responsables qui est IMPUTÉ par le gérant.';
+  'Écart espèces du tiroir fourni par services_caisse.ecart (comptées − théorique), '
+  'négatif = manquant. Ne jamais l''utiliser comme écart global de réconciliation.';
+
+--    L'écart global officiel, déjà figé dans le rapport Z du POS. Le pont copie
+--    `rapport_z.diff` exactement : aucune formule et aucun repli sur ecart_pos.
+--    BIGINT garantit un montant entier en FCFA. NULL signale une ancienne
+--    clôture dont le rapport Z ne contenait pas encore cette donnée.
+ALTER TABLE public.points_shifts
+  ADD COLUMN IF NOT EXISTS ecart_reconciliation BIGINT;
+
+COMMENT ON COLUMN public.points_shifts.ecart_reconciliation IS
+  'Copie exacte de rapport_z.diff (vente_totale - total_systeme), en FCFA. '
+  'NULL = rapport Z historique indisponible. Ne jamais recalculer ni remplacer '
+  'par ecart_pos, qui est uniquement l''écart espèces du tiroir.';
 
 --    Les deux comptes de commandes partenaires vus par le POS. Le gérant garde
 --    sa propre saisie dans points.yango_nb_commandes : l'écart entre les deux

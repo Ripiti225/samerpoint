@@ -87,6 +87,13 @@ ALTER TABLE points_shifts ADD COLUMN IF NOT EXISTS explication_ecart TEXT;
 COMMENT ON COLUMN points_shifts.explication_ecart IS
   'Explication facultative donnée par le caissier dans le POS pour ecart_pos.';
 
+-- Écart global officiel d'une clôture POS : copie exacte de rapport_z.diff.
+-- NULL reste NULL pour les anciennes clôtures; aucun repli sur ecart_pos.
+ALTER TABLE public.points_shifts ADD COLUMN IF NOT EXISTS ecart_reconciliation BIGINT;
+COMMENT ON COLUMN public.points_shifts.ecart_reconciliation IS
+  'Copie exacte de rapport_z.diff en FCFA. NULL = non disponible; ecart_pos reste '
+  'uniquement l''écart espèces du tiroir.';
+
 
 -- ── 5. Responsables des écarts (table relationnelle filtrable) ──────
 --    (app/ventes.js → onglet Écarts de app/litiges.js)

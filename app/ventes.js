@@ -15,8 +15,8 @@ import {
 import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
+import { cloturesPOS, resumerEcartsGlobaux } from '../lib/cloturesCaisse'
 import { COEFFICIENTS } from '../lib/constants'
-import { ecartsParCaissier } from '../lib/ecartPOS'
 import { estRempliParLePOS, peutSaisirVenteMachineManuellement, venteMachineEstRecue, venteMachineVientDuPOS } from '../lib/sourcePoint'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
@@ -154,10 +154,10 @@ export default function VentesScreen() {
         espece: shifts.reduce((s, sh) => s + (sh.espece || 0), 0),
         venteTotal: shifts.reduce((s, sh) => s + (sh.vente_shift || 0), 0),
         nbShifts: shifts.length,
-        // Écarts mesurés par le POS au comptage à l'aveugle, une ligne par
-        // caissière. Sur un site basculé c'est LE vrai écart : `ecart_caisse`
-        // calculé plus bas y vaut structurellement 0 (cf. lib/ecartPOS.js).
-        ecartsPOS: ecartsParCaissier(shifts),
+        // Une clôture POS = un rapport Z figé. `ecart_reconciliation` est sa
+        // valeur officielle; `ecart_pos` reste le détail du tiroir espèces.
+        cloturesPOS: cloturesPOS(shifts),
+        ecartsGlobaux: resumerEcartsGlobaux(shifts),
         // Preuve que le trigger POS a écrit `points.vente_machine`.
         venteMachineDuPOS: venteMachineVientDuPOS(shifts),
       }
@@ -292,26 +292,28 @@ export default function VentesScreen() {
     photos.forEach(p => { if (ventesJour[p]) updates[p] = ventesJour[p] })
     if (ventesJour.photoVenteMachine) updates.photo_vente_machine = ventesJour.photoVenteMachine
     if (venteMachineRecue) {
-      // L'écart et ses responsables restent à la charge du gérant, même sur un
-      // site POS ; seule la vente machine elle-même est protégée.
       if (peutEcrireVenteMachine) {
         updates.vente_machine = parseFloat(ventesJour.venteMachine) || 0
       }
-      const venteTheo = cumulShifts?.venteTotal || 0
-      const ecart = venteTheo - (parseFloat(ventesJour.venteMachine) || 0)
-      updates.ecart_caisse = ecart
-      // Écart (manquant ou surplus) : responsables imputés + photos justificatives
-      if (ecart !== 0) {
-        updates.ecart_responsables = (ventesJour.ecartResponsables || []).map(r => ({
-          travailleur_id: r.travailleur_id,
-          nom: r.nom,
-          montant: parseFloat(r.montant) || 0,
-        }))
-        updates.ecart_photos = ventesJour.ecartPhotos || []
-      } else {
-        // Plus d'écart → on purge d'éventuelles données obsolètes
-        updates.ecart_responsables = []
-        updates.ecart_photos = []
+      // Flux historique sans POS uniquement. Une clôture POS fournit déjà
+      // rapport_z.diff : Samtrackly ne recalcule et n'écrit aucun écart global.
+      if (!cumulShifts?.cloturesPOS?.length) {
+        const venteTheo = cumulShifts?.venteTotal || 0
+        const ecart = venteTheo - (parseFloat(ventesJour.venteMachine) || 0)
+        updates.ecart_caisse = ecart
+        // Écart (manquant ou surplus) : responsables imputés + photos justificatives
+        if (ecart !== 0) {
+          updates.ecart_responsables = (ventesJour.ecartResponsables || []).map(r => ({
+            travailleur_id: r.travailleur_id,
+            nom: r.nom,
+            montant: parseFloat(r.montant) || 0,
+          }))
+          updates.ecart_photos = ventesJour.ecartPhotos || []
+        } else {
+          // Plus d'écart → on purge d'éventuelles données obsolètes
+          updates.ecart_responsables = []
+          updates.ecart_photos = []
+        }
       }
     }
     if (ventesJour.explicacionEcartMachine) {
@@ -327,6 +329,9 @@ export default function VentesScreen() {
   // (delete + insert pour ce point → pas de doublon). Silencieux si la table n'existe pas.
   async function syncLitigesResponsables() {
     if (!pointId) return
+    // Les clôtures POS portent déjà leurs écarts espèces par caissier. Ne pas
+    // les remplacer par l'ancien calcul Samtrackly vente théorique − machine.
+    if (cumulShifts?.cloturesPOS?.length) return
     try {
       await supabase.from('litiges_responsables').delete().eq('point_id', pointId)
       const venteTheo = cumulShifts?.venteTotal || 0
@@ -755,50 +760,54 @@ export default function VentesScreen() {
                     </View>
                   )}
 
-                  {/* Écarts mesurés par le POS, une ligne par caissière.
-                      Sur un site basculé, l'écart calculé plus bas (vente des
-                      shifts − vente machine) vaut structurellement 0 : sans ce
-                      bloc, le gérant lirait « aucun écart » un jour où il
-                      manque de l'argent. */}
-                  {cumulShifts?.ecartsPOS?.mesures > 0 && (
+                  {/* Clôtures POS : le rapport Z est l'indicateur principal.
+                      L'écart du tiroir reste visible comme détail secondaire,
+                      sans jamais servir de repli si le rapport Z est absent. */}
+                  {cumulShifts?.cloturesPOS?.length > 0 && (
                     <View style={styles.ecpBloc}>
                       <View style={styles.ecpHead}>
-                        <Text style={styles.ecpTitre}>Écart de caisse par caissier</Text>
-                        <View style={styles.ecpBadge}><Text style={styles.ecpBadgeTxt}>Mesuré au POS</Text></View>
+                        <Text style={styles.ecpTitre}>Clôtures de caisse POS</Text>
+                        <View style={styles.ecpBadge}><Text style={styles.ecpBadgeTxt}>Rapport Z</Text></View>
                       </View>
 
-                      {cumulShifts.ecartsPOS.lignes.map((l, i) => (
-                        <View key={i} style={styles.ecpEntree}>
+                      {cumulShifts.cloturesPOS.map((cloture, i) => (
+                        <View key={cloture.pos_service_id || cloture.id || i} style={styles.ecpEntree}>
                           <View style={styles.ecpLigne}>
-                            <Text style={styles.ecpNom} numberOfLines={1}>{l.nom}</Text>
+                            <Text style={styles.ecpNom} numberOfLines={1}>
+                              {cloture.caissier_nom || 'Caissier non identifié'}
+                            </Text>
                             <Text style={[styles.ecpVal, {
-                              color: l.ecart < 0 ? colors.error : l.ecart > 0 ? colors.success : colors.textMuted,
+                              color: cloture.ecartGlobal == null ? colors.textMuted
+                                : cloture.ecartGlobal < 0 ? colors.error
+                                : cloture.ecartGlobal > 0 ? colors.success : colors.textMuted,
                             }]}>
-                              {l.ecart > 0 ? '+' : ''}{fmt(l.ecart)}
+                              Écart global · {cloture.ecartGlobalTexte}
                             </Text>
                           </View>
-                          {l.explication && (
-                            <Text style={styles.ecpExplication}>« {l.explication} »</Text>
+                          <Text style={styles.ecpSecondaire}>
+                            Écart espèces · {cloture.ecartEspecesTexte}
+                          </Text>
+                          {cloture.explication_ecart && (
+                            <Text style={styles.ecpExplication}>« {cloture.explication_ecart} »</Text>
                           )}
                         </View>
                       ))}
 
                       <View style={styles.ecpTotal}>
-                        <Text style={styles.ecpTotalLbl}>Écart total</Text>
+                        <Text style={styles.ecpTotalLbl}>Écart global</Text>
                         <Text style={[styles.ecpTotalVal, {
-                          color: cumulShifts.ecartsPOS.total < 0 ? colors.error
-                               : cumulShifts.ecartsPOS.total > 0 ? colors.success : colors.textMuted,
+                          color: cumulShifts.ecartsGlobaux.total == null ? colors.textMuted
+                            : cumulShifts.ecartsGlobaux.total < 0 ? colors.error
+                            : cumulShifts.ecartsGlobaux.total > 0 ? colors.success : colors.textMuted,
                         }]}>
-                          {cumulShifts.ecartsPOS.total > 0 ? '+' : ''}{fmt(cumulShifts.ecartsPOS.total)}
+                          {cumulShifts.ecartsGlobaux.totalTexte}
                         </Text>
                       </View>
 
-                      {cumulShifts.ecartsPOS.sansMesure > 0 && (
+                      {cumulShifts.ecartsGlobaux.indisponibles > 0 && (
                         <Text style={styles.ecpNote}>
-                          {cumulShifts.ecartsPOS.sansMesure} shift
-                          {cumulShifts.ecartsPOS.sansMesure > 1 ? 's saisis' : ' saisi'} à la main
-                          {cumulShifts.ecartsPOS.sansMesure > 1 ? ' ne sont' : ' n\'est'} pas
-                          {cumulShifts.ecartsPOS.sansMesure > 1 ? ' comptés' : ' compté'} ci-dessus.
+                          {cumulShifts.ecartsGlobaux.indisponibles} clôture
+                          {cumulShifts.ecartsGlobaux.indisponibles > 1 ? 's historiques exclues' : ' historique exclue'} du total : rapport Z non disponible.
                         </Text>
                       )}
                     </View>
@@ -893,7 +902,7 @@ export default function VentesScreen() {
                   )}
 
                   {/* Écart */}
-                  {venteMachineRecue && cumulShifts && (() => {
+                  {venteMachineRecue && cumulShifts && !cumulShifts.cloturesPOS?.length && (() => {
                     const ecart = cumulShifts.venteTotal - (parseFloat(ventesJour.venteMachine) || 0)
                     const parfait = Math.abs(ecart) === 0
                     const surplus = ecart > 0
@@ -1267,6 +1276,7 @@ function makeStyles(colors) { return StyleSheet.create({
   ecpLigne:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingVertical: 3 },
   ecpNom:      { fontSize: 13, color: colors.textSecondary, flexShrink: 1 },
   ecpVal:      { fontSize: 13, fontWeight: '700' },
+  ecpSecondaire: { fontSize: 11, color: colors.textMuted, marginTop: 2, textAlign: 'right' },
   ecpExplication: { fontSize: 11, lineHeight: 16, color: colors.textMuted, fontStyle: 'italic', paddingRight: 8 },
   ecpTotal:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4, paddingTop: 8, borderTopWidth: 1.5, borderTopColor: colors.border },
   ecpTotalLbl: { fontSize: 11, fontWeight: '800', color: colors.textSecondary, letterSpacing: 0.5, textTransform: 'uppercase' },

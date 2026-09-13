@@ -83,7 +83,8 @@ doit voyager à part (§ 5).
 | `wave` / `djamo` / `om` | modes déclarés à la clôture |
 | `espece` | formule § 3 |
 | `vente_shift` | formule § 4.1 |
-| `ecart_pos` *(neuve)* | manquant / surplus mesuré au comptage à l'aveugle |
+| `ecart_reconciliation` *(neuve)* | copie exacte de `rapport_z.diff`, écart global officiel |
+| `ecart_pos` *(neuve)* | `services_caisse.ecart`, écart espèces du tiroir |
 | `pos_service_id` *(neuve, unique)* | id du service POS — clé d'idempotence |
 | photos (`photo_kdo`, `photo_wave`…) | **aucune** — plus de justificatif (§ 8) |
 | `valide` / `valide_at` | `true` / horodatage de la clôture |
@@ -139,9 +140,20 @@ montant — silencieusement, des semaines plus tard.
 
 D'où : `retour` = 0, montant dans `retour_pos`, qu'aucune formule ne somme.
 
-## 5. L'écart et son imputation
+## 5. Les deux écarts et leur imputation
 
-Le POS mesure l'écart de chaque shift à son comptage à l'aveugle :
+Le rapport Z fige l'écart global de réconciliation :
+
+```
+rapport_z.diff = vente_totale − total_systeme
+```
+
+Le pont le copie tel quel dans `points_shifts.ecart_reconciliation`. Samtrackly
+ne le recalcule pas et ne le remplace jamais par l'écart du tiroir. Une ancienne
+clôture sans `rapport_z.diff` reste « Non disponible » et est exclue des sommes.
+
+Indépendamment, le POS mesure l'écart espèces de chaque shift à son comptage à
+l'aveugle :
 
 ```
 ecart = espèces comptées − (fond + espèces encaissées − dépenses en espèces)
@@ -153,23 +165,23 @@ désigné comme responsable », pas « ce que la machine a mesuré ». Deux sens
 colonne se paient six mois plus tard. Le gérant garde `ecart_responsables` pour
 imputer par-dessus, et ses régularisations.
 
-**L'affichage attendu**, un shift = un caissier, donc une ligne par caissier :
+**L'affichage attendu**, un service clôturé = une ligne :
 
 ```
-Marie Paule   +2 500
-Hilary        −2 500
-Flora         −2 000
-─────────────────────
-Écart total   −2 000
+Marie Paule   Écart global −5 000   Écart espèces 0
+Hilary        Écart global 0        Écart espèces −2 000
+────────────────────────────────────────────────────
+Écart global  −5 000
 ```
 
-La liste se déduit des `points_shifts` du jour (`caissier_nom` + `ecart_pos`), sans
-colonne JSONB supplémentaire.
+La liste se déduit des `points_shifts` du jour. Le total global somme uniquement
+les `ecart_reconciliation` disponibles des clôtures validées, dédupliquées par
+`pos_service_id`.
 
 Conséquence à connaître : sur un site POS, `points.ecart_caisse` calculé par
-Samtrackly (`app/ventes.js:218`) vaudra structurellement 0, puisque `vente_shift` et
-`vente_machine` sont désormais deux vues du même système. **Le vrai écart est
-`ecart_pos`.** L'écran Ventes du gérant doit afficher celui-là.
+Samtrackly vaudra structurellement 0, puisque `vente_shift` et `vente_machine` sont
+désormais deux vues du même système. Il ne représente donc ni l'écart global du
+rapport Z ni l'écart espèces du tiroir.
 
 ## 6. La journée de rattachement
 

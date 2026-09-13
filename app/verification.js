@@ -19,11 +19,12 @@ import {
   calculerLitigeContact, chargerRestaurantsContact, choisirNombreContacts,
   compterCommandesPOS, contactsViennentDuPOS, corrigerNbCommandes,
 } from '../lib/litigeContacts'
+import { detailContactsParCaissier, panierMoyenLivraison } from '../lib/contactsParCaissier'
 import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifFactureCorrigee } from '../lib/notifications'
 import PhotoJustificatif, { photoConsultable } from '../components/PhotoJustificatif'
 import { estPhotoEnAttente } from '../lib/photoQueue'
-import { ecartsParCaissier } from '../lib/ecartPOS'
+import { cloturesPOS, resumerEcartsGlobaux } from '../lib/cloturesCaisse'
 
 const { width: SW } = Dimensions.get('window')
 
@@ -116,6 +117,8 @@ export default function VerificationScreen() {
   const [modalAnnulerMachine, setModalAnnulerMachine] = useState(null)
   const [annulerMontant, setAnnulerMontant] = useState('')
   const [annulerSaving, setAnnulerSaving] = useState(false)
+  // Annulation d'une décision déjà posée sur l'écart machine (retour en arrière)
+  const [retourSaving, setRetourSaving] = useState(false)
   // Correction du nombre de commandes Yango/Glovo saisi par le gérant
   // (il sert au litige « contacts » — une faute de frappe crée un faux litige)
   const [corrCmdOuvert, setCorrCmdOuvert] = useState(false)
@@ -248,6 +251,35 @@ export default function VerificationScreen() {
       contactsSamtrackly,
     })
     const nbContactsTotal = infoContacts.nombre
+    // Détail « qui a pris combien » — même source unique que le litige, jamais
+    // les deux additionnées. Les noms viennent des shifts du jour ; les
+    // caissiers qui n'ont pas de shift (commandes saisies hors shift) sont
+    // résolus par une requête de plus, pas par un « Caissier » anonyme.
+    const nomsCaissiers = {}
+    ;(shifts || []).forEach(sh => {
+      if (sh.caissier_id && sh.caissier_nom) nomsCaissiers[sh.caissier_id] = sh.caissier_nom
+    })
+    const idsSansNom = [...new Set(
+      (commandes || []).map(c => c.caissier_id).filter(id => id && !nomsCaissiers[id])
+    )]
+    if (idsSansNom.length) {
+      const { data: us } = await supabase.from('utilisateurs').select('id, nom').in('id', idsSansNom)
+      ;(us || []).forEach(u => { nomsCaissiers[u.id] = u.nom })
+    }
+    // Sites sans POS : les commandes jamais saisies ne laissent aucune trace.
+    // Le seul indice qui reste est l'argent livraison encaissé sur le shift,
+    // rapporté au panier moyen du restaurant (50 dernières journées déjà
+    // chargées). C'est une alerte à vérifier, jamais une preuve — voir
+    // l'en-tête de lib/contactsParCaissier.js.
+    const { panier: panierLivraison } = panierMoyenLivraison(points)
+    const contactsCaissiers = detailContactsParCaissier({
+      sourcePoint: contactsViennentDuPOS(restoSelectionne) ? 'POS' : 'SAMTRACKLY',
+      commandes: commandes || [],
+      shifts: shifts || [],
+      noms: nomsCaissiers,
+      panier: panierLivraison,
+    })
+
     // Commandes comptées par le POS : information de contrôle croisé. Le nombre
     // qui fait foi pour le litige reste celui saisi par le gérant (décision du
     // 2026-08-17, cf. CHAMPS_REMPLIS_PAR_LE_POS dans lib/sourcePoint.js).
@@ -281,6 +313,8 @@ export default function VerificationScreen() {
       contactsParPartenaire,
       nbContactsTotal,
       infoContacts,
+      contactsCaissiers,
+      panierLivraison,
       commandesPOS,
       invShifts: Object.values(invParShift).sort((a, b) => a.numero - b.numero),
       historiquesFournisseurs: historiquesFournisseurs || [],
@@ -1087,6 +1121,124 @@ export default function VerificationScreen() {
     }
   }
 
+  // Seuls ces rôles peuvent défaire une décision déjà prise sur l'écart machine.
+  const peutAnnulerDecisionMachine = ['manager', 'directeur'].includes(roleActif)
+
+  // Applique un delta au fond (ajustement_fond) d'une journée. Retourne false si
+  // l'écriture a échoué, pour que l'appelant puisse remettre les choses en place.
+  async function appliquerDeltaFond(pointId, delta) {
+    if (!pointId || !delta) return true
+    const { data: pf, error: e1 } = await supabase.from('points')
+      .select('ajustement_fond').eq('id', pointId).single()
+    if (e1) return false
+    const { error: e2 } = await supabase.from('points')
+      .update({ ajustement_fond: (pf?.ajustement_fond || 0) + delta })
+      .eq('id', pointId)
+    return !e2
+  }
+
+  function confirmerRetourDecisionMachine() {
+    const p = pointSelectionne
+    if (!p || retourSaving) return
+    const cfg = STATUT_MACHINE[p.explication_machine_statut]
+    const reguls = Array.isArray(p.ecart_regularisations) ? p.ecart_regularisations : []
+    const aDefaire = reguls.filter(r => r?.source === 'verification')
+    const totalFond = aDefaire.filter(r => !r?.sans_fond)
+      .reduce((s, r) => s + (parseFloat(r?.montant) || 0), 0)
+    const lignes = [
+      `Décision actuelle : ${cfg?.label || p.explication_machine_statut}.`,
+      aDefaire.length
+        ? `L'écart de ${fmt(aDefaire.reduce((s, r) => s + (parseFloat(r?.montant) || 0), 0))} redeviendra à traiter.`
+        : "L'écart redeviendra à traiter.",
+      totalFond > 0
+        ? `Le fond sera remis comme avant (${fmt(totalFond)} repris).`
+        : "Le fond n'est pas concerné.",
+      'Le gérant sera notifié.',
+    ]
+    Alert.alert('↩️ Revenir sur la décision', lignes.join('\n\n'), [
+      { text: 'Retour', style: 'cancel' },
+      { text: 'Confirmer', style: 'destructive', onPress: revenirSurDecisionMachine },
+    ])
+  }
+
+  // Défait une décision posée par erreur (« Justifier », « Annuler », « Refuser »…).
+  // Retire uniquement les régularisations écrites depuis Vérification, rend au fond
+  // ce que le mode « Annuler » lui avait ajouté, puis efface le statut : l'écart
+  // redevient exactement ce qu'il était avant la décision. Les régularisations
+  // saisies dans Litiges sont conservées, elles ne dépendent pas de cette décision.
+  async function revenirSurDecisionMachine() {
+    const p = pointSelectionne
+    if (!p) return
+    setRetourSaving(true)
+    const faits = []   // deltas de fond déjà appliqués, pour pouvoir revenir en arrière
+    try {
+      const reguls = Array.isArray(p.ecart_regularisations) ? p.ecart_regularisations : []
+      const aDefaire = reguls.filter(r => r?.source === 'verification')
+      const restantes = reguls.filter(r => r?.source !== 'verification')
+
+      // Sens inverse de l'ajout : à l'ajout, manquant → fond +montant, surplus → fond −montant.
+      for (const r of aDefaire) {
+        if (r?.sans_fond) continue
+        const montant = Math.round(parseFloat(r?.montant) || 0)
+        if (!montant) continue
+        const delta = r.sens === 'manquant' ? -montant : montant
+        const cible = r.fond_point_id || p.id
+        const ok = await appliquerDeltaFond(cible, delta)
+        if (!ok) {
+          for (const f of faits) await appliquerDeltaFond(f.cible, -f.delta)
+          Alert.alert('Erreur', "Le fond n'a pas pu être remis à jour. Rien n'a été modifié.")
+          return
+        }
+        faits.push({ cible, delta })
+      }
+
+      const maj = {
+        ecart_regularisations: restantes,
+        explication_machine_statut: null,
+        explication_machine_statut_par: null,
+        explication_machine_statut_at: null,
+      }
+      const { error } = await supabase.from('points').update(maj).eq('id', p.id)
+      if (error) {
+        for (const f of faits) await appliquerDeltaFond(f.cible, -f.delta)
+        Alert.alert('Erreur', "L'annulation a échoué. Rien n'a été modifié.")
+        return
+      }
+
+      setPointSelectionne(prev => prev ? { ...prev, ...maj } : prev)
+      setPoints(prev => prev.map(pt => pt.id === p.id ? { ...pt, ...maj } : pt))
+
+      const totalFond = faits.reduce((s, f) => s + Math.abs(f.delta), 0)
+      creerNotification({
+        type: 'explication_machine_decision_annulee',
+        titre: '↩️ Décision annulée',
+        message: `La décision prise sur l'écart de vente machine du ${formatDate(p.date)} a été annulée par le manager : l'écart est de nouveau à traiter.`
+          + (totalFond > 0 ? ` Le fond a été remis comme avant (${fmt(totalFond)}).` : ''),
+        restaurant_id: p.restaurant_id,
+        cible_role: ['gerant'],
+        created_by: userId || null,
+        screen: 'recap-point',
+      }).catch(() => {})
+
+      journaliser('retour_decision_ecart_machine', {
+        point_id: p.id,
+        statut_annule: p.explication_machine_statut || null,
+        regularisations_retirees: aDefaire.length,
+        fond_rendu: totalFond,
+      }, { par: userNom || roleActif }).catch(() => {})
+
+      Alert.alert(
+        '↩️ Décision annulée',
+        `L'écart est de nouveau à traiter.${totalFond > 0 ? `\n\nLe fond a été remis comme avant (${fmt(totalFond)}).` : "\n\nLe fond n'a pas été touché."}\n\nLe gérant a été notifié.`
+      )
+    } catch (e) {
+      for (const f of faits) await appliquerDeltaFond(f.cible, -f.delta)
+      Alert.alert('Erreur', e?.message || 'Action impossible')
+    } finally {
+      setRetourSaving(false)
+    }
+  }
+
   function getPrixProduit(produitId) {
     for (const cat of CATEGORIES_INVENTAIRE) {
       const prod = cat.produits.find(p => p.id === produitId)
@@ -1731,6 +1883,62 @@ export default function VerificationScreen() {
                                   + (calc.ecart < 0 ? ` (surplus de ${Math.abs(calc.ecart)})` : '')}
                             </Text>
                           </View>
+                          {/* Qui a pris combien. Même source que le litige (POS ou
+                              Samtrackly) ; « — » quand le POS n'a rien transmis pour
+                              une caissière : absent n'est pas zéro. */}
+                          {detailPoint.contactsCaissiers?.lignes?.length > 0 && (
+                            <View style={styles.contactsCaissierBox}>
+                              <Text style={styles.contactsCaissierTitre}>Détail par caissier</Text>
+                              {detailPoint.contactsCaissiers.lignes.map((c) => {
+                                const manquants = c.contacts != null && c.commandes != null
+                                  ? c.commandes - c.contacts : 0
+                                return (
+                                  <View key={c.cle}>
+                                    <View style={styles.canalRow}>
+                                      <Text style={styles.canalLabel}>📞 {c.nom}</Text>
+                                      <Text style={[styles.canalVal, {
+                                        color: c.contacts == null ? colors.textMuted
+                                          : manquants > 0 ? '#A32D2D' : '#2E7D32',
+                                      }]}>
+                                        {c.contacts == null
+                                          ? 'non transmis'
+                                          : `${c.contacts} / ${c.commandes == null ? '—' : c.commandes}`}
+                                      </Text>
+                                    </View>
+                                    {/* Site sans POS : l'argent du shift laisse supposer plus de
+                                        commandes que ce qui a été enregistré. Estimation, à vérifier. */}
+                                    {c.alerte && (
+                                      <Text style={styles.contactsCaissierAlerte}>
+                                        ⚠️ Son shift a encaissé {fmt(c.montantLivraison)} de livraison,
+                                        soit environ {c.attendu} commandes : {c.attendu - c.commandes} n'ont
+                                        pas été enregistrées.
+                                      </Text>
+                                    )}
+                                  </View>
+                                )
+                              })}
+                              {/* Le litige se calcule sur le nombre saisi par le gérant :
+                                  si le détail ne tombe pas juste, on le dit plutôt que de
+                                  laisser croire à une erreur de calcul. */}
+                              {detailPoint.contactsCaissiers.sommeCommandes > 0
+                                && detailPoint.contactsCaissiers.sommeCommandes !== calc.nbCommandes && (
+                                <Text style={styles.contactsCaissierNote}>
+                                  Détail indicatif : {detailPoint.contactsCaissiers.sommeCommandes} commande
+                                  {detailPoint.contactsCaissiers.sommeCommandes > 1 ? 's' : ''} enregistrée
+                                  {detailPoint.contactsCaissiers.sommeCommandes > 1 ? 's' : ''} ici, contre{' '}
+                                  {calc.nbCommandes} saisie{calc.nbCommandes > 1 ? 's' : ''} par le gérant —
+                                  c'est ce dernier nombre qui sert au litige.
+                                </Text>
+                              )}
+                              {detailPoint.contactsCaissiers.lignes.some(l => l.alerte) && (
+                                <Text style={styles.contactsCaissierNote}>
+                                  Estimation : argent livraison du shift ÷ panier moyen du restaurant
+                                  ({fmt(detailPoint.panierLivraison)}). À vérifier avec le caissier —
+                                  ce n'est pas une preuve et ça ne déclenche aucune retenue.
+                                </Text>
+                              )}
+                            </View>
+                          )}
                           {contactsDuPOS && (
                             <Text style={styles.corrCmdBadge}>Source : POS</Text>
                           )}
@@ -1779,6 +1987,10 @@ export default function VerificationScreen() {
               ══════════════════════════════════════ */}
               {(() => {
                 const p = pointSelectionne
+                // Une clôture POS possède déjà l'écart officiel du rapport Z,
+                // affiché dans la section suivante. Ne pas recréer ici un
+                // pseudo-écart à partir de vente_shift et vente_machine.
+                if (cloturesPOS(detailPoint.shifts).length > 0) return null
                 const venteMachine = p?.vente_machine
                 const venteTheo = detailPoint.shifts.reduce((s, sh) => s + (sh.vente_shift || 0), 0)
                 if (venteMachine == null && !p?.explication_ecart_machine) return null
@@ -1895,36 +2107,52 @@ export default function VerificationScreen() {
                       {ecart != null && ecart !== 0 && (
                         <View style={styles.machineDecisionBox}>
                           {p?.explication_machine_statut && STATUT_MACHINE[p.explication_machine_statut] ? (
-                            <View style={[styles.machineStatutBadge, STATUT_MACHINE[p.explication_machine_statut].box]}>
-                              <Text style={[styles.machineStatutTxt, { color: STATUT_MACHINE[p.explication_machine_statut].txt }]}>
-                                {STATUT_MACHINE[p.explication_machine_statut].label}
-                                {p.explication_machine_statut_par ? ` — ${p.explication_machine_statut_par}` : ''}
-                              </Text>
-                            </View>
+                            <>
+                              <View style={[styles.machineStatutBadge, STATUT_MACHINE[p.explication_machine_statut].box]}>
+                                <Text style={[styles.machineStatutTxt, { color: STATUT_MACHINE[p.explication_machine_statut].txt }]}>
+                                  {STATUT_MACHINE[p.explication_machine_statut].label}
+                                  {p.explication_machine_statut_par ? ` — ${p.explication_machine_statut_par}` : ''}
+                                </Text>
+                              </View>
+                              {/* Sortie de secours : une décision prise par erreur (justifier au lieu
+                                  d'annuler, ou l'inverse) se défait ici, sans passer par Litiges. */}
+                              {peutAnnulerDecisionMachine && (
+                                <TouchableOpacity
+                                  style={[styles.machineRetourBtn, retourSaving && { opacity: 0.5 }]}
+                                  onPress={confirmerRetourDecisionMachine}
+                                  disabled={retourSaving}
+                                  activeOpacity={0.85}
+                                >
+                                  <Text style={styles.machineRetourTxt}>
+                                    {retourSaving ? 'Annulation…' : '↩️ Revenir sur cette décision'}
+                                  </Text>
+                                </TouchableOpacity>
+                              )}
+                            </>
                           ) : (
                             <Text style={styles.machineDecisionHint}>{"Décision sur l'explication :"}</Text>
                           )}
                           <View style={styles.machineBtnRow}>
                             <TouchableOpacity
-                              style={[styles.machineBtn, styles.machineBtnJustifier, statuantMachine && { opacity: 0.5 }]}
+                              style={[styles.machineBtn, styles.machineBtnJustifier, (statuantMachine || retourSaving) && { opacity: 0.5 }]}
                               onPress={() => ouvrirAnnulerMachine('sans_fond')}
-                              disabled={statuantMachine}
+                              disabled={statuantMachine || retourSaving}
                               activeOpacity={0.85}
                             >
                               <Text style={styles.machineBtnTxt}>✔️ Justifier</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                              style={[styles.machineBtn, styles.machineBtnRefuser, statuantMachine && { opacity: 0.5 }]}
+                              style={[styles.machineBtn, styles.machineBtnRefuser, (statuantMachine || retourSaving) && { opacity: 0.5 }]}
                               onPress={() => confirmerStatutMachine('refusee')}
-                              disabled={statuantMachine}
+                              disabled={statuantMachine || retourSaving}
                               activeOpacity={0.85}
                             >
                               <Text style={styles.machineBtnTxt}>❌ Refuser</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                              style={[styles.machineBtn, styles.machineBtnAnnuler, statuantMachine && { opacity: 0.5 }]}
+                              style={[styles.machineBtn, styles.machineBtnAnnuler, (statuantMachine || retourSaving) && { opacity: 0.5 }]}
                               onPress={() => ouvrirAnnulerMachine('fond')}
-                              disabled={statuantMachine}
+                              disabled={statuantMachine || retourSaving}
                               activeOpacity={0.85}
                             >
                               <Text style={styles.machineBtnTxt}>🚫 Annuler</Text>
@@ -1938,37 +2166,64 @@ export default function VerificationScreen() {
                 )
               })()}
 
-              {/* Explications POS attachées au shift et au caissier concerné. */}
+              {/* Clôtures POS : rapport_z.diff en indicateur principal et
+                  services_caisse.ecart en détail espèces secondaire. */}
               {(() => {
-                const lignes = ecartsParCaissier(detailPoint.shifts).lignes
-                  .filter((ligne) => ligne.ecart !== 0)
-                if (lignes.length === 0) return null
+                const clotures = cloturesPOS(detailPoint.shifts)
+                const resume = resumerEcartsGlobaux(detailPoint.shifts)
+                if (clotures.length === 0) return null
                 return (
                   <View style={{ marginBottom: 14 }}>
-                    <Text style={styles.sectionTitre}>💵 Écarts de caisse POS</Text>
+                    <Text style={styles.sectionTitre}>💵 Clôtures de caisse POS</Text>
                     <View style={styles.ecartsPosCard}>
-                      {lignes.map((ligne, index) => {
-                        const manquant = ligne.ecart < 0
-                        const couleur = manquant ? '#A32D2D' : '#3B6D11'
+                      {clotures.map((cloture, index) => {
+                        const manquant = cloture.ecartGlobal != null && cloture.ecartGlobal < 0
+                        const couleur = cloture.ecartGlobal == null ? colors.textMuted
+                          : manquant ? '#A32D2D'
+                          : cloture.ecartGlobal > 0 ? '#3B6D11' : colors.textMuted
                         return (
                           <View
-                            key={`${ligne.nom}-${index}`}
-                            style={[styles.ecartPosLigne, index === lignes.length - 1 && { borderBottomWidth: 0 }]}
+                            key={cloture.pos_service_id || cloture.id || index}
+                            style={styles.ecartPosLigne}
                           >
                             <View style={styles.ecartPosEntete}>
-                              <Text style={styles.ecartPosCaissier}>{ligne.nom}</Text>
-                              <View style={[styles.ecartPosBadge, { backgroundColor: manquant ? '#FCEBEB' : '#EAF3DE' }]}>
+                              <Text style={styles.ecartPosCaissier}>
+                                {cloture.caissier_nom || 'Caissier non identifié'}
+                              </Text>
+                              <View style={[styles.ecartPosBadge, {
+                                backgroundColor: cloture.ecartGlobal == null ? colors.inputBg
+                                  : manquant ? '#FCEBEB' : '#EAF3DE',
+                              }]}>
                                 <Text style={[styles.ecartPosBadgeTxt, { color: couleur }]}>
-                                  {manquant ? 'Manquant' : 'Surplus'} · {fmt(Math.abs(ligne.ecart))}
+                                  Écart global · {cloture.ecartGlobalTexte}
                                 </Text>
                               </View>
                             </View>
-                            <Text style={ligne.explication ? styles.ecartPosExplication : styles.ecartPosSansExplication}>
-                              {ligne.explication || 'Aucune explication reçue'}
+                            <Text style={styles.ecartPosEspeces}>
+                              Écart espèces · {cloture.ecartEspecesTexte}
                             </Text>
+                            {cloture.explication_ecart ? (
+                              <Text style={styles.ecartPosExplication}>{cloture.explication_ecart}</Text>
+                            ) : null}
                           </View>
                         )
                       })}
+                      <View style={styles.ecartPosTotal}>
+                        <Text style={styles.ecartPosTotalLabel}>Écart global</Text>
+                        <Text style={[styles.ecartPosTotalValeur, {
+                          color: resume.total == null ? colors.textMuted
+                            : resume.total < 0 ? '#A32D2D'
+                            : resume.total > 0 ? '#3B6D11' : colors.textMuted,
+                        }]}>
+                          {resume.totalTexte}
+                        </Text>
+                      </View>
+                      {resume.indisponibles > 0 && (
+                        <Text style={styles.ecartPosIndisponible}>
+                          {resume.indisponibles} clôture
+                          {resume.indisponibles > 1 ? 's historiques exclues' : ' historique exclue'} du total : rapport Z non disponible.
+                        </Text>
+                      )}
                     </View>
                   </View>
                 )
@@ -3750,8 +4005,13 @@ function makeStyles(colors) { return StyleSheet.create({
   ecartPosCaissier: { flex: 1, fontSize: 13, fontWeight: '700', color: colors.text },
   ecartPosBadge: { borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4 },
   ecartPosBadgeTxt: { fontSize: 11, fontWeight: '700' },
+  ecartPosEspeces: { marginTop: 6, fontSize: 11, color: colors.textMuted, textAlign: 'right' },
   ecartPosExplication: { marginTop: 7, fontSize: 12, lineHeight: 18, color: colors.textMuted, fontStyle: 'italic' },
   ecartPosSansExplication: { marginTop: 7, fontSize: 12, lineHeight: 18, color: '#A32D2D', fontWeight: '600' },
+  ecartPosTotal: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1.5, borderTopColor: colors.border },
+  ecartPosTotalLabel: { fontSize: 12, fontWeight: '800', color: colors.text },
+  ecartPosTotalValeur: { fontSize: 15, fontWeight: '800' },
+  ecartPosIndisponible: { fontSize: 11, color: colors.textMuted, lineHeight: 16, paddingBottom: 12 },
   // ─── Canaux ───
   canalCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: colors.border, borderLeftWidth: 3, borderLeftColor: '#EF9F27' },
   canalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingBottom: 8, borderBottomWidth: 0.5, borderBottomColor: '#f0f0f0' },
@@ -3878,10 +4138,16 @@ function makeStyles(colors) { return StyleSheet.create({
   correctionConfirmBtn: { backgroundColor: '#854F0B', borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 16 },
   correctionConfirmTxt: { fontSize: 15, fontWeight: '700', color: '#fff' },
   // ─── Décision « vente machine » ───
+  contactsCaissierBox: { marginTop: 8, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: '#ddd', gap: 2 },
+  contactsCaissierTitre: { fontSize: 11.5, fontWeight: '700', color: colors.textMuted, marginBottom: 2 },
+  contactsCaissierAlerte: { fontSize: 11.5, color: '#B06E00', lineHeight: 16, marginTop: 1, marginBottom: 3 },
+  contactsCaissierNote: { fontSize: 11, color: colors.textMuted, fontStyle: 'italic', marginTop: 4, lineHeight: 15 },
   machineDecisionBox: { marginTop: 12, paddingTop: 12, borderTopWidth: 0.5, borderTopColor: '#ddd' },
   machineDecisionHint: { fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: 8 },
   machineStatutBadge: { borderWidth: 1, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 10, alignSelf: 'flex-start' },
   machineStatutTxt: { fontSize: 13, fontWeight: '700' },
+  machineRetourBtn: { alignSelf: 'flex-start', borderWidth: 1, borderColor: '#854F0B', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 10 },
+  machineRetourTxt: { fontSize: 12.5, fontWeight: '700', color: '#854F0B' },
   machineBtnRow: { flexDirection: 'row', gap: 8 },
   machineBtn: { flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
   machineBtnJustifier: { backgroundColor: '#3B6D11' },

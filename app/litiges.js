@@ -17,6 +17,7 @@ import {
   chargerShiftsContact, chargerRestaurantsContact, choisirNombreContacts, contactsViennentDuPOS,
   corrigerNbCommandes, forcerLitigeContact,
 } from '../lib/litigeContacts'
+import { detailContactsParCaissier } from '../lib/contactsParCaissier'
 import { PLAFOND_COMPTAGE } from '../lib/deductionsVerification'
 import {
   responsablesEcartPOS, fusionnerResponsablesEcart,
@@ -360,6 +361,9 @@ export default function LitigesScreen() {
         ecart,
         annule,
         justifie,
+        // Statut brut : nécessaire pour pouvoir le lever quand on supprime la
+        // régularisation qui l'accompagnait (sinon l'écart reste figé à 0).
+        statut: p.explication_machine_statut || null,
         regularisations: reguls,
         totalRegul,
         resteFc: p.reste_fc || 0,
@@ -500,23 +504,44 @@ export default function LitigesScreen() {
     }
   }
 
+  // Vrai si supprimer cette ligne doit aussi lever le statut posé depuis Vérification :
+  // c'est le cas quand plus aucune régularisation issue de Vérification ne subsiste.
+  function leveStatut(item, index) {
+    if (!['annulee', 'justifiee'].includes(item.statut)) return false
+    return !(item.regularisations || [])
+      .filter((_, i) => i !== index)
+      .some((x) => x?.source === 'verification')
+  }
+
   function supprimerRegularisation(item, index) {
     const r = item.regularisations[index]
     if (!r) return
     Alert.alert(
       'Supprimer cette régularisation ?',
-      r.sans_fond
+      (r.sans_fond
         ? `Le montant de ${fmt(r.montant)} sera réintégré dans l'écart. Le fond n'est pas concerné.`
-        : `Le montant de ${fmt(r.montant)} sera réintégré dans l'écart et le fond actuel sera recalculé.`,
+        : `Le montant de ${fmt(r.montant)} sera réintégré dans l'écart et le fond actuel sera recalculé.`)
+      + (leveStatut(item, index) ? "\n\nLe badge « écart justifié / annulé » sera retiré : l'écart redeviendra à traiter." : ''),
       [
         { text: 'Annuler', style: 'cancel' },
         {
           text: 'Supprimer', style: 'destructive', onPress: async () => {
             const nouvelles = item.regularisations.filter((_, i) => i !== index)
             const deltaFc = r.sens === 'manquant' ? -(r.montant || 0) : (r.montant || 0) // inverse de l'ajout
+            // Supprimer la régularisation ne suffisait pas : le statut 'justifiee' /
+            // 'annulee' posé dans Vérification force l'écart à 0 plus haut. Sans le
+            // lever ici, l'écart restait soldé pour toujours et la décision devenait
+            // impossible à corriger.
+            const statutMaj = leveStatut(item, index)
+              ? {
+                  explication_machine_statut: null,
+                  explication_machine_statut_par: null,
+                  explication_machine_statut_at: null,
+                }
+              : {}
             // Retire l'explication/responsabilité du jour de l'écart
             await supabase.from('points')
-              .update({ ecart_regularisations: nouvelles })
+              .update({ ecart_regularisations: nouvelles, ...statutMaj })
               .eq('id', item.id)
             if (r.sans_fond) {
               // Justifié sans incidence sur le fond (bouton « ✔️ Justifier » de
@@ -666,7 +691,7 @@ export default function LitigesScreen() {
     // Shifts : noms des caissières ET compteurs de contacts du POS.
     const { data: shifts } = await supabase
       .from('points_shifts')
-      .select('point_id, caissier_nom, heure_debut, heure_fin, pos_nb_contacts')
+      .select('point_id, caissier_id, caissier_nom, heure_debut, heure_fin, pos_nb_contacts, pos_nb_yango, pos_nb_glovo')
       .in('point_id', pointIds)
       .order('created_at', { ascending: true })
 
@@ -687,6 +712,12 @@ export default function LitigesScreen() {
       : { data: [] }
     const nomCaissier = {}
     ;(caissierUsers || []).forEach(u => { nomCaissier[u.id] = u.nom })
+    // Sur un site POS il n'y a aucune ligne `commandes` : les noms viennent des shifts.
+    ;(shifts || []).forEach(sh => {
+      if (sh.caissier_id && sh.caissier_nom && !nomCaissier[sh.caissier_id]) {
+        nomCaissier[sh.caissier_id] = sh.caissier_nom
+      }
+    })
 
     // Shifts groupés par point
     const shiftsByPoint = {}
@@ -708,10 +739,23 @@ export default function LitigesScreen() {
       const caissiers = shiftsJour.map(s =>
         `${s.caissier_nom || '—'}${s.heure_debut ? ` (${s.heure_debut}→${s.heure_fin})` : ''}`
       ).join(' · ')
-      const contactsParCaissier = Object.entries(contactsByPointCaissier[p.id] || {}).map(([cid, nb]) => ({
-        nom: nomCaissier[cid] || 'Caissier',
-        nb,
-      })).sort((a, b) => b.nb - a.nb)
+      // « Hilary 5 / 7 » : même module que l'écran Vérification, pour que les
+      // deux écrans ne divergent jamais. Sur un site POS, la ventilation vient
+      // des compteurs de shift ; les lignes `commandes` y sont vides.
+      const detailCaissiers = detailContactsParCaissier({
+        sourcePoint: sourceResto,
+        commandes: [],
+        shifts: shiftsJour,
+        noms: nomCaissier,
+      })
+      const contactsParCaissier = sourceResto === 'POS'
+        ? detailCaissiers.lignes
+        : Object.entries(contactsByPointCaissier[p.id] || {}).map(([cid, v]) => ({
+            cle: cid,
+            nom: nomCaissier[cid] || 'Caissier',
+            contacts: v.contacts,
+            commandes: v.commandes,
+          })).sort((a, b) => (b.commandes || 0) - (a.commandes || 0) || b.contacts - a.contacts)
       return { ...calc, point: p, date: p.date, caissiers, contactsParCaissier }
     }).filter(r => r.nbCommandes > 0 || r.caissiers))
   }
@@ -2231,7 +2275,9 @@ export default function LitigesScreen() {
                       <View style={{ marginTop: 4, gap: 2 }}>
                         {item.contactsParCaissier.map((c, ci) => (
                           <Text key={ci} style={[styles.ligneSous, { color: '#185FA5' }]}>
-                            📞 {c.nom} : {c.nb} contact{c.nb > 1 ? 's' : ''}
+                            📞 {c.nom} : {c.contacts == null
+                              ? 'non transmis'
+                              : `${c.contacts} / ${c.commandes == null ? '—' : c.commandes}`}
                           </Text>
                         ))}
                       </View>
