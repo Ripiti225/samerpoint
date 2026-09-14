@@ -15,6 +15,7 @@ adaptations
 adaptive
 add
 admin
+affichage
 affiche
 affichent
 afficher
@@ -171,6 +172,7 @@ cles
 client
 clients
 cloture
+clotures
 code
 codemagic
 coder
@@ -281,6 +283,7 @@ deductions
 deduire
 deduit
 dedup
+dedupliquer
 default
 defaut
 define
@@ -307,6 +310,7 @@ design
 destination
 detail
 details
+deux
 dev
 deverrouillage
 deverrouiller
@@ -399,6 +403,7 @@ explore
 expo
 export
 exporter
+exports
 extends
 external
 extra
@@ -409,6 +414,7 @@ factures
 faire
 fait
 famille
+fcfa
 features
 fermer
 fetch
@@ -567,6 +573,7 @@ lecteur
 lection
 legacy
 les
+leur
 leve
 lib
 libelle
@@ -688,6 +695,7 @@ notifier
 nouveau
 nouvelle
 now
+null
 num
 oasis
 objectif
@@ -864,6 +872,7 @@ recalc
 recalculer
 recap
 recharger
+reconciliation
 record
 recue
 red
@@ -994,6 +1003,7 @@ shifts
 shopify
 short
 signature
+signe
 simple
 sistance
 site
@@ -1006,7 +1016,6 @@ sms
 solution
 sommaire
 somme
-son
 sort
 soumettre
 source
@@ -1028,6 +1037,7 @@ statut
 statuts
 step
 stock
+stockage
 storage
 store
 strict
@@ -1040,6 +1050,7 @@ subtitle
 successifs
 suivi
 sultats
+sum
 supabase
 support
 supporte
@@ -1114,6 +1125,7 @@ tsx
 tuile
 tuiles
 turent
+tures
 two
 type
 types

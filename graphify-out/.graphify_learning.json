@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-13T11:28:20.738630+00:00",
+  "generated_at": "2026-09-14T11:34:32.480689+00:00",
   "nodes": {
     "app_credits_fournisseurs": {
       "code_fingerprint": "ca174d2b6fa95bed90e36b5d803c8d439b780a0005d4b810ace8e185b8748868",
@@ -12,7 +12,7 @@
           "q": "Pourquoi les photos des factures fournisseurs s'affichent dans Vérification mais pas dans Crédits fournisseurs ?"
         }
       ],
-      "score": 0.978385741,
+      "score": 0.955944344,
       "source_file": "app/credits-fournisseurs.js",
       "status": "tentative",
       "uses": 1
@@ -28,13 +28,13 @@
           "q": "Pourquoi les photos des factures fournisseurs s'affichent dans Vérification mais pas dans Crédits fournisseurs ?"
         }
       ],
-      "score": 0.978385741,
+      "score": 0.955944344,
       "source_file": "app/credits-fournisseurs.js",
       "status": "tentative",
       "uses": 1
     },
     "app_verification_verificationscreen": {
-      "code_fingerprint": "0e8f06c3fccef2a5a2e192398ab9190a3d41f3471f987f6e39859bc096627fc8",
+      "code_fingerprint": "bc4f341627b095f405aa07b13db5d8e625c951384c633287ded6ad1701b3bfff",
       "label": "VerificationScreen()",
       "last": "2026-09-12T12:46:28.673464+00:00",
       "provenance": [
@@ -44,7 +44,7 @@
           "q": "Pourquoi les photos des factures fournisseurs s'affichent dans Vérification mais pas dans Crédits fournisseurs ?"
         }
       ],
-      "score": 0.978385741,
+      "score": 0.955944344,
       "source_file": "app/verification.js",
       "status": "tentative",
       "uses": 1
@@ -60,7 +60,7 @@
           "q": "Pourquoi les photos des factures fournisseurs s'affichent dans Vérification mais pas dans Crédits fournisseurs ?"
         }
       ],
-      "score": 0.978385741,
+      "score": 0.955944344,
       "source_file": "components/PhotoJustificatif.js",
       "status": "tentative",
       "uses": 1

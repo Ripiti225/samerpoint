@@ -22,7 +22,11 @@ import * as XLSX from 'xlsx'
 import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
-import { agregerMouvementsMensuels } from '../lib/creditsFournisseurs'
+import {
+  agregerMouvementsMensuels,
+  preparerHistoriqueFournisseur,
+  restaurerPhotosFacturesDepuisPoints,
+} from '../lib/creditsFournisseurs'
 import { journaliser } from '../lib/journal'
 import { supabase } from '../lib/supabase'
 
@@ -156,7 +160,7 @@ export default function CreditsFournisseursScreen() {
       const finExcl = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
 
       // Points du mois pour le périmètre restaurant courant
-      let pQ = supabase.from('points').select('id, restaurant_id').gte('date', debut).lt('date', finExcl)
+      let pQ = supabase.from('points').select('id, restaurant_id, draft_gerant').gte('date', debut).lt('date', finExcl)
       if (isGerant) pQ = pQ.eq('restaurant_id', restaurantId)
       else if (restoFilter) pQ = pQ.eq('restaurant_id', restoFilter)
       const { data: pts } = await pQ
@@ -169,12 +173,13 @@ export default function CreditsFournisseursScreen() {
 
       const { data: trans } = await supabase
         .from('transactions_fournisseurs')
-        .select('id, fournisseur_id, fournisseur_nom, facture, paye, photo_url, date_point, created_at')
+        .select('id, point_id, fournisseur_id, fournisseur_nom, facture, paye, photo_url, date_point, created_at, saisi_par, source')
         .in('point_id', pointIds)
 
       const nomById = {}
       fournisseurs.forEach(f => { nomById[f.id] = f.nom })
-      setMouvMois(agregerMouvementsMensuels(trans, nomById))
+      const transactionsAvecPhotos = restaurerPhotosFacturesDepuisPoints(trans, pts)
+      setMouvMois(agregerMouvementsMensuels(transactionsAvecPhotos, nomById))
     } catch {
       setMouvMois({ totalFacture: 0, totalPaye: 0, parFourn: [] })
     }
@@ -224,33 +229,17 @@ export default function CreditsFournisseursScreen() {
       .eq('fournisseur_id', f.id)
       .order('created_at', { ascending: false })
 
-    const liste = transactions || []
-
-    // `date_point` = date de la JOURNÉE de la facture, renseignée par le
-    // déclencheur de supabase_date_point_transactions.sql. Tant que cette
-    // migration n'est pas passée elle est vide : on retombe alors sur la date
-    // du point. Sans ça, une facture réinjectée s'affiche à la date de la
-    // réinjection et remonte en tête de liste, ce qui induit en erreur.
-    const aResoudre = [...new Set(liste.filter(t => !t.date_point && t.point_id).map(t => t.point_id))]
-    if (aResoudre.length) {
-      const parPoint = {}
-      for (let i = 0; i < aResoudre.length; i += 60) {   // lots courts : URL PostgREST
-        const { data: pts } = await supabase.from('points')
-          .select('id, date').in('id', aResoudre.slice(i, i + 60))
-        ;(pts || []).forEach(p => { parPoint[p.id] = p.date })
-      }
-      liste.forEach(t => { if (!t.date_point) t.date_point = parPoint[t.point_id] || null })
+    // Les points servent à la fois à retrouver la vraie date de journée et la
+    // photo du brouillon gérant que Vérification affiche pour les anciennes
+    // transactions dont `photo_url` est vide.
+    const pointIds = [...new Set((transactions || []).map(t => t.point_id).filter(Boolean))]
+    const points = []
+    for (let i = 0; i < pointIds.length; i += 60) {   // lots courts : URL PostgREST
+      const { data: pts } = await supabase.from('points')
+        .select('id, date, draft_gerant').in('id', pointIds.slice(i, i + 60))
+      points.push(...(pts || []))
     }
-
-    // Tri sur la date de journée : une facture réinjectée reprend sa vraie
-    // place chronologique. C'est déjà l'ordre qu'utilise le recalcul des soldes.
-    const jour = t => t.date_point || String(t.created_at || '').slice(0, 10)
-    liste.sort((a, b) => {
-      const da = jour(a)
-      const db = jour(b)
-      if (da !== db) return da < db ? 1 : -1
-      return String(a.created_at) < String(b.created_at) ? 1 : -1
-    })
+    const liste = preparerHistoriqueFournisseur(transactions, points)
 
     setHistoMouvements(liste)
     setLoadingHisto(false)
