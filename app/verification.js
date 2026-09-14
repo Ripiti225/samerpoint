@@ -673,6 +673,7 @@ export default function VerificationScreen() {
         statut,
         quantiteAcceptee: qAcc,
         nouveauMontant,
+        prix,
         par: userNom || roleActif || 'Manager',
       })
       creerNotification({
