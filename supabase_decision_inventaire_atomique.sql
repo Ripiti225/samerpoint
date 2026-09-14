@@ -4,6 +4,7 @@
 CREATE OR REPLACE FUNCTION public.decider_ecart_inventaire_atomique(
   p_ligne_id UUID,
   p_statut TEXT,
+  p_quantite_acceptee NUMERIC,
   p_prix NUMERIC,
   p_par TEXT
 )
@@ -51,7 +52,10 @@ BEGIN
 
   v_quantite := CASE
     WHEN p_statut = 'refusee' THEN 0
-    ELSE LEAST(ABS(COALESCE(v_ligne.ecart, 0)), GREATEST(0, COALESCE(v_ligne.nombre_explique, 0)))
+    ELSE LEAST(
+      ABS(COALESCE(v_ligne.ecart, 0)),
+      GREATEST(0, COALESCE(p_quantite_acceptee, v_ligne.nombre_explique, 0))
+    )
   END;
   v_nouveau := ROUND(GREATEST(0, ABS(COALESCE(v_ligne.ecart, 0)) - v_quantite) * p_prix);
   v_delta := v_nouveau - COALESCE(v_ligne.montant_deduit, 0);
@@ -91,8 +95,8 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.decider_ecart_inventaire_atomique(UUID, TEXT, NUMERIC, TEXT)
+GRANT EXECUTE ON FUNCTION public.decider_ecart_inventaire_atomique(UUID, TEXT, NUMERIC, NUMERIC, TEXT)
   TO anon, authenticated, service_role;
 
-COMMENT ON FUNCTION public.decider_ecart_inventaire_atomique(UUID, TEXT, NUMERIC, TEXT) IS
+COMMENT ON FUNCTION public.decider_ecart_inventaire_atomique(UUID, TEXT, NUMERIC, NUMERIC, TEXT) IS
   'Première décision gagnante sur une explication inventaire, avec mise à jour atomique des totaux.';
