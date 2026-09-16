@@ -1,6 +1,7 @@
 abonnement
 abonner
 absente
+absentes
 accepter
 acces
 access
@@ -598,6 +599,7 @@ litiges
 livraison
 livraisons
 locale
+localhost
 lock
 log
 login
@@ -812,6 +814,7 @@ precedente
 prefix
 premier
 prendre
+preparer
 presence
 presences
 preset
@@ -879,6 +882,7 @@ red
 reel
 refresh
 refus
+refuser
 regrouper
 regul
 regularisation
@@ -903,6 +907,7 @@ repartition
 reponse
 repris
 rer
+res
 reset
 resolve
 resoudre
@@ -916,6 +921,7 @@ restaurants
 restaurer
 reste
 restedu
+restent
 resto
 resume
 resumer
@@ -1181,6 +1187,7 @@ vient
 view
 vignette
 visibilit
+visibles
 voir
 vous
 wave

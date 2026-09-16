@@ -204,9 +204,9 @@
     "semantic_hash": ""
   },
   "app/litiges.js": {
-    "mtime": 1788821797.5539777,
-    "seen": 1789217192.438206,
-    "ast_hash": "5e9566a00a480021cdee403d78c042ca",
+    "mtime": 1789393250.7744634,
+    "seen": 1789393313.7675,
+    "ast_hash": "9318839f6f31478be6600134166c49a4",
     "semantic_hash": ""
   },
   "app/livraisons.js": {
@@ -294,9 +294,9 @@
     "semantic_hash": ""
   },
   "app/stats-caissiers.js": {
-    "mtime": 1778498429.0,
-    "seen": 1788454354.11133,
-    "ast_hash": "59c2032ff12bd11cecfa179e2dcb3abe",
+    "mtime": 1789557078.8899422,
+    "seen": 1789557088.628596,
+    "ast_hash": "83a6f1efe3349e603ebf3948ebe771e8",
     "semantic_hash": ""
   },
   "app/ventes.js": {
@@ -312,9 +312,9 @@
     "semantic_hash": ""
   },
   "app/verification.js": {
-    "mtime": 1789300708.29016,
-    "seen": 1789300737.3706188,
-    "ast_hash": "303fb43d27064fa0d00cfc3e540eb1bb",
+    "mtime": 1789433010.6656013,
+    "seen": 1789556677.04316,
+    "ast_hash": "dc88600dd3ea84ce2f1230e5adf6c73e",
     "semantic_hash": ""
   },
   "components/FicheContrat.js": {
@@ -492,9 +492,9 @@
     "semantic_hash": ""
   },
   "lib/api.js": {
-    "mtime": 1787567987.5064688,
-    "seen": 1788454354.1113431,
-    "ast_hash": "2864c1be03779244aaeea6979d18f32f",
+    "mtime": 1789433010.6287556,
+    "seen": 1789556677.043178,
+    "ast_hash": "e60a3e65de983425733d6f54321fef19",
     "semantic_hash": ""
   },
   "lib/basculePOS.js": {
@@ -552,15 +552,15 @@
     "semantic_hash": ""
   },
   "lib/ecartPOS.js": {
-    "mtime": 1789299167.6607912,
-    "seen": 1789300514.314671,
-    "ast_hash": "2481216519fd36098668fbe8ecefeeb3",
+    "mtime": 1789393250.7058074,
+    "seen": 1789393313.767541,
+    "ast_hash": "52075a1c90bb76928783aa04d6c476b9",
     "semantic_hash": ""
   },
   "lib/ecartPOS.test.mjs": {
-    "mtime": 1788454332.8817067,
-    "seen": 1788454354.111351,
-    "ast_hash": "84f67edb2e4707c70c9638548a07aa1d",
+    "mtime": 1789391314.1117003,
+    "seen": 1789393313.767541,
+    "ast_hash": "4f9c20e636d1f1b9d036eb6fa02b4f39",
     "semantic_hash": ""
   },
   "lib/erreursLisibles.js": {
@@ -1377,6 +1377,66 @@
     "mtime": 1789386276.933282,
     "seen": 1789386282.702761,
     "ast_hash": "4aaaf6ed33d5676173ede43d0345185d",
+    "semantic_hash": ""
+  },
+  "lib/entreesVerification.js": {
+    "mtime": 1789389171.699672,
+    "seen": 1789389304.729415,
+    "ast_hash": "2dcf61651c21e98c19bf3dba510e882d",
+    "semantic_hash": ""
+  },
+  "lib/entreesVerification.test.mjs": {
+    "mtime": 1789389149.0370805,
+    "seen": 1789389304.729416,
+    "ast_hash": "76d8929ae840b54386c26c94552c9bec",
+    "semantic_hash": ""
+  },
+  "lib/photosVerification.js": {
+    "mtime": 1789390468.219994,
+    "seen": 1789390603.365369,
+    "ast_hash": "7a4690f6ea51ffb37cf1173793eb339b",
+    "semantic_hash": ""
+  },
+  "lib/photosVerification.test.mjs": {
+    "mtime": 1789390456.3228269,
+    "seen": 1789390603.36537,
+    "ast_hash": "738d43fc476c77f944363ee4deb51d83",
+    "semantic_hash": ""
+  },
+  "lib/decisionInventaire.js": {
+    "mtime": 1789433010.6291199,
+    "seen": 1789556677.04319,
+    "ast_hash": "c8d22a8ff0fad90144ae051c9e381d88",
+    "semantic_hash": ""
+  },
+  "lib/decisionInventaire.test.mjs": {
+    "mtime": 1789433010.6312344,
+    "seen": 1789556677.043191,
+    "ast_hash": "619a8e14db859438bbd73a93e4fd4f85",
+    "semantic_hash": ""
+  },
+  "lib/statsCaissiers.js": {
+    "mtime": 1789556556.882127,
+    "seen": 1789556677.04321,
+    "ast_hash": "7faad368f32e407e5cad65af828ed64f",
+    "semantic_hash": ""
+  },
+  "lib/statsCaissiers.test.mjs": {
+    "mtime": 1789556544.8329859,
+    "seen": 1789556677.043211,
+    "ast_hash": "319a26d4a997adc99c8ba85088630994",
+    "semantic_hash": ""
+  },
+  "supabase_decision_inventaire_atomique.sql": {
+    "mtime": 1789433010.631883,
+    "seen": 1789556677.043225,
+    "ast_hash": "841dd2b962807b3965aad3e51a0e9e4e",
+    "semantic_hash": ""
+  },
+  "graphify-out/memory/query_20260915_231003_dans_espace_caissier_d\u00e9tails_de_chaque_caissier__a.md": {
+    "mtime": 1789513803.0955567,
+    "seen": 1789556677.0432901,
+    "ast_hash": "f6ca0d09485021fa1209b6d369ec4fcf",
     "semantic_hash": ""
   }
 }

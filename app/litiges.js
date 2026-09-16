@@ -21,7 +21,7 @@ import { detailContactsParCaissier } from '../lib/contactsParCaissier'
 import { PLAFOND_COMPTAGE } from '../lib/deductionsVerification'
 import {
   responsablesEcartPOS, fusionnerResponsablesEcart,
-  CHAMPS_SHIFT_ECART, CHAMPS_SHIFT_ECART_LEGACY,
+  CHAMPS_SHIFT_ECART, CHAMPS_SHIFT_ECART_LEGACY, SOURCE_DECISION_POS,
 } from '../lib/ecartPOS'
 import { exporterPdf } from '../lib/pdfDocuments'
 import { usePhoto } from '../lib/usePhoto'
@@ -325,6 +325,11 @@ export default function LitigesScreen() {
 
     const pointIds = pointsData.map(p => p.id)
     const allShifts = await chargerShiftsEcart(pointIds)
+    const regularisationsPOS = pointsData.flatMap(p =>
+      (Array.isArray(p.ecart_regularisations) ? p.ecart_regularisations : [])
+        .filter(r => r?.source === SOURCE_DECISION_POS)
+        .map(r => ({ ...r, point_id: r.point_id || p.id }))
+    )
 
     const shiftsByPoint = {}
     ;(allShifts || []).forEach(s => {
@@ -334,14 +339,15 @@ export default function LitigesScreen() {
 
     // Une seule dérivation pour toute la période : elle sert à la fois au
     // détail d'une journée et à l'onglet « Responsables des écarts ».
-    setResponsablesPOS(responsablesEcartPOS(allShifts))
+    setResponsablesPOS(responsablesEcartPOS(allShifts, regularisationsPOS))
 
     setEcartsListe(pointsData.map(p => {
       const shifts = shiftsByPoint[p.id] || []
       const cumulShifts = shifts.reduce((s, x) => s + (x.vente_shift || 0), 0)
       const ecartBrut = (p.vente_machine || 0) - cumulShifts
       const reguls = Array.isArray(p.ecart_regularisations) ? p.ecart_regularisations : []
-      const totalRegul = reguls.reduce((s, r) => s + (parseFloat(r.montant) || 0), 0)
+      const regulsJour = reguls.filter(r => r?.source !== SOURCE_DECISION_POS)
+      const totalRegul = regulsJour.reduce((s, r) => s + (parseFloat(r.montant) || 0), 0)
       // Écart effectif : rapproché de 0 par les montants régularisés
       let ecart = ecartBrut
       if (ecartBrut < 0) ecart = Math.min(0, ecartBrut + totalRegul)
@@ -372,7 +378,7 @@ export default function LitigesScreen() {
         responsablesEcart: Array.isArray(p.ecart_responsables) ? p.ecart_responsables : [],
         // Mesuré par la caisse, pas saisi par le gérant : affiché à part, pour
         // qu'un manager sache toujours qui a désigné le responsable.
-        responsablesPOS: responsablesEcartPOS(shifts),
+        responsablesPOS: responsablesEcartPOS(shifts, regularisationsPOS),
         photosEcart: Array.isArray(p.ecart_photos) ? p.ecart_photos : [],
       }
     }))
@@ -781,7 +787,12 @@ export default function LitigesScreen() {
       if (pointsData?.length) {
         const ids = pointsData.map(p => p.id)
         const shifts = await chargerShiftsEcart(ids)
-        mesuresPOS = responsablesEcartPOS(shifts)
+        const regularisationsPOS = pointsData.flatMap(p =>
+          (Array.isArray(p.ecart_regularisations) ? p.ecart_regularisations : [])
+            .filter(r => r?.source === SOURCE_DECISION_POS)
+            .map(r => ({ ...r, point_id: r.point_id || p.id }))
+        )
+        mesuresPOS = responsablesEcartPOS(shifts, regularisationsPOS)
         const byPoint = {}
         ;(shifts || []).forEach(s => { byPoint[s.point_id] = (byPoint[s.point_id] || 0) + (s.vente_shift || 0) })
         pointsData.forEach(p => {
@@ -793,7 +804,9 @@ export default function LitigesScreen() {
           // Les régularisations partielles réduisent l'écart : sans ça, annuler
           // 8 000 sur un manquant de 10 000 laissait 10 000 dans le total.
           const reguls = Array.isArray(p.ecart_regularisations) ? p.ecart_regularisations : []
-          const totalRegul = reguls.reduce((s2, r) => s2 + (parseFloat(r.montant) || 0), 0)
+          const totalRegul = reguls
+            .filter(r => r?.source !== SOURCE_DECISION_POS)
+            .reduce((s2, r) => s2 + (parseFloat(r.montant) || 0), 0)
           const reste = Math.max(0, brut - totalRegul)
           if (reste <= 0) pointsSoldes.add(p.id)
           ecartTotal += reste
