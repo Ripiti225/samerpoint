@@ -25,6 +25,9 @@ import { envoyerNotifFactureCorrigee } from '../lib/notifications'
 import PhotoJustificatif, { photoConsultable } from '../components/PhotoJustificatif'
 import { estPhotoEnAttente } from '../lib/photoQueue'
 import { cloturesPOS, resumerEcartsGlobaux } from '../lib/cloturesCaisse'
+import { decisionEcartShiftPOS, SOURCE_DECISION_POS } from '../lib/ecartPOS'
+import { preparerEntreesVerification } from '../lib/entreesVerification'
+import { photosCanalDisponibles } from '../lib/photosVerification'
 
 const { width: SW } = Dimensions.get('window')
 
@@ -211,6 +214,7 @@ export default function VerificationScreen() {
       { data: presences },
       { data: commandes },
       { data: inventaireRaw },
+      { data: inventairesPosRaw },
       { data: historiquesFournisseurs },
       { data: deverouillages },
     ] = await Promise.all([
@@ -221,6 +225,10 @@ export default function VerificationScreen() {
       supabase.from('presences').select('*').eq('point_id', point.id),
       supabase.from('commandes').select('partenaire, contact_client, caissier_id').eq('point_id', point.id),
       supabase.from('inventaires').select('*, fournisseurs(nom)').eq('point_id', point.id).order('shift_numero'),
+      supabase.from('inventaires_shifts')
+        .select('id, caissier_id, type_shift, pos_service_id')
+        .eq('point_id', point.id)
+        .order('created_at'),
       supabase.from('historique_credit_fournisseurs')
         .select('id, fournisseur_id, source, ancien_credit, nouveau_credit, facture, paye, photo_url, motif, modified_at, fournisseurs(nom)')
         .eq('point_id', point.id)
@@ -230,6 +238,20 @@ export default function VerificationScreen() {
         .eq('point_id', point.id)
         .order('deverouille_at', { ascending: true }),
     ])
+
+    // Les réceptions du POS vivent dans `entrees_shift`, séparément des lignes
+    // d'inventaire. On ne les charge que pour les inventaires réellement issus
+    // du POS ; le reste de l'écran conserve l'ancien format comme historique.
+    const inventairesPOS = (inventairesPosRaw || []).filter(inv => inv.pos_service_id)
+    let entreesPosRaw = []
+    if (inventairesPOS.length > 0) {
+      const { data } = await supabase
+        .from('entrees_shift')
+        .select('inventaire_id, produit_nom, quantite, fournisseur_nom')
+        .in('inventaire_id', inventairesPOS.map(inv => inv.id))
+        .order('fournisseur_nom')
+      entreesPosRaw = data || []
+    }
 
     // Contacts uniques par partenaire
     const contactsParPartenaire = {}
@@ -302,6 +324,15 @@ export default function VerificationScreen() {
       invParFournisseur[ligne.fournisseur_id].push(ligne)
     })
 
+    const historiqueEntreesDisponible = (inventaireRaw || []).some(l => (Number(l.entrees) || 0) > 0)
+      || (fournisseurs || []).some(f => (Number(f.facture) || 0) > 0)
+    const entreesVerification = preparerEntreesVerification({
+      inventaires: inventairesPOS,
+      entrees: entreesPosRaw,
+      shifts: shifts || [],
+      historiqueDisponible: historiqueEntreesDisponible,
+    })
+
     setDetailPoint({
       point,
       sequences: sequences || [],
@@ -310,6 +341,7 @@ export default function VerificationScreen() {
       shifts: shifts || [],
       presences: presences || [],
       invParFournisseur,
+      entreesVerification,
       contactsParPartenaire,
       nbContactsTotal,
       infoContacts,
@@ -673,6 +705,7 @@ export default function VerificationScreen() {
         statut,
         quantiteAcceptee: qAcc,
         nouveauMontant,
+        prix,
         par: userNom || roleActif || 'Manager',
       })
       creerNotification({
@@ -985,7 +1018,8 @@ export default function VerificationScreen() {
     const venteMachine = p.vente_machine || 0
     const ecartBrut = venteMachine - cumulShifts // convention Litiges (signe opposé à l'écart affiché)
     const sens = ecartBrut > 0 ? 'manquant' : 'surplus'
-    const reguls = Array.isArray(p.ecart_regularisations) ? p.ecart_regularisations : []
+    const toutesReguls = Array.isArray(p.ecart_regularisations) ? p.ecart_regularisations : []
+    const reguls = toutesReguls.filter(r => r?.source !== SOURCE_DECISION_POS)
     const totalRegul = reguls.reduce((s, r) => s + (parseFloat(r.montant) || 0), 0)
     let ecartEff = ecartBrut
     if (ecartBrut < 0) ecartEff = Math.min(0, ecartBrut + totalRegul)
@@ -998,8 +1032,86 @@ export default function VerificationScreen() {
       restant,
       explication: (p.explication_ecart_machine || '').trim(),
       photos: Array.isArray(p.ecart_photos) ? p.ecart_photos : [],
-      regulsExistantes: reguls,
+      regulsExistantes: toutesReguls,
     })
+  }
+
+  function ouvrirDecisionCloturePOS(cloture, mode = 'fond') {
+    const p = pointSelectionne
+    if (!p) return
+    const toutesReguls = Array.isArray(p.ecart_regularisations) ? p.ecart_regularisations : []
+    const decision = decisionEcartShiftPOS(cloture, toutesReguls)
+    if (decision.restant <= 0) return
+    setAnnulerMontant(String(decision.restant))
+    setModalAnnulerMachine({
+      source: 'pos_shift',
+      mode,
+      sens: Number(cloture.ecart_pos) < 0 ? 'manquant' : 'surplus',
+      restant: decision.restant,
+      explication: String(cloture.explication_ecart || '').trim(),
+      photos: [],
+      regulsExistantes: toutesReguls,
+      shiftId: cloture.id,
+      posServiceId: cloture.pos_service_id || null,
+      caissierNom: cloture.caissier_nom || 'Caissier non identifié',
+    })
+  }
+
+  function estDecisionDuShiftPOS(record, cloture) {
+    if (record?.source !== SOURCE_DECISION_POS) return false
+    if (record.shift_id != null) return String(record.shift_id) === String(cloture?.id)
+    return Boolean(record.pos_service_id && cloture?.pos_service_id
+      && String(record.pos_service_id) === String(cloture.pos_service_id))
+  }
+
+  function confirmerRefusCloturePOS(cloture) {
+    if (!pointSelectionne || statuantMachine) return
+    Alert.alert('❌ Refuser l’explication', `Refuser l’explication de ${cloture.caissier_nom || 'ce caissier'} ? L’écart restera dans les litiges.`, [
+      { text: 'Retour', style: 'cancel' },
+      { text: 'Refuser', style: 'destructive', onPress: () => refuserExplicationCloturePOS(cloture) },
+    ])
+  }
+
+  async function refuserExplicationCloturePOS(cloture) {
+    const p = pointSelectionne
+    if (!p) return
+    setStatuantMachine(true)
+    try {
+      const reguls = Array.isArray(p.ecart_regularisations) ? p.ecart_regularisations : []
+      const record = {
+        source: SOURCE_DECISION_POS,
+        point_id: p.id,
+        shift_id: cloture.id,
+        pos_service_id: cloture.pos_service_id || null,
+        decision: 'refusee',
+        sens: Number(cloture.ecart_pos) < 0 ? 'manquant' : 'surplus',
+        montant: 0,
+        motif: String(cloture.explication_ecart || '').trim(),
+        sans_fond: true,
+        par_id: userId || null,
+        par_nom: userNom || null,
+        created_at: new Date().toISOString(),
+      }
+      const nouvelles = [...reguls, record]
+      const { error } = await supabase.from('points').update({ ecart_regularisations: nouvelles }).eq('id', p.id)
+      if (error) { Alert.alert('Erreur', "L'enregistrement a échoué. Réessayez."); return }
+      setPointSelectionne(prev => prev ? { ...prev, ecart_regularisations: nouvelles } : prev)
+      setPoints(prev => prev.map(pt => pt.id === p.id ? { ...pt, ecart_regularisations: nouvelles } : pt))
+      creerNotification({
+        type: 'explication_pos_refusee',
+        titre: '❌ Explication POS refusée',
+        message: `L'explication de ${cloture.caissier_nom || 'la caissière'} pour l'écart espèces du ${formatDate(p.date)} a été refusée.`,
+        restaurant_id: p.restaurant_id,
+        cible_role: ['gerant'],
+        created_by: userId || null,
+        screen: 'recap-point',
+      }).catch(() => {})
+      journaliser('refus_explication_ecart_pos', { point_id: p.id, shift_id: cloture.id }, { par: userNom || roleActif }).catch(() => {})
+    } catch (e) {
+      Alert.alert('Erreur', e?.message || 'Action impossible')
+    } finally {
+      setStatuantMachine(false)
+    }
   }
 
   // Confirme la décision : écrit une régularisation, et — en mode 'fond' seulement —
@@ -1049,7 +1161,13 @@ export default function VerificationScreen() {
         // Sans lui, fond_point_id null ferait passer le record pour une régularisation
         // héritée et la suppression irait modifier reste_fc.
         sans_fond: sansFond,
-        source: 'verification',
+        source: ctx.source === 'pos_shift' ? SOURCE_DECISION_POS : 'verification',
+        ...(ctx.source === 'pos_shift' ? {
+          point_id: p.id,
+          shift_id: ctx.shiftId,
+          pos_service_id: ctx.posServiceId,
+          decision: sansFond ? 'justifiee' : 'annulee',
+        } : {}),
       }
       const nouvelles = [...ctx.regulsExistantes, record]
 
@@ -1057,7 +1175,7 @@ export default function VerificationScreen() {
       // pose donc que si la régularisation solde l'écart entièrement. Sinon,
       // annuler 8 000 sur un manquant de 10 000 affichait 0 au lieu de 2 000.
       const soldeApres = Math.round(ctx.restant - montant)
-      const statutMaj = soldeApres <= 0 ? {
+      const statutMaj = ctx.source !== 'pos_shift' && soldeApres <= 0 ? {
         explication_machine_statut: sansFond ? 'justifiee' : 'annulee',
         explication_machine_statut_par: userNom || roleActif || 'Manager',
         explication_machine_statut_at: new Date().toISOString(),
@@ -1091,11 +1209,15 @@ export default function VerificationScreen() {
       setPoints(prev => prev.map(pt => pt.id === p.id ? { ...pt, ...statutMaj, ecart_regularisations: nouvelles } : pt))
 
       creerNotification({
-        type: sansFond ? 'explication_machine_justifiee' : 'explication_machine_annulee',
+        type: ctx.source === 'pos_shift'
+          ? (sansFond ? 'explication_pos_justifiee' : 'explication_pos_annulee')
+          : (sansFond ? 'explication_machine_justifiee' : 'explication_machine_annulee'),
         titre: sansFond ? '✔️ Écart justifié' : '🚫 Écart annulé',
-        message: sansFond
-          ? `L'écart de vente machine du ${formatDate(p.date)} (${ctx.sens}) a été justifié par le manager : ${fmt(montant)} neutralisé, sans correction du fond.`
-          : `L'écart de vente machine du ${formatDate(p.date)} (${ctx.sens}) a été annulé par le manager : ${fmt(montant)} neutralisé sur le fond.`,
+        message: ctx.source === 'pos_shift'
+          ? `L'écart espèces de ${ctx.caissierNom} du ${formatDate(p.date)} a été ${sansFond ? 'justifié' : 'annulé'} par le manager : ${fmt(montant)} neutralisé${sansFond ? ', sans correction du fond' : ' sur le fond'}.`
+          : sansFond
+            ? `L'écart de vente machine du ${formatDate(p.date)} (${ctx.sens}) a été justifié par le manager : ${fmt(montant)} neutralisé, sans correction du fond.`
+            : `L'écart de vente machine du ${formatDate(p.date)} (${ctx.sens}) a été annulé par le manager : ${fmt(montant)} neutralisé sur le fond.`,
         restaurant_id: p.restaurant_id,
         cible_role: ['gerant'],
         created_by: userId || null,
@@ -1103,7 +1225,7 @@ export default function VerificationScreen() {
       }).catch(() => {})
 
       journaliser(sansFond ? 'justification_ecart_machine' : 'annulation_ecart_machine', {
-        point_id: p.id, sens: ctx.sens, montant, fond_point_id: cibleId,
+        point_id: p.id, shift_id: ctx.shiftId || null, sens: ctx.sens, montant, fond_point_id: cibleId,
       }, { par: userNom || roleActif }).catch(() => {})
 
       setModalAnnulerMachine(null)
@@ -1137,12 +1259,64 @@ export default function VerificationScreen() {
     return !e2
   }
 
+  function confirmerRetourDecisionPOS(cloture, decision) {
+    if (!pointSelectionne || retourSaving) return
+    const cfg = STATUT_MACHINE[decision.statut]
+    Alert.alert('↩️ Revenir sur la décision', `${cfg?.label || 'Cette décision'} pour ${cloture.caissier_nom || 'ce caissier'} sera annulée. L’écart redeviendra à traiter.`, [
+      { text: 'Retour', style: 'cancel' },
+      { text: 'Confirmer', style: 'destructive', onPress: () => revenirSurDecisionPOS(cloture) },
+    ])
+  }
+
+  async function revenirSurDecisionPOS(cloture) {
+    const p = pointSelectionne
+    if (!p) return
+    setRetourSaving(true)
+    const faits = []
+    try {
+      const reguls = Array.isArray(p.ecart_regularisations) ? p.ecart_regularisations : []
+      const aDefaire = reguls.filter(r => estDecisionDuShiftPOS(r, cloture))
+      const restantes = reguls.filter(r => !estDecisionDuShiftPOS(r, cloture))
+
+      for (const r of aDefaire) {
+        if (r?.sans_fond) continue
+        const montant = Math.round(parseFloat(r?.montant) || 0)
+        if (!montant) continue
+        const delta = r.sens === 'manquant' ? -montant : montant
+        const cible = r.fond_point_id || p.id
+        const ok = await appliquerDeltaFond(cible, delta)
+        if (!ok) {
+          for (const f of faits) await appliquerDeltaFond(f.cible, -f.delta)
+          Alert.alert('Erreur', "Le fond n'a pas pu être remis à jour. Rien n'a été modifié.")
+          return
+        }
+        faits.push({ cible, delta })
+      }
+
+      const { error } = await supabase.from('points').update({ ecart_regularisations: restantes }).eq('id', p.id)
+      if (error) {
+        for (const f of faits) await appliquerDeltaFond(f.cible, -f.delta)
+        Alert.alert('Erreur', "L'annulation a échoué. Rien n'a été modifié.")
+        return
+      }
+      setPointSelectionne(prev => prev ? { ...prev, ecart_regularisations: restantes } : prev)
+      setPoints(prev => prev.map(pt => pt.id === p.id ? { ...pt, ecart_regularisations: restantes } : pt))
+      journaliser('retour_decision_ecart_pos', { point_id: p.id, shift_id: cloture.id }, { par: userNom || roleActif }).catch(() => {})
+      Alert.alert('↩️ Décision annulée', `L'écart de ${cloture.caissier_nom || 'ce caissier'} est de nouveau à traiter.`)
+    } catch (e) {
+      for (const f of faits) await appliquerDeltaFond(f.cible, -f.delta)
+      Alert.alert('Erreur', e?.message || 'Action impossible')
+    } finally {
+      setRetourSaving(false)
+    }
+  }
+
   function confirmerRetourDecisionMachine() {
     const p = pointSelectionne
     if (!p || retourSaving) return
     const cfg = STATUT_MACHINE[p.explication_machine_statut]
     const reguls = Array.isArray(p.ecart_regularisations) ? p.ecart_regularisations : []
-    const aDefaire = reguls.filter(r => r?.source === 'verification')
+    const aDefaire = reguls.filter(r => r?.source === 'verification' && !r?.shift_id)
     const totalFond = aDefaire.filter(r => !r?.sans_fond)
       .reduce((s, r) => s + (parseFloat(r?.montant) || 0), 0)
     const lignes = [
@@ -1173,8 +1347,8 @@ export default function VerificationScreen() {
     const faits = []   // deltas de fond déjà appliqués, pour pouvoir revenir en arrière
     try {
       const reguls = Array.isArray(p.ecart_regularisations) ? p.ecart_regularisations : []
-      const aDefaire = reguls.filter(r => r?.source === 'verification')
-      const restantes = reguls.filter(r => r?.source !== 'verification')
+      const aDefaire = reguls.filter(r => r?.source === 'verification' && !r?.shift_id)
+      const restantes = reguls.filter(r => r?.source !== 'verification' || r?.shift_id)
 
       // Sens inverse de l'ajout : à l'ajout, manquant → fond +montant, surplus → fond −montant.
       for (const r of aDefaire) {
@@ -1707,12 +1881,12 @@ export default function VerificationScreen() {
                 const hasAutres = waveTotal > 0 || omTotal > 0 || djamoTotal > 0 || especeShifts > 0
                 const toutes = getToutesPhotos()
 
-                const yangoCSEPhotos = detailPoint.shifts
-                  .map((s, i) => ({ uri: s.photo_yango_cse, label: `Yango CSE S${i + 1}`, montant: s.yango_cse, show: (s.yango_cse || 0) > 0 }))
-                  .filter(x => x.show)
-                const glovoCSEPhotos = detailPoint.shifts
-                  .map((s, i) => ({ uri: s.photo_glovo_cse, label: `Glovo CSE S${i + 1}`, montant: s.glovo_cse, show: (s.glovo_cse || 0) > 0 }))
-                  .filter(x => x.show)
+                const yangoCSEPhotos = photosCanalDisponibles(detailPoint.shifts, {
+                  montantChamp: 'yango_cse', photoChamp: 'photo_yango_cse', label: 'Yango CSE',
+                })
+                const glovoCSEPhotos = photosCanalDisponibles(detailPoint.shifts, {
+                  montantChamp: 'glovo_cse', photoChamp: 'photo_glovo_cse', label: 'Glovo CSE',
+                })
 
                 return (
                   <View style={{ marginBottom: 14 }}>
@@ -1730,15 +1904,13 @@ export default function VerificationScreen() {
                               <Text style={styles.canalLabel}>Yango CSE (shifts)</Text>
                               <Text style={styles.canalVal}>{fmt(yangoCseTotal)}</Text>
                             </View>
-                            {yangoCSEPhotos.length > 0 ? yangoCSEPhotos.map((photo, i) => (
-                              photo.uri ? (
-                                <TouchableOpacity key={i} style={styles.canalPhotoTouchable}
-                                  onPress={() => { const idx = toutes.findIndex(x => x.uri === photo.uri); ouvriGalerie(toutes, idx >= 0 ? idx : 0) }}>
-                                  <PhotoJustificatif uri={photo.uri} style={styles.canalPhotoMini} compact />
-                                  <Text style={styles.canalPhotoLabel}>📷 {photo.label} — Tap pour agrandir</Text>
-                                </TouchableOpacity>
-                              ) : <Text key={i} style={styles.aucunePhoto}>Aucune photo CSE enregistrée</Text>
-                            )) : <Text style={styles.aucunePhoto}>Aucune photo CSE enregistrée</Text>}
+                            {yangoCSEPhotos.map((photo, i) => (
+                              <TouchableOpacity key={i} style={styles.canalPhotoTouchable}
+                                onPress={() => { const idx = toutes.findIndex(x => x.uri === photo.uri); ouvriGalerie(toutes, idx >= 0 ? idx : 0) }}>
+                                <PhotoJustificatif uri={photo.uri} style={styles.canalPhotoMini} compact />
+                                <Text style={styles.canalPhotoLabel}>📷 {photo.label} — Tap pour agrandir</Text>
+                              </TouchableOpacity>
+                            ))}
                           </>
                         )}
 
@@ -1755,7 +1927,7 @@ export default function VerificationScreen() {
                                 <PhotoJustificatif uri={p.photo_yango_tab} style={styles.canalPhotoMini} compact />
                                 <Text style={styles.canalPhotoLabel}>📷 Photo TAB Yango — Tap pour agrandir</Text>
                               </TouchableOpacity>
-                            ) : <Text style={styles.aucunePhoto}>Aucune photo TAB enregistrée</Text>}
+                            ) : null}
                           </>
                         )}
 
@@ -1788,15 +1960,13 @@ export default function VerificationScreen() {
                               <Text style={styles.canalLabel}>Glovo CSE (shifts)</Text>
                               <Text style={styles.canalVal}>{fmt(glovoCseTotal)}</Text>
                             </View>
-                            {glovoCSEPhotos.length > 0 ? glovoCSEPhotos.map((photo, i) => (
-                              photo.uri ? (
-                                <TouchableOpacity key={i} style={styles.canalPhotoTouchable}
-                                  onPress={() => { const idx = toutes.findIndex(x => x.uri === photo.uri); ouvriGalerie(toutes, idx >= 0 ? idx : 0) }}>
-                                  <PhotoJustificatif uri={photo.uri} style={styles.canalPhotoMini} compact />
-                                  <Text style={styles.canalPhotoLabel}>📷 {photo.label} — Tap pour agrandir</Text>
-                                </TouchableOpacity>
-                              ) : <Text key={i} style={styles.aucunePhoto}>Aucune photo CSE enregistrée</Text>
-                            )) : <Text style={styles.aucunePhoto}>Aucune photo CSE enregistrée</Text>}
+                            {glovoCSEPhotos.map((photo, i) => (
+                              <TouchableOpacity key={i} style={styles.canalPhotoTouchable}
+                                onPress={() => { const idx = toutes.findIndex(x => x.uri === photo.uri); ouvriGalerie(toutes, idx >= 0 ? idx : 0) }}>
+                                <PhotoJustificatif uri={photo.uri} style={styles.canalPhotoMini} compact />
+                                <Text style={styles.canalPhotoLabel}>📷 {photo.label} — Tap pour agrandir</Text>
+                              </TouchableOpacity>
+                            ))}
                           </>
                         )}
 
@@ -1813,7 +1983,7 @@ export default function VerificationScreen() {
                                 <PhotoJustificatif uri={p.photo_glovo_tab} style={styles.canalPhotoMini} compact />
                                 <Text style={styles.canalPhotoLabel}>📷 Photo TAB Glovo — Tap pour agrandir</Text>
                               </TouchableOpacity>
-                            ) : <Text style={styles.aucunePhoto}>Aucune photo TAB enregistrée</Text>}
+                            ) : null}
                           </>
                         )}
 
@@ -1996,7 +2166,8 @@ export default function VerificationScreen() {
                 if (venteMachine == null && !p?.explication_ecart_machine) return null
                 const ecart = venteMachine != null ? venteTheo - venteMachine : null
                 // Régularisations déjà posées sur cet écart (partagées avec l'écran Litiges)
-                const regulsMachine = Array.isArray(p?.ecart_regularisations) ? p.ecart_regularisations : []
+                const regulsMachine = (Array.isArray(p?.ecart_regularisations) ? p.ecart_regularisations : [])
+                  .filter(r => r?.source !== SOURCE_DECISION_POS)
                 const totalRegulMachine = regulsMachine.reduce((s, r) => s + (parseFloat(r?.montant) || 0), 0)
                 const resteMachine = Math.max(0, Math.round((ecart != null ? Math.abs(ecart) : 0) - totalRegulMachine))
                 return (
@@ -2174,10 +2345,15 @@ export default function VerificationScreen() {
                 if (clotures.length === 0) return null
                 return (
                   <View style={{ marginBottom: 14 }}>
-                    <Text style={styles.sectionTitre}>💵 Clôtures de caisse POS</Text>
+                    <Text style={styles.sectionTitre}>💵 Rapports Z — clôtures POS</Text>
                     <View style={styles.ecartsPosCard}>
                       {clotures.map((cloture, index) => {
                         const manquant = cloture.ecartGlobal != null && cloture.ecartGlobal < 0
+                        const reguls = Array.isArray(pointSelectionne?.ecart_regularisations)
+                          ? pointSelectionne.ecart_regularisations : []
+                        const decision = decisionEcartShiftPOS(cloture, reguls)
+                        const statutCfg = decision.statut ? STATUT_MACHINE[decision.statut] : null
+                        const aEcartEspeces = cloture.ecartEspeces != null && cloture.ecartEspeces !== 0
                         const couleur = cloture.ecartGlobal == null ? colors.textMuted
                           : manquant ? '#A32D2D'
                           : cloture.ecartGlobal > 0 ? '#3B6D11' : colors.textMuted
@@ -2205,6 +2381,55 @@ export default function VerificationScreen() {
                             {cloture.explication_ecart ? (
                               <Text style={styles.ecartPosExplication}>{cloture.explication_ecart}</Text>
                             ) : null}
+                            {aEcartEspeces && (
+                              <View style={styles.ecartPosDecision}>
+                                {statutCfg ? (
+                                  <>
+                                    <View style={[styles.machineStatutBadge, statutCfg.box]}>
+                                      <Text style={[styles.machineStatutTxt, { color: statutCfg.txt }]}>
+                                        {statutCfg.label}{decision.restant > 0 ? ` · reste ${fmt(decision.restant)}` : ''}
+                                      </Text>
+                                    </View>
+                                    {peutAnnulerDecisionMachine && (
+                                      <TouchableOpacity
+                                        style={[styles.machineRetourBtn, retourSaving && { opacity: 0.5 }]}
+                                        onPress={() => confirmerRetourDecisionPOS(cloture, decision)}
+                                        disabled={retourSaving || statuantMachine}
+                                      >
+                                        <Text style={styles.machineRetourTxt}>↩️ Revenir sur cette décision</Text>
+                                      </TouchableOpacity>
+                                    )}
+                                  </>
+                                ) : (
+                                  <Text style={styles.machineDecisionHint}>Décision sur l’explication du caissier :</Text>
+                                )}
+                                {decision.restant > 0 && !decision.statut && (
+                                  <View style={styles.machineBtnRow}>
+                                    <TouchableOpacity
+                                      style={[styles.machineBtn, styles.machineBtnJustifier, (statuantMachine || retourSaving) && { opacity: 0.5 }]}
+                                      onPress={() => ouvrirDecisionCloturePOS(cloture, 'sans_fond')}
+                                      disabled={statuantMachine || retourSaving}
+                                    >
+                                      <Text style={styles.machineBtnTxt}>✔️ Justifier</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                      style={[styles.machineBtn, styles.machineBtnRefuser, (statuantMachine || retourSaving) && { opacity: 0.5 }]}
+                                      onPress={() => confirmerRefusCloturePOS(cloture)}
+                                      disabled={statuantMachine || retourSaving}
+                                    >
+                                      <Text style={styles.machineBtnTxt}>❌ Refuser</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                      style={[styles.machineBtn, styles.machineBtnAnnuler, (statuantMachine || retourSaving) && { opacity: 0.5 }]}
+                                      onPress={() => ouvrirDecisionCloturePOS(cloture, 'fond')}
+                                      disabled={statuantMachine || retourSaving}
+                                    >
+                                      <Text style={styles.machineBtnTxt}>🚫 Annuler</Text>
+                                    </TouchableOpacity>
+                                  </View>
+                                )}
+                              </View>
+                            )}
                           </View>
                         )
                       })}
@@ -2230,7 +2455,51 @@ export default function VerificationScreen() {
               })()}
 
               {/* ══════════════════════════════════════
-                  3. DÉDUCTIONS GÉRANT
+                  3. SHIFTS CAISSIERS
+                  Détail opérationnel immédiatement après les clôtures POS.
+                  Les photos ne sont plus demandées au POS.
+              ══════════════════════════════════════ */}
+              {detailPoint.shifts.length > 0 && (
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={styles.sectionTitre}>⏱️ Shifts caissiers ({detailPoint.shifts.length})</Text>
+                  {detailPoint.shifts.map((shift, i) => (
+                    <View key={shift.id} style={styles.shiftCard}>
+                      <View style={styles.shiftHeader}>
+                        <View style={styles.shiftNumBox}>
+                          <Text style={styles.shiftNumTxt}>S{i + 1}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.shiftHeures}>⏰ {shift.heure_debut} → {shift.heure_fin}</Text>
+                          {shift.caissier_nom && <Text style={styles.shiftCaissier}>👤 {shift.caissier_nom}</Text>}
+                        </View>
+                        <Text style={styles.shiftVente}>{fmt(shift.vente_shift || 0)}</Text>
+                      </View>
+                      <View style={styles.shiftDonnees}>
+                        {[
+                          { label: 'Dépenses', val: shift.depenses },
+                          { label: 'Fournisseurs', val: shift.fournisseurs },
+                          { label: 'KDO', val: shift.kdo },
+                          { label: 'Retour', val: shift.retour },
+                          { label: 'Yango CSE', val: shift.yango_cse },
+                          { label: 'Glovo CSE', val: shift.glovo_cse },
+                          { label: 'Wave', val: shift.wave },
+                          { label: 'Djamo', val: shift.djamo },
+                          { label: 'Orange Money', val: shift.om },
+                          { label: 'Espèces', val: shift.espece },
+                        ].filter(r => (r.val || 0) > 0).map((r, j) => (
+                          <View key={j} style={styles.shiftRow}>
+                            <Text style={styles.shiftLabel}>{r.label}</Text>
+                            <Text style={styles.shiftVal}>{fmt(r.val)}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* ══════════════════════════════════════
+                  4. DÉDUCTIONS GÉRANT
               ══════════════════════════════════════ */}
               {(() => {
                 // transactions du point gérant (facture/paye validées via fournisseurs.js)
@@ -2356,7 +2625,7 @@ export default function VerificationScreen() {
               })()}
 
               {/* ══════════════════════════════════════
-                  4. FOURNISSEURS CAISSIERS
+                  5. FOURNISSEURS CAISSIERS
               ══════════════════════════════════════ */}
               {(() => {
                 // transactions_fournisseurs = source de vérité permanente pour les caissiers
@@ -2452,10 +2721,45 @@ export default function VerificationScreen() {
               })()}
 
               {/* ══════════════════════════════════════
-                  5. ENTRÉES DU JOUR
+                  6. ENTRÉES DU JOUR
               ══════════════════════════════════════ */}
               {(() => {
-                // Entrées depuis nouveau format inventaires_shifts
+                const entreesPOS = detailPoint.entreesVerification
+                if (entreesPOS?.source === 'POS') {
+                  return (
+                    <View style={{ marginBottom: 14 }}>
+                      <View style={styles.entreeSectionHeader}>
+                        <Text style={styles.sectionTitre}>📥 Entrées du jour ({entreesPOS.nbEntrees})</Text>
+                        <View style={styles.entreeSourceBadge}>
+                          <Text style={styles.entreeSourceBadgeTxt}>Source POS</Text>
+                        </View>
+                      </View>
+                      {entreesPOS.groupes.map(groupe => (
+                        <View key={groupe.fournisseur} style={styles.entreeFournCard}>
+                          <Text style={[styles.entreeFournNom, { marginBottom: 6 }]}>🏭 {groupe.fournisseur}</Text>
+                          {groupe.produits.map(produit => (
+                            <View
+                              key={`${produit.nom}|${produit.auteur}|${produit.shift}`}
+                              style={styles.entreeProdRow}
+                            >
+                              <View style={{ flex: 1, paddingRight: 10 }}>
+                                <Text style={styles.entreeProdNom} numberOfLines={1}>{produit.nom}</Text>
+                                <Text style={styles.entreeProdMeta} numberOfLines={1}>
+                                  👤 {produit.auteur}{produit.shift ? ` · ${produit.shift}` : ''}
+                                </Text>
+                              </View>
+                              <Text style={styles.entreeProdQte}>
+                                +{Number(produit.quantite).toLocaleString('fr-FR')}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      ))}
+                    </View>
+                  )
+                }
+
+                // Repli historique : anciennes lignes `inventaires`.
                 const entreesMap = {}
                 detailPoint.invShifts.forEach(shift => {
                   ;(shift.lignes || []).forEach(l => {
@@ -2517,7 +2821,7 @@ export default function VerificationScreen() {
                       ))
                     }
 
-                    {/* Entrées depuis inventaires_shifts (nouveau format) */}
+                    {/* Entrées historiques non rattachées à un fournisseur */}
                     {entreesStock.length > 0 && (
                       <View style={styles.entreeFournCard}>
                         <Text style={[styles.entreeFournNom, { marginBottom: 8 }]}>📦 Entrées de stock (inventaire)</Text>
@@ -2534,7 +2838,7 @@ export default function VerificationScreen() {
               })()}
 
               {/* ══════════════════════════════════════
-                  6. PRÉSENCES & PAIES
+                  7. PRÉSENCES & PAIES
               ══════════════════════════════════════ */}
               <View style={{ marginBottom: 14 }}>
                 <Text style={styles.sectionTitre}>👥 Présences & Paies ({detailPoint.presences.length})</Text>
@@ -2572,7 +2876,7 @@ export default function VerificationScreen() {
               </View>
 
               {/* ══════════════════════════════════════
-                  6. INVENTAIRE
+                  8. INVENTAIRE
               ══════════════════════════════════════ */}
               <View style={{ marginBottom: 14 }}>
                 <Text style={styles.sectionTitre}>📦 Inventaire</Text>
@@ -2640,77 +2944,7 @@ export default function VerificationScreen() {
               </View>
 
               {/* ══════════════════════════════════════
-                  7. SHIFTS CAISSIERS (détail photos)
-              ══════════════════════════════════════ */}
-              {detailPoint.shifts.length > 0 && (
-                <View style={{ marginBottom: 14 }}>
-                  <Text style={styles.sectionTitre}>⏱️ Shifts caissiers ({detailPoint.shifts.length})</Text>
-                  {detailPoint.shifts.map((shift, i) => {
-                    const toutes = getToutesPhotos()
-                    const photosShift = [
-                      { uri: shift.photo_kdo, label: 'KDO', val: shift.kdo },
-                      { uri: shift.photo_retour, label: 'Retour', val: shift.retour },
-                      { uri: shift.photo_yango_cse, label: 'Yango CSE', val: shift.yango_cse },
-                      { uri: shift.photo_glovo_cse, label: 'Glovo CSE', val: shift.glovo_cse },
-                      { uri: shift.photo_wave, label: 'Wave', val: shift.wave },
-                      { uri: shift.photo_djamo, label: 'Djamo', val: shift.djamo },
-                      { uri: shift.photo_om, label: 'OM', val: shift.om },
-                    ].filter(p => (p.val || 0) > 0)
-                    return (
-                      <View key={shift.id} style={styles.shiftCard}>
-                        <View style={styles.shiftHeader}>
-                          <View style={styles.shiftNumBox}>
-                            <Text style={styles.shiftNumTxt}>S{i + 1}</Text>
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.shiftHeures}>⏰ {shift.heure_debut} → {shift.heure_fin}</Text>
-                            {shift.caissier_nom && <Text style={styles.shiftCaissier}>👤 {shift.caissier_nom}</Text>}
-                          </View>
-                          <Text style={styles.shiftVente}>{fmt(shift.vente_shift || 0)}</Text>
-                        </View>
-                        <View style={styles.shiftDonnees}>
-                          {[
-                            { label: 'Dépenses', val: shift.depenses },
-                            { label: 'Fournisseurs', val: shift.fournisseurs },
-                            { label: 'KDO', val: shift.kdo },
-                            { label: 'Retour', val: shift.retour },
-                            { label: 'Yango CSE', val: shift.yango_cse },
-                            { label: 'Glovo CSE', val: shift.glovo_cse },
-                            { label: 'Wave', val: shift.wave },
-                            { label: 'Djamo', val: shift.djamo },
-                            { label: 'Orange Money', val: shift.om },
-                            { label: 'Espèces', val: shift.espece },
-                          ].filter(r => (r.val || 0) > 0).map((r, j) => (
-                            <View key={j} style={styles.shiftRow}>
-                              <Text style={styles.shiftLabel}>{r.label}</Text>
-                              <Text style={styles.shiftVal}>{fmt(r.val)}</Text>
-                            </View>
-                          ))}
-                        </View>
-                        {photosShift.length > 0 && (
-                          <>
-                            <Text style={styles.photosShiftTitre}>📷 Photos justificatives</Text>
-                            <View style={styles.photosGrid}>
-                              {photosShift.map((p, j) => {
-                                const idx = toutes.findIndex(x => x.uri === p.uri)
-                                return (
-                                  <PhotoVignette
-                                    key={j} uri={p.uri} label={p.label} montant={p.val}
-                                    onPress={p.uri ? () => ouvriGalerie(toutes, idx >= 0 ? idx : 0) : undefined}
-                                  />
-                                )
-                              })}
-                            </View>
-                          </>
-                        )}
-                      </View>
-                    )
-                  })}
-                </View>
-              )}
-
-              {/* ══════════════════════════════════════
-                  8. PHOTOS GÉNÉRALES (séquences)
+                  9. PHOTOS GÉNÉRALES (séquences)
               ══════════════════════════════════════ */}
               <View style={{ marginBottom: 14 }}>
                 <Text style={styles.sectionTitre}>📷 Photos générales</Text>
@@ -2738,7 +2972,7 @@ export default function VerificationScreen() {
               </View>
 
               {/* ══════════════════════════════════════
-                  9. HISTORIQUE CORRECTIONS
+                  10. HISTORIQUE CORRECTIONS
               ══════════════════════════════════════ */}
               {detailPoint.deverouillages.length > 0 && (
                 <View style={{ marginBottom: 14 }}>
@@ -3618,7 +3852,9 @@ export default function VerificationScreen() {
                       placeholder={String(modalAnnulerMachine.restant)}
                       placeholderTextColor="#bbb"
                     />
-                    <Text style={styles.annulerHint}>{`Max ${fmt(modalAnnulerMachine.restant)} — justificatif repris de l'explication du gérant.`}</Text>
+                    <Text style={styles.annulerHint}>
+                      {`Max ${fmt(modalAnnulerMachine.restant)} — justificatif repris de l'explication ${modalAnnulerMachine.source === 'pos_shift' ? 'du caissier' : 'du gérant'}.`}
+                    </Text>
                     {modalAnnulerMachine.explication ? (
                       <Text style={styles.annulerExplication} numberOfLines={3}>📝 {modalAnnulerMachine.explication}</Text>
                     ) : null}
@@ -4007,6 +4243,7 @@ function makeStyles(colors) { return StyleSheet.create({
   ecartPosBadgeTxt: { fontSize: 11, fontWeight: '700' },
   ecartPosEspeces: { marginTop: 6, fontSize: 11, color: colors.textMuted, textAlign: 'right' },
   ecartPosExplication: { marginTop: 7, fontSize: 12, lineHeight: 18, color: colors.textMuted, fontStyle: 'italic' },
+  ecartPosDecision: { marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: colors.border },
   ecartPosSansExplication: { marginTop: 7, fontSize: 12, lineHeight: 18, color: '#A32D2D', fontWeight: '600' },
   ecartPosTotal: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1.5, borderTopColor: colors.border },
   ecartPosTotalLabel: { fontSize: 12, fontWeight: '800', color: colors.text },
@@ -4024,7 +4261,6 @@ function makeStyles(colors) { return StyleSheet.create({
   canalPhotoTouchable: { flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 10, backgroundColor: '#f9f9f9', padding: 8, borderRadius: 10 },
   canalPhotoMini: { width: 60, height: 60, borderRadius: 8 },
   canalPhotoLabel: { fontSize: 11, color: colors.primary, flex: 1 },
-  aucunePhoto: { marginTop: 8, fontSize: 11, color: '#bbb', fontStyle: 'italic' },
   // ─── Listes ───
   listCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 4, borderWidth: 0.5, borderColor: colors.border },
   listRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5' },
@@ -4068,7 +4304,6 @@ function makeStyles(colors) { return StyleSheet.create({
   shiftLabel: { fontSize: 12, color: colors.textMuted },
   shiftVal: { fontSize: 12, fontWeight: '500', color: colors.text },
   // ─── Photos ───
-  photosShiftTitre: { fontSize: 11, fontWeight: '600', color: colors.primary, marginBottom: 8 },
   photosGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   photoVignette: { width: '30%', backgroundColor: colors.surface, borderRadius: 10, padding: 6, alignItems: 'center', borderWidth: 0.5, borderColor: colors.border },
   photoVignetteManquante: { backgroundColor: '#FAECE7', borderColor: '#F09595' },
@@ -4102,11 +4337,15 @@ function makeStyles(colors) { return StyleSheet.create({
   emptySection: { backgroundColor: '#f9f9f9', borderRadius: 10, padding: 14, alignItems: 'center', marginBottom: 4 },
   emptySectionTxt: { fontSize: 13, color: colors.textMuted },
   entreeFournCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 0.5, borderColor: colors.border },
+  entreeSectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  entreeSourceBadge: { backgroundColor: '#E6F1FB', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, marginBottom: 8 },
+  entreeSourceBadgeTxt: { color: '#185FA5', fontSize: 10, fontWeight: '700' },
   entreeFournHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   entreeFournNom: { fontSize: 13, fontWeight: '600', color: colors.text, flex: 1 },
   entreeFournFacture: { fontSize: 12, color: '#3B6D11', fontWeight: '500' },
   entreeProdRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4, borderTopWidth: 0.5, borderTopColor: '#f5f5f5' },
   entreeProdNom: { fontSize: 12, color: colors.textSecondary, flex: 1 },
+  entreeProdMeta: { marginTop: 2, fontSize: 10, color: colors.textMuted },
   entreeProdQte: { fontSize: 12, fontWeight: '700', color: '#3B6D11' },
   // ─── Onglets ───
   ongletBar: { flexDirection: 'row', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
