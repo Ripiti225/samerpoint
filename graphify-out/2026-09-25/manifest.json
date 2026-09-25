@@ -582,15 +582,15 @@
     "semantic_hash": ""
   },
   "lib/inactivityLock.js": {
-    "mtime": 1787913990.2410178,
-    "seen": 1788454354.1113532,
-    "ast_hash": "a7b2bf0e024ae0dff00f3558e77c6e08",
+    "mtime": 1790320498.3539994,
+    "seen": 1790320502.567578,
+    "ast_hash": "f39e38342f35fc5444bb5c9cad326f4f",
     "semantic_hash": ""
   },
   "lib/inactivityLock.test.mjs": {
-    "mtime": 1787913990.241139,
-    "seen": 1788454354.1113532,
-    "ast_hash": "69987e0d5d610ba0e7314fe26795047a",
+    "mtime": 1790320483.628661,
+    "seen": 1790320502.5675788,
+    "ast_hash": "f0c784f0bbd236d954ed6901caf5936f",
     "semantic_hash": ""
   },
   "lib/journal.js": {

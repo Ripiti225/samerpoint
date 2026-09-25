@@ -28,7 +28,7 @@ export default function ContactsScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors])
   const isGerant = roleActif === 'gerant'
   const isRH = roleActif === 'rh'
-  const onglets = isRH ? ['Équipe'] : ONGLETS
+  const onglets = isRH ? ['Équipe', 'Fournisseurs'] : ONGLETS
   const [restaurants, setRestaurants] = useState([])
   const [restoSelectionne, setRestoSelectionne] = useState(null)
   const [ongletActif, setOngletActif] = useState(isRH ? 'Équipe' : 'Clients')

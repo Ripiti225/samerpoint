@@ -78,9 +78,9 @@
     "semantic_hash": ""
   },
   "app/contacts.js": {
-    "mtime": 1787567987.4855156,
-    "seen": 1788454354.1113138,
-    "ast_hash": "518cf9122f1b2025e51afad39b5615e7",
+    "mtime": 1790340259.7031732,
+    "seen": 1790348827.168886,
+    "ast_hash": "391743b03e7c0bfb051c659b016b58da",
     "semantic_hash": ""
   },
   "app/contrats.js": {
@@ -240,15 +240,15 @@
     "semantic_hash": ""
   },
   "app/parametres.js": {
-    "mtime": 1787567987.491529,
-    "seen": 1788454354.111326,
-    "ast_hash": "b3759a68f847e0656fda545c9b6b05cb",
+    "mtime": 1790348287.774286,
+    "seen": 1790348827.1689012,
+    "ast_hash": "e104c65273ea04039a1c0edc22e70afd",
     "semantic_hash": ""
   },
   "app/point-shift.js": {
-    "mtime": 1787567987.4918256,
-    "seen": 1788454354.111326,
-    "ast_hash": "5915bcf19c75e77d2bb52ac4dfedbbd8",
+    "mtime": 1790340183.4069014,
+    "seen": 1790348827.1689029,
+    "ast_hash": "d21753d0f01b0424b96e6060ce31fe08",
     "semantic_hash": ""
   },
   "app/presences.js": {
@@ -618,9 +618,9 @@
     "semantic_hash": ""
   },
   "lib/menus.js": {
-    "mtime": 1788454332.9301262,
-    "seen": 1788454354.1113548,
-    "ast_hash": "bb7619941c81174070abd612e940f0ce",
+    "mtime": 1790340233.3310132,
+    "seen": 1790348827.168949,
+    "ast_hash": "ddbfdf86e2a259482da1a11dba848072",
     "semantic_hash": ""
   },
   "lib/networkStatus.js": {
@@ -1437,6 +1437,66 @@
     "mtime": 1789513803.0955567,
     "seen": 1789556677.0432901,
     "ast_hash": "f6ca0d09485021fa1209b6d369ec4fcf",
+    "semantic_hash": ""
+  },
+  "app/point-caissier.js": {
+    "mtime": 1790347849.72214,
+    "seen": 1790348827.168902,
+    "ast_hash": "12750afe0b2bb17819fcfe56bb018661",
+    "semantic_hash": ""
+  },
+  "components/DetailShiftCaissier.js": {
+    "mtime": 1790341261.7064798,
+    "seen": 1790348827.16891,
+    "ast_hash": "877d1c130b6dc0be75f7460ec933cd47",
+    "semantic_hash": ""
+  },
+  "lib/detailShift.js": {
+    "mtime": 1790340057.896408,
+    "seen": 1790348827.16894,
+    "ast_hash": "1b3552cc681260909fb5fdb583714fdd",
+    "semantic_hash": ""
+  },
+  "lib/pointCaissier.js": {
+    "mtime": 1790341184.8006282,
+    "seen": 1790348827.1689558,
+    "ast_hash": "27a0f50e8e8f67c21ffae69e06ab5b2a",
+    "semantic_hash": ""
+  },
+  "lib/pointCaissier.test.mjs": {
+    "mtime": 1790341177.2277293,
+    "seen": 1790348827.168957,
+    "ast_hash": "5e0348c7ef8512c00a32962a329db9b3",
+    "semantic_hash": ""
+  },
+  "lib/suppressionCompte.js": {
+    "mtime": 1790348271.4441485,
+    "seen": 1790348827.168961,
+    "ast_hash": "648719e2899b1f859484c5db55ed9b37",
+    "semantic_hash": ""
+  },
+  "lib/suppressionCompte.test.mjs": {
+    "mtime": 1790348254.6229987,
+    "seen": 1790348827.168961,
+    "ast_hash": "46e9dca27a487a73314d35e36b4faec2",
+    "semantic_hash": ""
+  },
+  "supabase_point_caissier.sql": {
+    "mtime": 1790340253.2327063,
+    "seen": 1790348827.168983,
+    "ast_hash": "fc61d02df958367fb0db3acac775fafa",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-09-25-point-caissier.md": {
+    "mtime": 1790339980.176886,
+    "seen": 1790348827.169,
+    "ast_hash": "27a8f283f767899ce7ac75b50600f01a",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-09-25-point-caissier-design.md": {
+    "mtime": 1790347866.4328907,
+    "seen": 1790348827.169003,
+    "ast_hash": "d924bc7daee23fcd9e5a3e445a56aaca",
     "semantic_hash": ""
   }
 }

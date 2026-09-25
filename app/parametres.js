@@ -28,6 +28,7 @@ import { ROLES_GLOBAUX } from '../lib/constants'
 import { ACTIONS, journaliser } from '../lib/journal'
 import { diagnosticBascule, ETAT_BASCULE, compterShiftsParRestaurant } from '../lib/basculePOS'
 import { SOURCE_POS, SOURCE_SAMTRACKLY, estSurPOS } from '../lib/sourcePoint'
+import { expliquerEchecSuppression } from '../lib/suppressionCompte'
 import {
   TUILES, ROLES_CONFIGURABLES, LABELS_ROLES, ACCES_DEFAUT,
   chargerAccesConfig, enregistrerAccesRole,
@@ -566,11 +567,36 @@ export default function ParametresScreen() {
       Alert.alert('Impossible', 'Le Manager General et l\'Administrateur ne peuvent pas être supprimés.')
       return
     }
-    Alert.alert('Confirmer', 'Supprimer cet élément ?', [
+    Alert.alert('Confirmer', `Supprimer ${nom} ?`, [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Supprimer', style: 'destructive', onPress: async () => {
-        await supabase.from(table).delete().eq('id', id)
-        chargerDonnees()
+        // L'erreur était jetée : la liste se rechargeait à l'identique et la
+        // suppression paraissait ne rien faire. Un compte qui a des shifts,
+        // des pointages ou des inventaires est protégé par la base.
+        const { error } = await supabase.from(table).delete().eq('id', id)
+        if (!error) {
+          chargerDonnees()
+          return
+        }
+
+        const info = expliquerEchecSuppression(table, error)
+        if (!info.proposerDesactivation) {
+          Alert.alert(info.titre, info.texte)
+          return
+        }
+
+        Alert.alert(info.titre, info.texte, [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Désactiver', onPress: async () => {
+            const { error: erreurDesactivation } = await supabase
+              .from(table).update({ actif: false }).eq('id', id)
+            if (erreurDesactivation) {
+              Alert.alert('Désactivation impossible', erreurDesactivation.message)
+              return
+            }
+            chargerDonnees()
+          }},
+        ])
       }}
     ])
   }
