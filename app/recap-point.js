@@ -14,6 +14,7 @@ import { creerNotification } from '../lib/notificationsInterne'
 import { verifierEtGenererRapportHebdo } from '../lib/rapportHebdo'
 import { sauvegarderSurOneDrive, estatConnecte } from '../lib/onedrive'
 import { COEFFICIENTS } from '../lib/constants'
+import { facturesGerantSansPhoto } from '../lib/creditsFournisseurs'
 import { cloturesPOS, resumerEcartsGlobaux } from '../lib/cloturesCaisse'
 import { venteMachineVientDuPOS } from '../lib/sourcePoint'
 import { supabase } from '../lib/supabase'
@@ -246,7 +247,18 @@ export default function RecapPointScreen() {
       + resteEspecesCalc()
   }
 
+  function verifierPhotosFacturesGerant() {
+    const sansPhoto = facturesGerantSansPhoto(fournisseursGerantCaisse)
+    if (sansPhoto.length === 0) return true
+    Alert.alert(
+      'Photo manquante',
+      `Ajoutez une photo dans Déductions gérant avant de valider le point pour :\n${sansPhoto.map(id => `• ${fournisseursGerantCaisse[id]?.nom || fournisseurs.find(f => f.id === id)?.nom || 'Fournisseur'}`).join('\n')}`
+    )
+    return false
+  }
+
   function valider() {
+    if (!verifierPhotosFacturesGerant()) return
     // Bloquer s'il reste des saisies fournisseurs (Saisir Ventes) non enregistrées :
     // elles n'ont pas eu de photo obligatoire et ne comptent pas tant qu'elles ne sont pas enregistrées.
     const nonEnrFour = fournisseursNonEnregistres()
@@ -313,6 +325,7 @@ export default function RecapPointScreen() {
 
   async function confirmerValider() {
     setConfirmVisible(false)
+    if (!verifierPhotosFacturesGerant()) return
     setValidating(true)
 
     // Sauvegarder les dépenses caisse gérant (catégories + fournisseurs)

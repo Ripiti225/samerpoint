@@ -16,7 +16,9 @@ import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { CATEGORIES_DEPENSES } from '../lib/constants'
+import { facturesGerantSansPhoto } from '../lib/creditsFournisseurs'
 import { logErreur } from '../lib/logErreur'
+import { estPhotoValide } from '../lib/photoQueue'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
 
@@ -139,8 +141,15 @@ export default function DeductionsGerantScreen() {
   }
 
   async function sauvegarder() {
+    if (uploading || saveStatus === 'saving') return
     if (!pointId) {
       Alert.alert('Aucun point actif', 'Sélectionnez une date depuis l\'accueil avant de sauvegarder.')
+      return
+    }
+    const sansPhoto = facturesGerantSansPhoto(fournisseursGerantCaisse)
+    if (sansPhoto.length > 0) {
+      setSectionsOuvertes(prev => new Set([...prev, 'fournisseurs', ...sansPhoto.map(id => `four_${id}`)]))
+      Alert.alert('Photo manquante', `Ajoutez une photo de la facture pour :\n${sansPhoto.map(id => `• ${fournisseursGerantCaisse[id]?.nom || fournisseursList.find(f => f.id === id)?.nom || 'Fournisseur'}`).join('\n')}`)
       return
     }
     setSaveStatus('saving')
@@ -156,7 +165,6 @@ export default function DeductionsGerantScreen() {
         })
         .eq('id', pointId)
       if (error) throw error
-      setSaveStatus('ok')
 
       // Mettre à jour credit_actuel + historique pour chaque fournisseur gérant
       const today = dateJour || new Date().toISOString().split('T')[0]
@@ -263,6 +271,7 @@ export default function DeductionsGerantScreen() {
           facture,
           paye,
           reste: nouveauCredit,
+          photo_url: data?.photoUri || null,
           saisi_par: 'gerant_caissier',
           caissier_nom: userNom || null,
         })
@@ -285,6 +294,7 @@ export default function DeductionsGerantScreen() {
 
       // Rafraîchir l'affichage des crédits après sauvegarde
       await chargerDonnees()
+      setSaveStatus('ok')
     } catch (e) {
       // Journaliser la cause : avaler l'exception avait masqué pendant des mois
       // le plantage de la synchronisation fournisseurs_restaurants ci-dessus.
@@ -440,6 +450,7 @@ export default function DeductionsGerantScreen() {
                 const fourOpen = sectionsOuvertes.has(`four_${four.id}`)
                 const creditV = getCreditVeille(four)
                 const montFact = parseFloat(data.montant_facture) || 0
+                const photoValide = estPhotoValide(data.photoUri)
                 const payé = parseFloat(data.paye) || 0
                 const reste = creditV + montFact - payé
                 return (
@@ -458,7 +469,7 @@ export default function DeductionsGerantScreen() {
                         {payé > 0 && (
                           <Text style={styles.fourMontant}>Payé {fmt(payé)}</Text>
                         )}
-                        {data.photoUri && <Text style={{ fontSize: 12 }}>📷</Text>}
+                        {photoValide && <Text style={{ fontSize: 12 }}>📷</Text>}
                         <Text style={styles.bandChevron}>{fourOpen ? '▲' : '▼'}</Text>
                       </View>
                     </TouchableOpacity>
@@ -514,13 +525,13 @@ export default function DeductionsGerantScreen() {
                           </View>
                         )}
 
-                        <View style={[styles.photoBlock, montFact > 0 && !data.photoUri && styles.photoBlockRequired]}>
+                        <View style={[styles.photoBlock, montFact > 0 && !photoValide && styles.photoBlockRequired]}>
                           <View style={styles.photoBlockHeader}>
                             <Text style={styles.photoBlockLabel}>
                               📷 Justificatif facture
                               {montFact > 0 && <Text style={{ color: '#A32D2D' }}> *</Text>}
                             </Text>
-                            {data.photoUri ? (
+                            {photoValide ? (
                               <View style={styles.photoBadgeOk}><Text style={styles.photoBadgeOkTxt}>✅ OK</Text></View>
                             ) : montFact > 0 ? (
                               <View style={styles.photoBadgeReq}><Text style={styles.photoBadgeReqTxt}>⚠️ Requis</Text></View>
@@ -667,9 +678,9 @@ export default function DeductionsGerantScreen() {
 
         {/* Bouton Sauvegarder */}
         <TouchableOpacity
-          style={[styles.sauvegarderBtn, saveStatus === 'saving' && { opacity: 0.6 }]}
+          style={[styles.sauvegarderBtn, (uploading || saveStatus === 'saving') && { opacity: 0.6 }]}
           onPress={sauvegarder}
-          disabled={saveStatus === 'saving'}
+          disabled={uploading || saveStatus === 'saving'}
         >
           {saveStatus === 'saving' ? (
             <ActivityIndicator color="#412402" size="small" />
