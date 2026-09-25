@@ -4,6 +4,44 @@
 
 ---
 
+## Session 2026-09-25 — Point caissier, suppression de compte, contacts RH
+
+**Déployé en production** (commit `95e0292`, web Vercel + OTA EAS `production`).
+
+- **Nouvel écran `/point-caissier`** (tuile gérant + admin) : les clôtures POS validées
+  des trois derniers jours (aujourd'hui + 2 jours calendaires, journées vides comprises),
+  une carte par shift avec l'écart et l'explication, puis le détail complet en lecture seule.
+- **« Espace Caissier » retiré du menu** du gérant. L'écran `/gerant-caissier` reste dans
+  le code, réactivable depuis Paramètres. Migration `supabase_point_caissier.sql`
+  **passée en production le 2026-09-25** (les menus vivent dans `roles_acces`, pas dans le code).
+- **L'écart affiché est `ecart_pos`, pas `ecart_reconciliation`.** Vérifié sur les 42 shifts
+  des trois derniers jours : `ecart_reconciliation` est NULL partout, le pont POS ne le
+  remplit pas. L'explication du caissier porte de toute façon sur `ecart_pos` (cf. le
+  commentaire de la colonne). L'écart du rapport Z ne s'affiche que s'il existe, jamais
+  à la place de l'autre — le contrat de `lib/cloturesCaisse.js` tient toujours.
+- **Détail de shift mutualisé** : sorti de `app/point-shift.js` vers `lib/detailShift.js`
+  (chargement) et `components/DetailShiftCaissier.js` (rendu). Les explications d'écart
+  d'inventaire y sont désormais affichées ligne par ligne.
+- **Paramètres — suppression de compte** : `supprimer()` jetait l'erreur Supabase, donc
+  un refus de la base ressemblait à un bouton mort. 34 des 40 comptes ont de l'historique
+  (`points_shifts`, `presences`, `inventaires_shifts` … tous en FK sans cascade) et ne
+  peuvent pas être supprimés. L'écran explique maintenant pourquoi et propose la
+  désactivation (`lib/suppressionCompte.js`, testé).
+- **RH** : onglet « Fournisseurs » ouvert dans Contacts.
+
+**Pièges rencontrés, à ne pas réapprendre :**
+- `git` et `python3` du système échouent (licence Xcode non acceptée).
+  Utiliser `/Library/Developer/CommandLineTools/usr/bin/git`, ou
+  `DEVELOPER_DIR=/Library/Developer/CommandLineTools` — **indispensable pour `eas update`**,
+  qui refuse de publier sans git fonctionnel.
+- `vercel deploy --prod --yes` renvoie « Not authorized » sans `--scope ripiti225s-projects`.
+- Un `git push` ne crée qu'un déploiement **Preview** : la production passe par le CLI.
+
+Spec : `docs/superpowers/specs/2026-09-25-point-caissier-design.md` ·
+Plan : `docs/superpowers/plans/2026-09-25-point-caissier.md`
+
+---
+
 ## Session 2026-08-28 — Écarts POS : Ventes, Recap, Litiges
 
 ### Ce qui est fait et poussé sur GitHub
