@@ -14,6 +14,7 @@ import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { saveOneTransactionFournisseur } from '../lib/api'
+import { chargerDerniersRestes } from '../lib/derniersRestesFournisseurs'
 import { estPhotoEnAttente, estPhotoValide } from '../lib/photoQueue'
 import { usePhoto } from '../lib/usePhoto'
 import { supabase } from '../lib/supabase'
@@ -76,36 +77,12 @@ export default function FournisseursScreen() {
     // Priorité quand même date : gerant_caissier > gerant > caissier.
     // Garde-fou : si reste < 0 mais credit_actuel >= 0 → incohérence historique → fallback credit_actuel.
     {
-      const sourcePrio = { gerant_caissier: 3, gerant: 2, caissier: 1 }
       const fournIdsAll = (fourn || []).map(f => f.id)
       const fournCreditActuel = {}
       ;(fourn || []).forEach(f => { fournCreditActuel[f.id] = f.credit_actuel || 0 })
-      // Filtre par fournisseur_id (robust même si restaurant_id=NULL sur les transactions)
-      let prevQ = supabase
-        .from('transactions_fournisseurs')
-        .select('fournisseur_id, reste, saisi_par, point_id')
-        .in('fournisseur_id', fournIdsAll)
-      if (pointId) prevQ = prevQ.neq('point_id', pointId)
-      const { data: prevTrans } = await prevQ
-
-      // Récupérer les dates des points séparément (évite la jointure qui échoue silencieusement)
-      const prevPointIds = [...new Set((prevTrans || []).map(t => t.point_id).filter(Boolean))]
-      const { data: prevPoints } = prevPointIds.length
-        ? await supabase.from('points').select('id, date').in('id', prevPointIds)
-        : { data: [] }
-      const prevDateByPoint = {}
-      ;(prevPoints || []).forEach(p => { prevDateByPoint[p.id] = p.date })
-
-      const prevMap = {}
-      ;(prevTrans || []).forEach(t => {
-        const date = prevDateByPoint[t.point_id] || ''
-        const ex = prevMap[t.fournisseur_id]
-        const tp = sourcePrio[t.saisi_par] || 0
-        const ep = ex ? (sourcePrio[ex.saisi_par] || 0) : -1
-        if (!ex || date > ex.date || (date === ex.date && tp > ep)) {
-          prevMap[t.fournisseur_id] = { reste: t.reste, date, saisi_par: t.saisi_par }
-        }
-      })
+      // Filtre par fournisseur_id (robust même si restaurant_id=NULL sur les transactions).
+      // Lecture paginée : non paginée, elle était coupée à 1 000 lignes.
+      const prevMap = await chargerDerniersRestes(supabase, fournIdsAll, pointId)
       Object.entries(prevMap).forEach(([id, info]) => {
         // Si reste négatif alors que credit_actuel >= 0 : incohérence de données historiques
         // → utiliser credit_actuel (source de vérité corrigée par le gérant ou le bouton Fix)

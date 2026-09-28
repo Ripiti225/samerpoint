@@ -17,6 +17,7 @@ import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { CATEGORIES_DEPENSES } from '../lib/constants'
 import { facturesGerantSansPhoto } from '../lib/creditsFournisseurs'
+import { chargerDerniersRestes } from '../lib/derniersRestesFournisseurs'
 import { logErreur } from '../lib/logErreur'
 import { estPhotoValide } from '../lib/photoQueue'
 import { supabase } from '../lib/supabase'
@@ -73,30 +74,9 @@ export default function DeductionsGerantScreen() {
       // Priorité quand même date : gerant_caissier > gerant > caissier
       // Cela évite le double-comptage : credit_actuel est déjà à jour après saveTransactionsFournisseurs,
       // donc on ne l'utilise PAS directement — on repart du point précédent.
-      const sourcePrio = { gerant_caissier: 3, gerant: 2, caissier: 1 }
-      let prevQ = supabase
-        .from('transactions_fournisseurs')
-        .select('fournisseur_id, reste, saisi_par, point_id')
-        .in('fournisseur_id', fournIds)
-      if (pointId) prevQ = prevQ.neq('point_id', pointId)
-      const { data: prevTrans } = await prevQ
-
-      const prevPointIds = [...new Set((prevTrans || []).map(t => t.point_id).filter(Boolean))]
-      const { data: prevPoints } = prevPointIds.length
-        ? await supabase.from('points').select('id, date').in('id', prevPointIds)
-        : { data: [] }
-      const prevDateByPoint = {}
-      ;(prevPoints || []).forEach(p => { prevDateByPoint[p.id] = p.date })
-
-      ;(prevTrans || []).forEach(t => {
-        const date = prevDateByPoint[t.point_id] || ''
-        const ex = prevMap[t.fournisseur_id]
-        const tp = sourcePrio[t.saisi_par] || 0
-        const ep = ex ? (sourcePrio[ex.saisi_par] || 0) : -1
-        if (!ex || date > ex.date || (date === ex.date && tp > ep)) {
-          prevMap[t.fournisseur_id] = { reste: t.reste, date, saisi_par: t.saisi_par }
-        }
-      })
+      // Lecture paginée : non paginée, la requête était coupée à 1 000 lignes et
+      // les fournisseurs hors de la page repartaient avec un crédit à 0.
+      Object.assign(prevMap, await chargerDerniersRestes(supabase, fournIds, pointId))
 
       // Factures caissier du point courant (s'ajoutent au crédit de la veille
       // car le gérant caissier paye l'ensemble : dettes anciennes + factures caissier du jour)
