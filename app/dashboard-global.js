@@ -14,25 +14,26 @@ import {
   VictoryArea, VictoryAxis, VictoryBar,
   VictoryChart, VictoryLine, VictoryTheme,
 } from 'victory-native'
+import BarreComparaison, { MODE_PERIODES, MODE_RESTOS } from '../components/BarreComparaison'
+import LigneComparee from '../components/LigneComparee'
 import { useTheme } from '../context/ThemeContext'
 import { getDepensesPeriode, getFournisseursPeriodePaye, getPaiesGerantPeriode, getPresencesPeriode } from '../lib/api'
-import { FOURNISSEURS_LABOR, FOURNISSEURS_NON_FOOD } from '../lib/constants'
+import { ecarts as calculerEcarts, formaterEcart, POLARITE, synthese, UNITE } from '../lib/comparaisonDashboard'
+import { CANAUX, couleurResto, courtNom, detailFondRecu, fmtFCFA, tauxRenta, vueGlobale } from '../lib/dashboardGlobal'
+import { bandeauDeuxPeriodes, estMoisEntier, moisCouverts, periodePrecedente } from '../lib/periodeComparee'
 import { supabase } from '../lib/supabase'
 
 const { width } = Dimensions.get('window')
 const CHART_WIDTH = width - 48
 
-function couleurResto(c) {
-  return { vert: '#2D7D46', bleu: '#185FA5', rouge: '#A32D2D', violet: '#534AB7' }[c] || '#EF9F27'
-}
-function familleResto(nom) {
-  return (nom || '').toLowerCase().includes('al kayan') ? 'Al Kayan' : 'Samer'
-}
-function courtNom(nom) {
-  if (!nom) return ''
-  if (nom.length <= 9) return nom
-  return nom.substring(0, 8) + '…'
-}
+// Les colonnes de `points` que cet écran lit — une seule liste, trois requêtes.
+const CHAMPS_POINTS = 'id, date, restaurant_id, vente_total, depense_total, benefice_sc, yango_cse, yango_tab, glovo_cse, glovo_tab, wave, om, djamo, fond_recu, fc_compte'
+
+// Alertes et Litiges sont des listes d'événements déjà datables, pas des
+// agrégats à confronter : ils restent en lecture simple sur le terme A.
+const PILIERS_COMPARABLES = ['apercu', 'couts', 'clients']
+
+const RAISON_CHARGES = 'charges du mois entier — non comparable sur une période partielle'
 
 const PERIODES = [
   { label: "Aujourd'hui", key: 'today' },
@@ -50,7 +51,6 @@ const PILIERS = [
   { key: 'litiges', label: '⚖️ Litiges' },
 ]
 
-const CATEGORIES_FOOD = ['Marché', 'Légumes', 'Fruits']
 const PIE_COLORS = ['#EF9F27', '#3B6D11', '#185FA5', '#993C1D', '#534AB7', '#888']
 
 export default function DashboardGlobalScreen() {
@@ -58,6 +58,8 @@ export default function DashboardGlobalScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors])
 
   const [periodeKey, setPeriodeKey] = useState('7days')
+  // Restaurant dont le détail jour par jour du fond reçu est déplié (onglet Coûts).
+  const [fondOuvert, setFondOuvert] = useState(null)
   const [points, setPoints] = useState({})
   const [loading, setLoading] = useState(false)
   const [modalCalendrier, setModalCalendrier] = useState(false)
@@ -75,6 +77,20 @@ export default function DashboardGlobalScreen() {
   const [paiesGerantGlobal, setPaiesGerantGlobal] = useState({})
   const [chargementCouts, setChargementCouts] = useState(false)
   const [restoFiltre, setRestoFiltre] = useState(null)
+
+  // ── Comparaison A / B ──
+  const [comparaisonActive, setComparaisonActive] = useState(false)
+  const [modeComparaison, setModeComparaison] = useState(MODE_RESTOS)
+  const [termeA, setTermeA] = useState(null)
+  const [termeB, setTermeB] = useState(null)
+  // L'état du filtre restaurant tel qu'il était avant la comparaison : le mode
+  // « 2 périodes » s'en sert comme sélecteur, la fermeture doit le rendre intact.
+  const [restoFiltreAvant, setRestoFiltreAvant] = useState(null)
+  const [pointsB, setPointsB] = useState({})
+  const [coutsB, setCoutsB] = useState(null)
+  const [chargementB, setChargementB] = useState(false)
+  const [cleCoutsB, setCleCoutsB] = useState('')
+  const [clePointsB, setClePointsB] = useState('')
 
   useEffect(() => { chargerRestaurants() }, [])
 
@@ -109,7 +125,7 @@ export default function DashboardGlobalScreen() {
 
     const { data: allPoints, error } = await supabase
       .from('points')
-      .select('id, date, restaurant_id, vente_total, depense_total, benefice_sc, yango_cse, yango_tab, glovo_cse, glovo_tab, wave, om, djamo')
+      .select(CHAMPS_POINTS)
       .gte('date', range.debut)
       .lte('date', range.fin)
 
@@ -163,47 +179,245 @@ export default function DashboardGlobalScreen() {
     setChargementCouts(false)
   }
 
-  function totalResto(restId, champ) {
-    return (points[restId] || []).reduce((sum, p) => sum + (parseFloat(p[champ]) || 0), 0)
-  }
+  const restosVus = useMemo(
+    () => (restoFiltre ? restaurants.filter(r => r.id === restoFiltre) : restaurants),
+    [restaurants, restoFiltre]
+  )
 
-  const restosVus = restoFiltre ? restaurants.filter(r => r.id === restoFiltre) : restaurants
+  const coutsA = useMemo(() => ({
+    depenses: depensesGlobal, presences: presencesGlobal, fournisseurs: fournisseursGlobal,
+    paiesGerant: paiesGerantGlobal, charges: chargesGlobal,
+  }), [depensesGlobal, presencesGlobal, fournisseursGlobal, paiesGerantGlobal, chargesGlobal])
 
-  // ── Série quotidienne agrégée (courbes d'évolution, comme le portail gérant) ──
-  // Somme par date sur les restaurants vus (respecte le filtre restaurant).
-  const serieJours = (() => {
-    const byDate = {}
-    restosVus.forEach(r => {
-      (points[r.id] || []).forEach(p => {
-        if (!p.date) return
-        const g = (byDate[p.date] ||= { date: p.date, vente_total: 0, depense_total: 0, benefice_sc: 0 })
-        g.vente_total += p.vente_total || 0
-        g.depense_total += p.depense_total || 0
-        g.benefice_sc += p.benefice_sc || 0
-      })
-    })
-    return Object.values(byDate).sort((a, b) => (a.date < b.date ? -1 : 1))
-  })()
+  // La vue du terme A — et la vue de l'écran quand la comparaison est fermée.
+  // Un seul calcul, partagé : c'est ce qui garantit que A et B disent la même
+  // chose du même chiffre (lib/dashboardGlobal.js).
+  const vue = useMemo(
+    () => vueGlobale({ points, restaurants: restosVus, couts: coutsA }),
+    [points, restosVus, coutsA]
+  )
+  const { classement, classementCouts, serieJours, total } = vue
+
   const axisLabelJour = (d) => {
     if (!d) return ''
     const [, m, dd] = d.split('-')
     const mois = ['jan', 'fév', 'mar', 'avr', 'mai', 'juin', 'jul', 'aoû', 'sep', 'oct', 'nov', 'déc']
     return `${parseInt(dd)} ${mois[parseInt(m) - 1]}`
   }
-  const dataVentesEvo = serieJours.map((p, i) => ({ x: i + 1, y: (p.vente_total || 0) / 1000 }))
-  const dataBeneficeEvo = serieJours.map((p, i) => ({ x: i + 1, y: (p.benefice_sc || 0) / 1000 }))
-  const dataRentaEvo = serieJours.map((p, i) => ({ x: i + 1, y: p.vente_total ? (p.benefice_sc / p.vente_total * 100) : 0 }))
+  // Les séries indexent les jours en `x: i + 1`, pas en date : deux périodes de
+  // même durée se superposent alors jour 1 contre jour 1 (§ 4.2).
+  const serieMilliers = (serie, champ) => serie.map((p, i) => ({ x: i + 1, y: (p[champ] || 0) / 1000 }))
+  const serieRenta = (serie) => serie.map((p, i) => ({ x: i + 1, y: p.vente_total ? (p.benefice_sc / p.vente_total * 100) : 0 }))
+  const dataVentesEvo = serieMilliers(serieJours, 'vente_total')
+  const dataBeneficeEvo = serieMilliers(serieJours, 'benefice_sc')
+  const dataRentaEvo = serieRenta(serieJours)
 
-  function totalGlobal(champ) {
-    return restosVus.reduce((sum, r) => sum + totalResto(r.id, champ), 0)
+  // ── Le terme B : chargement, bornes, libellés ─────────────────────────────
+  const rangeA = getDateRange()
+  const debutA = rangeA?.debut || ''
+  const finA = rangeA?.fin || ''
+  const rangeB = useMemo(() => (debutA && finA ? periodePrecedente(debutA, finA) : null), [debutA, finA])
+  const bandeau = useMemo(
+    () => (debutA && finA ? bandeauDeuxPeriodes(debutA, finA, titrePeriode()) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [debutA, finA, periodeKey]
+  )
+
+  // Mode « 2 restaurants » : aucune requête de plus, les deux termes se
+  // dérivent de `points`, déjà chargé pour TOUS les restaurants.
+  // Mode « 2 périodes » : le même chargement, une seconde fois, sur les bornes
+  // de B. `points` n'est pas dans les dépendances — changer de pilier ne
+  // relance rien tant que la période A et le mode ne changent pas.
+  useEffect(() => {
+    if (!comparaisonActive || modeComparaison !== MODE_PERIODES) { setPointsB({}); setClePointsB(''); return }
+    chargerPointsB()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comparaisonActive, modeComparaison, debutA, finA, restaurants])
+
+  useEffect(() => {
+    if (!comparaisonActive || modeComparaison !== MODE_PERIODES) return
+    if (pilier !== 'couts' || periodeKey === 'today') return
+    chargerCoutsB()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comparaisonActive, modeComparaison, pilier, periodeKey, debutA, finA, restoFiltre, restaurants])
+
+  async function chargerPointsB() {
+    if (!rangeB) { setPointsB({}); return }
+    setChargementB(true)
+    const { data, error } = await supabase
+      .from('points')
+      .select(CHAMPS_POINTS)
+      .gte('date', rangeB.debut)
+      .lte('date', rangeB.fin)
+    if (error) { console.error('[Dashboard B]', error.message); setChargementB(false); return }
+    const resultats = {}
+    restaurants.forEach(r => { resultats[r.id] = [] })
+    ;(data || []).forEach(p => {
+      if (resultats[p.restaurant_id] !== undefined) resultats[p.restaurant_id].push(p)
+    })
+    setPointsB(resultats)
+    setClePointsB(`${rangeB.debut}|${rangeB.fin}`)
+    setChargementB(false)
   }
 
-  function tauxRenta(ventes, benefice) {
-    if (!ventes || ventes === 0) return 0
-    return (benefice / ventes * 100)
+  // Le cas coûteux : 4 appels par restaurant, une seconde fois. Trois mesures —
+  // seulement à l'entrée dans le pilier Coûts, seulement pour les restaurants
+  // affichés, et jamais deux fois pour la même période.
+  async function chargerCoutsB() {
+    if (!rangeB) return
+    const cibles = restoFiltre ? restaurants.filter(r => r.id === restoFiltre) : restaurants
+    const cle = `${rangeB.debut}|${rangeB.fin}|${cibles.map(r => r.id).join(',')}`
+    if (cle === cleCoutsB) return
+    setChargementB(true)
+    const resultats = await Promise.all(cibles.map(async r => {
+      const [dep, pres, fourn, paiesGerant] = await Promise.all([
+        getDepensesPeriode(r.id, rangeB.debut, rangeB.fin),
+        getPresencesPeriode(r.id, rangeB.debut, rangeB.fin),
+        getFournisseursPeriodePaye(r.id, rangeB.debut, rangeB.fin),
+        getPaiesGerantPeriode(r.id, rangeB.debut, rangeB.fin),
+      ])
+      return { id: r.id, depenses: dep, presences: pres, fournisseurs: fourn, paiesGerant }
+    }))
+    const depenses = {}, presences = {}, fournisseurs = {}, paiesGerant = {}
+    resultats.forEach(r => {
+      depenses[r.id] = r.depenses; presences[r.id] = r.presences
+      fournisseurs[r.id] = r.fournisseurs; paiesGerant[r.id] = r.paiesGerant
+    })
+    // Les mois viennent des bornes, pas des points saisis : un mois sans aucun
+    // point garderait sinon un loyer invisible.
+    const mois = moisCouverts(rangeB.debut, rangeB.fin)
+    let charges = []
+    if (mois.length) {
+      const { data: ch } = await supabase
+        .from('charges')
+        .select('restaurant_id, libelle, montant, mois')
+        .in('mois', mois)
+      charges = ch || []
+    }
+    setCoutsB({ depenses, presences, fournisseurs, paiesGerant, charges })
+    setCleCoutsB(cle)
+    setChargementB(false)
   }
 
-  function fmt(n) { return Math.round(n).toLocaleString('fr-FR') + ' FCFA' }
+  function ouvrirComparaison() {
+    setRestoFiltreAvant(restoFiltre)
+    if (restaurants.length >= 2) {
+      const a = restoFiltre || restaurants[0].id
+      const b = (restaurants.find(r => r.id !== a) || {}).id
+      setTermeA(a); setTermeB(b)
+      setModeComparaison(MODE_RESTOS)
+    } else {
+      setModeComparaison(MODE_PERIODES)
+    }
+    setComparaisonActive(true)
+  }
+
+  // La sortie rend l'écran à son état d'origine, filtre restaurant compris.
+  function fermerComparaison() {
+    setComparaisonActive(false)
+    setRestoFiltre(restoFiltreAvant)
+    setPointsB({}); setCoutsB(null); setCleCoutsB(''); setClePointsB('')
+  }
+
+  // Choisir pour B la valeur de A échange les deux termes au lieu de les
+  // confondre : une comparaison d'un restaurant avec lui-même n'apprend rien.
+  function choisirA(id) { if (id === termeB) setTermeB(termeA); setTermeA(id) }
+  function choisirB(id) { if (id === termeA) setTermeA(termeB); setTermeB(id) }
+
+  const compar = useMemo(() => {
+    if (!comparaisonActive) return null
+    if (modeComparaison === MODE_RESTOS) {
+      const rA = restaurants.find(r => r.id === termeA)
+      const rB = restaurants.find(r => r.id === termeB)
+      if (!rA || !rB) return null
+      return {
+        mode: MODE_RESTOS,
+        vueA: vueGlobale({ points, restaurants: [rA], couts: coutsA }),
+        vueB: vueGlobale({ points, restaurants: [rB], couts: coutsA }),
+        libelleA: rA.nom, libelleB: rB.nom,
+        // Chacun garde SA couleur, celle qu'il porte partout ailleurs dans l'app.
+        couleurA: couleurResto(rA.couleur), couleurB: couleurResto(rB.couleur),
+        opaciteB: 1,
+        nbJours: bandeau?.a?.nbJours || 0,
+        chargesComparables: estMoisEntier(debutA, finA),
+      }
+    }
+    if (!rangeB || !bandeau) return null
+    // C'est le même restaurant : A prend sa couleur pleine, B la même atténuée.
+    const couleur = restoFiltre
+      ? couleurResto(restaurants.find(r => r.id === restoFiltre)?.couleur)
+      : '#EF9F27'
+    return {
+      mode: MODE_PERIODES,
+      vueA: vue,
+      vueB: vueGlobale({ points: pointsB, restaurants: restosVus, couts: coutsB || {} }),
+      libelleA: bandeau.a.titre || bandeau.a.dates,
+      libelleB: bandeau.b.titre,
+      couleurA: couleur, couleurB: couleur, opaciteB: 0.45,
+      nbJours: bandeau.a.nbJours,
+      chargesComparables: estMoisEntier(debutA, finA) && estMoisEntier(rangeB.debut, rangeB.fin),
+    }
+  }, [comparaisonActive, modeComparaison, restaurants, termeA, termeB, points, pointsB,
+      coutsA, coutsB, vue, restosVus, restoFiltre, bandeau, rangeB, debutA, finA])
+
+  function montantCanal(v, cle) {
+    return v.mixCanaux.find(c => c.cle === cle)?.montant || 0
+  }
+
+  /** Les indicateurs d'un pilier, prêts pour lib/comparaisonDashboard.ecart. */
+  function specsPilier(clePilier, cmp, commun) {
+    const A = cmp.vueA.total
+    const B = cmp.vueB.total
+    if (clePilier === 'apercu') return [
+      { cle: 'ventes', libelle: 'Ventes', a: A.ventes, b: B.ventes, ...commun,
+        phraseZeroA: `${cmp.libelleA} n’a rien vendu sur cette période` },
+      { cle: 'depenses', libelle: 'Dépenses', a: A.depenses, b: B.depenses, polarite: POLARITE.MAUVAIS, ...commun },
+      { cle: 'benefice', libelle: 'Bénéfice SC', a: A.benefice, b: B.benefice, ...commun },
+      { cle: 'renta', libelle: 'Taux de rentabilité', a: A.renta, b: B.renta, unite: UNITE.POURCENT, ...commun },
+    ]
+    if (clePilier === 'couts') return [
+      { cle: 'foodPct', libelle: 'Coût matières', a: A.foodPct, b: B.foodPct, unite: UNITE.POURCENT, polarite: POLARITE.MAUVAIS, ...commun },
+      { cle: 'foodMt', libelle: 'Coût matières — montant', a: A.foodMt, b: B.foodMt, polarite: POLARITE.MAUVAIS, ...commun },
+      { cle: 'laborPct', libelle: 'Coût du salaire', a: A.laborPct, b: B.laborPct, unite: UNITE.POURCENT, polarite: POLARITE.MAUVAIS, ...commun },
+      { cle: 'laborMt', libelle: 'Coût du salaire — montant', a: A.laborMt, b: B.laborMt, polarite: POLARITE.MAUVAIS, ...commun },
+      { cle: 'primePct', libelle: 'Coût primaire', a: A.primePct, b: B.primePct, unite: UNITE.POURCENT, polarite: POLARITE.MAUVAIS, ...commun },
+      // Les charges fixes sont mensuelles : sur une période partielle, l'écart
+      // ne mesurerait que la différence de loyer entre deux mois (§ 6.2).
+      { cle: 'chargesFixesPct', libelle: 'Charges fixes', a: A.chargesFixesPct, b: B.chargesFixesPct,
+        unite: UNITE.POURCENT, polarite: POLARITE.MAUVAIS, ...commun,
+        comparable: cmp.chargesComparables ? undefined : false, raison: RAISON_CHARGES },
+    ]
+    return [
+      { cle: 'livraisonMt', libelle: 'Montant livraison', a: A.livraisonMt, b: B.livraisonMt, ...commun },
+      { cle: 'surPlaceMt', libelle: 'Montant sur place', a: A.surPlaceMt, b: B.surPlaceMt, ...commun },
+      // Un mix n'est ni bon ni mauvais : jamais de couleur sur cette ligne.
+      { cle: 'pctLivraison', libelle: 'Part livraison', a: A.pctLivraison, b: B.pctLivraison,
+        unite: UNITE.POURCENT, polarite: POLARITE.NEUTRE, ...commun },
+      ...CANAUX
+        .map(c => ({ cle: c.cle, libelle: c.nom, a: montantCanal(cmp.vueA, c.cle), b: montantCanal(cmp.vueB, c.cle), ...commun }))
+        .filter(e => e.a > 0 || e.b > 0),
+    ]
+  }
+
+  // Les lignes affichées viennent du pilier courant ; la synthèse, elle, range
+  // les indicateurs des TROIS piliers — c'est le sens du § 7.
+  const ecartsCompar = useMemo(() => {
+    if (!compar) return null
+    const commun = {
+      libelleA: compar.libelleA, libelleB: compar.libelleB,
+      nbJoursA: compar.vueA.total.nbJours, nbJoursB: compar.vueB.total.nbJours,
+    }
+    return {
+      lignes: calculerEcarts(specsPilier(pilier, compar, commun)),
+      synth: synthese(
+        calculerEcarts(PILIERS_COMPARABLES.flatMap(k => specsPilier(k, compar, commun))),
+        { nbJours: compar.nbJours }
+      ),
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compar, pilier])
+
+  const fmt = fmtFCFA
   function fmtK(n) { return (Math.round(n) / 1000).toFixed(0) + 'k' }
 
   function formatDate(dateStr) {
@@ -211,6 +425,14 @@ export default function DashboardGlobalScreen() {
     const [y, m, d] = dateStr.split('-')
     const mois = ['jan', 'fév', 'mar', 'avr', 'mai', 'juin', 'juil', 'août', 'sep', 'oct', 'nov', 'déc']
     return `${parseInt(d)} ${mois[parseInt(m) - 1]} ${y}`
+  }
+
+  // « lun. 6 oct 2025 » : le jour de la semaine aide à lire un détail jour par jour.
+  function formatDateLongue(dateStr) {
+    if (!dateStr) return ''
+    const [y, m, d] = dateStr.split('-').map(Number)
+    const jours = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.']
+    return `${jours[new Date(y, m - 1, d).getDay()]} ${formatDate(dateStr)}`
   }
 
   function ouvrirCalendrier() {
@@ -228,7 +450,7 @@ export default function DashboardGlobalScreen() {
 
     const { data: allPoints, error } = await supabase
       .from('points')
-      .select('id, date, restaurant_id, vente_total, depense_total, benefice_sc, yango_cse, yango_tab, glovo_cse, glovo_tab, wave, om, djamo')
+      .select(CHAMPS_POINTS)
       .gte('date', dateDebut)
       .lte('date', dateFin)
 
@@ -266,84 +488,25 @@ export default function DashboardGlobalScreen() {
     return 'Période personnalisée'
   }
 
-  const classement = restosVus
-    .map(r => ({
-      ...r,
-      court: courtNom(r.nom),
-      couleur: couleurResto(r.couleur),
-      famille: familleResto(r.nom),
-      ventes: totalResto(r.id, 'vente_total'),
-      depenses: totalResto(r.id, 'depense_total'),
-      benefice: totalResto(r.id, 'benefice_sc'),
-      nbJours: (points[r.id] || []).length,
-    }))
-    .sort((a, b) => b.benefice - a.benefice)
-
   const maxVentes = Math.max(...classement.map(r => r.ventes), 1)
   const maxBenefice = Math.max(...classement.map(r => Math.abs(r.benefice)), 1)
-  const maxRenta = Math.max(...classement.map(r => tauxRenta(r.ventes, r.benefice)), 1)
 
-  // ---- Pilier 2 — Structure des coûts (consolidé) ----
-  function foodCostMontantResto(restId) {
-    const depFood = (depensesGlobal[restId] || [])
-      .filter(d => CATEGORIES_FOOD.includes(d.categorie))
-      .reduce((sum, d) => sum + (parseFloat(d.montant) || 0), 0)
-    const fournFood = (fournisseursGlobal[restId] || [])
-      .filter(t => !FOURNISSEURS_NON_FOOD.has(t.nom))
-      .reduce((sum, t) => sum + (parseFloat(t.paye) || 0), 0)
-    return depFood + fournFood
-  }
-  function laborCostMontantResto(restId) {
-    const presences = (presencesGlobal[restId] || []).reduce((sum, p) => sum + (parseFloat(p.paye) || 0), 0)
-    const fournLabor = (fournisseursGlobal[restId] || [])
-      .filter(t => FOURNISSEURS_LABOR.has(t.nom))
-      .reduce((sum, t) => sum + (parseFloat(t.paye) || 0), 0)
-    return presences + fournLabor + (paiesGerantGlobal[restId] || 0)
-  }
-  function chargesFixesMontantResto(restId) {
-    return chargesGlobal.filter(c => c.restaurant_id === restId).reduce((sum, c) => sum + (parseFloat(c.montant) || 0), 0)
-  }
+  // ---- Piliers Coûts et Clients : les mêmes agrégats, lus dans la vue ----
+  const caGlobal = total.ventes
+  const foodCostGlobalMt = total.foodMt
+  const laborCostGlobalMt = total.laborMt
+  const chargesFixesGlobalMt = total.chargesFixesMt
+  const foodCostGlobalPct = total.foodPct
+  const laborCostGlobalPct = total.laborPct
+  const primeCostGlobalPct = total.primePct
+  const chargesFixesGlobalPct = total.chargesFixesPct
+  const aDesChargesConfigurees = total.aDesCharges
 
-  const caGlobal = totalGlobal('vente_total')
-  const foodCostGlobalMt = restosVus.reduce((sum, r) => sum + foodCostMontantResto(r.id), 0)
-  const laborCostGlobalMt = restosVus.reduce((sum, r) => sum + laborCostMontantResto(r.id), 0)
-  const chargesFixesGlobalMt = restosVus.reduce((sum, r) => sum + chargesFixesMontantResto(r.id), 0)
-  const foodCostGlobalPct = caGlobal > 0 ? (foodCostGlobalMt / caGlobal * 100) : 0
-  const laborCostGlobalPct = caGlobal > 0 ? (laborCostGlobalMt / caGlobal * 100) : 0
-  const primeCostGlobalPct = foodCostGlobalPct + laborCostGlobalPct
-  const chargesFixesGlobalPct = caGlobal > 0 ? (chargesFixesGlobalMt / caGlobal * 100) : 0
-  const aDesChargesConfigurees = chargesGlobal.length > 0
+  const livraisonGlobalMt = total.livraisonMt
+  const surPlaceGlobalMt = total.surPlaceMt
+  const pctLivraisonGlobal = total.pctLivraison
 
-  const classementCouts = classement.map(r => {
-    const food = foodCostMontantResto(r.id)
-    const labor = laborCostMontantResto(r.id)
-    const foodPct = r.ventes > 0 ? (food / r.ventes * 100) : 0
-    const laborPct = r.ventes > 0 ? (labor / r.ventes * 100) : 0
-    return { ...r, foodPct, laborPct, primePct: foodPct + laborPct }
-  }).sort((a, b) => b.primePct - a.primePct)
-
-  // ---- Pilier 7 — Comportement clients (consolidé) ----
-  function montantLivraisonResto(restId) {
-    return (points[restId] || []).reduce((sum, p) =>
-      sum + (p.yango_cse || 0) + (p.glovo_cse || 0), 0)
-  }
-  const livraisonGlobalMt = restosVus.reduce((sum, r) => sum + montantLivraisonResto(r.id), 0)
-  const surPlaceGlobalMt = Math.max(caGlobal - livraisonGlobalMt, 0)
-  const pctLivraisonGlobal = caGlobal > 0 ? (livraisonGlobalMt / caGlobal * 100) : 0
-
-  const allPointsFlat = restoFiltre
-    ? (points[restoFiltre] || [])
-    : Object.values(points).flat()
-  function sommeChamp(champ) {
-    return allPointsFlat.reduce((sum, p) => sum + (parseFloat(p[champ]) || 0), 0)
-  }
-  const dataMixCanauxGlobal = [
-    { x: 'Yango', y: sommeChamp('yango_cse') },
-    { x: 'Glovo', y: sommeChamp('glovo_cse') },
-    { x: 'Wave', y: sommeChamp('wave') },
-    { x: 'OM', y: sommeChamp('om') },
-    { x: 'Djamo', y: sommeChamp('djamo') },
-  ].filter(d => d.y > 0)
+  const dataMixCanauxGlobal = vue.mixCanaux.map(c => ({ x: c.canal, y: c.montant }))
   const maxMixCanaux = Math.max(...dataMixCanauxGlobal.map(d => d.y), 1)
 
   // ---- Pilier 9 — Alertes (consolidé) ----
@@ -384,6 +547,187 @@ export default function DashboardGlobalScreen() {
     info: { bg: colors.bg, border: colors.borderLight, txt: colors.textMuted },
   }
 
+
+  // ── Le rendu de la comparaison ────────────────────────────────────────────
+  function renderComparaison() {
+    if (!compar) {
+      return (
+        <View style={styles.emptyBox}>
+          <Text style={styles.emptyIcon}>⚖</Text>
+          <Text style={styles.emptyTxt}>Choisissez les deux termes à comparer</Text>
+        </View>
+      )
+    }
+    const pointsBAttendus = compar.mode === MODE_PERIODES && rangeB
+      && clePointsB !== `${rangeB.debut}|${rangeB.fin}`
+    const coutsBAttendus = compar.mode === MODE_PERIODES && pilier === 'couts'
+      && periodeKey !== 'today' && !coutsB
+    if (chargementB || pointsBAttendus || coutsBAttendus) {
+      return (
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="large" color="#534AB7" />
+          <Text style={styles.loadingTxt}>Chargement du second terme...</Text>
+        </View>
+      )
+    }
+    if (pilier === 'couts' && chargementCouts) {
+      return (
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="large" color="#534AB7" />
+          <Text style={styles.loadingTxt}>Chargement des coûts...</Text>
+        </View>
+      )
+    }
+    // Comportement conservé de l'écran : « Aujourd'hui » n'affiche pas de coûts.
+    if (pilier === 'couts' && periodeKey === 'today') {
+      return (
+        <View style={styles.emptyBox}>
+          <Text style={styles.emptyIcon}>📊</Text>
+          <Text style={styles.emptyTxt}>Les coûts ne sont pas calculés sur la seule journée d’aujourd’hui</Text>
+        </View>
+      )
+    }
+    const { lignes, synth } = ecartsCompar
+    return (<>
+      <View style={styles.syntheseCard}>
+        {!!synth.phrase && <Text style={styles.synthesePhrase}>{synth.phrase}</Text>}
+        {synth.lignes.map(l => (
+          <View key={l.cle} style={styles.syntheseLigne}>
+            <Text style={styles.syntheseLibelle} numberOfLines={1}>• {l.libelle}</Text>
+            <Text style={[
+              styles.syntheseEcart,
+              l.couleur === 'bon' && { color: '#3B6D11' },
+              l.couleur === 'mauvais' && { color: '#A32D2D' },
+            ]}>{formaterEcart(l)}</Text>
+          </View>
+        ))}
+      </View>
+
+      {lignes.map(e => (
+        <LigneComparee
+          key={e.cle}
+          ecart={e}
+          couleurA={compar.couleurA}
+          couleurB={compar.couleurB}
+          opaciteB={compar.opaciteB}
+        />
+      ))}
+
+      {pilier === 'apercu' && renderCourbesComparees()}
+      {renderClassementCompare()}
+    </>)
+  }
+
+  // Les deux séries se superposent jour 1 contre jour 1 : A et B ont la même
+  // durée, et les séries indexent les jours en position, pas en date (§ 4.2).
+  function renderCourbesComparees() {
+    const sA = compar.vueA.serieJours
+    const sB = compar.vueB.serieJours
+    if (sA.length < 2 && sB.length < 2) return null
+    const n = Math.max(sA.length, sB.length)
+    const ticks = Array.from({ length: n }, (_, i) => i + 1)
+    const pas = Math.max(1, Math.ceil(n / 8))
+    const labels = ticks.map(t => (pas === 1 || t % pas === 1 ? `J${t}` : ''))
+    const courbes = [
+      { cle: 'ventes', titre: '📈 Ventes par jour (en milliers FCFA)', a: serieMilliers(sA, 'vente_total'), b: serieMilliers(sB, 'vente_total') },
+      { cle: 'benefice', titre: '💰 Bénéfice SC par jour (en milliers FCFA)', a: serieMilliers(sA, 'benefice_sc'), b: serieMilliers(sB, 'benefice_sc') },
+      { cle: 'renta', titre: '📉 Rentabilité par jour (%)', a: serieRenta(sA), b: serieRenta(sB) },
+    ]
+    return courbes.map(c => {
+      // Une échelle commune aux deux courbes, sinon la comparaison est fausse.
+      const ys = [...c.a, ...c.b].map(pt => pt.y)
+      const bas = Math.min(0, ...ys)
+      const haut = Math.max(1, ...ys)
+      return (
+        <View key={c.cle} style={styles.graphCard}>
+          <Text style={styles.graphTitre}>{c.titre}</Text>
+          <VictoryChart
+            width={CHART_WIDTH} height={200} theme={VictoryTheme.material}
+            padding={{ top: 20, bottom: 40, left: 50, right: 20 }}
+            domain={{ y: [bas, haut] }}
+          >
+            <VictoryAxis tickValues={ticks} tickFormat={labels} style={{ tickLabels: { fontSize: 8, fill: '#888' } }} />
+            <VictoryAxis dependentAxis style={{ tickLabels: { fontSize: 8, fill: '#888' } }} />
+            <VictoryLine data={c.a} style={{ data: { stroke: compar.couleurA, strokeWidth: 2.5 } }} interpolation="monotoneX" />
+            <VictoryLine data={c.b} style={{ data: { stroke: compar.couleurB, strokeWidth: 2, strokeDasharray: '4,4', opacity: compar.opaciteB } }} interpolation="monotoneX" />
+          </VictoryChart>
+          <View style={styles.legende}>
+            <View style={styles.legendeItem}>
+              <View style={[styles.legendeColor, { backgroundColor: compar.couleurA }]} />
+              <Text style={styles.legendeTxt}>A · {compar.libelleA}</Text>
+            </View>
+            <View style={styles.legendeItem}>
+              <View style={[styles.legendeColor, { backgroundColor: compar.couleurB, opacity: compar.opaciteB }]} />
+              <Text style={styles.legendeTxt}>B · {compar.libelleB}</Text>
+            </View>
+          </View>
+          <Text style={styles.graphNote}>Jour 1 contre jour 1 — {compar.nbJours} jour(s) de part et d’autre</Text>
+        </View>
+      )
+    })
+  }
+
+  function renderClassementCompare() {
+    if (compar.mode === MODE_RESTOS) {
+      const deux = [compar.vueA.lignes[0], compar.vueB.lignes[0]]
+        .filter(Boolean)
+        .sort((x, y) => y.benefice - x.benefice)
+      return (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitre}>🏆 Classement des deux termes</Text>
+          <View style={styles.classementCard}>
+            {deux.map((r, i) => (
+              <View key={r.id} style={[styles.classementRow, i === deux.length - 1 && { borderBottomWidth: 0 }]}>
+                <View style={styles.classementLeft}>
+                  <View style={[styles.rangBadge, i === 0 && styles.rangOr]}>
+                    <Text style={styles.rangTxt}>{i === 0 ? '🥇' : '#2'}</Text>
+                  </View>
+                  <View style={styles.classementInfo}>
+                    <Text style={styles.classementNom}>{r.nom}</Text>
+                    <Text style={styles.classementJours}>
+                      {r.nbJours > 0 ? `${r.nbJours}j validé(s)` : 'aucun point saisi'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.classementRight}>
+                  <Text style={[styles.classementBenefice, { color: r.benefice >= 0 ? '#3B6D11' : '#A32D2D' }]}>{fmt(r.benefice)}</Text>
+                  <Text style={styles.classementVentes}>{fmt(r.ventes)}</Text>
+                  <Text style={styles.classementRenta}>{r.renta.toFixed(1)}%</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+      )
+    }
+    // Mode « 2 périodes » sur un seul restaurant : classer une ligne ne dit rien.
+    if (restoFiltre) return null
+    const rangsB = new Map(compar.vueB.classement.map((r, i) => [r.id, i + 1]))
+    const rangs = compar.vueA.classement.map((r, i) => ({ ...r, rangA: i + 1, rangB: rangsB.get(r.id) || null }))
+    return (
+      <View style={styles.section}>
+        <Text style={styles.sectionTitre}>🏆 Rang par bénéfice — de B vers A</Text>
+        <View style={styles.classementCard}>
+          {rangs.map((r, i) => {
+            const bouge = r.rangB === null ? 0 : r.rangB - r.rangA
+            return (
+              <View key={r.id} style={[styles.classementRow, i === rangs.length - 1 && { borderBottomWidth: 0 }]}>
+                <View style={styles.classementLeft}>
+                  <View style={[styles.restoDot, { width: 10, height: 10, borderRadius: 5, backgroundColor: r.couleur }]} />
+                  <Text style={styles.classementNom}>{r.nom}</Text>
+                </View>
+                <Text style={styles.classementRangCompare}>
+                  {r.rangB === null ? '—' : `B #${r.rangB}`} → A #{r.rangA}
+                  {bouge > 0 ? '  ▲' : bouge < 0 ? '  ▼' : ''}
+                </Text>
+              </View>
+            )
+          })}
+        </View>
+      </View>
+    )
+  }
+
   // Graphique barres horizontal custom
   function GraphiqueBarres({ data, max, couleurFn, labelFn, titre, unite }) {
     return (
@@ -417,7 +761,9 @@ export default function DashboardGlobalScreen() {
         <View>
           <Text style={styles.headerTitre}>Dashboard Global</Text>
           <Text style={styles.headerSub}>
-            {restoFiltre ? (restaurants.find(r => r.id === restoFiltre)?.nom || '…') : 'Tous les restaurants'}
+            {compar
+              ? `${compar.libelleA} contre ${compar.libelleB}`
+              : (restoFiltre ? (restaurants.find(r => r.id === restoFiltre)?.nom || '…') : 'Tous les restaurants')}
           </Text>
         </View>
         <View style={{ width: 60 }} />
@@ -451,24 +797,44 @@ export default function DashboardGlobalScreen() {
         ))}
       </ScrollView>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.restoFiltreBar} contentContainerStyle={{ paddingHorizontal: 14, alignItems: 'center' }}>
-        <TouchableOpacity
-          style={[styles.restoFiltreBtn, !restoFiltre && styles.restoFiltreBtnActive]}
-          onPress={() => setRestoFiltre(null)}
-        >
-          <Text style={[styles.restoFiltreTxt, !restoFiltre && styles.restoFiltreTxtActive]}>Tous</Text>
-        </TouchableOpacity>
-        {restaurants.map(r => (
+      {/* Le filtre restaurant. En mode « 2 restaurants » il cède la place aux
+          sélecteurs A / B ; en mode « 2 périodes » il reste, car c'est LUI qui
+          désigne le restaurant comparé à lui-même. */}
+      {!(comparaisonActive && modeComparaison === MODE_RESTOS) && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.restoFiltreBar} contentContainerStyle={{ paddingHorizontal: 14, alignItems: 'center' }}>
           <TouchableOpacity
-            key={r.id}
-            style={[styles.restoFiltreBtn, restoFiltre === r.id && styles.restoFiltreBtnActive, restoFiltre === r.id && { borderColor: couleurResto(r.couleur) }]}
-            onPress={() => setRestoFiltre(r.id)}
+            style={[styles.restoFiltreBtn, !restoFiltre && styles.restoFiltreBtnActive]}
+            onPress={() => setRestoFiltre(null)}
           >
-            <View style={[styles.restoDot, { backgroundColor: couleurResto(r.couleur) }]} />
-            <Text style={[styles.restoFiltreTxt, restoFiltre === r.id && styles.restoFiltreTxtActive]}>{courtNom(r.nom)}</Text>
+            <Text style={[styles.restoFiltreTxt, !restoFiltre && styles.restoFiltreTxtActive]}>Tous</Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+          {restaurants.map(r => (
+            <TouchableOpacity
+              key={r.id}
+              style={[styles.restoFiltreBtn, restoFiltre === r.id && styles.restoFiltreBtnActive, restoFiltre === r.id && { borderColor: couleurResto(r.couleur) }]}
+              onPress={() => setRestoFiltre(r.id)}
+            >
+              <View style={[styles.restoDot, { backgroundColor: couleurResto(r.couleur) }]} />
+              <Text style={[styles.restoFiltreTxt, restoFiltre === r.id && styles.restoFiltreTxtActive]}>{courtNom(r.nom)}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
+
+      <BarreComparaison
+        actif={comparaisonActive}
+        mode={modeComparaison}
+        restaurants={restaurants}
+        termeA={termeA}
+        termeB={termeB}
+        bandeau={bandeau}
+        nomRestoPeriodes={restoFiltre ? (restaurants.find(r => r.id === restoFiltre)?.nom || '…') : 'Tous les restaurants'}
+        onOuvrir={ouvrirComparaison}
+        onFermer={fermerComparaison}
+        onMode={setModeComparaison}
+        onChoisirA={choisirA}
+        onChoisirB={choisirB}
+      />
 
       {loading ? (
         <View style={styles.loadingBox}>
@@ -477,25 +843,35 @@ export default function DashboardGlobalScreen() {
         </View>
       ) : (
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-          {pilier === 'apercu' && (<>
+          {comparaisonActive && PILIERS_COMPARABLES.includes(pilier) && renderComparaison()}
+          {comparaisonActive && !PILIERS_COMPARABLES.includes(pilier) && (
+            <View style={styles.comparNote}>
+              <Text style={styles.comparNoteTxt}>
+                Ce pilier est une liste d’événements datés, pas un total à confronter :
+                il reste en lecture simple, sur la période A et le filtre restaurant courant.
+              </Text>
+            </View>
+          )}
+
+          {pilier === 'apercu' && !comparaisonActive && (<>
           {/* KPIs */}
           <View style={styles.kpiGrid}>
             <View style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>Ventes totales</Text>
-              <Text style={[styles.kpiValue, { color: '#BA7517' }]}>{fmt(totalGlobal('vente_total'))}</Text>
+              <Text style={[styles.kpiValue, { color: '#BA7517' }]}>{fmt(total.ventes)}</Text>
             </View>
             <View style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>Dépenses totales</Text>
-              <Text style={[styles.kpiValue, { color: '#A32D2D' }]}>{fmt(totalGlobal('depense_total'))}</Text>
+              <Text style={[styles.kpiValue, { color: '#A32D2D' }]}>{fmt(total.depenses)}</Text>
             </View>
             <View style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>Bénéfice SC global</Text>
-              <Text style={[styles.kpiValue, { color: '#3B6D11' }]}>{fmt(totalGlobal('benefice_sc'))}</Text>
+              <Text style={[styles.kpiValue, { color: '#3B6D11' }]}>{fmt(total.benefice)}</Text>
             </View>
             <View style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>Rentabilité moy.</Text>
               <Text style={[styles.kpiValue, { color: '#534AB7' }]}>
-                {tauxRenta(totalGlobal('vente_total'), totalGlobal('benefice_sc')).toFixed(1)}%
+                {total.renta.toFixed(1)}%
               </Text>
             </View>
           </View>
@@ -670,22 +1046,22 @@ export default function DashboardGlobalScreen() {
               <View style={[styles.familleBox, { borderColor: '#FAC775' }]}>
                 <Text style={styles.familleTitre}>🟡 Samer</Text>
                 <Text style={styles.familleValeur}>
-                  {fmt(classement.filter(r => r.famille === 'Samer').reduce((sum, r) => sum + totalResto(r.id, 'benefice_sc'), 0))}
+                  {fmt(classement.filter(r => r.famille === 'Samer').reduce((sum, r) => sum + r.benefice, 0))}
                 </Text>
                 <Text style={styles.familleSub}>Bénéfice SC</Text>
                 <Text style={styles.familleVenteVal}>
-                  {fmt(classement.filter(r => r.famille === 'Samer').reduce((sum, r) => sum + totalResto(r.id, 'vente_total'), 0))}
+                  {fmt(classement.filter(r => r.famille === 'Samer').reduce((sum, r) => sum + r.ventes, 0))}
                 </Text>
                 <Text style={styles.familleSub}>Ventes</Text>
               </View>
               <View style={[styles.familleBox, { borderColor: '#C0DD97' }]}>
                 <Text style={styles.familleTitre}>🟢 Al Kayan</Text>
                 <Text style={[styles.familleValeur, { color: '#3B6D11' }]}>
-                  {fmt(classement.filter(r => r.famille === 'Al Kayan').reduce((sum, r) => sum + totalResto(r.id, 'benefice_sc'), 0))}
+                  {fmt(classement.filter(r => r.famille === 'Al Kayan').reduce((sum, r) => sum + r.benefice, 0))}
                 </Text>
                 <Text style={styles.familleSub}>Bénéfice SC</Text>
                 <Text style={styles.familleVenteVal}>
-                  {fmt(classement.filter(r => r.famille === 'Al Kayan').reduce((sum, r) => sum + totalResto(r.id, 'vente_total'), 0))}
+                  {fmt(classement.filter(r => r.famille === 'Al Kayan').reduce((sum, r) => sum + r.ventes, 0))}
                 </Text>
                 <Text style={styles.familleSub}>Ventes</Text>
               </View>
@@ -696,18 +1072,18 @@ export default function DashboardGlobalScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitre}>Récapitulatif global</Text>
             <View style={styles.recapCard}>
-              <View style={styles.recapRow}><Text style={styles.recapLabel}>Total ventes</Text><Text style={styles.recapValue}>{fmt(totalGlobal('vente_total'))}</Text></View>
-              <View style={styles.recapRow}><Text style={styles.recapLabel}>Total dépenses</Text><Text style={[styles.recapValue, { color: '#A32D2D' }]}>{fmt(totalGlobal('depense_total'))}</Text></View>
+              <View style={styles.recapRow}><Text style={styles.recapLabel}>Total ventes</Text><Text style={styles.recapValue}>{fmt(total.ventes)}</Text></View>
+              <View style={styles.recapRow}><Text style={styles.recapLabel}>Total dépenses</Text><Text style={[styles.recapValue, { color: '#A32D2D' }]}>{fmt(total.depenses)}</Text></View>
               <View style={[styles.recapRow, { borderBottomWidth: 0 }]}>
                 <Text style={[styles.recapLabel, { fontWeight: '600', color: '#1a1a1a' }]}>Bénéfice SC global</Text>
-                <Text style={[styles.recapValue, { color: '#3B6D11', fontWeight: '600', fontSize: 16 }]}>{fmt(totalGlobal('benefice_sc'))}</Text>
+                <Text style={[styles.recapValue, { color: '#3B6D11', fontWeight: '600', fontSize: 16 }]}>{fmt(total.benefice)}</Text>
               </View>
             </View>
           </View>
           </>)}
 
           {/* Pilier 2 — Structure des coûts (consolidé) */}
-          {pilier === 'couts' && (
+          {pilier === 'couts' && !comparaisonActive && (
             chargementCouts ? (
               <View style={styles.loadingBox}>
                 <ActivityIndicator size="large" color="#534AB7" />
@@ -758,12 +1134,51 @@ export default function DashboardGlobalScreen() {
                     ))}
                   </View>
                 </View>
+
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitre}>💵 Fond de caisse reçu — {titrePeriode()}</Text>
+                  <View style={styles.resultCard}>
+                    {[...vue.lignes].sort((a, b) => b.fondRecu - a.fondRecu).map(r => {
+                      const ouvert = fondOuvert === r.id
+                      const deroulable = r.joursFondRecu > 0
+                      return (
+                        <View key={r.id}>
+                          <TouchableOpacity
+                            style={styles.resultRow}
+                            disabled={!deroulable}
+                            onPress={() => setFondOuvert(ouvert ? null : r.id)}
+                          >
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.resultLabel}>{deroulable ? (ouvert ? '▾ ' : '▸ ') : ''}{r.nom}</Text>
+                              <Text style={styles.classementJours}>
+                                {r.nbJours === 0 ? 'Aucun point saisi' : `${r.joursFondRecu} jour${r.joursFondRecu > 1 ? 's' : ''} sur ${r.nbJours}`}
+                              </Text>
+                            </View>
+                            <Text style={[styles.resultValue, { color: '#534AB7' }]}>
+                              {r.nbJours === 0 ? '—' : fmt(r.fondRecu)}
+                            </Text>
+                          </TouchableOpacity>
+                          {ouvert && detailFondRecu(points[r.id]).map(j => (
+                            <View key={j.date} style={[styles.resultRow, { paddingLeft: 16 }]}>
+                              <Text style={styles.resultLabel}>{formatDateLongue(j.date)}</Text>
+                              <Text style={[styles.resultValue, { color: '#534AB7' }]}>{fmt(j.montant)}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )
+                    })}
+                    <View style={[styles.resultRow, { borderBottomWidth: 0 }]}>
+                      <Text style={[styles.resultLabel, { fontWeight: '600', color: colors.text }]}>Total</Text>
+                      <Text style={[styles.resultValue, { color: '#534AB7', fontWeight: '700' }]}>{fmt(total.fondRecu)}</Text>
+                    </View>
+                  </View>
+                </View>
               </>
             )
           )}
 
           {/* Pilier 7 — Comportement clients (consolidé) */}
-          {pilier === 'clients' && (
+          {pilier === 'clients' && !comparaisonActive && (
             caGlobal <= 0 ? (
               <View style={styles.emptyBox}>
                 <Text style={styles.emptyIcon}>🛵</Text>
@@ -1044,6 +1459,21 @@ function makeStyles(colors) { return StyleSheet.create({
   restoDot: { width: 7, height: 7, borderRadius: 4, marginRight: 5 },
   restoFiltreTxt: { fontSize: 11, fontWeight: '500', color: colors.textMuted },
   restoFiltreTxtActive: { fontWeight: '700', color: colors.text },
+
+  syntheseCard: {
+    backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 14,
+    borderLeftWidth: 4, borderLeftColor: '#534AB7',
+    borderTopWidth: 0.5, borderRightWidth: 0.5, borderBottomWidth: 0.5, borderColor: colors.borderLight,
+  },
+  synthesePhrase: { fontSize: 14, fontWeight: '600', color: colors.text, lineHeight: 20, marginBottom: 8 },
+  syntheseLigne: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 3 },
+  syntheseLibelle: { fontSize: 12, color: colors.textSecondary, flex: 1, marginRight: 8 },
+  syntheseEcart: { fontSize: 12, fontWeight: '700', color: colors.textMuted },
+  comparNote: {
+    backgroundColor: colors.primaryLight, borderRadius: 12, padding: 12, marginBottom: 14,
+  },
+  comparNoteTxt: { fontSize: 12, color: colors.primaryDark, lineHeight: 18 },
+  classementRangCompare: { fontSize: 12, fontWeight: '600', color: colors.text },
 
   emptyBox: { alignItems: 'center', paddingVertical: 60 },
   emptyIcon: { fontSize: 40, marginBottom: 12 },
