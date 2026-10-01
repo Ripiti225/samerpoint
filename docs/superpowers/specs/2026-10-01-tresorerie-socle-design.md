@@ -22,11 +22,14 @@ Mis de côté : « SODECI côté gérant ».
 − Loyers restants                   (loyers dus des mois ≤ mois courant, non soldés)
 − Salaires restants
 − CNPS restante
-− Charges admin restantes           (ODP, mairie, impôts, autre)
-− Fournisseurs dus                  (Σ fournisseurs.credit_actuel > 0, fournisseurs actifs)
+− Charges admin restantes           (impôts, autre)
 − Carnet de dettes                  (ce qu'on doit à Zabad, Ibrahim, Alade…)
 = Trésorerie nette réelle
 ```
+
+Pour information seulement, **non soustraits** (payés par les restaurants,
+décision du 01/10/2026) : fournisseurs dus (Σ `credit_actuel` > 0 des
+fournisseurs actifs) et charges admin ODP / mairie restantes.
 
 « Restant » = montant dû − Σ paiements, jamais négatif.
 

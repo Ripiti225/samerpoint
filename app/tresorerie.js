@@ -108,11 +108,15 @@ export default function TresorerieScreen() {
             <Ligne label="− Loyers restants" valeur={r.loyers} signe="-" couleur={colors.error} />
             <Ligne label="− Salaires restants" valeur={r.salaires} signe="-" couleur={colors.error} />
             <Ligne label="− CNPS" valeur={r.cnps} signe="-" couleur={colors.error} />
-            <Ligne label="− Charges admin (ODP, mairie, impôts)" valeur={r.admin} signe="-" couleur={colors.error} />
-            <Ligne label="− Fournisseurs dus" valeur={r.fournisseurs} signe="-" couleur={colors.error} />
+            <Ligne label="− Impôts et autres charges admin" valeur={r.admin} signe="-" couleur={colors.error} />
             {peut(niveau, 'voir_dettes') && (
               <Ligne label="− Carnet de dettes" valeur={r.dettes} signe="-" couleur={colors.error} />
             )}
+            <View style={styles.sep} />
+            <Text style={[styles.lbl, { marginBottom: 2 }]}>Pour information · payé par les restaurants</Text>
+            <Ligne label="Fournisseurs dus" valeur={r.fournisseurs} couleur={colors.textMuted} />
+            <Ligne label="ODP et mairie restants" valeur={r.adminRestaurants} couleur={colors.textMuted} />
+            <Text style={styles.petit}>Ces montants ne sont pas soustraits de la trésorerie nette.</Text>
           </View>
 
           {peut(niveau, 'voir_coffre') && donnees.direction && (() => {

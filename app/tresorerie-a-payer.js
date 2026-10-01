@@ -16,7 +16,7 @@ import {
 } from '../components/tresorerie/commun'
 import { usePhoto } from '../lib/usePhoto'
 import {
-  CATEGORIES_MENSUELLES, LIBELLES_ADMIN, LIBELLES_CATEGORIE, aujourdhuiISO, categoriesVisibles,
+  CATEGORIES_MENSUELLES, LIBELLES_ADMIN, adminPayeParRestaurant, LIBELLES_CATEGORIE, aujourdhuiISO, categoriesVisibles,
   echeanceCnpsParDefaut, echeanceDansMois, fmt, formatDateFR, joursDeRetard, libelleMois, libelleMoisCourt,
   moisEntre, paiementsParDu, peut, premierDuMois, repartirPaiement, resteDu, statutLoyer, totalPaye,
 } from '../lib/tresorerie'
@@ -54,8 +54,9 @@ export default function TresorerieAPayerScreen() {
     return donnees.dus.filter(d => d.categorie === onglet)
   }, [donnees, onglet])
 
+  // ODP et mairie sont payés par les restaurants : hors total, comme dans la vue d'ensemble.
   const resteOnglet = dusOnglet
-    .filter(d => !d.mois || d.mois <= moisCourant)
+    .filter(d => (!d.mois || d.mois <= moisCourant) && !adminPayeParRestaurant(d))
     .reduce((s, d) => s + resteDu(d, parDu[d.id]), 0)
 
   const bloque = (t.loading && !donnees) || t.erreur || !onglets.length
@@ -259,6 +260,7 @@ function ListeDus({ categorie, dus, parDu, aujourdhui, moisCourant, nomResto, re
                   <Text style={styles.petit}>
                     dû {fmt(d.montant_du)} · payé {fmt(totalPaye(p))} · <Text style={{ fontWeight: '800', color: colors.text }}>reste {fmt(reste)}</Text>
                     {retard ? ` · ${retard} j de retard` : d.echeance && reste ? ` · échéance ${formatDateFR(d.echeance)}` : ''}
+                    {adminPayeParRestaurant(d) ? ' · payé par le restaurant, hors trésorerie' : ''}
                   </Text>
                 </View>
                 <Badge c={badge} />

@@ -492,9 +492,9 @@
     "semantic_hash": ""
   },
   "lib/api.js": {
-    "mtime": 1790627240.6317484,
-    "seen": 1790819998.874204,
-    "ast_hash": "7b4404eaf8eeb49a1a55a83f7ecfbb86",
+    "mtime": 1790824518.6170363,
+    "seen": 1790824569.472206,
+    "ast_hash": "d29000cf839bb294396aee61efde0767",
     "semantic_hash": ""
   },
   "lib/basculePOS.js": {
@@ -1512,9 +1512,9 @@
     "semantic_hash": ""
   },
   "app/tresorerie.js": {
-    "mtime": 1790824064.4107497,
-    "seen": 1790824093.472404,
-    "ast_hash": "d9b1c06d7eccd37d90baf2611389535f",
+    "mtime": 1790824551.6512694,
+    "seen": 1790824569.472181,
+    "ast_hash": "48e018615d237b50c3c0498b902ad6f1",
     "semantic_hash": ""
   },
   "components/BarreComparaison.js": {
@@ -1614,9 +1614,9 @@
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-10-01-tresorerie-socle-design.md": {
-    "mtime": 1790824090.3221068,
-    "seen": 1790824093.472515,
-    "ast_hash": "675e2c5007e82ba5ec8d7f21964913f4",
+    "mtime": 1790824566.2898495,
+    "seen": 1790824569.472299,
+    "ast_hash": "6b0570b55146b400fd517cf9b270570d",
     "semantic_hash": ""
   },
   "app/tresorerie-partenaires.js": {
@@ -1695,6 +1695,30 @@
     "mtime": 1790823932.6009817,
     "seen": 1790824093.472499,
     "ast_hash": "0bcaca6c6227bb78409618ecb4066114",
+    "semantic_hash": ""
+  },
+  "lib/alertes.js": {
+    "mtime": 1790824481.4697137,
+    "seen": 1790824569.472203,
+    "ast_hash": "db5ebede7facc61fc7291630b043b921",
+    "semantic_hash": ""
+  },
+  "lib/alertes.test.mjs": {
+    "mtime": 1790824482.491831,
+    "seen": 1790824569.472204,
+    "ast_hash": "406a9de76ffc95ed3c21664a3095bf91",
+    "semantic_hash": ""
+  },
+  "lib/alertesDb.js": {
+    "mtime": 1790824509.5323906,
+    "seen": 1790824569.4722052,
+    "ast_hash": "1ce7da2a264f58cc46fbfd3f3520df4f",
+    "semantic_hash": ""
+  },
+  "supabase_tresorerie_alertes.sql": {
+    "mtime": 1790824491.4852307,
+    "seen": 1790824569.4722822,
+    "ast_hash": "d1ece88428ca59fc602dbdff0e645b14",
     "semantic_hash": ""
   }
 }
