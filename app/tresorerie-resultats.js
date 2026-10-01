@@ -3,6 +3,7 @@
 //
 // Résultat = encaissé net des points validés (formule de l'écran Charges, sans
 // les litiges) − charges du mois − dépenses direction comptées − pubs.
+// Loyer, salaires et CNPS : au mois où ils sont PAYÉS (lib/chargesMois.js).
 // Un mois à la fois, montants complets en gros : un tableau de 4 mois en
 // milliers était illisible sur téléphone. Le mois en cours est provisoire.
 // ──────────────────────────────────────────────────────────────────────────────
@@ -101,7 +102,7 @@ export default function TresorerieResultatsScreen() {
             </>
           )}
           <Text style={styles.petit}>
-            Points validés seulement. Investissements, retraits perso et rechargements de fond ne comptent pas. Les litiges ne sont pas déduits.
+            Points validés seulement. Loyer, salaires et CNPS comptent dans le mois où ils sont payés (le loyer de juillet payé en octobre pèse sur octobre). Investissements, retraits perso et rechargements de fond ne comptent pas. Les litiges ne sont pas déduits.
           </Text>
         </ScrollView>
       )}
