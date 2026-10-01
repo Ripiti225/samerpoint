@@ -11,7 +11,7 @@
 //  7 restaurants SamerTrackly. Tant qu'une boutique n'est pas rattachée, ses
 //  avis n'entrent dans aucun total — c'est la file de travail à vider.
 // ──────────────────────────────────────────────────────────────────────────────
-import { router } from 'expo-router'
+import { retour } from '../lib/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator, Alert, Modal, RefreshControl, SafeAreaView,
@@ -165,7 +165,7 @@ export default function AvisPlateformes() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => retour()} style={styles.backBtn}>
           <Text style={styles.backTxt}>← Retour</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitre}>Avis clients</Text>

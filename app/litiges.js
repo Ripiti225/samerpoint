@@ -1,4 +1,4 @@
-import { router } from 'expo-router'
+import { retour } from '../lib/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator, Alert, Modal, Platform, SafeAreaView,
@@ -2357,7 +2357,7 @@ export default function LitigesScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => retour()} style={styles.backBtn}>
           <Text style={styles.backTxt}>‹</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitre}>⚖️ Litiges</Text>

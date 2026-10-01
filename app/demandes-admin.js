@@ -1,4 +1,4 @@
-import { router } from 'expo-router'
+import { retour } from '../lib/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
@@ -275,7 +275,7 @@ export default function DemandesAdminScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => retour()}>
           <Text style={styles.back}>‹ Retour</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitre}>Demandes</Text>

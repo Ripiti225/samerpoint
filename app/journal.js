@@ -1,4 +1,4 @@
-import { router } from 'expo-router'
+import { retour } from '../lib/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
@@ -163,7 +163,7 @@ export default function JournalScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => retour()} style={styles.backBtn}>
           <Text style={styles.backTxt}>← Retour</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitre}>{"Journal d'activité"}</Text>

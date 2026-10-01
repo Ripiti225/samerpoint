@@ -1,4 +1,5 @@
 import { router } from 'expo-router'
+import { retour } from '../lib/navigation'
 import { useMemo } from 'react'
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { useApp } from '../context/AppContext'
@@ -30,7 +31,7 @@ export default function GerantCaissierScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => retour()}>
           <Text style={styles.back}>‹ Retour</Text>
         </TouchableOpacity>
         <View>

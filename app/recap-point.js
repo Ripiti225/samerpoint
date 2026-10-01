@@ -1,4 +1,5 @@
 import { router } from 'expo-router'
+import { retour } from '../lib/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator, Alert,
@@ -500,7 +501,7 @@ export default function RecapPointScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => retour()}>
             <Text style={styles.back}>‹ Retour</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitre}>Récapitulatif</Text>
@@ -869,7 +870,7 @@ export default function RecapPointScreen() {
             })()}
 
             {/* Boutons */}
-            <TouchableOpacity style={styles.modifBtn} onPress={() => router.back()}>
+            <TouchableOpacity style={styles.modifBtn} onPress={() => retour()}>
               <Text style={styles.modifTxt}>✏️ Retourner modifier</Text>
             </TouchableOpacity>
 

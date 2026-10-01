@@ -66,6 +66,7 @@ export default function TresorerieScreen() {
     <SafeAreaView style={styles.container}>
       <Entete
         titre="Trésorerie"
+        repli="/accueil"
         sous={niveau ? NIVEAUX[niveau] : null}
         droite={peut(niveau, 'gerer_droits') ? (
           <TouchableOpacity onPress={() => setDroitsVisible(true)}>

@@ -1,4 +1,4 @@
-import { router } from 'expo-router'
+import { retour } from '../lib/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Modal, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native'
 import DetailShiftCaissier from '../components/DetailShiftCaissier'
@@ -77,7 +77,7 @@ export default function PointCaissierScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => retour()}>
           <Text style={styles.back}>‹ Retour</Text>
         </TouchableOpacity>
         <View>

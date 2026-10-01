@@ -1,7 +1,8 @@
 // ──────────────────────────────────────────────────────────────────────────────
 // Trésorerie — briques partagées par les trois écrans (vue, banque, à payer).
 // ──────────────────────────────────────────────────────────────────────────────
-import { router, useFocusEffect } from 'expo-router'
+import { useFocusEffect } from 'expo-router'
+import { retour } from '../../lib/navigation'
 import { useCallback, useMemo, useState } from 'react'
 import {
   ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView,
@@ -63,11 +64,12 @@ export function useStylesTreso() {
   return { colors, styles }
 }
 
-export function Entete({ titre, sous, droite }) {
+// repli : écran où revenir quand il n'y a pas d'écran précédent (page rechargée).
+export function Entete({ titre, sous, droite, repli = '/tresorerie' }) {
   const { styles } = useStylesTreso()
   return (
     <View style={styles.header}>
-      <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+      <TouchableOpacity onPress={() => retour(repli)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <Text style={styles.back}>‹ Retour</Text>
       </TouchableOpacity>
       <View style={{ flex: 1, alignItems: 'center' }}>

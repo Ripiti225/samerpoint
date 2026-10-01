@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
   ScrollView, ActivityIndicator, TextInput, Alert,
 } from 'react-native'
-import { router } from 'expo-router'
+import { retour } from '../lib/navigation'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
@@ -208,7 +208,7 @@ export default function CorrectionPointScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => retour()}>
           <Text style={styles.back}>‹ Retour</Text>
         </TouchableOpacity>
         <View style={{ alignItems: 'center' }}>
