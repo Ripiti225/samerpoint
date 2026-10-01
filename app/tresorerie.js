@@ -12,6 +12,7 @@ import { Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'r
 import {
   Bouton, Entete, EtatEcran, Feuille, Ligne, Puces, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
+import { objectifDuMois, progression, soldeCoffre } from '../lib/direction'
 import { totalPartenaires } from '../lib/partenaires'
 import {
   NIVEAUX, aujourdhuiISO, calculerTresorerieNette, fmt, fournisseursDus, peut, premierDuMois,
@@ -20,7 +21,7 @@ import { chargerUtilisateursAdmin, enregistrerDroit, retirerDroit } from '../lib
 
 export default function TresorerieScreen() {
   const { styles, colors } = useStylesTreso()
-  const t = useTresorerie({ creerLoyers: true, avecPartenaires: true })
+  const t = useTresorerie({ creerLoyers: true, avecPartenaires: true, avecDirection: true })
   const { donnees, niveau, droits, user, recharger } = t
   const [droitsVisible, setDroitsVisible] = useState(false)
 
@@ -84,6 +85,27 @@ export default function TresorerieScreen() {
             )}
           </View>
 
+          {peut(niveau, 'voir_coffre') && donnees.direction && (() => {
+            const solde = soldeCoffre(donnees.direction.coffre)
+            const objectif = objectifDuMois(donnees.direction.objectifs, premierDuMois(aujourdhuiISO()))
+            const pct = progression(solde, objectif)
+            return (
+              <TouchableOpacity style={styles.carte} onPress={() => router.push('/tresorerie-coffre')}>
+                <View style={styles.ligne}>
+                  <Text style={styles.lbl}>Coffre de sécurité</Text>
+                  <Text style={styles.ligneValeur}>{pct === null ? '—' : `${pct} %`}</Text>
+                </View>
+                <View style={{ height: 10, backgroundColor: colors.surfaceAlt, borderRadius: 6, overflow: 'hidden', marginVertical: 6 }}>
+                  <View style={{ height: '100%', width: `${Math.min(100, pct || 0)}%`, backgroundColor: colors.success }} />
+                </View>
+                <View style={styles.ligne}>
+                  <Text style={styles.petit}>{fmt(solde)} F</Text>
+                  <Text style={styles.petit}>{objectif ? `objectif ${fmt(objectif)} F` : 'objectif à fixer'}</Text>
+                </View>
+              </TouchableOpacity>
+            )
+          })()}
+
           <View style={styles.tuiles}>
             <Tuile icone="🏦" titre="Banque" sous={`${fmt(r.banque)} F · BACI · SIB`} route="/tresorerie-banque" />
             <Tuile icone="🛵" titre="Partenaires" sous={`${fmt(r.partenaires)} F à recevoir`} route="/tresorerie-partenaires" />
@@ -91,6 +113,11 @@ export default function TresorerieScreen() {
             {peut(niveau, 'voir_dettes') && (
               <Tuile icone="📒" titre="Dettes" sous={`${fmt(r.dettes)} F à rembourser`} route="/tresorerie-a-payer?onglet=dette" />
             )}
+            {peut(niveau, 'voir_resultats') && (
+              <Tuile icone="📊" titre="Résultats" sous="Net par restaurant / mois" route="/tresorerie-resultats" />
+            )}
+            {peut(niveau, 'voir_coffre') && <Tuile icone="🔒" titre="Coffre" sous="Dépôts · retraits · objectif" route="/tresorerie-coffre" />}
+            {peut(niveau, 'voir_direction') && <Tuile icone="💼" titre="Dépenses direction" sous="Fond, réparation, équipement…" route="/tresorerie-direction" />}
             <Tuile icone="💳" titre="Fournisseurs" sous={`${fmt(r.fournisseurs)} F dus`} route="/credits-fournisseurs" />
           </View>
         </ScrollView>

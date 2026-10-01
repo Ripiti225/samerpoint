@@ -133,3 +133,26 @@ Migration : `supabase_tresorerie_partenaires.sql` (après celle de l'étape 1).
   la pub ; seul le propriétaire règle les dates de départ et les modes.
 
 Tests : `lib/partenaires.test.mjs`, `lib/partenairesImport.test.mjs`.
+
+---
+
+# Étape 3 — Coffre, dépenses direction, résultat net
+
+Migration : `supabase_tresorerie_direction.sql` (après celles des étapes 1 et 2).
+
+- **Coffre** (M. Zreik seul) : argent réel mis à part, hors trésorerie nette.
+  Dépôt depuis BACI / SIB (sortie de banque automatique) ou espèces ; retrait
+  vers BACI / SIB (entrée en banque) ou espèces. Objectif fixé par mois ; un
+  mois sans objectif reprend le dernier fixé. Progression = solde ÷ objectif.
+- **Dépenses direction** (M. Zreik seul) : fond, réparation, matériel,
+  équipement, investissement, retrait perso ; restaurant ou Groupe ; payées
+  depuis BACI, SIB, espèces ou le coffre (la sortie suit). Comptent dans le
+  résultat : réparation, matériel, équipement d'un restaurant. Le fond est un
+  simple transfert et ne compte pas.
+- **Résultat net par restaurant / mois** (M. Zreik et managers) = encaissé net
+  des points validés (formule BSC de l'écran Charges, **sans les litiges**)
+  − charges du mois (table `charges`) − dépenses direction comptées − pubs
+  (mois de début de la période). 4 derniers mois ; le mois en cours est
+  provisoire.
+
+Tests : `lib/direction.test.mjs`.

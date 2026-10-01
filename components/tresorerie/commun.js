@@ -12,11 +12,11 @@ import { useApp } from '../../context/AppContext'
 import { useTheme } from '../../context/ThemeContext'
 import { isOnlineNow } from '../../lib/networkStatus'
 import { fmt, niveauTresorerie, peut } from '../../lib/tresorerie'
-import { chargerDroits, chargerPartenaires, chargerTresorerie } from '../../lib/tresorerieDb'
+import { chargerDirection, chargerDroits, chargerPartenaires, chargerTresorerie } from '../../lib/tresorerieDb'
 
 // Charge les données + le niveau d'accès de l'utilisateur. Recharge à chaque
 // retour sur l'écran (une saisie faite ailleurs apparaît tout de suite).
-export function useTresorerie({ creerLoyers = false, avecPartenaires = false } = {}) {
+export function useTresorerie({ creerLoyers = false, avecPartenaires = false, avecDirection = false } = {}) {
   const { roleActif, userId, userNom } = useApp() ?? {}
   const [donnees, setDonnees] = useState(null)
   const [droits, setDroits] = useState([])
@@ -38,17 +38,18 @@ export function useTresorerie({ creerLoyers = false, avecPartenaires = false } =
       setDroits(dr)
       const niv = niveauTresorerie(roleActif, userId, dr)
       if (!niv) { setDonnees(null); return }
-      const [base, partenaires] = await Promise.all([
+      const [base, partenaires, direction] = await Promise.all([
         chargerTresorerie({ creerLoyers, user }),
         avecPartenaires && peut(niv, 'voir_partenaires') ? chargerPartenaires() : Promise.resolve(undefined),
+        avecDirection && (peut(niv, 'voir_coffre') || peut(niv, 'voir_direction')) ? chargerDirection() : Promise.resolve(undefined),
       ])
-      setDonnees({ ...base, partenaires })
+      setDonnees({ ...base, partenaires, direction })
     } catch (e) {
       setErreur(e?.message || 'Chargement impossible.')
     } finally {
       setLoading(false)
     }
-  }, [roleActif, userId, creerLoyers, avecPartenaires, user])
+  }, [roleActif, userId, creerLoyers, avecPartenaires, avecDirection, user])
 
   useFocusEffect(useCallback(() => { recharger() }, [recharger]))
 
