@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import ChampDate from './ChampDate'
 import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
 
 const POSTES = ['Gérant', 'Sous-gérant', 'Caissier/re', 'Serveur/se', 'Comptoiriste', 'Cuisinier', 'Chef cuisinier', 'Pizzaïo', 'Barman']
@@ -121,12 +122,10 @@ export default function FormulaireTravailleur({ form, setForm, colors, nomEditab
       />
 
       <Text style={label}>Date d'embauche</Text>
-      <TextInput
-        style={input}
-        placeholder="AAAA-MM-JJ (ex: 2024-01-15)"
-        value={form.date_embauche || ''}
-        onChangeText={v => setForm(p => ({ ...p, date_embauche: v }))}
-        placeholderTextColor="#bbb"
+      <ChampDate
+        valeur={form.date_embauche || ''}
+        onChange={v => setForm(p => ({ ...p, date_embauche: v }))}
+        effacable
       />
     </>
   )

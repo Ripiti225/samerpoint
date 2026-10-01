@@ -13,6 +13,7 @@ import { Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'r
 import {
   Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Ligne, Puces, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
+import ChampDate from '../components/ChampDate'
 import { choisirEtLireExcel } from '../lib/lireExcel'
 import {
   INFOS_PARTENAIRE, MODE_PAR_DEFAUT, PARTENAIRES, ajouterJours, estimerPeriode, libellePeriode,
@@ -500,7 +501,7 @@ function FeuilleReglage({ partenaire, reglages, user, onFermer, apres }) {
   useEffect(() => {
     if (!partenaire) return
     const r = reglages[partenaire] || {}
-    setDate(r.date_depart || '')
+    setDate(r.date_depart || aujourdhuiISO())
     setMode(r.mode_versement || MODE_PAR_DEFAUT[partenaire])
   }, [partenaire])
 
@@ -526,7 +527,7 @@ function FeuilleReglage({ partenaire, reglages, user, onFermer, apres }) {
 
   return (
     <Feuille visible onFermer={onFermer} titre={`Régler ${info.nom}`}>
-      <Champ label="Suivre à partir du (AAAA-MM-JJ, vide = pas suivi)" value={date} onChangeText={setDate} autoCapitalize="none" placeholder="2026-10-01" />
+      <ChampDate label="Suivre à partir du" valeur={date} onChange={setDate} effacable placeholder="Pas suivi" />
       {premiereReelle && (
         <Text style={[styles.petit, { marginBottom: 12 }]}>
           Première période suivie : {libellePeriode(premiereReelle)}. Les périodes d'avant sont considérées comme payées.

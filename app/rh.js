@@ -303,7 +303,7 @@ export default function RHScreen() {
     setSavingTravailleur(false)
     setModalFormTravailleur(false)
     setTravailleurEdition(null)
-    setFormTravailleur({ nom: '', poste: '', type_contrat: 'CDD', contact: '', salaire_journalier: '', date_embauche: '', photo_url: null })
+    setFormTravailleur({ nom: '', poste: '', type_contrat: 'CDD', contact: '', salaire_journalier: '', date_embauche: aujourdhuiISO(), photo_url: null })
     chargerDonnees()
     Alert.alert('Succès', travailleurEdition ? 'Travailleur modifié !' : 'Travailleur ajouté !')
   }
@@ -1420,7 +1420,7 @@ export default function RHScreen() {
                   <TouchableOpacity onPress={() => {
                     setModalFormTravailleur(false)
                     setTravailleurEdition(null)
-                    setFormTravailleur({ nom: '', poste: '', type_contrat: 'CDD', contact: '', salaire_journalier: '', date_embauche: '', photo_url: null })
+                    setFormTravailleur({ nom: '', poste: '', type_contrat: 'CDD', contact: '', salaire_journalier: '', date_embauche: aujourdhuiISO(), photo_url: null })
                     setPapiersDraft([])
                   }}>
                     <Text style={styles.modalClose}>✕</Text>
@@ -1500,7 +1500,7 @@ export default function RHScreen() {
                     onPress={() => {
                       setModalFormTravailleur(false)
                       setTravailleurEdition(null)
-                      setFormTravailleur({ nom: '', poste: '', type_contrat: 'CDD', contact: '', salaire_journalier: '', date_embauche: '', photo_url: null })
+                      setFormTravailleur({ nom: '', poste: '', type_contrat: 'CDD', contact: '', salaire_journalier: '', date_embauche: aujourdhuiISO(), photo_url: null })
                       setPapiersDraft([])
                     }}
                   >

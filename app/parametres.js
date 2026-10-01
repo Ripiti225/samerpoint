@@ -1,6 +1,7 @@
 import { router } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import FormulaireTravailleur from '../components/FormulaireTravailleur'
+import { aujourdhuiISO } from '../lib/contrats'
 import { useTheme } from '../context/ThemeContext'
 import {
     ActivityIndicator,
@@ -870,7 +871,7 @@ export default function ParametresScreen() {
     return (
       <>
         <FiltreRestaurants />
-        <TouchableOpacity style={styles.addBtn} onPress={() => ouvrirModal('travailleur', null, { restaurant_id: restaurantFiltre })}>
+        <TouchableOpacity style={styles.addBtn} onPress={() => ouvrirModal('travailleur', null, { restaurant_id: restaurantFiltre, date_embauche: aujourdhuiISO() })}>
           <Text style={styles.addTxt}>+ Ajouter un travailleur {restoNom ? `— ${restoNom}` : ''}</Text>
         </TouchableOpacity>
         {filtres.length === 0 && (
