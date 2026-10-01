@@ -113,8 +113,8 @@ Migration : `supabase_tresorerie_partenaires.sql` (après celle de l'étape 1).
 
 - **Réglage par partenaire** : date de départ du suivi (vide = pas suivi ; les
   périodes d'avant sont considérées comme payées) et mode de versement.
-  Seul **Yango** verse un virement unique pour tous les restaurants ; Glovo,
-  Wave, OM et Djamo versent restaurant par restaurant. Chaque partenaire a ses
+  Seul **Glovo** verse un virement détaillé par restaurant ; Yango, Wave, OM
+  et Djamo versent en une fois (corrigé le 01/10/2026, réglable dans l'app). Chaque partenaire a ses
   propres réceptions.
 - **Périodes** : Yango ven→jeu · Glovo 1–7, 8–14, 15–21, 22–28, 29→fin ·
   Wave et Djamo lun→dim · OM le mois. Suivies = celles qui commencent le jour de

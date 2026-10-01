@@ -9,8 +9,8 @@
 
 -- ── Réglages par partenaire ──────────────────────────────────────────
 -- date_depart vide = partenaire pas encore suivi.
--- mode_versement : 'groupe' (un virement pour tous les restos, Yango) ou
--- 'restaurant' (un virement par restaurant).
+-- mode_versement : 'groupe' (un virement pour tous les restos) ou
+-- 'restaurant' (virement détaillé par restaurant : Glovo seulement).
 CREATE TABLE IF NOT EXISTS tresorerie_partenaires (
   partenaire     text PRIMARY KEY CHECK (partenaire IN ('yango','glovo','wave','om','djamo')),
   date_depart    date,
@@ -18,8 +18,8 @@ CREATE TABLE IF NOT EXISTS tresorerie_partenaires (
   updated_at     timestamptz NOT NULL DEFAULT now()
 );
 INSERT INTO tresorerie_partenaires (partenaire, mode_versement) VALUES
-  ('yango', 'groupe'), ('glovo', 'restaurant'), ('wave', 'restaurant'),
-  ('om', 'restaurant'), ('djamo', 'restaurant')
+  ('yango', 'groupe'), ('glovo', 'restaurant'), ('wave', 'groupe'),
+  ('om', 'groupe'), ('djamo', 'groupe')
 ON CONFLICT (partenaire) DO NOTHING;
 
 -- ── Code des exports (KMS, PALM, 7E…) → restaurant de l'app ─────────
