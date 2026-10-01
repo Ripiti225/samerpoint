@@ -18,13 +18,12 @@ import { usePhoto } from '../lib/usePhoto'
 import {
   CATEGORIES_MENSUELLES, LIBELLES_ADMIN, adminPayeParRestaurant, LIBELLES_CATEGORIE, aujourdhuiISO, categoriesVisibles,
   echeanceCnpsParDefaut, echeanceDansMois, fmt, formatDateFR, joursDeRetard, libelleMois, libelleMoisCourt,
-  moisEntre, paiementsParDu, peut, premierDuMois, repartirPaiement, resteDu, statutLoyer, totalPaye,
+  moisDepartApresReglage, moisEntre, paiementsParDu, peut, planReglageLoyer, premierDuMois, repartirPaiement, resteDu,
+  resumeLoyersParRestaurant, statutLoyer, totalPaye,
 } from '../lib/tresorerie'
 import {
   annulerPaiement, chargerDusLoyer, enregistrerDu, enregistrerLoyer, payer, supprimerDu,
 } from '../lib/tresorerieDb'
-
-const MOIS_LOYERS_VISIBLES = 3
 
 export default function TresorerieAPayerScreen() {
   const { styles, colors } = useStylesTreso()
@@ -77,7 +76,8 @@ export default function TresorerieAPayerScreen() {
           <ScrollView style={styles.body} contentContainerStyle={styles.bodyContenu}>
             {onglet === 'loyer' ? (
               <ListeLoyers
-                dus={dusOnglet} parDu={parDu} aujourdhui={aujourdhui} nomResto={nomResto}
+                dus={dusOnglet} loyers={donnees.loyers} paiements={donnees.paiements} parDu={parDu}
+                aujourdhui={aujourdhui} nomResto={nomResto}
                 peutPayer={peut(niveau, 'payer')}
                 peutRegler={peut(niveau, 'saisir_dus')}
                 onPayer={restaurantId => setPaiement({ categorie: 'loyer', restaurantId })}
@@ -162,17 +162,17 @@ function Badge({ c }) {
   )
 }
 
-function ListeLoyers({ dus, parDu, aujourdhui, nomResto, peutPayer, peutRegler, onPayer, onOuvrir }) {
+// Une carte par restaurant : ce qu'il doit en tout (mois échus), puis chaque
+// mois encore ouvert avec son reste. Toucher un mois ouvre son détail.
+function ListeLoyers({ dus, loyers, paiements, parDu, aujourdhui, nomResto, peutPayer, peutRegler, onPayer, onOuvrir }) {
   const { styles, colors } = useStylesTreso()
   const cs = couleursStatut(colors)
   const moisCourant = premierDuMois(aujourdhui)
+  const resume = resumeLoyersParRestaurant(dus, paiements, moisCourant)
+  const ids = [...new Set([...loyers.map(l => l.restaurant_id), ...Object.keys(resume)])]
+    .sort((a, b) => nomResto(a).localeCompare(nomResto(b)))
 
-  // Les 3 derniers mois en entier (pour voir le vert), plus les impayés plus anciens.
-  const mois = [...new Set(dus.map(d => d.mois))].sort().reverse()
-  const recents = new Set(mois.filter(m => m <= moisCourant).slice(0, MOIS_LOYERS_VISIBLES))
-  const visibles = mois.filter(m => recents.has(m) || dus.some(d => d.mois === m && resteDu(d, parDu[d.id]) > 0))
-
-  if (!dus.length) {
+  if (!ids.length) {
     return (
       <Text style={styles.vide}>
         {peutRegler ? 'Aucun loyer réglé. Utilisez « Régler les loyers des restaurants ».' : 'Aucun loyer réglé pour l\'instant.'}
@@ -182,46 +182,45 @@ function ListeLoyers({ dus, parDu, aujourdhui, nomResto, peutPayer, peutRegler, 
 
   return (
     <>
-      <View style={[styles.rangee, { flexWrap: 'wrap', marginBottom: 10 }]}>
-        {Object.values(cs).map(c => (
-          <View key={c.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: c.trait }} />
-            <Text style={styles.petit}>{c.label}</Text>
-          </View>
-        ))}
-      </View>
-      {visibles.map(m => (
-        <View key={m} style={{ marginBottom: 6 }}>
-          <Text style={[styles.lbl, { marginVertical: 6 }]}>{libelleMois(m)}</Text>
-          {dus.filter(d => d.mois === m)
-            .sort((a, b) => nomResto(a.restaurant_id).localeCompare(nomResto(b.restaurant_id)))
-            .map(d => {
+      {ids.map(id => {
+        const l = loyers.find(x => x.restaurant_id === id)
+        const r = resume[id] || { reste: 0, ouverts: [] }
+        return (
+          <View key={id} style={styles.carte}>
+            <View style={styles.ligne}>
+              <Text style={[styles.itemTitre, { flex: 1 }]}>{nomResto(id)}</Text>
+              <Text style={[styles.ligneValeur, { color: r.reste ? colors.error : colors.success }]}>
+                {r.reste ? `doit ${fmt(r.reste)} F` : 'à jour'}
+              </Text>
+            </View>
+            {l && <Text style={[styles.petit, { marginBottom: 6 }]}>Loyer {fmt(l.montant)} F / mois · à payer avant le {l.jour_echeance}</Text>}
+            {r.ouverts.map(d => {
               const p = parDu[d.id] || []
               const st = statutLoyer(d, p, aujourdhui)
-              const c = cs[st]
-              const reste = resteDu(d, p)
               const retard = st === 'en_retard' ? joursDeRetard(d.echeance, aujourdhui) : 0
-              const dernier = p[p.length - 1]
+              const avance = d.mois > moisCourant
               return (
-                <TouchableOpacity key={d.id} onPress={() => onOuvrir(d)}
-                  style={[styles.carte, { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 11, marginBottom: 6, borderLeftWidth: 5, borderLeftColor: c.trait }]}>
+                <TouchableOpacity key={d.id} style={[styles.item, { borderLeftWidth: 4, borderLeftColor: cs[st].trait, paddingLeft: 8 }]}
+                  onPress={() => onOuvrir(d)}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.itemTitre}>{nomResto(d.restaurant_id)} · {fmt(d.montant_du)}</Text>
+                    <Text style={styles.itemTitre}>{libelleMois(d.mois)}{avance ? ' (d\'avance)' : ''}</Text>
                     <Text style={styles.petit}>
-                      {st === 'paye'
-                        ? `payé le ${formatDateFR(dernier?.date)}`
-                        : `${totalPaye(p) > 0 ? `payé ${fmt(totalPaye(p))} · ` : ''}reste ${fmt(reste)} · échéance ${formatDateFR(d.echeance)}${retard ? ` · ${retard} j de retard` : ''}`}
+                      {totalPaye(p) > 0 ? `payé ${fmt(totalPaye(p))} · ` : ''}
+                      <Text style={{ fontWeight: '800', color: colors.text }}>reste {fmt(resteDu(d, p))}</Text>
+                      {retard ? ` · ${retard} j de retard` : ` · avant le ${formatDateFR(d.echeance)}`}
                     </Text>
                   </View>
-                  {st !== 'paye' && peutPayer
-                    ? <Bouton titre="Payer" style={styles.btnPetit} onPress={() => onPayer(d.restaurant_id)} />
-                    : <Badge c={c} />}
+                  <Badge c={cs[st]} />
                 </TouchableOpacity>
               )
             })}
-        </View>
-      ))}
-      <Text style={styles.petit}>Un loyer est payé pour le mois que le propriétaire a retenu, pas pour le mois où l'argent est sorti.</Text>
+            {peutPayer && (r.ouverts.length > 0 || l) && (
+              <Bouton titre="Payer" style={{ marginTop: 8 }} onPress={() => onPayer(id)} />
+            )}
+          </View>
+        )
+      })}
+      <Text style={styles.petit}>Un loyer est payé pour le mois que le propriétaire a retenu, pas pour le mois où l'argent est sorti. Chaque nouveau mois s'ajoute tout seul le 1er.</Text>
     </>
   )
 }
@@ -487,7 +486,7 @@ function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFermer, ap
   const { styles, colors } = useStylesTreso()
   const { choisirPhoto } = usePhoto()
   const [montant, setMontant] = useState('')
-  const [moisChoisis, setMoisChoisis] = useState([])
+  const [moisChoisi, setMoisChoisi] = useState(null)
   const [source, setSource] = useState(null)
   const [date, setDate] = useState(aujourdhuiISO())
   const [photo, setPhoto] = useState(null)
@@ -511,28 +510,27 @@ function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFermer, ap
 
   useEffect(() => {
     if (!demande) return
-    setMoisChoisis([])
+    setMoisChoisi(null)
     setSource(null)
     setDate(aujourdhuiISO())
     setPhoto(null)
     setMontant(demande.du ? String(resteDu(demande.du, parDu[demande.du.id])) : '')
   }, [demande])
 
-  // Montant proposé pour un loyer = somme des restes des mois cochés.
+  // Reste du mois choisi ; un mois payé d'avance n'existe pas encore : loyer plein.
+  const resteMois = m => {
+    const d = donnees.dus.find(x => x.categorie === 'loyer' && x.restaurant_id === restaurantId && x.mois === m)
+    return d ? resteDu(d, parDu[d.id]) : Number(loyer?.montant || 0)
+  }
+
+  // Montant proposé = reste du mois choisi, modifiable pour un paiement partiel.
   useEffect(() => {
     if (!estLoyer) return
-    const total = moisChoisis.reduce((s, m) => {
-      const d = donnees.dus.find(x => x.categorie === 'loyer' && x.restaurant_id === restaurantId && x.mois === m)
-      return s + (d ? resteDu(d, parDu[d.id]) : Number(loyer?.montant || 0))
-    }, 0)
-    setMontant(total ? String(total) : '')
-  }, [moisChoisis.join(',')])
+    const r = moisChoisi ? resteMois(moisChoisi) : 0
+    setMontant(r ? String(r) : '')
+  }, [moisChoisi])
 
   if (!demande) return null
-
-  function basculerMois(m) {
-    setMoisChoisis(l => (l.includes(m) ? l.filter(x => x !== m) : [...l, m]))
-  }
 
   async function ajouterPhoto() {
     setPhotoEnCours(true)
@@ -543,10 +541,13 @@ function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFermer, ap
 
   async function enregistrer() {
     const valeur = montant === '' ? 0 : parseInt(montant, 10)
-    if (estLoyer && !moisChoisis.length) {
+    if (estLoyer && !moisChoisi) {
       Alert.alert('Mois manquant', 'Choisissez le mois retenu par le propriétaire.'); return
     }
     if (!valeur || valeur <= 0) { Alert.alert('Montant manquant', 'Saisissez le montant versé.'); return }
+    if (estLoyer && valeur > resteMois(moisChoisi)) {
+      Alert.alert('Montant trop élevé', `Il ne reste que ${fmt(resteMois(moisChoisi))} F à payer pour ${libelleMois(moisChoisi)}.`); return
+    }
     if (!source) { Alert.alert('Source manquante', 'Choisissez d\'où part l\'argent : BACI, SIB ou espèces.'); return }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       Alert.alert('Date invalide', 'Écrivez la date au format AAAA-MM-JJ, par exemple 2026-10-01.'); return
@@ -555,25 +556,23 @@ function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFermer, ap
     try {
       let dusCibles
       if (estLoyer) {
-        // Les mois payés d'avance n'existent pas encore : on les crée d'abord.
-        for (const m of moisChoisis) {
-          const existe = donnees.dus.some(d => d.categorie === 'loyer' && d.restaurant_id === restaurantId && d.mois === m)
-          if (!existe) {
-            await enregistrerDu({
-              categorie: 'loyer', restaurant_id: restaurantId, mois: m,
-              montant_du: Number(loyer?.montant || 0),
-              echeance: echeanceDansMois(m, loyer?.jour_echeance || 5),
-            }, user)
-          }
+        // Un mois payé d'avance n'existe pas encore : on le crée d'abord.
+        const existe = donnees.dus.some(d => d.categorie === 'loyer' && d.restaurant_id === restaurantId && d.mois === moisChoisi)
+        if (!existe) {
+          await enregistrerDu({
+            categorie: 'loyer', restaurant_id: restaurantId, mois: moisChoisi,
+            montant_du: Number(loyer?.montant || 0),
+            echeance: echeanceDansMois(moisChoisi, loyer?.jour_echeance || 5),
+          }, user)
         }
-        dusCibles = await chargerDusLoyer(restaurantId, moisChoisis)
+        dusCibles = await chargerDusLoyer(restaurantId, [moisChoisi])
       } else {
         dusCibles = [demande.du]
       }
       const parts = repartirPaiement(valeur, dusCibles, donnees.paiements)
       const compte = source === 'especes' ? null : source
       const libelle = estLoyer
-        ? `Loyer ${nomResto(restaurantId)} · ${[...moisChoisis].sort().map(libelleMoisCourt).join(', ')}`
+        ? `Loyer ${nomResto(restaurantId)} · ${libelleMoisCourt(moisChoisi)}`
         : `${LIBELLES_CATEGORIE[demande.du.categorie]} · ${titreDu(demande.du, nomResto)}${demande.du.mois ? ` · ${libelleMoisCourt(demande.du.mois)}` : ''}`
       await payer({ parts, source: compte ? 'compte' : 'especes', compteId: compte, date, libelle, photoUrl: photo }, user)
       await apres()
@@ -599,20 +598,12 @@ function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFermer, ap
         <>
           {loyer && <Text style={[styles.petit, { marginBottom: 10 }]}>Loyer mensuel : {fmt(loyer.montant)} F</Text>}
           <Text style={styles.label}>Mois retenu par le propriétaire</Text>
-          <View style={styles.puces}>
-            {optionsMois.map(m => {
-              const actif = moisChoisis.includes(m)
-              return (
-                <TouchableOpacity key={m} style={[styles.puce, actif && styles.puceActive]} onPress={() => basculerMois(m)}>
-                  <Text style={[styles.puceTxt, actif && styles.puceTxtActive]}>{libelleMois(m)}</Text>
-                </TouchableOpacity>
-              )
-            })}
-          </View>
-          {moisChoisis.length > 1 && (
-            <View style={styles.avert}>
-              <Text style={styles.avertTxt}>Le montant est réparti du mois le plus ancien au plus récent, chacun jusqu'à son reste.</Text>
-            </View>
+          <Puces options={optionsMois.map(m => ({ valeur: m, label: `${libelleMois(m)} · reste ${fmt(resteMois(m))}` }))}
+            valeur={moisChoisi} onChange={setMoisChoisi} />
+          {moisChoisi && (
+            <Text style={[styles.petit, { marginBottom: 10 }]}>
+              Payez moins que le reste si besoin : le reste de {libelleMois(moisChoisi)} se met à jour tout seul.
+            </Text>
           )}
         </>
       )}
@@ -633,38 +624,58 @@ function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFermer, ap
 
 // ── Réglage des loyers ───────────────────────────────────────────────────────
 
+// Réglage : le loyer mensuel, le jour limite, et les mois que l'on doit encore
+// (cochés). Les mois suivants s'ajoutent tout seuls, à partir du mois prochain.
 function FeuilleReglageLoyers({ visible, donnees, user, onFermer, apres }) {
   const { styles, colors } = useStylesTreso()
   const [restaurantId, setRestaurantId] = useState(null)
   const [montant, setMontant] = useState('')
   const [jour, setJour] = useState('5')
-  const [moisDepart, setMoisDepart] = useState(premierDuMois(aujourdhuiISO()))
-  const [actif, setActif] = useState(true)
+  const [moisCoches, setMoisCoches] = useState([])
   const [occupe, setOccupe] = useState(false)
+
+  const courant = premierDuMois(aujourdhuiISO())
+  const moisProposes = moisEntre('2000-01-01', courant).slice(-12)
+  const parDu = useMemo(() => paiementsParDu(donnees.paiements), [donnees])
+  const dusResto = donnees.dus.filter(d => d.categorie === 'loyer' && d.restaurant_id === restaurantId)
+  const entame = m => dusResto.some(d => d.mois === m && parDu[d.id]?.length)
+  const resume = useMemo(() => resumeLoyersParRestaurant(donnees.dus, donnees.paiements, courant), [donnees, courant])
 
   useEffect(() => {
     if (!restaurantId) return
     const l = donnees.loyers.find(x => x.restaurant_id === restaurantId)
     setMontant(l ? String(l.montant) : '')
     setJour(l ? String(l.jour_echeance) : '5')
-    setMoisDepart(l ? l.mois_depart : premierDuMois(aujourdhuiISO()))
-    setActif(l ? l.actif : true)
+    setMoisCoches(dusResto.filter(d => moisProposes.includes(d.mois)).map(d => d.mois))
   }, [restaurantId])
 
   if (!visible) return null
 
-  const courant = premierDuMois(aujourdhuiISO())
-  const optionsDepart = moisEntre('2000-01-01', courant).slice(-12).reverse().map(m => ({ valeur: m, label: libelleMois(m) }))
+  function basculer(m) {
+    if (entame(m)) {
+      Alert.alert('Mois déjà entamé', `Un paiement existe pour ${libelleMois(m)}. Annulez-le d'abord depuis le détail du mois.`)
+      return
+    }
+    setMoisCoches(l => (l.includes(m) ? l.filter(x => x !== m) : [...l, m]))
+  }
 
   async function enregistrer() {
     const v = montant === '' ? 0 : parseInt(montant, 10)
     const j = parseInt(jour, 10)
     if (!restaurantId) { Alert.alert('Restaurant manquant', 'Choisissez le restaurant.'); return }
     if (!v) { Alert.alert('Montant manquant', 'Saisissez le loyer mensuel.'); return }
-    if (!(j >= 1 && j <= 31)) { Alert.alert('Jour invalide', 'Le jour d\'échéance va de 1 à 31.'); return }
+    if (!(j >= 1 && j <= 31)) { Alert.alert('Jour invalide', 'Le jour limite va de 1 à 31.'); return }
+    const l = donnees.loyers.find(x => x.restaurant_id === restaurantId)
+    const plan = planReglageLoyer({
+      restaurantId, montant: v, jourEcheance: j, moisCoches, moisProposes,
+      dusExistants: donnees.dus, paiements: donnees.paiements,
+    })
     setOccupe(true)
     try {
-      await enregistrerLoyer({ restaurantId, montant: v, jourEcheance: j, moisDepart, actif }, user)
+      await enregistrerLoyer({
+        restaurantId, montant: v, jourEcheance: j, moisDepart: moisDepartApresReglage(courant),
+        actif: l ? l.actif : true, plan,
+      }, user)
       await apres()
       setRestaurantId(null)
     } catch (e) {
@@ -674,16 +685,22 @@ function FeuilleReglageLoyers({ visible, donnees, user, onFermer, apres }) {
     }
   }
 
+  const totalCoche = moisCoches.reduce((s, m) => {
+    const d = dusResto.find(x => x.mois === m)
+    return s + (d && parDu[d.id]?.length ? resteDu(d, parDu[d.id]) : (parseInt(montant, 10) || 0))
+  }, 0)
+
   return (
     <Feuille visible onFermer={onFermer} titre="Loyers des restaurants">
       {donnees.restaurants.map(r => {
         const l = donnees.loyers.find(x => x.restaurant_id === r.id)
+        const doit = resume[r.id]?.reste || 0
         return (
           <TouchableOpacity key={r.id} style={[styles.item, restaurantId === r.id && { backgroundColor: colors.primaryLight }]}
             onPress={() => setRestaurantId(r.id)}>
             <Text style={[styles.itemTitre, { flex: 1 }]}>{r.nom}</Text>
             <Text style={styles.petit}>
-              {l ? `${fmt(l.montant)} F · le ${l.jour_echeance}${l.actif ? '' : ' · arrêté'}` : 'non réglé'}
+              {l ? `${fmt(l.montant)} F · le ${l.jour_echeance}${doit ? ` · doit ${fmt(doit)} F` : ''}` : 'non réglé'}
             </Text>
           </TouchableOpacity>
         )
@@ -693,15 +710,24 @@ function FeuilleReglageLoyers({ visible, donnees, user, onFermer, apres }) {
         <View style={[styles.carte, { marginTop: 12 }]}>
           <Text style={[styles.itemTitre, { marginBottom: 10 }]}>{donnees.restaurants.find(r => r.id === restaurantId)?.nom}</Text>
           <ChampMontant label="Loyer mensuel" valeur={montant} onChange={setMontant} />
-          <Champ label="Jour d'échéance dans le mois (1 à 31)" value={jour} onChangeText={t => setJour(t.replace(/[^\d]/g, ''))} keyboardType="number-pad" />
-          <Text style={styles.label}>Premier mois à suivre</Text>
-          <Puces options={optionsDepart} valeur={moisDepart} onChange={setMoisDepart} />
+          <Champ label="À payer avant le (jour du mois, 1 à 31)" value={jour} onChangeText={t => setJour(t.replace(/[^\d]/g, ''))} keyboardType="number-pad" />
+          <Text style={styles.label}>Mois que l'on doit encore</Text>
+          <View style={styles.puces}>
+            {[...moisProposes].reverse().map(m => {
+              const actif = moisCoches.includes(m)
+              return (
+                <TouchableOpacity key={m} style={[styles.puce, actif && styles.puceActive]} onPress={() => basculer(m)}>
+                  <Text style={[styles.puceTxt, actif && styles.puceTxtActive]}>{libelleMois(m)}{entame(m) ? ' · entamé' : ''}</Text>
+                </TouchableOpacity>
+              )
+            })}
+          </View>
           <View style={[styles.ligne, { marginBottom: 10 }]}>
-            <Text style={styles.ligneLabel}>Loyer en cours</Text>
-            <Switch value={actif} onValueChange={setActif} />
+            <Text style={styles.ligneLabel}>Total dû pour ces mois</Text>
+            <Text style={[styles.ligneValeur, { color: totalCoche ? colors.error : colors.success }]}>{fmt(totalCoche)} F</Text>
           </View>
           <Text style={[styles.petit, { marginBottom: 10 }]}>
-            Un changement de montant vaut pour les mois à créer. Les mois déjà créés se corrigent un par un (Modifier).
+            Les mois suivants s'ajoutent tout seuls le 1er de chaque mois. Un nouveau montant s'applique aux mois cochés sans paiement.
           </Text>
           <Bouton titre="Enregistrer le loyer" onPress={enregistrer} occupe={occupe} />
         </View>
