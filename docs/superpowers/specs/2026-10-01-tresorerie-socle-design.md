@@ -101,3 +101,35 @@ Chaque saisie, paiement, recalage et suppression part dans `journal_activite`
 `lib/tresorerie.test.mjs` : restant d'un dû, formule nette, statut loyer
 (couleurs, lendemain d'échéance), mois à créer, répartition d'un paiement sur
 plusieurs mois, montant de recalage, résolution des droits, jours de retard CNPS.
+
+---
+
+# Étape 2 — Partenaires à recevoir
+
+Migration : `supabase_tresorerie_partenaires.sql` (après celle de l'étape 1).
+
+- **Réglage par partenaire** : date de départ du suivi (vide = pas suivi ; les
+  périodes d'avant sont considérées comme payées) et mode de versement.
+  Seul **Yango** verse un virement unique pour tous les restaurants ; Glovo,
+  Wave, OM et Djamo versent restaurant par restaurant. Chaque partenaire a ses
+  propres réceptions.
+- **Périodes** : Yango ven→jeu · Glovo 1–7, 8–14, 15–21, 22–28, 29→fin ·
+  Wave et Djamo lun→dim · OM le mois. Suivies = celles qui commencent le jour de
+  départ ou après.
+- **Estimé** par restaurant = points de la période × coefficient
+  (`yango_tab` × 0,77, `glovo_tab` × 0,705, Wave / OM / Djamo × 0,99).
+- **Export brut** (Yango, Glovo) lu dans l'app, mêmes règles que les skills
+  `rapport-commandes-yango` et `rapport-commandes-glovo-2`. Zone 4 et Remblais
+  = KMS, AK1 = ALK1. Les codes sont associés une fois aux restaurants de l'app
+  (`tresorerie_alias`). Le réel REMPLACE l'estimé ; un restaurant absent de
+  l'export vaut 0. Réimporter une période remplace l'import précédent.
+- **Pub** (Yango, Glovo, après import) : par restaurant, déduite du réel. Pour
+  Glovo, en plus des frais d'annonces de l'export.
+- **À recevoir** = périodes terminées seulement. La période en cours est
+  affichée en pointillés, sans compter.
+- **Reçu** : montant réel, compte BACI / SIB, date → entrée en banque (type
+  `partenaire`) ; écart avec l'attendu affiché. Annulable.
+- Droits : propriétaire et lecture voient et marquent reçu / importent / saisissent
+  la pub ; seul le propriétaire règle les dates de départ et les modes.
+
+Tests : `lib/partenaires.test.mjs`, `lib/partenairesImport.test.mjs`.

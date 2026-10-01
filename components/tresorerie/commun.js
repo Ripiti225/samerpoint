@@ -11,12 +11,12 @@ import {
 import { useApp } from '../../context/AppContext'
 import { useTheme } from '../../context/ThemeContext'
 import { isOnlineNow } from '../../lib/networkStatus'
-import { fmt, niveauTresorerie } from '../../lib/tresorerie'
-import { chargerDroits, chargerTresorerie } from '../../lib/tresorerieDb'
+import { fmt, niveauTresorerie, peut } from '../../lib/tresorerie'
+import { chargerDroits, chargerPartenaires, chargerTresorerie } from '../../lib/tresorerieDb'
 
 // Charge les données + le niveau d'accès de l'utilisateur. Recharge à chaque
 // retour sur l'écran (une saisie faite ailleurs apparaît tout de suite).
-export function useTresorerie({ creerLoyers = false } = {}) {
+export function useTresorerie({ creerLoyers = false, avecPartenaires = false } = {}) {
   const { roleActif, userId, userNom } = useApp() ?? {}
   const [donnees, setDonnees] = useState(null)
   const [droits, setDroits] = useState([])
@@ -38,13 +38,17 @@ export function useTresorerie({ creerLoyers = false } = {}) {
       setDroits(dr)
       const niv = niveauTresorerie(roleActif, userId, dr)
       if (!niv) { setDonnees(null); return }
-      setDonnees(await chargerTresorerie({ creerLoyers, user }))
+      const [base, partenaires] = await Promise.all([
+        chargerTresorerie({ creerLoyers, user }),
+        avecPartenaires && peut(niv, 'voir_partenaires') ? chargerPartenaires() : Promise.resolve(undefined),
+      ])
+      setDonnees({ ...base, partenaires })
     } catch (e) {
       setErreur(e?.message || 'Chargement impossible.')
     } finally {
       setLoading(false)
     }
-  }, [roleActif, userId, creerLoyers, user])
+  }, [roleActif, userId, creerLoyers, avecPartenaires, user])
 
   useFocusEffect(useCallback(() => { recharger() }, [recharger]))
 

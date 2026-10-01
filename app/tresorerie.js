@@ -12,6 +12,7 @@ import { Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'r
 import {
   Bouton, Entete, EtatEcran, Feuille, Ligne, Puces, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
+import { totalPartenaires } from '../lib/partenaires'
 import {
   NIVEAUX, aujourdhuiISO, calculerTresorerieNette, fmt, fournisseursDus, peut, premierDuMois,
 } from '../lib/tresorerie'
@@ -19,7 +20,7 @@ import { chargerUtilisateursAdmin, enregistrerDroit, retirerDroit } from '../lib
 
 export default function TresorerieScreen() {
   const { styles, colors } = useStylesTreso()
-  const t = useTresorerie({ creerLoyers: true })
+  const t = useTresorerie({ creerLoyers: true, avecPartenaires: true })
   const { donnees, niveau, droits, user, recharger } = t
   const [droitsVisible, setDroitsVisible] = useState(false)
 
@@ -28,6 +29,12 @@ export default function TresorerieScreen() {
     if (niveau === 'saisie_rh') router.replace('/tresorerie-a-payer?onglet=salaire')
   }, [niveau])
 
+  const partenaires = useMemo(() => {
+    const p = donnees?.partenaires
+    if (!p) return null
+    return totalPartenaires({ reglages: p.reglages, points: p.points, lignes: p.lignes, aujourdhui: aujourdhuiISO() })
+  }, [donnees])
+
   const r = useMemo(() => {
     if (!donnees) return null
     return calculerTresorerieNette({
@@ -35,10 +42,10 @@ export default function TresorerieScreen() {
       dus: donnees.dus,
       paiements: donnees.paiements,
       fournisseursDus: fournisseursDus(donnees.fournisseurs),
-      partenaires: 0,
+      partenaires: partenaires?.total || 0,
       moisCourant: premierDuMois(aujourdhuiISO()),
     })
-  }, [donnees])
+  }, [donnees, partenaires])
 
   const etat = <EtatEcran {...t} autorise={peut(niveau, 'voir_vue') || niveau === 'saisie_rh'} />
   const bloque = (t.loading && !donnees) || t.erreur || !niveau || !peut(niveau, 'voir_vue')
@@ -63,7 +70,10 @@ export default function TresorerieScreen() {
             </Text>
             <View style={styles.sep} />
             <Ligne label="Banque (BACI + SIB)" valeur={r.banque} />
-            <Ligne label="+ Partenaires à recevoir (étape 2)" valeur={r.partenaires} signe="+" couleur={colors.textMuted} />
+            <Ligne
+              label={donnees.partenaires === null ? '+ Partenaires à recevoir (migration à passer)' : '+ Partenaires à recevoir'}
+              valeur={r.partenaires} signe="+" couleur={donnees.partenaires === null ? colors.textMuted : colors.success}
+            />
             <Ligne label="− Loyers restants" valeur={r.loyers} signe="-" couleur={colors.error} />
             <Ligne label="− Salaires restants" valeur={r.salaires} signe="-" couleur={colors.error} />
             <Ligne label="− CNPS" valeur={r.cnps} signe="-" couleur={colors.error} />
@@ -76,6 +86,7 @@ export default function TresorerieScreen() {
 
           <View style={styles.tuiles}>
             <Tuile icone="🏦" titre="Banque" sous={`${fmt(r.banque)} F · BACI · SIB`} route="/tresorerie-banque" />
+            <Tuile icone="🛵" titre="Partenaires" sous={`${fmt(r.partenaires)} F à recevoir`} route="/tresorerie-partenaires" />
             <Tuile icone="📋" titre="À payer" sous="Loyers · salaires · CNPS · admin" route="/tresorerie-a-payer" />
             {peut(niveau, 'voir_dettes') && (
               <Tuile icone="📒" titre="Dettes" sous={`${fmt(r.dettes)} F à rembourser`} route="/tresorerie-a-payer?onglet=dette" />

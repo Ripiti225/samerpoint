@@ -1512,9 +1512,9 @@
     "semantic_hash": ""
   },
   "app/tresorerie.js": {
-    "mtime": 1790819777.8434856,
-    "seen": 1790819998.8741848,
-    "ast_hash": "b15207131f89b744b82ce417b5043c22",
+    "mtime": 1790822941.73362,
+    "seen": 1790823092.644385,
+    "ast_hash": "f5173741b6e880765f38b7ab220027a9",
     "semantic_hash": ""
   },
   "components/BarreComparaison.js": {
@@ -1530,9 +1530,9 @@
     "semantic_hash": ""
   },
   "components/tresorerie/commun.js": {
-    "mtime": 1790819750.442502,
-    "seen": 1790819998.874196,
-    "ast_hash": "b9463dfd590a0a15bc3235899fef1f41",
+    "mtime": 1790822933.4519742,
+    "seen": 1790823092.644398,
+    "ast_hash": "a513c00e883809ddd2405acc98895ccb",
     "semantic_hash": ""
   },
   "lib/comparaisonDashboard.js": {
@@ -1584,21 +1584,21 @@
     "semantic_hash": ""
   },
   "lib/tresorerie.js": {
-    "mtime": 1790819939.548491,
-    "seen": 1790819998.87424,
-    "ast_hash": "485db9642df20c69457c39624069e957",
+    "mtime": 1790822915.9245765,
+    "seen": 1790823092.644453,
+    "ast_hash": "012bf01cc1e59ce79a44636bee36641b",
     "semantic_hash": ""
   },
   "lib/tresorerie.test.mjs": {
-    "mtime": 1790819578.7477982,
-    "seen": 1790819998.87424,
-    "ast_hash": "d756a42e2e7a2a5d0a19bbb8036f1d48",
+    "mtime": 1790822915.9248219,
+    "seen": 1790823092.644453,
+    "ast_hash": "33a282deb70482afb2e11c3e892b374f",
     "semantic_hash": ""
   },
   "lib/tresorerieDb.js": {
-    "mtime": 1790819939.5486825,
-    "seen": 1790819998.874241,
-    "ast_hash": "32c40eeec30e60d7b0b50e447c0e82bd",
+    "mtime": 1790822900.3970323,
+    "seen": 1790823092.644454,
+    "ast_hash": "24be2fd049bbe3343e7a0a191b3d7cb1",
     "semantic_hash": ""
   },
   "supabase_tresorerie.sql": {
@@ -1614,9 +1614,51 @@
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-10-01-tresorerie-socle-design.md": {
-    "mtime": 1790819542.4272768,
-    "seen": 1790819998.87428,
-    "ast_hash": "5f3713967c41abccf65edb0322b58382",
+    "mtime": 1790823089.5525837,
+    "seen": 1790823092.6445,
+    "ast_hash": "470f13c0ecb635355dcbddc779fb6236",
+    "semantic_hash": ""
+  },
+  "app/tresorerie-partenaires.js": {
+    "mtime": 1790823061.8210526,
+    "seen": 1790823092.644384,
+    "ast_hash": "33dc16c9def34b2114647979dd8af4cc",
+    "semantic_hash": ""
+  },
+  "lib/lireExcel.js": {
+    "mtime": 1790822923.7085614,
+    "seen": 1790823092.6444328,
+    "ast_hash": "a9b371b0a0d515a154020fe233cf3c29",
+    "semantic_hash": ""
+  },
+  "lib/partenaires.js": {
+    "mtime": 1790822757.0938852,
+    "seen": 1790823092.6444402,
+    "ast_hash": "4a7e4da08bb9d2792a876d2f04b956a9",
+    "semantic_hash": ""
+  },
+  "lib/partenaires.test.mjs": {
+    "mtime": 1790822749.9199178,
+    "seen": 1790823092.6444402,
+    "ast_hash": "daf383eed30dd7c8537988a644759bd9",
+    "semantic_hash": ""
+  },
+  "lib/partenairesImport.js": {
+    "mtime": 1790822796.568383,
+    "seen": 1790823092.6444411,
+    "ast_hash": "a94415fea8f15b17009faa52b10a03ee",
+    "semantic_hash": ""
+  },
+  "lib/partenairesImport.test.mjs": {
+    "mtime": 1790822839.6483808,
+    "seen": 1790823092.6444411,
+    "ast_hash": "9857bb70aaeb97053c61b8501694b887",
+    "semantic_hash": ""
+  },
+  "supabase_tresorerie_partenaires.sql": {
+    "mtime": 1790822872.483924,
+    "seen": 1790823092.644484,
+    "ast_hash": "5560bd47cf5152d3f17b7ff2adab91b8",
     "semantic_hash": ""
   }
 }
