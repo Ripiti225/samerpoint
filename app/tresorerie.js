@@ -1,8 +1,8 @@
 // ──────────────────────────────────────────────────────────────────────────────
 // Trésorerie — vue d'ensemble : la trésorerie nette réelle et sa formule.
 //
-// Partenaires à recevoir = 0 tant que l'étape 2 n'est pas livrée : la ligne est
-// affichée quand même, pour que la formule soit lue en entier dès aujourd'hui.
+// En haut : les alertes en cours (déficit, CNPS > 60 j, fond bas), chargées à
+// part pour ne pas retarder l'affichage de la trésorerie.
 // Spéc : docs/superpowers/specs/2026-10-01-tresorerie-socle-design.md
 // ──────────────────────────────────────────────────────────────────────────────
 import { router } from 'expo-router'
@@ -10,9 +10,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 
 import {
-  Bouton, Entete, EtatEcran, Feuille, Ligne, Puces, useStylesTreso, useTresorerie,
+  Bouton, ChampMontant, Entete, EtatEcran, Feuille, Ligne, Puces, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import { objectifDuMois, progression, soldeCoffre } from '../lib/direction'
+import { chargerAlertes, chargerPlafonds, enregistrerPlafonds } from '../lib/alertesDb'
 import { totalPartenaires } from '../lib/partenaires'
 import {
   NIVEAUX, aujourdhuiISO, calculerTresorerieNette, fmt, fournisseursDus, peut, premierDuMois,
@@ -24,6 +25,16 @@ export default function TresorerieScreen() {
   const t = useTresorerie({ creerLoyers: true, avecPartenaires: true, avecDirection: true })
   const { donnees, niveau, droits, user, recharger } = t
   const [droitsVisible, setDroitsVisible] = useState(false)
+  const [plafondsVisible, setPlafondsVisible] = useState(false)
+  const [alertes, setAlertes] = useState(null)
+  const [toutesAlertes, setToutesAlertes] = useState(false)
+
+  useEffect(() => {
+    if (!peut(niveau, 'voir_vue') || !donnees) return
+    let vivant = true
+    chargerAlertes().then(a => { if (vivant) setAlertes(a) }).catch(() => { if (vivant) setAlertes(null) })
+    return () => { vivant = false }
+  }, [niveau, donnees])
 
   // Le RH n'a que les salaires et la CNPS : on l'y emmène directement.
   useEffect(() => {
@@ -64,6 +75,25 @@ export default function TresorerieScreen() {
       />
       {bloque ? etat : (
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContenu}>
+          {(alertes || []).slice(0, toutesAlertes ? undefined : 3).map(a => (
+            <View key={a.cle} style={{
+              borderRadius: 12, padding: 10, marginBottom: 8, borderWidth: 1,
+              backgroundColor: a.niveau === 'rouge' ? colors.errorLight : colors.warningLight,
+              borderColor: a.niveau === 'rouge' ? colors.error : colors.warning,
+            }}>
+              <Text style={{ fontSize: 13, lineHeight: 18, color: a.niveau === 'rouge' ? colors.errorDark : colors.warningDark }}>
+                {a.niveau === 'rouge' ? '🔴' : '🟠'} {a.message}
+              </Text>
+            </View>
+          ))}
+          {(alertes || []).length > 3 && (
+            <TouchableOpacity onPress={() => setToutesAlertes(v => !v)} style={{ marginBottom: 8 }}>
+              <Text style={[styles.petit, { color: colors.primary, fontWeight: '700' }]}>
+                {toutesAlertes ? 'Réduire' : `Voir les ${alertes.length} alertes`}
+              </Text>
+            </TouchableOpacity>
+          )}
+
           <View style={styles.carte}>
             <Text style={styles.lbl}>Trésorerie nette réelle</Text>
             <Text style={[styles.grand, { color: r.nette >= 0 ? colors.success : colors.error }]}>
@@ -118,11 +148,21 @@ export default function TresorerieScreen() {
             )}
             {peut(niveau, 'voir_coffre') && <Tuile icone="🔒" titre="Coffre" sous="Dépôts · retraits · objectif" route="/tresorerie-coffre" />}
             {peut(niveau, 'voir_direction') && <Tuile icone="💼" titre="Dépenses direction" sous="Fond, réparation, équipement…" route="/tresorerie-direction" />}
+            {peut(niveau, 'gerer_droits') && (
+              <TouchableOpacity style={styles.tuile} onPress={() => setPlafondsVisible(true)}>
+                <Text style={styles.tuileTitre}>🚨 Plafonds de fond</Text>
+                <Text style={styles.tuileSous}>Alerte « fond bas » par restaurant</Text>
+              </TouchableOpacity>
+            )}
             <Tuile icone="💳" titre="Fournisseurs" sous={`${fmt(r.fournisseurs)} F dus`} route="/credits-fournisseurs" />
           </View>
         </ScrollView>
       )}
 
+      {donnees && (
+        <FeuillePlafonds visible={plafondsVisible} restaurants={donnees.restaurants}
+          onFermer={() => setPlafondsVisible(false)} apres={recharger} />
+      )}
       <FeuilleDroits
         visible={droitsVisible}
         onFermer={() => setDroitsVisible(false)}
@@ -202,6 +242,58 @@ function FeuilleDroits({ visible, onFermer, droits, user, apres }) {
         </View>
       ))}
       <Bouton titre="Fermer" secondaire onPress={onFermer} />
+    </Feuille>
+  )
+}
+
+// Plafond de fond par restaurant : sous ce montant (FC de la veille du dernier
+// point), M. Zreik reçoit l'alerte « fond bas » avec la somme à rajouter.
+function FeuillePlafonds({ visible, restaurants, onFermer, apres }) {
+  const { styles } = useStylesTreso()
+  const [valeurs, setValeurs] = useState({})
+  const [occupe, setOccupe] = useState(false)
+  const [erreur, setErreur] = useState(null)
+
+  useEffect(() => {
+    if (!visible) return
+    setErreur(null)
+    chargerPlafonds()
+      .then(l => setValeurs(Object.fromEntries(l.map(x => [x.restaurant_id, String(x.plafond)]))))
+      .catch(() => setErreur("Les plafonds ne sont pas encore installés : il faut passer le fichier supabase_tresorerie_alertes.sql dans Supabase."))
+  }, [visible])
+
+  if (!visible) return null
+
+  async function enregistrer() {
+    const plafonds = {}
+    // Un champ vidé enregistre 0 : plus d'alerte pour ce restaurant.
+    for (const [id, v] of Object.entries(valeurs)) plafonds[id] = v === '' ? 0 : parseInt(v, 10) || 0
+    setOccupe(true)
+    try {
+      await enregistrerPlafonds(plafonds)
+      await apres()
+      onFermer()
+    } catch (e) {
+      Alert.alert('Non enregistré', e?.message || 'Réessayez.')
+    } finally {
+      setOccupe(false)
+    }
+  }
+
+  return (
+    <Feuille visible onFermer={onFermer} titre="Plafonds de fond de caisse">
+      {erreur ? <Text style={styles.erreur}>{erreur}</Text> : (
+        <>
+          <Text style={[styles.petit, { marginBottom: 12 }]}>
+            Si le « FC de la veille » du dernier point passe sous ce montant, M. Zreik est prévenu avec la somme à rajouter. Vide = pas d'alerte.
+          </Text>
+          {restaurants.map(r => (
+            <ChampMontant key={r.id} label={r.nom} valeur={valeurs[r.id] || ''}
+              onChange={v => setValeurs(x => ({ ...x, [r.id]: v }))} placeholder="Pas d'alerte" />
+          ))}
+          <Bouton titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
+        </>
+      )}
     </Feuille>
   )
 }

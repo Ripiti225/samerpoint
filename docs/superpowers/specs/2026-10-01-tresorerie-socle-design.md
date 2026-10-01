@@ -156,3 +156,24 @@ Migration : `supabase_tresorerie_direction.sql` (après celles des étapes 1 et 
   provisoire.
 
 Tests : `lib/direction.test.mjs`.
+
+---
+
+# Étape 4 — Alertes automatiques
+
+Migration : `supabase_tresorerie_alertes.sql` (après les étapes 1 à 3).
+
+- **Restaurant déficitaire** : résultat net (étape 3) négatif sur le dernier
+  mois terminé.
+- **CNPS** : reste à payer et plus de 60 jours après l'échéance.
+- **Fond bas** : « FC de la veille » du dernier point d'un restaurant sous son
+  plafond (réglé par M. Zreik, vide ou 0 = pas d'alerte) → somme à rajouter.
+- **Quand** : vérifié après chaque validation de point (`validerPoint`), en
+  arrière-plan, sans jamais bloquer la validation.
+- **Qui** : notification (in-app + push) aux propriétaires désignés ; à défaut,
+  aux managers. Une seule fois par alerte (clé réservée dans
+  `tresorerie_alertes_envoyees`).
+- **Bandeau** en haut de la vue d'ensemble : toutes les alertes en cours
+  (3 affichées, « voir tout » au-delà).
+
+Tests : `lib/alertes.test.mjs`.
