@@ -141,7 +141,11 @@ function CartePartenaire({ partenaire, vue, niveau, onOuvrir, onRegler, onImport
 
       {!reg.date_depart ? (
         <View style={[styles.avert, { marginTop: 10 }]}>
-          <Text style={styles.avertTxt}>Pas encore suivi : choisissez la date de départ du suivi.</Text>
+          <Text style={styles.avertTxt}>
+            {peut(niveau, 'regler_partenaires')
+              ? 'Pas encore suivi : appuyez sur « Régler » pour choisir la date de départ du suivi.'
+              : 'Pas encore suivi : seul le propriétaire de la trésorerie peut choisir la date de départ (bouton « Régler »).'}
+          </Text>
         </View>
       ) : null}
 
