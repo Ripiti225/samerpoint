@@ -239,7 +239,9 @@ export function makeStyles(colors) { return StyleSheet.create({
   feuilleEntete: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   feuilleTitre: { fontSize: 17, fontWeight: '700', color: colors.text, flex: 1 },
   fermer: { fontSize: 18, color: colors.textMuted, paddingLeft: 12 },
-  onglets: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: colors.surface, borderBottomWidth: 0.5, borderBottomColor: colors.border },
+  // Le fond est sur la barre (toute la largeur), pas sur son contenu.
+  ongletsBarre: { flexGrow: 0, backgroundColor: colors.surface, borderBottomWidth: 0.5, borderBottomColor: colors.border },
+  onglets: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingVertical: 10 },
   onglet: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: colors.border },
   ongletActif: { backgroundColor: colors.primary, borderColor: colors.primary },
   ongletTxt: { fontSize: 13, color: colors.textSecondary },

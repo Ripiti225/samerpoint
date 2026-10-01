@@ -66,7 +66,7 @@ export default function TresorerieAPayerScreen() {
       <Entete titre="À payer" sous={onglet ? `${LIBELLES_CATEGORIE[onglet]} · reste ${fmt(resteOnglet)} F` : null} />
       {bloque ? <EtatEcran {...t} autorise={onglets.length > 0} /> : (
         <>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.onglets}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.ongletsBarre} contentContainerStyle={styles.onglets}>
             {onglets.map(c => (
               <TouchableOpacity key={c} style={[styles.onglet, onglet === c && styles.ongletActif]} onPress={() => setOnglet(c)}>
                 <Text style={[styles.ongletTxt, onglet === c && styles.ongletTxtActif]}>{LIBELLES_CATEGORIE[c]}</Text>
@@ -79,6 +79,7 @@ export default function TresorerieAPayerScreen() {
               <ListeLoyers
                 dus={dusOnglet} parDu={parDu} aujourdhui={aujourdhui} nomResto={nomResto}
                 peutPayer={peut(niveau, 'payer')}
+                peutRegler={peut(niveau, 'saisir_dus')}
                 onPayer={restaurantId => setPaiement({ categorie: 'loyer', restaurantId })}
                 onOuvrir={setDetail}
               />
@@ -161,7 +162,7 @@ function Badge({ c }) {
   )
 }
 
-function ListeLoyers({ dus, parDu, aujourdhui, nomResto, peutPayer, onPayer, onOuvrir }) {
+function ListeLoyers({ dus, parDu, aujourdhui, nomResto, peutPayer, peutRegler, onPayer, onOuvrir }) {
   const { styles, colors } = useStylesTreso()
   const cs = couleursStatut(colors)
   const moisCourant = premierDuMois(aujourdhui)
@@ -172,7 +173,11 @@ function ListeLoyers({ dus, parDu, aujourdhui, nomResto, peutPayer, onPayer, onO
   const visibles = mois.filter(m => recents.has(m) || dus.some(d => d.mois === m && resteDu(d, parDu[d.id]) > 0))
 
   if (!dus.length) {
-    return <Text style={styles.vide}>Aucun loyer réglé. Utilisez « Régler les loyers des restaurants ».</Text>
+    return (
+      <Text style={styles.vide}>
+        {peutRegler ? 'Aucun loyer réglé. Utilisez « Régler les loyers des restaurants ».' : 'Aucun loyer réglé pour l\'instant.'}
+      </Text>
+    )
   }
 
   return (
