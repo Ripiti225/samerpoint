@@ -618,9 +618,9 @@
     "semantic_hash": ""
   },
   "lib/menus.js": {
-    "mtime": 1790827357.354516,
-    "seen": 1790827364.568405,
-    "ast_hash": "108981bbf44c28d2a0135eec1f92b2a5",
+    "mtime": 1790827392.3710008,
+    "seen": 1790827398.82947,
+    "ast_hash": "9a273ee880768a1804eba1e05135186c",
     "semantic_hash": ""
   },
   "lib/networkStatus.js": {
