@@ -160,7 +160,10 @@ function CartePartenaire({ partenaire, vue, niveau, onOuvrir, onRegler, onImport
           <Bouton style={[styles.btnPetit, { flex: 1 }]} secondaire titre={`📥 Importer export ${info.nom}`} onPress={onImporter} />
         )}
         {peut(niveau, 'regler_partenaires') && (
-          <Bouton style={[styles.btnPetit, { flex: info.importable && reg.date_depart ? 0 : 1 }]} secondaire titre="Régler" onPress={onRegler} />
+          <Bouton
+            style={[styles.btnPetit, info.importable && reg.date_depart ? { flexShrink: 0, minWidth: 96, paddingHorizontal: 16 } : { flex: 1 }]}
+            secondaire titre="Régler" onPress={onRegler}
+          />
         )}
       </View>
     </View>
