@@ -50,3 +50,5 @@ supabase/.temp/
 
 # Rapports générés (données de production)
 factures_sans_photo.csv
+
+.superpowers/

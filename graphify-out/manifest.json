@@ -108,9 +108,9 @@
     "semantic_hash": ""
   },
   "app/dashboard-global.js": {
-    "mtime": 1787567987.4867456,
-    "seen": 1788454354.111317,
-    "ast_hash": "d832f8c4f33163f3d0b0643eb2c702b7",
+    "mtime": 1790598270.9086084,
+    "seen": 1790819998.874166,
+    "ast_hash": "973f9f0279856fe96351a241a3539884",
     "semantic_hash": ""
   },
   "app/dashboard.js": {
@@ -120,9 +120,9 @@
     "semantic_hash": ""
   },
   "app/deductions-gerant.js": {
-    "mtime": 1790319736.0912712,
-    "seen": 1790319803.788096,
-    "ast_hash": "aa2f3dffcd9e51dd76c1d3b258cc6798",
+    "mtime": 1790627235.9119475,
+    "seen": 1790819998.8741682,
+    "ast_hash": "54a13523fa7ab9881726ce6db49a2dc6",
     "semantic_hash": ""
   },
   "app/demandes-admin.js": {
@@ -168,9 +168,9 @@
     "semantic_hash": ""
   },
   "app/fournisseurs.js": {
-    "mtime": 1787567987.4887195,
-    "seen": 1788454354.111321,
-    "ast_hash": "f745792076393af1e3aa7b2d04e4f12b",
+    "mtime": 1790627240.6295924,
+    "seen": 1790819998.8741708,
+    "ast_hash": "95f0ac807a722adebaee017f572df9b7",
     "semantic_hash": ""
   },
   "app/gerant-caissier.js": {
@@ -492,9 +492,9 @@
     "semantic_hash": ""
   },
   "lib/api.js": {
-    "mtime": 1789433010.6287556,
-    "seen": 1789556677.043178,
-    "ast_hash": "e60a3e65de983425733d6f54321fef19",
+    "mtime": 1790627240.6317484,
+    "seen": 1790819998.874204,
+    "ast_hash": "7b4404eaf8eeb49a1a55a83f7ecfbb86",
     "semantic_hash": ""
   },
   "lib/basculePOS.js": {
@@ -618,9 +618,9 @@
     "semantic_hash": ""
   },
   "lib/menus.js": {
-    "mtime": 1790340233.3310132,
-    "seen": 1790348827.168949,
-    "ast_hash": "ddbfdf86e2a259482da1a11dba848072",
+    "mtime": 1790819954.5607882,
+    "seen": 1790819998.874227,
+    "ast_hash": "9478d283de5de1ebd25753a717e6a37d",
     "semantic_hash": ""
   },
   "lib/networkStatus.js": {
@@ -1092,9 +1092,9 @@
     "semantic_hash": ""
   },
   "handoff.md": {
-    "mtime": 1788454339.5758939,
-    "seen": 1788454354.111391,
-    "ast_hash": "f710efb4a637f945e60b990fd019385a",
+    "mtime": 1790349675.063124,
+    "seen": 1790819998.874283,
+    "ast_hash": "6bf8c580c954c4b53697dd624567d3da",
     "semantic_hash": ""
   },
   "securite-plan-edge-functions.md": {
@@ -1497,6 +1497,126 @@
     "mtime": 1790347866.4328907,
     "seen": 1790348827.169003,
     "ast_hash": "d924bc7daee23fcd9e5a3e445a56aaca",
+    "semantic_hash": ""
+  },
+  "app/tresorerie-a-payer.js": {
+    "mtime": 1790819954.5600662,
+    "seen": 1790819998.874184,
+    "ast_hash": "f211df876b4216b848b5c1834e11288a",
+    "semantic_hash": ""
+  },
+  "app/tresorerie-banque.js": {
+    "mtime": 1790819813.796013,
+    "seen": 1790819998.8741848,
+    "ast_hash": "f78bce7ddc4195105ed26c90fb5d174a",
+    "semantic_hash": ""
+  },
+  "app/tresorerie.js": {
+    "mtime": 1790819777.8434856,
+    "seen": 1790819998.8741848,
+    "ast_hash": "b15207131f89b744b82ce417b5043c22",
+    "semantic_hash": ""
+  },
+  "components/BarreComparaison.js": {
+    "mtime": 1790356089.3009942,
+    "seen": 1790819998.874187,
+    "ast_hash": "1239a43b92595283316e638ef5ad12f5",
+    "semantic_hash": ""
+  },
+  "components/LigneComparee.js": {
+    "mtime": 1790355820.126768,
+    "seen": 1790819998.87419,
+    "ast_hash": "4d840c45ecddf3286aa1a238e21f3f8b",
+    "semantic_hash": ""
+  },
+  "components/tresorerie/commun.js": {
+    "mtime": 1790819750.442502,
+    "seen": 1790819998.874196,
+    "ast_hash": "b9463dfd590a0a15bc3235899fef1f41",
+    "semantic_hash": ""
+  },
+  "lib/comparaisonDashboard.js": {
+    "mtime": 1790356677.0683877,
+    "seen": 1790819998.874209,
+    "ast_hash": "968fdd6b045ce70a89596b350e44f3ec",
+    "semantic_hash": ""
+  },
+  "lib/comparaisonDashboard.test.mjs": {
+    "mtime": 1790356677.072061,
+    "seen": 1790819998.874209,
+    "ast_hash": "ab00c454ee6e97a3892bb93e2002f674",
+    "semantic_hash": ""
+  },
+  "lib/dashboardGlobal.js": {
+    "mtime": 1790598257.5204718,
+    "seen": 1790819998.874215,
+    "ast_hash": "81c5ed08b0733b521057badf6c81b3e2",
+    "semantic_hash": ""
+  },
+  "lib/dashboardGlobal.test.mjs": {
+    "mtime": 1790598257.491592,
+    "seen": 1790819998.8742158,
+    "ast_hash": "585bd93d3d7297d3d540e5ed947ca34e",
+    "semantic_hash": ""
+  },
+  "lib/derniersRestesFournisseurs.js": {
+    "mtime": 1790627221.9942758,
+    "seen": 1790819998.874218,
+    "ast_hash": "e57295c8ada0afc41a8f42e5638d559e",
+    "semantic_hash": ""
+  },
+  "lib/derniersRestesFournisseurs.test.mjs": {
+    "mtime": 1790627223.015447,
+    "seen": 1790819998.874218,
+    "ast_hash": "98135ba22af42564eb0b178bb59cfeff",
+    "semantic_hash": ""
+  },
+  "lib/periodeComparee.js": {
+    "mtime": 1790356310.3408895,
+    "seen": 1790819998.874231,
+    "ast_hash": "871e9110e5eb433d4359e7843cf2d78d",
+    "semantic_hash": ""
+  },
+  "lib/periodeComparee.test.mjs": {
+    "mtime": 1790356310.366564,
+    "seen": 1790819998.874232,
+    "ast_hash": "9d6c8f089c33b5648cbf64d028cff163",
+    "semantic_hash": ""
+  },
+  "lib/tresorerie.js": {
+    "mtime": 1790819939.548491,
+    "seen": 1790819998.87424,
+    "ast_hash": "485db9642df20c69457c39624069e957",
+    "semantic_hash": ""
+  },
+  "lib/tresorerie.test.mjs": {
+    "mtime": 1790819578.7477982,
+    "seen": 1790819998.87424,
+    "ast_hash": "d756a42e2e7a2a5d0a19bbb8036f1d48",
+    "semantic_hash": ""
+  },
+  "lib/tresorerieDb.js": {
+    "mtime": 1790819939.5486825,
+    "seen": 1790819998.874241,
+    "ast_hash": "32c40eeec30e60d7b0b50e447c0e82bd",
+    "semantic_hash": ""
+  },
+  "supabase_tresorerie.sql": {
+    "mtime": 1790819659.8645413,
+    "seen": 1790819998.8742661,
+    "ast_hash": "0a3f3dabe18a1c5c36771e1631a12f81",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-09-25-comparaison-dashboard-global-design.md": {
+    "mtime": 1790355191.306057,
+    "seen": 1790819998.874279,
+    "ast_hash": "c2bf9aa7e99c0588e3c4d9b4dc063a09",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-01-tresorerie-socle-design.md": {
+    "mtime": 1790819542.4272768,
+    "seen": 1790819998.87428,
+    "ast_hash": "5f3713967c41abccf65edb0322b58382",
     "semantic_hash": ""
   }
 }
