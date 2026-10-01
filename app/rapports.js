@@ -294,7 +294,7 @@ export default function RapportsScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={styles.restoBar}
+          style={[styles.restoBar, { flexGrow: 0 }]}
           contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 10 }}
         >
           <TouchableOpacity

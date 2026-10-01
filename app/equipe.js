@@ -226,7 +226,7 @@ export default function EquipeScreen() {
         />
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtreBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.filtreBar, { flexGrow: 0 }]}>
         <TouchableOpacity
           style={[styles.filtreBtn, filtreResto === 'tous' && styles.filtreBtnActive]}
           onPress={() => setFiltreResto('tous')}

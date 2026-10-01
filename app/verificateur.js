@@ -449,7 +449,7 @@ export default function VerificateurScreen() {
       ) : (
         <>
       {/* Sélection restaurant */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.restoBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.restoBar, { flexGrow: 0 }]}>
         {restaurants.map(r => (
           <TouchableOpacity
             key={r.id}

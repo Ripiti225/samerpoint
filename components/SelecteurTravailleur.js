@@ -44,7 +44,7 @@ export default function SelecteurTravailleur({
             />
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 46, paddingHorizontal: 16 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, maxHeight: 46, paddingHorizontal: 16 }}>
             <TouchableOpacity style={[puce, { marginRight: 8 }, filtreResto === 'tous' && puceActive]} onPress={() => setFiltreResto('tous')}>
               <Text style={txtPuce(filtreResto === 'tous')}>Tous</Text>
             </TouchableOpacity>

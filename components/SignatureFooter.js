@@ -14,13 +14,11 @@ export default function SignatureFooter() {
 }
 
 const styles = StyleSheet.create({
+  // Dans le flux, sous la liste : en position absolue, la signature passait
+  // par-dessus les derniers boutons (accueil, choix du restaurant).
   wrapper: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingBottom: 18,
-    paddingTop: 8,
+    paddingBottom: 12,
+    paddingTop: 6,
     alignItems: 'center',
   },
   copy: { fontSize: 10, color: '#666666', textAlign: 'center' },

@@ -295,7 +295,7 @@ export default function DemandesAdminScreen() {
       </View>
 
       {/* Filtre statut */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statutFilters} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.statutFilters, { flexGrow: 0 }]} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
         {FILTRES_STATUT.map(f => (
           <TouchableOpacity
             key={f}
@@ -542,7 +542,7 @@ export default function DemandesAdminScreen() {
                   </View>
 
                   <Text style={styles.label}>Restaurant</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 14 }}>
                     {restaurants.map(r => (
                       <TouchableOpacity key={r.id} style={[styles.travChip, creerResto?.id === r.id && styles.travChipActive]} onPress={() => choisirRestoCreer(r)}>
                         <Text style={[styles.travChipTxt, creerResto?.id === r.id && styles.travChipTxtActive]}>{r.nom}</Text>
@@ -553,7 +553,7 @@ export default function DemandesAdminScreen() {
                   {creerResto && (
                     <>
                       <Text style={styles.label}>Travailleur</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 14 }}>
                         {travCreer.length === 0 ? (
                           <Text style={{ color: colors.textMuted, fontStyle: 'italic' }}>Aucun travailleur actif</Text>
                         ) : travCreer.map(t => (

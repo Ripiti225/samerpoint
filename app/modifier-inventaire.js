@@ -248,7 +248,7 @@ export default function ModifierInventaireScreen() {
                 <Text style={styles.infoBarTxt}>{selectedResto?.nom} — {formatDate(selectedDate)}</Text>
               </View>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabs}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tabs, { flexGrow: 0 }]}>
                 {CATEGORIES.map(cat => (
                   <TouchableOpacity
                     key={cat.nom}

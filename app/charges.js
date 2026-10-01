@@ -334,7 +334,7 @@ export default function ChargesScreen() {
       </View>
 
       {/* Sélection restaurant */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.restoBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.restoBar, { flexGrow: 0 }]}>
         {restaurants.map(r => (
           <TouchableOpacity
             key={r.id}
@@ -349,7 +349,7 @@ export default function ChargesScreen() {
       </ScrollView>
 
       {/* Sélection mois */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.moisBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.moisBar, { flexGrow: 0 }]}>
         {getMoisListe().map(m => (
           <TouchableOpacity
             key={m}

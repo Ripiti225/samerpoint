@@ -147,7 +147,7 @@ export default function LivraisonsScreen() {
         </View>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabs}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tabs, { flexGrow: 0 }]}>
         {partenaires.map(p => (
           <TouchableOpacity key={p} style={[styles.tab, partenaire === p && styles.tabActive]} onPress={() => setPartenaire(p)}>
             <Text style={[styles.tabText, partenaire === p && styles.tabTextActive]}>{p}</Text>

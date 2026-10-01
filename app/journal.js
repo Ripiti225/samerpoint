@@ -171,7 +171,7 @@ export default function JournalScreen() {
       </View>
 
       {/* Filtres */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtreBar} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.filtreBar, { flexGrow: 0 }]} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8 }}>
         {FILTRES.map(f => (
           <TouchableOpacity
             key={String(f.key)}

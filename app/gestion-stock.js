@@ -206,7 +206,7 @@ export default function GestionStockScreen() {
       </View>
 
       {/* Filtre période */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presetRow} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.presetRow, { flexGrow: 0 }]} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
         {PRESETS.map(p => (
           <TouchableOpacity key={p.key} style={[styles.presetBtn, preset === p.key && styles.presetBtnActive]} onPress={() => choisirPreset(p.key)}>
             <Text style={[styles.presetTxt, preset === p.key && styles.presetTxtActive]}>{p.label}</Text>

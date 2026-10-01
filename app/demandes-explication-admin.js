@@ -465,7 +465,7 @@ export default function DemandesExplicationAdminScreen() {
                 </View>
                 <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                   <Text style={styles.label}>Restaurant</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 14 }}>
                     {restaurants.map(r => (
                       <TouchableOpacity key={r.id} style={[styles.travChip, creerResto?.id === r.id && styles.travChipActive]} onPress={() => choisirRestoCreer(r)}>
                         <Text style={[styles.travChipTxt, creerResto?.id === r.id && styles.travChipTxtActive]}>{r.nom}</Text>
@@ -476,7 +476,7 @@ export default function DemandesExplicationAdminScreen() {
                   {creerResto && (
                     <>
                       <Text style={styles.label}>Travailleur</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 14 }}>
                         {travailleurs.length === 0 ? (
                           <Text style={{ color: colors.textMuted, fontStyle: 'italic' }}>Aucun travailleur actif</Text>
                         ) : travailleurs.map(t => (

@@ -1576,7 +1576,7 @@ export default function LitigesScreen() {
     return (
       <View>
         <Text style={styles.formLabel}>Responsable</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 12 }}>
           <View style={{ flexDirection: 'row', gap: 6 }}>
             <TouchableOpacity
               style={[styles.responsableChip, !value && styles.responsableChipActive]}
@@ -1889,7 +1889,7 @@ export default function LitigesScreen() {
         </View>
 
         {/* Filtre responsable */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 10 }}>
           <TouchableOpacity style={[styles.filtreChip, !filtreResponsable && styles.filtreChipActif]} onPress={() => setFiltreResponsable(null)}>
             <Text style={[styles.filtreChipTxt, !filtreResponsable && styles.filtreChipTxtActif]}>Tous</Text>
           </TouchableOpacity>
@@ -2383,7 +2383,7 @@ export default function LitigesScreen() {
       </View>
 
       {/* Sélecteur de période */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.periodeScroll} contentContainerStyle={styles.periodeContent}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.periodeScroll, { flexGrow: 0 }]} contentContainerStyle={styles.periodeContent}>
         {PERIODES.map(p => (
           <TouchableOpacity
             key={p.key}
@@ -2435,7 +2435,7 @@ export default function LitigesScreen() {
 
       {/* Onglets — masqués en mode tous restaurants */}
       {!modeGlobal && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll} contentContainerStyle={styles.tabsContent}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tabsScroll, { flexGrow: 0 }]} contentContainerStyle={styles.tabsContent}>
           {ONGLETS.map(o => (
             <TouchableOpacity key={o.key} style={[styles.tab, onglet === o.key && styles.tabActive]} onPress={() => setOnglet(o.key)}>
               <Text style={[styles.tabTxt, onglet === o.key && styles.tabTxtActive]}>{o.label}</Text>
@@ -2661,7 +2661,7 @@ export default function LitigesScreen() {
             <Text style={styles.formTitre}>{formGlovo.id ? 'Modifier Glovo' : 'Ajouter litige Glovo'}</Text>
 
             <Text style={styles.formLabel}>Type</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 14 }}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 {TYPES_GLOVO.map(t => (
                   <TouchableOpacity key={t.key}

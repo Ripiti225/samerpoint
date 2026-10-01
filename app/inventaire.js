@@ -835,7 +835,7 @@ export default function InventaireScreen() {
         </View>
       )}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabs}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tabs, { flexGrow: 0 }]}>
         {CATEGORIES.map(cat => (
           <TouchableOpacity key={cat.nom}
             style={[styles.tab, catActive === cat.nom && styles.tabActive]}
@@ -960,7 +960,7 @@ export default function InventaireScreen() {
           {/* Fournisseur (obligatoire) */}
           <View style={styles.entreeFournisseurBox}>
             <Text style={styles.entreeFournisseurLabel}>Fournisseur * (obligatoire)</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginTop: 6 }}>
               {fournisseursListe.map(f => (
                 <TouchableOpacity key={f.id}
                   style={[styles.fournPill, entreeFournisseurId === f.id && styles.fournPillActive]}
@@ -988,7 +988,7 @@ export default function InventaireScreen() {
           )}
 
           {/* Catégories produits */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabs}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tabs, { flexGrow: 0 }]}>
             {CATS_ENTREE.map(cat => (
               <TouchableOpacity key={cat}
                 style={[styles.tab, catEntree === cat && styles.tabActive]}

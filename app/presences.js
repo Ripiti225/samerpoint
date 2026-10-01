@@ -318,7 +318,7 @@ export default function PresencesScreen() {
         </View>
       )}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statsBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.statsBar, { flexGrow: 0 }]}>
         {STATUTS.map(s => {
           const nb = nbParStatut(s)
           if (nb === 0) return null
@@ -397,7 +397,7 @@ export default function PresencesScreen() {
                 {isSelected && !estBloque(pointValide) && !autoStatut && (
                   <View style={styles.statutSelector}>
                     <Text style={styles.selectorLabel}>Choisir le statut</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <ScrollView horizontal style={{ flexGrow: 0 }} showsHorizontalScrollIndicator={false}>
                       <View style={styles.statutRow}>
                         {STATUTS.map(s => (
                           <TouchableOpacity
@@ -721,7 +721,7 @@ function makeStyles(colors) { return StyleSheet.create({
   },
   shiftGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   shiftPresetBtn: {
-    width: '47%', backgroundColor: colors.inputBg, borderRadius: 12,
+    flexBasis: '45%', flexGrow: 1, backgroundColor: colors.inputBg, borderRadius: 12,
     padding: 12, alignItems: 'center', borderWidth: 1.5, borderColor: colors.borderLight
   },
   shiftPresetBtnActif: { backgroundColor: colors.primaryLight, borderColor: colors.primary },

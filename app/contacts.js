@@ -214,7 +214,7 @@ export default function ContactsScreen() {
 
       {/* Filtre restaurant — caché pour le gérant (1 seul restaurant) */}
       {!isGerant && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.restoBar}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.restoBar, { flexGrow: 0 }]}>
           {restaurants.map(r => (
             <TouchableOpacity
               key={r.id}
@@ -230,7 +230,7 @@ export default function ContactsScreen() {
       )}
 
       {/* Onglets */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.ongletBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.ongletBar, { flexGrow: 0 }]}>
         {onglets.map(o => {
           const nb = contacts[o]?.length || 0
           return (
@@ -373,7 +373,7 @@ export default function ContactsScreen() {
                 <Text style={styles.charCount}>{message.length} caractère{message.length > 1 ? 's' : ''}</Text>
 
                 {/* Aperçu destinataires */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.destRow}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.destRow, { flexGrow: 0 }]}>
                   {numerosSelectionnes.slice(0, 8).map((num, i) => (
                     <View key={i} style={styles.destBadge}>
                       <Text style={styles.destNum} numberOfLines={1}>{num}</Text>

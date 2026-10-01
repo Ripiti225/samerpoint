@@ -764,7 +764,7 @@ ${mouvements.map(m => {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={styles.moisBar}
+        style={[styles.moisBar, { flexGrow: 0 }]}
         contentContainerStyle={{ paddingHorizontal: 12, gap: 8, alignItems: 'center' }}
       >
         <TouchableOpacity
@@ -1271,7 +1271,7 @@ ${mouvements.map(m => {
             {peutModifier && restaurants.length > 0 && (
               <>
                 <Text style={styles.exportSection}>Restaurant</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 16 }}>
                   <TouchableOpacity
                     style={[styles.filterPill, !exportFilters.restoId && styles.filterPillActive]}
                     onPress={() => setExportFilters(p => ({ ...p, restoId: null, fournId: null }))}
@@ -1292,7 +1292,7 @@ ${mouvements.map(m => {
             )}
 
             <Text style={styles.exportSection}>Fournisseur</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 24 }}>
               <TouchableOpacity
                 style={[styles.filterPill, !exportFilters.fournId && styles.filterPillActive]}
                 onPress={() => setExportFilters(p => ({ ...p, fournId: null }))}

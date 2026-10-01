@@ -461,7 +461,7 @@ export default function BrouillonsFournisseursScreen() {
       </View>
 
       {/* Filtre mois */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.moisBar} contentContainerStyle={{ paddingHorizontal: 12, gap: 8, alignItems: 'center' }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.moisBar, { flexGrow: 0 }]} contentContainerStyle={{ paddingHorizontal: 12, gap: 8, alignItems: 'center' }}>
         <TouchableOpacity style={[styles.moisChip, !moisSel && styles.moisChipActive]} onPress={() => { setMoisSel(null); setJourSel(null) }}>
           <Text style={[styles.moisChipTxt, !moisSel && styles.moisChipTxtActive]}>Tous les mois</Text>
         </TouchableOpacity>
@@ -474,7 +474,7 @@ export default function BrouillonsFournisseursScreen() {
 
       {/* Jours du mois choisi — « Tout le mois » par défaut */}
       {moisSel && !loading && joursDispo.length > 0 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.jourBar} contentContainerStyle={{ paddingHorizontal: 12, gap: 6, alignItems: 'center' }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.jourBar, { flexGrow: 0 }]} contentContainerStyle={{ paddingHorizontal: 12, gap: 6, alignItems: 'center' }}>
           <TouchableOpacity style={[styles.jourChip, !jourSel && styles.jourChipActive]} onPress={() => setJourSel(null)}>
             <Text style={[styles.jourChipTxt, !jourSel && styles.jourChipTxtActive]}>📅 Tout le mois</Text>
           </TouchableOpacity>

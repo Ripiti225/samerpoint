@@ -283,7 +283,7 @@ export default function DemandesExplicationScreen() {
                 </View>
                 <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                   <Text style={styles.label}>Travailleur concerné</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 14 }}>
                     {travailleurs.map(t => (
                       <TouchableOpacity
                         key={t.id}

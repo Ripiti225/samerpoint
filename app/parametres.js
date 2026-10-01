@@ -671,7 +671,7 @@ export default function ParametresScreen() {
     return (
       <>
         <Text style={styles.modalLabel}>Restaurant *</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 14 }}>
           {tousRestaurants.map(r => {
             const selected = form.restaurant_id === r.id
             return (
@@ -749,7 +749,7 @@ export default function ParametresScreen() {
 
   function FiltreRestaurants() {
     return (
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtreBar} contentContainerStyle={{ paddingHorizontal: 2, paddingBottom: 10 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.filtreBar, { flexGrow: 0 }]} contentContainerStyle={{ paddingHorizontal: 2, paddingBottom: 10 }}>
         {tousRestaurants.map(r => (
           <TouchableOpacity
             key={r.id}
@@ -1516,7 +1516,7 @@ export default function ParametresScreen() {
 
     return (
       <>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtreBar} contentContainerStyle={{ paddingHorizontal: 2, paddingBottom: 10 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.filtreBar, { flexGrow: 0 }]} contentContainerStyle={{ paddingHorizontal: 2, paddingBottom: 10 }}>
           {ROLES_CONFIGURABLES.map(r => (
             <TouchableOpacity
               key={r}
@@ -1574,7 +1574,7 @@ export default function ParametresScreen() {
         <View style={{ width: 60 }} />
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabs}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tabs, { flexGrow: 0 }]}>
         {SECTIONS.map(s => (
           <TouchableOpacity
             key={s.key}

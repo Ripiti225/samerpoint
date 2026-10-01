@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import { SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
+import { useLargeurCase } from '../lib/grille'
 
 const MENU = [
   { icon: '⏱️', titre: 'Point / Shift', sous: 'Faire le point de shift', route: '/point-shift' },
@@ -24,6 +25,8 @@ export default function GerantCaissierScreen() {
       : false,
   }))
 
+  const largeur = useLargeurCase(10)
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -42,7 +45,7 @@ export default function GerantCaissierScreen() {
           {menuAvecBloque.map((item, i) => (
             <TouchableOpacity
               key={i}
-              style={[styles.card, item.bloque && styles.cardBloque]}
+              style={[styles.card, largeur, item.bloque && styles.cardBloque]}
               onPress={() => !item.bloque && router.push(item.route)}
               disabled={item.bloque}
             >
@@ -74,7 +77,7 @@ function makeStyles(colors) { return StyleSheet.create({
   body: { flex: 1, padding: 16 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
   card: {
-    width: '47%', backgroundColor: colors.surface, borderRadius: 14,
+    backgroundColor: colors.surface, borderRadius: 14,
     padding: 14, borderWidth: 0.5, borderColor: colors.borderLight
   },
   cardBloque: { backgroundColor: colors.surfaceAlt, borderColor: colors.border, opacity: 0.6 },

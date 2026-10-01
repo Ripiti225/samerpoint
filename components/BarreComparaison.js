@@ -118,7 +118,7 @@ function SelecteurTerme({ lettre, valeur, restaurants, onChoisir, styles }) {
   return (
     <View style={styles.termeLigne}>
       <Text style={styles.termeLettre}>{lettre}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }}>
+      <ScrollView horizontal style={{ flexGrow: 0 }} showsHorizontalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center' }}>
         {restaurants.map(r => {
           const choisi = valeur === r.id
           return (

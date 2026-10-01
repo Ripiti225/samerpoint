@@ -769,7 +769,7 @@ export default function DashboardGlobalScreen() {
         <View style={{ width: 60 }} />
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.periodeBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.periodeBar, { flexGrow: 0 }]}>
         {PERIODES.map(p => (
           <TouchableOpacity
             key={p.key}
@@ -785,7 +785,7 @@ export default function DashboardGlobalScreen() {
         <Text style={styles.periodeBannerTxt}>📅 {titrePeriode()}</Text>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillsBar} contentContainerStyle={{ paddingHorizontal: 14 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.pillsBar, { flexGrow: 0 }]} contentContainerStyle={{ paddingHorizontal: 14 }}>
         {PILIERS.map(p => (
           <TouchableOpacity
             key={p.key}
@@ -801,7 +801,7 @@ export default function DashboardGlobalScreen() {
           sélecteurs A / B ; en mode « 2 périodes » il reste, car c'est LUI qui
           désigne le restaurant comparé à lui-même. */}
       {!(comparaisonActive && modeComparaison === MODE_RESTOS) && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.restoFiltreBar} contentContainerStyle={{ paddingHorizontal: 14, alignItems: 'center' }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.restoFiltreBar, { flexGrow: 0 }]} contentContainerStyle={{ paddingHorizontal: 14, alignItems: 'center' }}>
           <TouchableOpacity
             style={[styles.restoFiltreBtn, !restoFiltre && styles.restoFiltreBtnActive]}
             onPress={() => setRestoFiltre(null)}

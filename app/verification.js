@@ -1561,7 +1561,7 @@ export default function VerificationScreen() {
       {/* Sélection restaurant */}
       <ScrollView
         horizontal showsHorizontalScrollIndicator={false}
-        style={styles.restoBar} contentContainerStyle={{ paddingHorizontal: 10 }}
+        style={[styles.restoBar, { flexGrow: 0 }]} contentContainerStyle={{ paddingHorizontal: 10 }}
       >
         {restaurants.map(r => (
           <TouchableOpacity

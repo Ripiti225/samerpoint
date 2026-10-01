@@ -18,16 +18,18 @@ import SignatureFooter from '../components/SignatureFooter'
 import { supabase } from '../lib/supabase'
 import { SPRINGS, staggerDelay } from '../lib/animations'
 import { tuilesPourRole, chargerAccesConfig, ACCES_DEFAUT } from '../lib/menus'
+import { useLargeurCase } from '../lib/grille'
 
 function MenuCard({ item, index }) {
   const { colors } = useTheme()
+  const largeur = useLargeurCase(12)
   const styles = useMemo(() => makeStyles(colors), [colors])
   const scale = useSharedValue(1)
   const aStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }))
   return (
     <Animated.View
       entering={FadeInDown.delay(staggerDelay(index, 55)).springify().damping(18).stiffness(190)}
-      style={[styles.cardWrap, aStyle]}
+      style={[styles.cardWrap, largeur, aStyle]}
     >
       <Pressable
         onPressIn={() => { if (!item.bloque) scale.value = withSpring(0.93, SPRINGS.snappy) }}
@@ -456,7 +458,7 @@ function makeStyles(colors) { return StyleSheet.create({
     letterSpacing: 1, marginBottom: 12, textTransform: 'uppercase',
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  cardWrap: { width: '47.5%' },
+  cardWrap: {},
   card: {
     backgroundColor: colors.surface, borderRadius: 18,
     padding: 16, overflow: 'hidden',

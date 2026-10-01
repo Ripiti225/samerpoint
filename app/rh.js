@@ -1224,7 +1224,7 @@ export default function RHScreen() {
             </View>
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.periodeBarModal}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.periodeBarModal, { flexGrow: 0 }]}>
             {PERIODES.map(p => (
               <TouchableOpacity
                 key={p.key}
@@ -1628,7 +1628,7 @@ export default function RHScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.restoBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.restoBar, { flexGrow: 0 }]}>
         {restaurants.map(r => (
           <TouchableOpacity
             key={r.id}
@@ -1642,7 +1642,7 @@ export default function RHScreen() {
         ))}
       </ScrollView>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.periodeBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.periodeBar, { flexGrow: 0 }]}>
         {PERIODES.map(p => (
           <TouchableOpacity
             key={p.key}
@@ -1671,7 +1671,7 @@ export default function RHScreen() {
         </View>
       )}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.ongletBar}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.ongletBar, { flexGrow: 0 }]}>
         {ONGLETS.map(o => (
           <TouchableOpacity
             key={o}
@@ -1751,7 +1751,7 @@ function makeStyles(colors) { return StyleSheet.create({
   exportTxt: { fontSize: 14, fontWeight: '600', color: '#fff' },
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   kpiCard: {
-    width: '47%', backgroundColor: colors.surface, borderRadius: 12,
+    flexBasis: '45%', flexGrow: 1, backgroundColor: colors.surface, borderRadius: 12,
     padding: 14, alignItems: 'center', borderWidth: 0.5, borderColor: colors.border
   },
   kpiIcon: { fontSize: 24, marginBottom: 6 },

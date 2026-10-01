@@ -236,7 +236,7 @@ export default function DocumentsScreen() {
 
       {/* Sélection restaurant — uniquement manager/RH */}
       {!hasRestoFixe && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.restoBar}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.restoBar, { flexGrow: 0 }]}>
           {restaurants.map(r => (
             <TouchableOpacity
               key={r.id}
