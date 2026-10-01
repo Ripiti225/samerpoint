@@ -1500,9 +1500,9 @@
     "semantic_hash": ""
   },
   "app/tresorerie-a-payer.js": {
-    "mtime": 1790819954.5600662,
-    "seen": 1790819998.874184,
-    "ast_hash": "f211df876b4216b848b5c1834e11288a",
+    "mtime": 1790824953.8546846,
+    "seen": 1790824957.626518,
+    "ast_hash": "13a814e102b4dfe302568265fc2baad8",
     "semantic_hash": ""
   },
   "app/tresorerie-banque.js": {
@@ -1512,9 +1512,9 @@
     "semantic_hash": ""
   },
   "app/tresorerie.js": {
-    "mtime": 1790824551.6512694,
-    "seen": 1790824569.472181,
-    "ast_hash": "48e018615d237b50c3c0498b902ad6f1",
+    "mtime": 1790824941.9535635,
+    "seen": 1790824957.626522,
+    "ast_hash": "334c9b6c796cbe60a88031eb3a53094e",
     "semantic_hash": ""
   },
   "components/BarreComparaison.js": {
@@ -1584,15 +1584,15 @@
     "semantic_hash": ""
   },
   "lib/tresorerie.js": {
-    "mtime": 1790823942.2832375,
-    "seen": 1790824093.472469,
-    "ast_hash": "7f2120b6d111133b85cf17d13e68e361",
+    "mtime": 1790824928.9422498,
+    "seen": 1790824957.6265879,
+    "ast_hash": "a7f6ec4df38bdffe808cf6d0b8667b54",
     "semantic_hash": ""
   },
   "lib/tresorerie.test.mjs": {
-    "mtime": 1790823942.2834084,
-    "seen": 1790824093.472469,
-    "ast_hash": "05c9c8e5e543fa54db473a3cae19c4f1",
+    "mtime": 1790824928.9424481,
+    "seen": 1790824957.6265879,
+    "ast_hash": "cd8d60ed7fd6525f6da8fbb7e4c855f5",
     "semantic_hash": ""
   },
   "lib/tresorerieDb.js": {
@@ -1614,9 +1614,9 @@
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-10-01-tresorerie-socle-design.md": {
-    "mtime": 1790824566.2898495,
-    "seen": 1790824569.472299,
-    "ast_hash": "6b0570b55146b400fd517cf9b270570d",
+    "mtime": 1790824941.953864,
+    "seen": 1790824957.626634,
+    "ast_hash": "dce312bde452b7f6f6eec21232f01bbb",
     "semantic_hash": ""
   },
   "app/tresorerie-partenaires.js": {
