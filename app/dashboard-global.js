@@ -21,6 +21,7 @@ import { getDepensesPeriode, getFournisseursPeriodePaye, getPaiesGerantPeriode, 
 import { ecarts as calculerEcarts, formaterEcart, POLARITE, synthese, UNITE } from '../lib/comparaisonDashboard'
 import { CANAUX, couleurResto, courtNom, detailFondRecu, fmtFCFA, tauxRenta, vueGlobale } from '../lib/dashboardGlobal'
 import { bandeauDeuxPeriodes, estMoisEntier, moisCouverts, periodePrecedente } from '../lib/periodeComparee'
+import { chargerChargesMois } from '../lib/chargesMois'
 import { supabase } from '../lib/supabase'
 
 const { width } = Dimensions.get('window')
@@ -168,11 +169,7 @@ export default function DashboardGlobalScreen() {
 
     const moisListe = [...new Set(Object.values(points).flat().map(p => (p.date || '').slice(0, 7)))].filter(Boolean)
     if (moisListe.length) {
-      const { data: ch } = await supabase
-        .from('charges')
-        .select('restaurant_id, libelle, montant, mois')
-        .in('mois', moisListe)
-      setChargesGlobal(ch || [])
+      setChargesGlobal(await chargerChargesMois(supabase, moisListe))
     } else {
       setChargesGlobal([])
     }
@@ -288,11 +285,7 @@ export default function DashboardGlobalScreen() {
     const mois = moisCouverts(rangeB.debut, rangeB.fin)
     let charges = []
     if (mois.length) {
-      const { data: ch } = await supabase
-        .from('charges')
-        .select('restaurant_id, libelle, montant, mois')
-        .in('mois', mois)
-      charges = ch || []
+      charges = await chargerChargesMois(supabase, mois)
     }
     setCoutsB({ depenses, presences, fournisseurs, paiesGerant, charges })
     setCleCoutsB(cle)
@@ -1105,8 +1098,8 @@ export default function DashboardGlobalScreen() {
                     {aDesChargesConfigurees ? (
                       <JaugeCout label="Charges fixes" pct={chargesFixesGlobalPct} montant={chargesFixesGlobalMt} seuil={20} colors={colors} fmt={fmt} dernier />
                     ) : (
-                      <TouchableOpacity style={styles.chargesEmptyRow} onPress={() => router.push('/charges')}>
-                        <Text style={styles.chargesEmptyTxt}>Charges fixes non configurées pour cette période</Text>
+                      <TouchableOpacity style={styles.chargesEmptyRow} onPress={() => router.push('/tresorerie-a-payer')}>
+                        <Text style={styles.chargesEmptyTxt}>Charges fixes non saisies pour cette période (Trésorerie → À payer)</Text>
                         <Text style={styles.chargesEmptyLink}>Configurer ›</Text>
                       </TouchableOpacity>
                     )}

@@ -15,6 +15,7 @@ import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { getDepensesPeriode, getFournisseursPeriodePaye, getPaiesGerantPeriode, getPointsPeriode, getPresencesPeriode } from '../lib/api'
 import { FOURNISSEURS_LABOR, FOURNISSEURS_NON_FOOD } from '../lib/constants'
+import { chargerChargesMois } from '../lib/chargesMois'
 import { supabase } from '../lib/supabase'
 
 const { width } = Dimensions.get('window')
@@ -173,12 +174,7 @@ export default function DashboardScreen() {
     setPaiesGerantData(paiesGerant)
     const moisListe = [...new Set((points || []).map(p => (p.date || '').slice(0, 7)))].filter(Boolean)
     if (moisListe.length) {
-      const { data: ch } = await supabase
-        .from('charges')
-        .select('libelle, montant, mois')
-        .eq('restaurant_id', restaurantId)
-        .in('mois', moisListe)
-      setChargesData(ch || [])
+      setChargesData(await chargerChargesMois(supabase, moisListe, { restaurantId }))
     } else {
       setChargesData([])
     }
@@ -806,10 +802,9 @@ export default function DashboardScreen() {
                     {chargesData.length > 0 ? (
                       <JaugeCout label="Charges fixes" pct={chargesFixesPct} montant={chargesFixesMt} seuil={20} colors={colors} fmtFull={fmtFull} dernier />
                     ) : (
-                      <TouchableOpacity style={styles.chargesEmptyRow} onPress={() => router.push('/charges')}>
-                        <Text style={styles.chargesEmptyTxt}>Charges fixes non configurées pour cette période</Text>
-                        <Text style={styles.chargesEmptyLink}>Configurer ›</Text>
-                      </TouchableOpacity>
+                      <View style={styles.chargesEmptyRow}>
+                        <Text style={styles.chargesEmptyTxt}>Charges fixes pas encore saisies pour cette période</Text>
+                      </View>
                     )}
                   </View>
                 </View>

@@ -419,7 +419,7 @@ function FeuilleEdition({ du, donnees, user, onFermer, apres }) {
         id: du.id,
         categorie: cat,
         restaurant_id: form.restaurant_id,
-        mois: mensuel ? form.mois : null,
+        mois: mensuel || cat === 'admin' ? form.mois : null,
         libelle: cat === 'admin' ? (form.typeAdmin === 'Autre' ? form.precision.trim() : form.typeAdmin) : null,
         creancier: cat === 'dette' ? form.creancier.trim() : null,
         montant_du: montant,
@@ -461,9 +461,9 @@ function FeuilleEdition({ du, donnees, user, onFermer, apres }) {
           />
         </>
       )}
-      {mensuel && cat !== 'loyer' && (
+      {(mensuel || cat === 'admin') && cat !== 'loyer' && (
         <>
-          <Text style={styles.label}>Mois</Text>
+          <Text style={styles.label}>{cat === 'admin' ? 'Mois concerné (compte dans les charges de ce mois)' : 'Mois'}</Text>
           <Puces options={optionsMois} valeur={form.mois} onChange={v => maj('mois', v)} />
         </>
       )}

@@ -3252,18 +3252,6 @@
       "source_location": "L626"
     },
     {
-      "id": "app_tresorerie_a_payer_feuilledetail_annuler",
-      "label": "annuler()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 135,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "annuler()",
-      "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L291"
-    },
-    {
       "id": "app_tresorerie_banque_feuillemouvement",
       "label": "FeuilleMouvement()",
       "_callable": true,
@@ -3442,6 +3430,18 @@
       "norm_label": "cartepartenaire()",
       "source_file": "app/tresorerie-partenaires.js",
       "source_location": "L121"
+    },
+    {
+      "id": "app_tresorerie_partenaires_feuilleperiode_annuler",
+      "label": "annuler()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 135,
+      "community_name": "useStylesTreso",
+      "file_type": "code",
+      "norm_label": "annuler()",
+      "source_file": "app/tresorerie-partenaires.js",
+      "source_location": "L233"
     },
     {
       "id": "app_tresorerie_resultats_detail",
@@ -4140,18 +4140,6 @@
       "source_location": "L17"
     },
     {
-      "id": "lib_alertes_test_nomresto",
-      "label": "nomResto()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 15,
-      "community_name": "alertesDb.js",
-      "file_type": "code",
-      "norm_label": "nomresto()",
-      "source_file": "lib/alertes.test.mjs",
-      "source_location": "L11"
-    },
-    {
       "id": "lib_alertesdb_chargeralertes",
       "label": "chargerAlertes()",
       "_callable": true,
@@ -4737,7 +4725,7 @@
       "file_type": "code",
       "norm_label": "badge()",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L155"
+      "source_location": "L156"
     },
     {
       "id": "app_tresorerie_a_payer_couleursstatut",
@@ -4749,7 +4737,7 @@
       "file_type": "code",
       "norm_label": "couleursstatut()",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L147"
+      "source_location": "L148"
     },
     {
       "id": "app_tresorerie_a_payer_feuilledetail",
@@ -4761,7 +4749,31 @@
       "file_type": "code",
       "norm_label": "feuilledetail()",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L283"
+      "source_location": "L288"
+    },
+    {
+      "id": "app_tresorerie_a_payer_feuilledetail_annuler",
+      "label": "annuler()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 18,
+      "community_name": "tresorerie-a-payer.js",
+      "file_type": "code",
+      "norm_label": "annuler()",
+      "source_file": "app/tresorerie-a-payer.js",
+      "source_location": "L296"
+    },
+    {
+      "id": "app_tresorerie_a_payer_feuilledetail_supprimer",
+      "label": "supprimer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 18,
+      "community_name": "tresorerie-a-payer.js",
+      "file_type": "code",
+      "norm_label": "supprimer()",
+      "source_file": "app/tresorerie-a-payer.js",
+      "source_location": "L314"
     },
     {
       "id": "app_tresorerie_a_payer_feuilleedition",
@@ -4773,7 +4785,7 @@
       "file_type": "code",
       "norm_label": "feuilleedition()",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L368"
+      "source_location": "L373"
     },
     {
       "id": "app_tresorerie_a_payer_feuilleedition_enregistrer",
@@ -4785,7 +4797,7 @@
       "file_type": "code",
       "norm_label": "enregistrer()",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L402"
+      "source_location": "L407"
     },
     {
       "id": "app_tresorerie_a_payer_feuillepaiement",
@@ -4797,7 +4809,7 @@
       "file_type": "code",
       "norm_label": "feuillepaiement()",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L481"
+      "source_location": "L486"
     },
     {
       "id": "app_tresorerie_a_payer_feuillepaiement_basculermois",
@@ -4809,7 +4821,7 @@
       "file_type": "code",
       "norm_label": "basculermois()",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L528"
+      "source_location": "L533"
     },
     {
       "id": "app_tresorerie_a_payer_feuillepaiement_enregistrer",
@@ -4821,7 +4833,7 @@
       "file_type": "code",
       "norm_label": "enregistrer()",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L539"
+      "source_location": "L544"
     },
     {
       "id": "app_tresorerie_a_payer_feuillereglageloyers",
@@ -4833,7 +4845,7 @@
       "file_type": "code",
       "norm_label": "feuillereglageloyers()",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L631"
+      "source_location": "L636"
     },
     {
       "id": "app_tresorerie_a_payer_listedus",
@@ -4845,7 +4857,7 @@
       "file_type": "code",
       "norm_label": "listedus()",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L224"
+      "source_location": "L229"
     },
     {
       "id": "app_tresorerie_a_payer_listeloyers",
@@ -4857,7 +4869,7 @@
       "file_type": "code",
       "norm_label": "listeloyers()",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L164"
+      "source_location": "L165"
     },
     {
       "id": "app_tresorerie_a_payer_peutsaisircategorie",
@@ -4869,7 +4881,7 @@
       "file_type": "code",
       "norm_label": "peutsaisircategorie()",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L140"
+      "source_location": "L141"
     },
     {
       "id": "app_tresorerie_a_payer_titredu",
@@ -4881,7 +4893,7 @@
       "file_type": "code",
       "norm_label": "titredu()",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L275"
+      "source_location": "L280"
     },
     {
       "id": "app_tresorerie_a_payer_tresorerieapayerscreen",
@@ -4894,6 +4906,18 @@
       "norm_label": "tresorerieapayerscreen()",
       "source_file": "app/tresorerie-a-payer.js",
       "source_location": "L29"
+    },
+    {
+      "id": "lib_alertes_test_nomresto",
+      "label": "nomResto()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 18,
+      "community_name": "tresorerie-a-payer.js",
+      "file_type": "code",
+      "norm_label": "nomresto()",
+      "source_file": "lib/alertes.test.mjs",
+      "source_location": "L11"
     },
     {
       "id": "lib_tresorerie_adminpayeparrestaurant",
@@ -8088,6 +8112,18 @@
       "source_location": "L214"
     },
     {
+      "id": "lib_entreesverification_preparerentreesverification",
+      "label": "preparerEntreesVerification()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 218,
+      "community_name": "entreesVerification.js",
+      "file_type": "code",
+      "norm_label": "preparerentreesverification()",
+      "source_file": "lib/entreesVerification.js",
+      "source_location": "L13"
+    },
+    {
       "id": "app_index_index",
       "label": "Index()",
       "_callable": true,
@@ -10140,18 +10176,6 @@
       "source_location": "L44"
     },
     {
-      "id": "lib_entreesverification_preparerentreesverification",
-      "label": "preparerEntreesVerification()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 28,
-      "community_name": "litigeContacts.js",
-      "file_type": "code",
-      "norm_label": "preparerentreesverification()",
-      "source_file": "lib/entreesVerification.js",
-      "source_location": "L13"
-    },
-    {
       "id": "lib_litigecontacts_chargerpointscontact",
       "label": "chargerPointsContact()",
       "_callable": true,
@@ -11709,7 +11733,7 @@
       "file_type": "code",
       "norm_label": "ajouterphoto()",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L532"
+      "source_location": "L537"
     },
     {
       "id": "app_tresorerie_banque_feuillemouvement_ajouterphoto",
@@ -11916,150 +11940,6 @@
       "source_location": "L648"
     },
     {
-      "id": "lib_api_majpresenceexistante",
-      "label": "majPresenceExistante()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 37,
-      "community_name": "api.js",
-      "file_type": "code",
-      "norm_label": "majpresenceexistante()",
-      "source_file": "lib/api.js",
-      "source_location": "L777"
-    },
-    {
-      "id": "lib_api_savedepenses",
-      "label": "saveDepenses()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 37,
-      "community_name": "api.js",
-      "file_type": "code",
-      "norm_label": "savedepenses()",
-      "source_file": "lib/api.js",
-      "source_location": "L57"
-    },
-    {
-      "id": "lib_api_saveinventaireshift",
-      "label": "saveInventaireShift()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 37,
-      "community_name": "api.js",
-      "file_type": "code",
-      "norm_label": "saveinventaireshift()",
-      "source_file": "lib/api.js",
-      "source_location": "L561"
-    },
-    {
-      "id": "lib_api_saveonepresence",
-      "label": "saveOnePresence()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 37,
-      "community_name": "api.js",
-      "file_type": "code",
-      "norm_label": "saveonepresence()",
-      "source_file": "lib/api.js",
-      "source_location": "L704"
-    },
-    {
-      "id": "lib_api_saveonetransactionfournisseur",
-      "label": "saveOneTransactionFournisseur()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 37,
-      "community_name": "api.js",
-      "file_type": "code",
-      "norm_label": "saveonetransactionfournisseur()",
-      "source_file": "lib/api.js",
-      "source_location": "L484"
-    },
-    {
-      "id": "lib_api_savepointshiftdata",
-      "label": "savePointShiftData()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 37,
-      "community_name": "api.js",
-      "file_type": "code",
-      "norm_label": "savepointshiftdata()",
-      "source_file": "lib/api.js",
-      "source_location": "L806"
-    },
-    {
-      "id": "lib_api_savepresences",
-      "label": "savePresences()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 37,
-      "community_name": "api.js",
-      "file_type": "code",
-      "norm_label": "savepresences()",
-      "source_file": "lib/api.js",
-      "source_location": "L105"
-    },
-    {
-      "id": "lib_api_savesequences",
-      "label": "saveSequences()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 37,
-      "community_name": "api.js",
-      "file_type": "code",
-      "norm_label": "savesequences()",
-      "source_file": "lib/api.js",
-      "source_location": "L333"
-    },
-    {
-      "id": "lib_api_savetransactionsfournisseurs",
-      "label": "saveTransactionsFournisseurs()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 37,
-      "community_name": "api.js",
-      "file_type": "code",
-      "norm_label": "savetransactionsfournisseurs()",
-      "source_file": "lib/api.js",
-      "source_location": "L180"
-    },
-    {
-      "id": "lib_api_updatepoint",
-      "label": "updatePoint()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 37,
-      "community_name": "api.js",
-      "file_type": "code",
-      "norm_label": "updatepoint()",
-      "source_file": "lib/api.js",
-      "source_location": "L383"
-    },
-    {
-      "id": "lib_logerreur_logerreur",
-      "label": "logErreur()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 37,
-      "community_name": "api.js",
-      "file_type": "code",
-      "norm_label": "logerreur()",
-      "source_file": "lib/logErreur.js",
-      "source_location": "L7"
-    },
-    {
-      "id": "lib_networkstatus_isonlinenow",
-      "label": "isOnlineNow()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 37,
-      "community_name": "api.js",
-      "file_type": "code",
-      "norm_label": "isonlinenow()",
-      "source_file": "lib/networkStatus.js",
-      "source_location": "L9"
-    },
-    {
       "id": "lib_offlinecache_cachefournisseurs",
       "label": "cacheFournisseurs()",
       "_callable": true,
@@ -12226,30 +12106,6 @@
       "norm_label": "savecache()",
       "source_file": "lib/offlineCache.js",
       "source_location": "L6"
-    },
-    {
-      "id": "lib_offlinequeue_enqueueoperation",
-      "label": "enqueueOperation()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 37,
-      "community_name": "api.js",
-      "file_type": "code",
-      "norm_label": "enqueueoperation()",
-      "source_file": "lib/offlineQueue.js",
-      "source_location": "L11"
-    },
-    {
-      "id": "lib_offlinequeue_generateid",
-      "label": "generateId()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 37,
-      "community_name": "api.js",
-      "file_type": "code",
-      "norm_label": "generateid()",
-      "source_file": "lib/offlineQueue.js",
-      "source_location": "L7"
     },
     {
       "id": "app_brouillons_fournisseurs_brouillonsfournisseursscreen",
@@ -13241,23 +13097,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "jaugecout()",
       "source_file": "app/dashboard-global.js",
       "source_location": "L1328"
-    },
-    {
-      "id": "app_dashboard_global_makestyles",
-      "label": "makeStyles()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 46,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "makestyles()",
-      "source_file": "app/dashboard-global.js",
-      "source_location": "L1358"
     },
     {
       "id": "components_lignecomparee_lignecomparee",
@@ -13265,7 +13109,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "lignecomparee()",
       "source_file": "components/LigneComparee.js",
@@ -13277,7 +13121,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "makestyles()",
       "source_file": "components/LigneComparee.js",
@@ -13289,7 +13133,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "valeurlisible()",
       "source_file": "components/LigneComparee.js",
@@ -13301,7 +13145,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "decimal()",
       "source_file": "lib/comparaisonDashboard.js",
@@ -13313,7 +13157,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "ecart()",
       "source_file": "lib/comparaisonDashboard.js",
@@ -13325,7 +13169,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "ecarts()",
       "source_file": "lib/comparaisonDashboard.js",
@@ -13337,7 +13181,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "formaterdelta()",
       "source_file": "lib/comparaisonDashboard.js",
@@ -13349,7 +13193,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "formaterecart()",
       "source_file": "lib/comparaisonDashboard.js",
@@ -13361,7 +13205,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "nombre()",
       "source_file": "lib/comparaisonDashboard.js",
@@ -13373,7 +13217,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "que()",
       "source_file": "lib/comparaisonDashboard.js",
@@ -13385,7 +13229,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "signe()",
       "source_file": "lib/comparaisonDashboard.js",
@@ -13397,7 +13241,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "surduree()",
       "source_file": "lib/comparaisonDashboard.js",
@@ -13409,7 +13253,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "synthese()",
       "source_file": "lib/comparaisonDashboard.js",
@@ -13421,7 +13265,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "fmtfcfa()",
       "source_file": "lib/dashboardGlobal.js",
@@ -14052,42 +13896,6 @@
       "source_location": "L56"
     },
     {
-      "id": "components_barrecomparaison_barrecomparaison",
-      "label": "BarreComparaison()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 57,
-      "community_name": "dashboardGlobal.js",
-      "file_type": "code",
-      "norm_label": "barrecomparaison()",
-      "source_file": "components/BarreComparaison.js",
-      "source_location": "L23"
-    },
-    {
-      "id": "components_barrecomparaison_makestyles",
-      "label": "makeStyles()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 57,
-      "community_name": "dashboardGlobal.js",
-      "file_type": "code",
-      "norm_label": "makestyles()",
-      "source_file": "components/BarreComparaison.js",
-      "source_location": "L140"
-    },
-    {
-      "id": "components_barrecomparaison_selecteurterme",
-      "label": "SelecteurTerme()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 57,
-      "community_name": "dashboardGlobal.js",
-      "file_type": "code",
-      "norm_label": "selecteurterme()",
-      "source_file": "components/BarreComparaison.js",
-      "source_location": "L117"
-    },
-    {
       "id": "lib_dashboardglobal_chargesfixesmontant",
       "label": "chargesFixesMontant()",
       "_callable": true,
@@ -14098,18 +13906,6 @@
       "norm_label": "chargesfixesmontant()",
       "source_file": "lib/dashboardGlobal.js",
       "source_location": "L106"
-    },
-    {
-      "id": "lib_dashboardglobal_couleurresto",
-      "label": "couleurResto()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 57,
-      "community_name": "dashboardGlobal.js",
-      "file_type": "code",
-      "norm_label": "couleurresto()",
-      "source_file": "lib/dashboardGlobal.js",
-      "source_location": "L49"
     },
     {
       "id": "lib_dashboardglobal_courtnom",
@@ -14974,6 +14770,66 @@
       "norm_label": "variation()",
       "source_file": "lib/rapportMensuel.js",
       "source_location": "L816"
+    },
+    {
+      "id": "app_dashboard_global_makestyles",
+      "label": "makeStyles()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 60,
+      "community_name": "dashboard-global.js",
+      "file_type": "code",
+      "norm_label": "makestyles()",
+      "source_file": "app/dashboard-global.js",
+      "source_location": "L1358"
+    },
+    {
+      "id": "components_barrecomparaison_barrecomparaison",
+      "label": "BarreComparaison()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 60,
+      "community_name": "dashboard-global.js",
+      "file_type": "code",
+      "norm_label": "barrecomparaison()",
+      "source_file": "components/BarreComparaison.js",
+      "source_location": "L23"
+    },
+    {
+      "id": "components_barrecomparaison_makestyles",
+      "label": "makeStyles()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 60,
+      "community_name": "dashboard-global.js",
+      "file_type": "code",
+      "norm_label": "makestyles()",
+      "source_file": "components/BarreComparaison.js",
+      "source_location": "L140"
+    },
+    {
+      "id": "components_barrecomparaison_selecteurterme",
+      "label": "SelecteurTerme()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 60,
+      "community_name": "dashboard-global.js",
+      "file_type": "code",
+      "norm_label": "selecteurterme()",
+      "source_file": "components/BarreComparaison.js",
+      "source_location": "L117"
+    },
+    {
+      "id": "lib_dashboardglobal_couleurresto",
+      "label": "couleurResto()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 60,
+      "community_name": "dashboard-global.js",
+      "file_type": "code",
+      "norm_label": "couleurresto()",
+      "source_file": "lib/dashboardGlobal.js",
+      "source_location": "L49"
     },
     {
       "id": "supabase_functions_rappel_contrats_index_avenir",
@@ -16044,6 +15900,174 @@
       "source_location": "L24"
     },
     {
+      "id": "lib_api_majpresenceexistante",
+      "label": "majPresenceExistante()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 73,
+      "community_name": "isOnlineNow",
+      "file_type": "code",
+      "norm_label": "majpresenceexistante()",
+      "source_file": "lib/api.js",
+      "source_location": "L777"
+    },
+    {
+      "id": "lib_api_savedepenses",
+      "label": "saveDepenses()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 73,
+      "community_name": "isOnlineNow",
+      "file_type": "code",
+      "norm_label": "savedepenses()",
+      "source_file": "lib/api.js",
+      "source_location": "L57"
+    },
+    {
+      "id": "lib_api_saveinventaireshift",
+      "label": "saveInventaireShift()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 73,
+      "community_name": "isOnlineNow",
+      "file_type": "code",
+      "norm_label": "saveinventaireshift()",
+      "source_file": "lib/api.js",
+      "source_location": "L561"
+    },
+    {
+      "id": "lib_api_saveonepresence",
+      "label": "saveOnePresence()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 73,
+      "community_name": "isOnlineNow",
+      "file_type": "code",
+      "norm_label": "saveonepresence()",
+      "source_file": "lib/api.js",
+      "source_location": "L704"
+    },
+    {
+      "id": "lib_api_saveonetransactionfournisseur",
+      "label": "saveOneTransactionFournisseur()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 73,
+      "community_name": "isOnlineNow",
+      "file_type": "code",
+      "norm_label": "saveonetransactionfournisseur()",
+      "source_file": "lib/api.js",
+      "source_location": "L484"
+    },
+    {
+      "id": "lib_api_savepointshiftdata",
+      "label": "savePointShiftData()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 73,
+      "community_name": "isOnlineNow",
+      "file_type": "code",
+      "norm_label": "savepointshiftdata()",
+      "source_file": "lib/api.js",
+      "source_location": "L806"
+    },
+    {
+      "id": "lib_api_savepresences",
+      "label": "savePresences()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 73,
+      "community_name": "isOnlineNow",
+      "file_type": "code",
+      "norm_label": "savepresences()",
+      "source_file": "lib/api.js",
+      "source_location": "L105"
+    },
+    {
+      "id": "lib_api_savesequences",
+      "label": "saveSequences()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 73,
+      "community_name": "isOnlineNow",
+      "file_type": "code",
+      "norm_label": "savesequences()",
+      "source_file": "lib/api.js",
+      "source_location": "L333"
+    },
+    {
+      "id": "lib_api_savetransactionsfournisseurs",
+      "label": "saveTransactionsFournisseurs()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 73,
+      "community_name": "isOnlineNow",
+      "file_type": "code",
+      "norm_label": "savetransactionsfournisseurs()",
+      "source_file": "lib/api.js",
+      "source_location": "L180"
+    },
+    {
+      "id": "lib_api_updatepoint",
+      "label": "updatePoint()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 73,
+      "community_name": "isOnlineNow",
+      "file_type": "code",
+      "norm_label": "updatepoint()",
+      "source_file": "lib/api.js",
+      "source_location": "L383"
+    },
+    {
+      "id": "lib_logerreur_logerreur",
+      "label": "logErreur()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 73,
+      "community_name": "isOnlineNow",
+      "file_type": "code",
+      "norm_label": "logerreur()",
+      "source_file": "lib/logErreur.js",
+      "source_location": "L7"
+    },
+    {
+      "id": "lib_networkstatus_isonlinenow",
+      "label": "isOnlineNow()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 73,
+      "community_name": "isOnlineNow",
+      "file_type": "code",
+      "norm_label": "isonlinenow()",
+      "source_file": "lib/networkStatus.js",
+      "source_location": "L9"
+    },
+    {
+      "id": "lib_offlinequeue_enqueueoperation",
+      "label": "enqueueOperation()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 73,
+      "community_name": "isOnlineNow",
+      "file_type": "code",
+      "norm_label": "enqueueoperation()",
+      "source_file": "lib/offlineQueue.js",
+      "source_location": "L11"
+    },
+    {
+      "id": "lib_offlinequeue_generateid",
+      "label": "generateId()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 73,
+      "community_name": "isOnlineNow",
+      "file_type": "code",
+      "norm_label": "generateid()",
+      "source_file": "lib/offlineQueue.js",
+      "source_location": "L7"
+    },
+    {
       "id": "app_gestion_stock_calcpreset",
       "label": "calcPreset()",
       "_callable": true,
@@ -16260,18 +16284,6 @@
       "source_location": "L48"
     },
     {
-      "id": "app_tresorerie_a_payer_feuilledetail_supprimer",
-      "label": "supprimer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "supprimer()",
-      "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L309"
-    },
-    {
       "id": "app_tresorerie_a_payer_feuillereglageloyers_enregistrer",
       "label": "enregistrer()",
       "_callable": true,
@@ -16281,7 +16293,7 @@
       "file_type": "code",
       "norm_label": "enregistrer()",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L654"
+      "source_location": "L659"
     },
     {
       "id": "app_tresorerie_coffre_feuilleobjectif",
@@ -16354,18 +16366,6 @@
       "norm_label": "feuilleperiode()",
       "source_file": "app/tresorerie-partenaires.js",
       "source_location": "L220"
-    },
-    {
-      "id": "app_tresorerie_partenaires_feuilleperiode_annuler",
-      "label": "annuler()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "annuler()",
-      "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L233"
     },
     {
       "id": "app_tresorerie_partenaires_feuilleperiode_retirerimport",
@@ -20784,7 +20784,7 @@
       "file_type": "code",
       "norm_label": "titres_ajout",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L133"
+      "source_location": "L134"
     },
     {
       "id": "lib_tresorerie",
@@ -23096,6 +23096,39 @@
       "source_location": "L71"
     },
     {
+      "id": "lib_entreesverification",
+      "label": "entreesVerification.js",
+      "_origin": "ast",
+      "community": 218,
+      "community_name": "entreesVerification.js",
+      "file_type": "code",
+      "norm_label": "entreesverification.js",
+      "source_file": "lib/entreesVerification.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "lib_entreesverification_libelles_shift",
+      "label": "LIBELLES_SHIFT",
+      "_origin": "ast",
+      "community": 218,
+      "community_name": "entreesVerification.js",
+      "file_type": "code",
+      "norm_label": "libelles_shift",
+      "source_file": "lib/entreesVerification.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "lib_entreesverification_test",
+      "label": "entreesVerification.test.mjs",
+      "_origin": "ast",
+      "community": 218,
+      "community_name": "entreesVerification.js",
+      "file_type": "code",
+      "norm_label": "entreesverification.test.mjs",
+      "source_file": "lib/entreesVerification.test.mjs",
+      "source_location": "L1"
+    },
+    {
       "id": "app_expo_ios",
       "label": "ios",
       "_origin": "ast",
@@ -23756,6 +23789,28 @@
       "source_location": "L1"
     },
     {
+      "id": "package_dependencies_exceljs",
+      "label": "exceljs",
+      "_origin": "ast",
+      "community": 222,
+      "community_name": "exceljs",
+      "file_type": "code",
+      "norm_label": "exceljs",
+      "source_file": "package.json",
+      "source_location": "L23"
+    },
+    {
+      "id": "package_json_exceljs",
+      "label": "exceljs",
+      "_origin": "ast",
+      "community": 222,
+      "community_name": "exceljs",
+      "file_type": "concept",
+      "norm_label": "exceljs",
+      "source_file": "package.json",
+      "source_location": "L23"
+    },
+    {
       "id": "app_rh",
       "label": "rh.js",
       "_origin": "ast",
@@ -24128,28 +24183,6 @@
       "norm_label": "journee",
       "source_file": "lib/ecartPOS.test.mjs",
       "source_location": "L22"
-    },
-    {
-      "id": "package_dependencies_expo_document_picker",
-      "label": "expo-document-picker",
-      "_origin": "ast",
-      "community": 230,
-      "community_name": "expo-document-picker",
-      "file_type": "code",
-      "norm_label": "expo-document-picker",
-      "source_file": "package.json",
-      "source_location": "L28"
-    },
-    {
-      "id": "expo_document_picker",
-      "label": "expo-document-picker",
-      "_origin": "ast",
-      "community": 230,
-      "community_name": "expo-document-picker",
-      "file_type": "concept",
-      "norm_label": "expo-document-picker",
-      "source_file": "package.json",
-      "source_location": "L28"
     },
     {
       "id": "app_dashboard",
@@ -24546,39 +24579,6 @@
       "norm_label": "point",
       "source_file": "lib/contactsPOS.test.mjs",
       "source_location": "L23"
-    },
-    {
-      "id": "lib_entreesverification",
-      "label": "entreesVerification.js",
-      "_origin": "ast",
-      "community": 28,
-      "community_name": "litigeContacts.js",
-      "file_type": "code",
-      "norm_label": "entreesverification.js",
-      "source_file": "lib/entreesVerification.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "lib_entreesverification_libelles_shift",
-      "label": "LIBELLES_SHIFT",
-      "_origin": "ast",
-      "community": 28,
-      "community_name": "litigeContacts.js",
-      "file_type": "code",
-      "norm_label": "libelles_shift",
-      "source_file": "lib/entreesVerification.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "lib_entreesverification_test",
-      "label": "entreesVerification.test.mjs",
-      "_origin": "ast",
-      "community": 28,
-      "community_name": "litigeContacts.js",
-      "file_type": "code",
-      "norm_label": "entreesverification.test.mjs",
-      "source_file": "lib/entreesVerification.test.mjs",
-      "source_location": "L1"
     },
     {
       "id": "lib_litigecontacts",
@@ -25043,15 +25043,15 @@
       "source_location": "L14"
     },
     {
-      "id": "package_dependencies_exceljs",
-      "label": "exceljs",
+      "id": "package_dependencies_expo_document_picker",
+      "label": "expo-document-picker",
       "_origin": "ast",
       "community": 31,
       "community_name": "dependencies",
       "file_type": "code",
-      "norm_label": "exceljs",
+      "norm_label": "expo-document-picker",
       "source_file": "package.json",
-      "source_location": "L23"
+      "source_location": "L28"
     },
     {
       "id": "package_dependencies_expo_image",
@@ -25153,6 +25153,17 @@
       "source_location": "L57"
     },
     {
+      "id": "expo_document_picker",
+      "label": "expo-document-picker",
+      "_origin": "ast",
+      "community": 31,
+      "community_name": "dependencies",
+      "file_type": "concept",
+      "norm_label": "expo-document-picker",
+      "source_file": "package.json",
+      "source_location": "L28"
+    },
+    {
       "id": "expo_image",
       "label": "expo-image",
       "_origin": "ast",
@@ -25206,17 +25217,6 @@
       "norm_label": "expo-web-browser",
       "source_file": "package.json",
       "source_location": "L44"
-    },
-    {
-      "id": "package_json_exceljs",
-      "label": "exceljs",
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "dependencies",
-      "file_type": "concept",
-      "norm_label": "exceljs",
-      "source_file": "package.json",
-      "source_location": "L23"
     },
     {
       "id": "package_json_jspdf_autotable",
@@ -27020,88 +27020,11 @@
       "source_location": "L1"
     },
     {
-      "id": "app_dashboard_global",
-      "label": "dashboard-global.js",
-      "_origin": "ast",
-      "community": 46,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "dashboard-global.js",
-      "source_file": "app/dashboard-global.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "app_dashboard_global_jaugestyles",
-      "label": "jaugeStyles",
-      "_origin": "ast",
-      "community": 46,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "jaugestyles",
-      "source_file": "app/dashboard-global.js",
-      "source_location": "L1348"
-    },
-    {
-      "id": "app_dashboard_global_periodes",
-      "label": "PERIODES",
-      "_origin": "ast",
-      "community": 46,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "periodes",
-      "source_file": "app/dashboard-global.js",
-      "source_location": "L38"
-    },
-    {
-      "id": "app_dashboard_global_pie_colors",
-      "label": "PIE_COLORS",
-      "_origin": "ast",
-      "community": 46,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "pie_colors",
-      "source_file": "app/dashboard-global.js",
-      "source_location": "L54"
-    },
-    {
-      "id": "app_dashboard_global_piliers",
-      "label": "PILIERS",
-      "_origin": "ast",
-      "community": 46,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "piliers",
-      "source_file": "app/dashboard-global.js",
-      "source_location": "L46"
-    },
-    {
-      "id": "app_dashboard_global_piliers_comparables",
-      "label": "PILIERS_COMPARABLES",
-      "_origin": "ast",
-      "community": 46,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "piliers_comparables",
-      "source_file": "app/dashboard-global.js",
-      "source_location": "L34"
-    },
-    {
-      "id": "app_dashboard_global_width",
-      "label": "{ width }",
-      "_origin": "ast",
-      "community": 46,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "{ width }",
-      "source_file": "app/dashboard-global.js",
-      "source_location": "L26"
-    },
-    {
       "id": "components_lignecomparee",
       "label": "LigneComparee.js",
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "lignecomparee.js",
       "source_file": "components/LigneComparee.js",
@@ -27112,7 +27035,7 @@
       "label": "COULEUR_ECART",
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "couleur_ecart",
       "source_file": "components/LigneComparee.js",
@@ -27123,7 +27046,7 @@
       "label": "comparaisonDashboard.js",
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "comparaisondashboard.js",
       "source_file": "lib/comparaisonDashboard.js",
@@ -27134,7 +27057,7 @@
       "label": "EPSILON",
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "epsilon",
       "source_file": "lib/comparaisonDashboard.js",
@@ -27145,7 +27068,7 @@
       "label": "POLARITE",
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "polarite",
       "source_file": "lib/comparaisonDashboard.js",
@@ -27156,7 +27079,7 @@
       "label": "comparaisonDashboard.test.mjs",
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "comparaisondashboard.test.mjs",
       "source_file": "lib/comparaisonDashboard.test.mjs",
@@ -27167,7 +27090,7 @@
       "label": "ANGRE_RIVIERA",
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "angre_riviera",
       "source_file": "lib/comparaisonDashboard.test.mjs",
@@ -27178,22 +27101,11 @@
       "label": "UNITE",
       "_origin": "ast",
       "community": 46,
-      "community_name": "dashboard-global.js",
+      "community_name": "comparaisonDashboard.js",
       "file_type": "code",
       "norm_label": "unite",
       "source_file": "lib/comparaisonDashboard.js",
       "source_location": "L31"
-    },
-    {
-      "id": "lib_dashboardglobal_canaux",
-      "label": "CANAUX",
-      "_origin": "ast",
-      "community": 46,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "canaux",
-      "source_file": "lib/dashboardGlobal.js",
-      "source_location": "L24"
     },
     {
       "id": "supabase_avis_mapping_boutiques",
@@ -28382,39 +28294,6 @@
       "source_location": "L1"
     },
     {
-      "id": "components_barrecomparaison",
-      "label": "BarreComparaison.js",
-      "_origin": "ast",
-      "community": 57,
-      "community_name": "dashboardGlobal.js",
-      "file_type": "code",
-      "norm_label": "barrecomparaison.js",
-      "source_file": "components/BarreComparaison.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "components_barrecomparaison_mode_periodes",
-      "label": "MODE_PERIODES",
-      "_origin": "ast",
-      "community": 57,
-      "community_name": "dashboardGlobal.js",
-      "file_type": "code",
-      "norm_label": "mode_periodes",
-      "source_file": "components/BarreComparaison.js",
-      "source_location": "L21"
-    },
-    {
-      "id": "components_barrecomparaison_mode_restos",
-      "label": "MODE_RESTOS",
-      "_origin": "ast",
-      "community": 57,
-      "community_name": "dashboardGlobal.js",
-      "file_type": "code",
-      "norm_label": "mode_restos",
-      "source_file": "components/BarreComparaison.js",
-      "source_location": "L20"
-    },
-    {
       "id": "lib_dashboardglobal",
       "label": "dashboardGlobal.js",
       "_origin": "ast",
@@ -28899,6 +28778,127 @@
       "norm_label": "mois_fr",
       "source_file": "lib/rapportMensuel.js",
       "source_location": "L30"
+    },
+    {
+      "id": "app_dashboard_global",
+      "label": "dashboard-global.js",
+      "_origin": "ast",
+      "community": 60,
+      "community_name": "dashboard-global.js",
+      "file_type": "code",
+      "norm_label": "dashboard-global.js",
+      "source_file": "app/dashboard-global.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "app_dashboard_global_jaugestyles",
+      "label": "jaugeStyles",
+      "_origin": "ast",
+      "community": 60,
+      "community_name": "dashboard-global.js",
+      "file_type": "code",
+      "norm_label": "jaugestyles",
+      "source_file": "app/dashboard-global.js",
+      "source_location": "L1348"
+    },
+    {
+      "id": "app_dashboard_global_periodes",
+      "label": "PERIODES",
+      "_origin": "ast",
+      "community": 60,
+      "community_name": "dashboard-global.js",
+      "file_type": "code",
+      "norm_label": "periodes",
+      "source_file": "app/dashboard-global.js",
+      "source_location": "L38"
+    },
+    {
+      "id": "app_dashboard_global_pie_colors",
+      "label": "PIE_COLORS",
+      "_origin": "ast",
+      "community": 60,
+      "community_name": "dashboard-global.js",
+      "file_type": "code",
+      "norm_label": "pie_colors",
+      "source_file": "app/dashboard-global.js",
+      "source_location": "L54"
+    },
+    {
+      "id": "app_dashboard_global_piliers",
+      "label": "PILIERS",
+      "_origin": "ast",
+      "community": 60,
+      "community_name": "dashboard-global.js",
+      "file_type": "code",
+      "norm_label": "piliers",
+      "source_file": "app/dashboard-global.js",
+      "source_location": "L46"
+    },
+    {
+      "id": "app_dashboard_global_piliers_comparables",
+      "label": "PILIERS_COMPARABLES",
+      "_origin": "ast",
+      "community": 60,
+      "community_name": "dashboard-global.js",
+      "file_type": "code",
+      "norm_label": "piliers_comparables",
+      "source_file": "app/dashboard-global.js",
+      "source_location": "L34"
+    },
+    {
+      "id": "app_dashboard_global_width",
+      "label": "{ width }",
+      "_origin": "ast",
+      "community": 60,
+      "community_name": "dashboard-global.js",
+      "file_type": "code",
+      "norm_label": "{ width }",
+      "source_file": "app/dashboard-global.js",
+      "source_location": "L26"
+    },
+    {
+      "id": "components_barrecomparaison",
+      "label": "BarreComparaison.js",
+      "_origin": "ast",
+      "community": 60,
+      "community_name": "dashboard-global.js",
+      "file_type": "code",
+      "norm_label": "barrecomparaison.js",
+      "source_file": "components/BarreComparaison.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "components_barrecomparaison_mode_periodes",
+      "label": "MODE_PERIODES",
+      "_origin": "ast",
+      "community": 60,
+      "community_name": "dashboard-global.js",
+      "file_type": "code",
+      "norm_label": "mode_periodes",
+      "source_file": "components/BarreComparaison.js",
+      "source_location": "L21"
+    },
+    {
+      "id": "components_barrecomparaison_mode_restos",
+      "label": "MODE_RESTOS",
+      "_origin": "ast",
+      "community": 60,
+      "community_name": "dashboard-global.js",
+      "file_type": "code",
+      "norm_label": "mode_restos",
+      "source_file": "components/BarreComparaison.js",
+      "source_location": "L20"
+    },
+    {
+      "id": "lib_dashboardglobal_canaux",
+      "label": "CANAUX",
+      "_origin": "ast",
+      "community": 60,
+      "community_name": "dashboard-global.js",
+      "file_type": "code",
+      "norm_label": "canaux",
+      "source_file": "lib/dashboardGlobal.js",
+      "source_location": "L24"
     },
     {
       "id": "supabase_pos_explication_ecart",
@@ -43448,7 +43448,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L156",
+      "source_location": "L157",
       "weight": 1.0
     },
     {
@@ -43460,7 +43460,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L284",
+      "source_location": "L289",
       "weight": 1.0
     },
     {
@@ -43472,7 +43472,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L286",
+      "source_location": "L291",
       "weight": 1.0
     },
     {
@@ -43484,7 +43484,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L288",
+      "source_location": "L293",
       "weight": 1.0
     },
     {
@@ -43496,7 +43496,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L288",
+      "source_location": "L293",
       "weight": 1.0
     },
     {
@@ -43508,7 +43508,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L296",
+      "source_location": "L301",
       "weight": 1.0
     },
     {
@@ -43520,7 +43520,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L296",
+      "source_location": "L301",
       "weight": 1.0
     },
     {
@@ -43532,7 +43532,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L301",
+      "source_location": "L306",
       "weight": 1.0
     },
     {
@@ -43544,7 +43544,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L317",
+      "source_location": "L322",
       "weight": 1.0
     },
     {
@@ -43556,7 +43556,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L327",
+      "source_location": "L332",
       "weight": 1.0
     },
     {
@@ -43568,7 +43568,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L327",
+      "source_location": "L332",
       "weight": 1.0
     },
     {
@@ -43580,7 +43580,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L330",
+      "source_location": "L335",
       "weight": 1.0
     },
     {
@@ -43592,7 +43592,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L333",
+      "source_location": "L338",
       "weight": 1.0
     },
     {
@@ -43604,7 +43604,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L296",
+      "source_location": "L301",
       "weight": 1.0
     },
     {
@@ -43616,7 +43616,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L296",
+      "source_location": "L301",
       "weight": 1.0
     },
     {
@@ -43628,7 +43628,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L301",
+      "source_location": "L306",
       "weight": 1.0
     },
     {
@@ -43640,7 +43640,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L317",
+      "source_location": "L322",
       "weight": 1.0
     },
     {
@@ -43652,7 +43652,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L369",
+      "source_location": "L374",
       "weight": 1.0
     },
     {
@@ -43664,7 +43664,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L380",
+      "source_location": "L385",
       "weight": 1.0
     },
     {
@@ -43676,7 +43676,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L380",
+      "source_location": "L385",
       "weight": 1.0
     },
     {
@@ -43688,7 +43688,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L397",
+      "source_location": "L402",
       "weight": 1.0
     },
     {
@@ -43700,7 +43700,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L400",
+      "source_location": "L405",
       "weight": 1.0
     },
     {
@@ -43712,7 +43712,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L413",
+      "source_location": "L418",
       "weight": 1.0
     },
     {
@@ -43724,7 +43724,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L421",
+      "source_location": "L426",
       "weight": 1.0
     },
     {
@@ -43736,7 +43736,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L413",
+      "source_location": "L418",
       "weight": 1.0
     },
     {
@@ -43748,36 +43748,12 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L421",
+      "source_location": "L426",
       "weight": 1.0
     },
     {
       "source": "app_tresorerie_a_payer_feuillepaiement",
       "target": "components_tresorerie_commun_usestylestreso",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L482",
-      "weight": 1.0
-    },
-    {
-      "source": "app_tresorerie_a_payer_feuillepaiement",
-      "target": "lib_usephoto_usephoto",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L483",
-      "weight": 1.0
-    },
-    {
-      "source": "app_tresorerie_a_payer_feuillepaiement",
-      "target": "lib_tresorerie_aujourdhuiiso",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -43789,6 +43765,30 @@
     },
     {
       "source": "app_tresorerie_a_payer_feuillepaiement",
+      "target": "lib_usephoto_usephoto",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "app/tresorerie-a-payer.js",
+      "source_location": "L488",
+      "weight": 1.0
+    },
+    {
+      "source": "app_tresorerie_a_payer_feuillepaiement",
+      "target": "lib_tresorerie_aujourdhuiiso",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "app/tresorerie-a-payer.js",
+      "source_location": "L492",
+      "weight": 1.0
+    },
+    {
+      "source": "app_tresorerie_a_payer_feuillepaiement",
       "target": "lib_tresorerie_restedu",
       "relation": "calls",
       "_origin": "ast",
@@ -43796,7 +43796,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L501",
+      "source_location": "L506",
       "weight": 1.0
     },
     {
@@ -43808,7 +43808,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L502",
+      "source_location": "L507",
       "weight": 1.0
     },
     {
@@ -43820,7 +43820,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L503",
+      "source_location": "L508",
       "weight": 1.0
     },
     {
@@ -43832,7 +43832,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L557",
+      "source_location": "L562",
       "weight": 1.0
     },
     {
@@ -43844,7 +43844,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L560",
+      "source_location": "L565",
       "weight": 1.0
     },
     {
@@ -43856,7 +43856,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L564",
+      "source_location": "L569",
       "weight": 1.0
     },
     {
@@ -43868,7 +43868,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L568",
+      "source_location": "L573",
       "weight": 1.0
     },
     {
@@ -43880,7 +43880,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L572",
+      "source_location": "L577",
       "weight": 1.0
     },
     {
@@ -43892,7 +43892,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L573",
+      "source_location": "L578",
       "weight": 1.0
     },
     {
@@ -43904,7 +43904,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L589",
+      "source_location": "L594",
       "weight": 1.0
     },
     {
@@ -43916,7 +43916,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L595",
+      "source_location": "L600",
       "weight": 1.0
     },
     {
@@ -43928,7 +43928,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L602",
+      "source_location": "L607",
       "weight": 1.0
     },
     {
@@ -43940,7 +43940,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L534",
+      "source_location": "L539",
       "weight": 1.0
     },
     {
@@ -43952,7 +43952,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L557",
+      "source_location": "L562",
       "weight": 1.0
     },
     {
@@ -43964,7 +43964,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L560",
+      "source_location": "L565",
       "weight": 1.0
     },
     {
@@ -43976,7 +43976,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L564",
+      "source_location": "L569",
       "weight": 1.0
     },
     {
@@ -43988,7 +43988,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L568",
+      "source_location": "L573",
       "weight": 1.0
     },
     {
@@ -44000,7 +44000,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L572",
+      "source_location": "L577",
       "weight": 1.0
     },
     {
@@ -44012,7 +44012,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L573",
+      "source_location": "L578",
       "weight": 1.0
     },
     {
@@ -44024,7 +44024,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L632",
+      "source_location": "L637",
       "weight": 1.0
     },
     {
@@ -44036,7 +44036,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L636",
+      "source_location": "L641",
       "weight": 1.0
     },
     {
@@ -44048,7 +44048,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L636",
+      "source_location": "L641",
       "weight": 1.0
     },
     {
@@ -44060,7 +44060,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L652",
+      "source_location": "L657",
       "weight": 1.0
     },
     {
@@ -44072,7 +44072,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L652",
+      "source_location": "L657",
       "weight": 1.0
     },
     {
@@ -44084,7 +44084,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L662",
+      "source_location": "L667",
       "weight": 1.0
     },
     {
@@ -44096,7 +44096,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L681",
+      "source_location": "L686",
       "weight": 1.0
     },
     {
@@ -44108,7 +44108,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L662",
+      "source_location": "L667",
       "weight": 1.0
     },
     {
@@ -44120,7 +44120,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L225",
+      "source_location": "L230",
       "weight": 1.0
     },
     {
@@ -44132,7 +44132,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L226",
+      "source_location": "L231",
       "weight": 1.0
     },
     {
@@ -44144,7 +44144,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L228",
+      "source_location": "L233",
       "weight": 1.0
     },
     {
@@ -44156,7 +44156,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L235",
+      "source_location": "L240",
       "weight": 1.0
     },
     {
@@ -44168,7 +44168,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L245",
+      "source_location": "L250",
       "weight": 1.0
     },
     {
@@ -44180,7 +44180,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L249",
+      "source_location": "L254",
       "weight": 1.0
     },
     {
@@ -44192,7 +44192,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L253",
+      "source_location": "L258",
       "weight": 1.0
     },
     {
@@ -44204,7 +44204,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L261",
+      "source_location": "L266",
       "weight": 1.0
     },
     {
@@ -44216,7 +44216,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L262",
+      "source_location": "L267",
       "weight": 1.0
     },
     {
@@ -44228,7 +44228,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L263",
+      "source_location": "L268",
       "weight": 1.0
     },
     {
@@ -44240,7 +44240,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L165",
+      "source_location": "L166",
       "weight": 1.0
     },
     {
@@ -44252,7 +44252,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L166",
+      "source_location": "L167",
       "weight": 1.0
     },
     {
@@ -44264,7 +44264,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L167",
+      "source_location": "L168",
       "weight": 1.0
     },
     {
@@ -44276,7 +44276,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L172",
+      "source_location": "L173",
       "weight": 1.0
     },
     {
@@ -44288,7 +44288,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L190",
+      "source_location": "L195",
       "weight": 1.0
     },
     {
@@ -44300,7 +44300,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L195",
+      "source_location": "L200",
       "weight": 1.0
     },
     {
@@ -44312,7 +44312,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L198",
+      "source_location": "L203",
       "weight": 1.0
     },
     {
@@ -44324,7 +44324,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L204",
+      "source_location": "L209",
       "weight": 1.0
     },
     {
@@ -44336,7 +44336,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L207",
+      "source_location": "L212",
       "weight": 1.0
     },
     {
@@ -44348,7 +44348,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L208",
+      "source_location": "L213",
       "weight": 1.0
     },
     {
@@ -44360,7 +44360,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L141",
+      "source_location": "L142",
       "weight": 1.0
     },
     {
@@ -44372,7 +44372,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L104",
+      "source_location": "L105",
       "weight": 1.0
     },
     {
@@ -60788,7 +60788,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L291",
+      "source_location": "L296",
       "weight": 1.0
     },
     {
@@ -60800,7 +60800,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L528",
+      "source_location": "L533",
       "weight": 1.0
     },
     {
@@ -85568,7 +85568,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L133",
+      "source_location": "L134",
       "weight": 1.0
     },
     {
@@ -85579,7 +85579,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L140",
+      "source_location": "L141",
       "weight": 1.0
     },
     {
@@ -85590,7 +85590,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L147",
+      "source_location": "L148",
       "weight": 1.0
     },
     {
@@ -85601,7 +85601,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L155",
+      "source_location": "L156",
       "weight": 1.0
     },
     {
@@ -85612,7 +85612,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L164",
+      "source_location": "L165",
       "weight": 1.0
     },
     {
@@ -85623,7 +85623,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L224",
+      "source_location": "L229",
       "weight": 1.0
     },
     {
@@ -85634,7 +85634,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L275",
+      "source_location": "L280",
       "weight": 1.0
     },
     {
@@ -85645,7 +85645,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L283",
+      "source_location": "L288",
       "weight": 1.0
     },
     {
@@ -85667,7 +85667,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L368",
+      "source_location": "L373",
       "weight": 1.0
     },
     {
@@ -85678,7 +85678,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L481",
+      "source_location": "L486",
       "weight": 1.0
     },
     {
@@ -85689,7 +85689,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L631",
+      "source_location": "L636",
       "weight": 1.0
     },
     {
@@ -85700,7 +85700,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L309",
+      "source_location": "L314",
       "weight": 1.0
     },
     {
@@ -85711,7 +85711,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L402",
+      "source_location": "L407",
       "weight": 1.0
     },
     {
@@ -85722,7 +85722,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L532",
+      "source_location": "L537",
       "weight": 1.0
     },
     {
@@ -85733,7 +85733,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L539",
+      "source_location": "L544",
       "weight": 1.0
     },
     {
@@ -85744,7 +85744,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L654",
+      "source_location": "L659",
       "weight": 1.0
     },
     {
@@ -100786,7 +100786,7 @@
       "confidence_score": 0.85,
       "context": "argument",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L571",
+      "source_location": "L576",
       "weight": 1.0
     },
     {
@@ -100798,7 +100798,7 @@
       "confidence_score": 0.85,
       "context": "argument",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L572",
+      "source_location": "L577",
       "weight": 1.0
     },
     {
@@ -100810,7 +100810,7 @@
       "confidence_score": 0.85,
       "context": "argument",
       "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L656",
+      "source_location": "L661",
       "weight": 1.0
     },
     {
@@ -101379,5 +101379,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "f560ef25697a87add8a33f232228af930547877c"
+  "built_at_commit": "580f29e54f89048c02be361220a559f85f374d11"
 }
