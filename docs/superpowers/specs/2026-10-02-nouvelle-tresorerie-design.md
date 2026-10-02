@@ -260,3 +260,32 @@ Décisions du 02/10/2026 :
 - Les notifications (9 h, relance 14 h) arrivent à l'étape 5.
 
 Migration : `supabase_tresorerie_previsions.sql`. Tests : `lib/previsions.test.mjs`.
+
+---
+
+## Étape 5 — Notifications
+
+Décisions du 02/10/2026 :
+
+- Tâche programmée (pg_cron → Edge Function `rappels-tresorerie`) à **9 h** et
+  **14 h** (heure d'Abidjan = UTC), tous les jours, dimanche compris.
+- **Un résumé par envoi** et par personne (« Trésorerie · 3 à faire
+  aujourd'hui » + jusqu'à 4 lignes, « … et N autres »).
+- Contenu :
+  - charges à échéance dont c'est **le dernier jour** (date limite =
+    aujourd'hui) et qui ne sont pas soldées — à 9 h même si une prévision existe ;
+  - **prévisions** passées « à payer » (date atteinte, ou réception marquée) ;
+  - **emprunts au coffre** à rembourser.
+- **Relance à 14 h** seulement pour ce qui n'a pas bougé : aucun paiement fait
+  aujourd'hui sur la ligne, et (pour une charge du dernier jour) aucune
+  prévision posée ; emprunt toujours pas remboursé.
+- Destinataires (comptes actifs) : propriétaire → tout ; managers en lecture →
+  charges et prévisions ; RH → ses charges (dernier jour). Un envoi = Android
+  (Expo) + iPhone (web push) + notification dans l'app ; jamais deux fois le
+  même envoi (clé dans `tresorerie_alertes_envoyees`).
+- **Réception partenaire** : dès qu'on marque « reçu », notification immédiate
+  aux managers si des prévisions attendaient ce partenaire.
+- Correctif : un compte désactivé ne reçoit plus de notifications.
+
+Migration : `supabase_tresorerie_rappels.sql` (pg_cron, pg_net, deux tâches).
+Tests : `lib/rappelsTresorerie.test.mjs`.
