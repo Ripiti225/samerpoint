@@ -4,23 +4,46 @@
 // Chaque dépense sort de sa source (BACI / SIB → banque, coffre → coffre,
 // espèces → rien ailleurs). Réparation, matériel et équipement d'un restaurant
 // comptent dans son résultat ; fond, investissement et retrait perso non.
+//
+// En tête : les autres charges notées AVANT d'être payées (catégorie « autre »
+// de tresorerie_dus) : jamais en dette récente, passées en Dette à la main.
 // ──────────────────────────────────────────────────────────────────────────────
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Alert, Image, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 
 import {
   Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Puces, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
-import { CATEGORIES_DIRECTION, categorieDirection, compteDansResultat, soldeCoffre } from '../lib/direction'
+import { Badge, FeuilleDetail, FeuillePaiement, couleursStatut } from '../components/tresorerie/du'
+import {
+  CATEGORIES_CHARGE_A_PAYER, CATEGORIES_DIRECTION, categorieDirection, compteDansResultat, soldeCoffre,
+} from '../lib/direction'
 import { usePhoto } from '../lib/usePhoto'
-import { aujourdhuiISO, fmt, formatDateFR, libelleMois, peut } from '../lib/tresorerie'
-import { ajouterDepenseDirection, supprimerDepenseDirection } from '../lib/tresorerieDb'
+import {
+  aujourdhuiISO, classerTous, fmt, formatDateFR, libelleMois, paiementsParDu, peut, resteDu, totalPaye,
+} from '../lib/tresorerie'
+import { ajouterDepenseDirection, enregistrerDu, supprimerDepenseDirection } from '../lib/tresorerieDb'
 
 export default function TresorerieDirectionScreen() {
   const { styles, colors } = useStylesTreso()
   const t = useTresorerie({ avecDirection: true })
   const { donnees, niveau, user, recharger } = t
   const [saisie, setSaisie] = useState(false)
+  const [charge, setCharge] = useState(null)      // autre charge en création / modification
+  const [detail, setDetail] = useState(null)      // autre charge ouverte
+  const [paiement, setPaiement] = useState(null)  // { du }
+
+  const aujourdhui = aujourdhuiISO()
+  const parDu = useMemo(() => paiementsParDu(donnees?.paiements), [donnees])
+  const classement = useMemo(
+    () => (donnees ? classerTous(donnees.dus, donnees.paiements, aujourdhui) : {}),
+    [donnees, aujourdhui],
+  )
+  const aPayer = (donnees?.dus || [])
+    .filter(x => x.categorie === 'autre' && resteDu(x, parDu[x.id]) > 0)
+    .sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''))
+  const totalAPayer = aPayer.reduce((s, x) => s + resteDu(x, parDu[x.id]), 0)
+  const cs = couleursStatut(colors)
 
   const d = donnees?.direction
   const nomResto = id => (id ? donnees?.restaurants.find(r => r.id === id)?.nom || '?' : 'Groupe')
@@ -56,7 +79,31 @@ export default function TresorerieDirectionScreen() {
   } else {
     contenu = (
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContenu}>
-        <Bouton titre="+ Nouvelle dépense direction" onPress={() => setSaisie(true)} style={{ marginBottom: 12 }} />
+        <View style={styles.carte}>
+          <View style={styles.ligne}>
+            <Text style={styles.lbl}>À payer · autres charges</Text>
+            <Text style={[styles.ligneValeur, { color: totalAPayer ? colors.error : colors.success }]}>{fmt(totalAPayer)} F</Text>
+          </View>
+          {aPayer.length === 0 && <Text style={styles.petit}>Rien à payer. Notez ici une charge avant de la payer.</Text>}
+          {aPayer.map(x => {
+            const p = parDu[x.id] || []
+            const st = classement[x.id] || 'a_payer'
+            return (
+              <TouchableOpacity key={x.id} style={styles.item} onPress={() => setDetail(x)}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.itemTitre}>{x.libelle || 'Autre charge'} · {nomResto(x.restaurant_id)}</Text>
+                  <Text style={styles.petit}>
+                    {categorieDirection(x.categorie_direction)?.label || 'Autre'}
+                    {totalPaye(p) > 0 ? ` · payé ${fmt(totalPaye(p))}` : ''} · <Text style={{ fontWeight: '800', color: colors.text }}>reste {fmt(resteDu(x, p))}</Text>
+                  </Text>
+                </View>
+                <Badge c={cs[st]} />
+              </TouchableOpacity>
+            )
+          })}
+          <Bouton secondaire titre="+ Charge à payer" onPress={() => setCharge({})} style={{ marginTop: 8 }} />
+        </View>
+        <Bouton titre="+ Nouvelle dépense direction (déjà payée)" onPress={() => setSaisie(true)} style={{ marginBottom: 12 }} />
         {parMois.length === 0 && <Text style={styles.vide}>Aucune dépense direction.</Text>}
         {parMois.map(([m, deps]) => (
           <View key={m} style={styles.carte}>
@@ -93,6 +140,21 @@ export default function TresorerieDirectionScreen() {
       {donnees && d && (
         <FeuilleDepense visible={saisie} donnees={donnees} soldeCoffre={soldeCoffre(d.coffre)} user={user}
           onFermer={() => setSaisie(false)} apres={recharger} />
+      )}
+      {donnees && (
+        <>
+          <FeuilleChargeAPayer du={charge} donnees={donnees} user={user} onFermer={() => setCharge(null)} apres={recharger} />
+          <FeuilleDetail
+            du={detail} paiements={detail ? parDu[detail.id] || [] : []} classement={detail ? classement[detail.id] : null}
+            donnees={donnees} niveau={niveau} aujourdhui={aujourdhui} nomResto={nomResto} user={user}
+            onFermer={() => setDetail(null)}
+            onPayer={x => { setDetail(null); setPaiement({ du: x }) }}
+            onModifier={x => { setDetail(null); setCharge(x) }}
+            apres={recharger}
+          />
+          <FeuillePaiement demande={paiement} donnees={donnees} parDu={parDu} nomResto={nomResto} user={user}
+            onFermer={() => setPaiement(null)} apres={recharger} />
+        </>
       )}
     </SafeAreaView>
   )
@@ -180,6 +242,76 @@ function FeuilleDepense({ visible, donnees, soldeCoffre: solde, user, onFermer, 
           </Text>
         </View>
       )}
+      <Bouton titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
+    </Feuille>
+  )
+}
+
+// Autre charge notée avant d'être payée : catégorie, restaurant ou Groupe,
+// libellé, montant. Elle se paie ensuite depuis son détail (une ou plusieurs fois).
+function FeuilleChargeAPayer({ du, donnees, user, onFermer, apres }) {
+  const { styles } = useStylesTreso()
+  const [categorie, setCategorie] = useState(null)
+  const [restaurantId, setRestaurantId] = useState(undefined)
+  const [libelle, setLibelle] = useState('')
+  const [montant, setMontant] = useState('')
+  const [note, setNote] = useState('')
+  const [occupe, setOccupe] = useState(false)
+
+  useEffect(() => {
+    if (!du) return
+    setCategorie(du.categorie_direction || null)
+    setRestaurantId(du.id ? du.restaurant_id || null : undefined)
+    setLibelle(du.libelle || '')
+    setMontant(du.montant_du != null ? String(du.montant_du) : '')
+    setNote(du.note || '')
+  }, [du])
+
+  if (!du) return null
+  const cat = categorieDirection(categorie)
+
+  async function enregistrer() {
+    const v = montant === '' ? 0 : parseInt(montant, 10)
+    if (!categorie) { Alert.alert('Catégorie manquante', 'Choisissez la catégorie.'); return }
+    if (restaurantId === undefined) { Alert.alert('Restaurant manquant', 'Choisissez un restaurant ou « Groupe ».'); return }
+    if (!libelle.trim()) { Alert.alert('Libellé manquant', 'Dites ce qu\'il faut payer, par exemple « Facture électricité ».'); return }
+    if (!v) { Alert.alert('Montant manquant', 'Saisissez le montant à payer.'); return }
+    setOccupe(true)
+    try {
+      await enregistrerDu({
+        id: du.id, categorie: 'autre', restaurant_id: restaurantId, libelle: libelle.trim(),
+        categorie_direction: categorie, montant_du: v, note: note.trim(),
+      }, user)
+      await apres()
+      onFermer()
+    } catch (e) {
+      Alert.alert('Non enregistrée', e?.message || 'Réessayez.')
+    } finally {
+      setOccupe(false)
+    }
+  }
+
+  return (
+    <Feuille visible onFermer={onFermer} titre={du.id ? 'Modifier la charge à payer' : 'Charge à payer'}>
+      <Text style={styles.label}>Catégorie</Text>
+      <Puces options={CATEGORIES_CHARGE_A_PAYER.map(c => ({ valeur: c.id, label: c.label }))} valeur={categorie} onChange={setCategorie} />
+      {cat?.aide && <Text style={[styles.petit, { marginTop: -6, marginBottom: 10 }]}>{cat.aide}</Text>}
+      <Text style={styles.label}>Restaurant</Text>
+      <Puces options={[{ valeur: null, label: 'Groupe' }, ...donnees.restaurants.map(r => ({ valeur: r.id, label: r.nom }))]}
+        valeur={restaurantId} onChange={setRestaurantId} />
+      <Champ label="Libellé" value={libelle} onChangeText={setLibelle} placeholder="Ex : facture électricité" />
+      <ChampMontant label="Montant à payer" valeur={montant} onChange={setMontant} />
+      <Champ label="Note (facultatif)" value={note} onChangeText={setNote} />
+      {cat && restaurantId !== undefined && (
+        <View style={styles.avert}>
+          <Text style={styles.avertTxt}>
+            {compteDansResultat({ categorie, restaurant_id: restaurantId })
+              ? 'Une fois payée, elle réduira le résultat net du restaurant (mois du paiement).'
+              : 'Elle ne touchera pas le résultat des restaurants.'}
+          </Text>
+        </View>
+      )}
+      <Text style={[styles.petit, { marginBottom: 10 }]}>Pas de date limite : elle ne passe jamais en dette récente. Vous pouvez la passer en Dette depuis son détail.</Text>
       <Bouton titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
     </Feuille>
   )

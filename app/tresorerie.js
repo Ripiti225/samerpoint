@@ -36,9 +36,9 @@ export default function TresorerieScreen() {
     return () => { vivant = false }
   }, [niveau, donnees])
 
-  // Le RH n'a que les salaires et la CNPS : on l'y emmène directement.
+  // Le RH ne saisit que les charges (loyers, salaires, CNPS, impôts…) : on l'y emmène directement.
   useEffect(() => {
-    if (niveau === 'saisie_rh') router.replace('/tresorerie-a-payer?onglet=salaire')
+    if (niveau === 'saisie_rh') router.replace('/tresorerie-a-payer?onglet=loyer')
   }, [niveau])
 
   const partenaires = useMemo(() => {
@@ -109,7 +109,7 @@ export default function TresorerieScreen() {
             <Ligne label="− Loyers restants" valeur={r.loyers} signe="-" couleur={colors.error} />
             <Ligne label="− Salaires restants" valeur={r.salaires} signe="-" couleur={colors.error} />
             <Ligne label="− CNPS" valeur={r.cnps} signe="-" couleur={colors.error} />
-            <Ligne label="− Impôts et autres charges admin" valeur={r.admin} signe="-" couleur={colors.error} />
+            <Ligne label="− Impôts, ITS, TEE, bail et autres charges" valeur={r.admin} signe="-" couleur={colors.error} />
             {peut(niveau, 'voir_dettes') && (
               <Ligne label="− Carnet de dettes" valeur={r.dettes} signe="-" couleur={colors.error} />
             )}
@@ -144,7 +144,7 @@ export default function TresorerieScreen() {
           <View style={styles.tuiles}>
             <Tuile icone="🏦" titre="Banque" sous={`${fmt(r.banque)} F · BACI · SIB`} route="/tresorerie-banque" />
             <Tuile icone="🛵" titre="Partenaires" sous={`${fmt(r.partenaires)} F à recevoir`} route="/tresorerie-partenaires" />
-            <Tuile icone="📋" titre="À payer" sous="Loyers · salaires · CNPS · admin" route="/tresorerie-a-payer" />
+            <Tuile icone="📋" titre="À payer" sous="Loyers · salaires · CNPS · impôts · dettes" route="/tresorerie-a-payer" />
             {peut(niveau, 'voir_dettes') && (
               <Tuile icone="📒" titre="Dettes" sous={`${fmt(r.dettes)} F à rembourser`} route="/tresorerie-a-payer?onglet=dette" />
             )}
@@ -225,7 +225,7 @@ function FeuilleDroits({ visible, onFermer, droits, user, apres }) {
   const options = [
     { valeur: 'proprietaire', label: 'Propriétaire' },
     { valeur: 'lecture', label: 'Lecture' },
-    { valeur: 'saisie_rh', label: 'Salaires / CNPS' },
+    { valeur: 'saisie_rh', label: 'RH (charges)' },
     { valeur: null, label: 'Par défaut' },
   ]
 
@@ -233,7 +233,7 @@ function FeuilleDroits({ visible, onFermer, droits, user, apres }) {
     <Feuille visible={visible} titre="Droits de la trésorerie" onFermer={onFermer}>
       <View style={styles.avert}>
         <Text style={styles.avertTxt}>
-          Par défaut : managers et directeur en lecture, RH en saisie des salaires et de la CNPS.
+          Par défaut : managers et directeur en lecture, RH en saisie des charges (loyers, salaires, CNPS, impôts, ITS, TEE, bail).
           Tant qu'aucun propriétaire n'est désigné, tous les managers ont tout.
           Ces droits règlent l'affichage dans l'app, pas l'accès à la base.
         </Text>
