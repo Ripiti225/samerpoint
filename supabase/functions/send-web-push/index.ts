@@ -92,8 +92,9 @@ Deno.serve(async (req) => {
       // (2a) rôles globaux → résoudre les user_ids puis leurs appareils perso.
       const rolesGlobaux = cibleRole.filter((r) => GLOBAL_ROLES.includes(r))
       if (rolesGlobaux.length > 0) {
+        // Comptes actifs seulement : un compte désactivé ne reçoit plus rien.
         const { data: users } = await admin
-          .from('utilisateurs').select('id').in('role', rolesGlobaux)
+          .from('utilisateurs').select('id').in('role', rolesGlobaux).eq('actif', true)
         const ids = (users ?? []).map((u: { id: string }) => u.id)
         if (ids.length > 0) {
           const { data } = await admin
