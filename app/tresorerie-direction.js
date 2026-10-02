@@ -1,8 +1,9 @@
 // ──────────────────────────────────────────────────────────────────────────────
 // Trésorerie — Dépenses direction (M. Zreik seul).
 //
-// Chaque dépense sort de sa source (BACI / SIB → banque, coffre → coffre,
-// espèces → rien ailleurs). Réparation, matériel et équipement d'un restaurant
+// Chaque dépense sort de son compte (Espèces, BACI ou SIB). Le coffre n'est
+// plus une source : on emprunte au coffre (avec date de remboursement), puis on
+// paie depuis le compte. Réparation, matériel et équipement d'un restaurant
 // comptent dans son résultat ; fond, investissement et retrait perso non.
 //
 // En tête : les autres charges notées AVANT d'être payées (catégorie « autre »
@@ -16,7 +17,7 @@ import {
 } from '../components/tresorerie/commun'
 import { Badge, FeuilleDetail, FeuillePaiement, couleursStatut } from '../components/tresorerie/du'
 import {
-  CATEGORIES_CHARGE_A_PAYER, CATEGORIES_DIRECTION, categorieDirection, compteDansResultat, soldeCoffre,
+  CATEGORIES_CHARGE_A_PAYER, CATEGORIES_DIRECTION, categorieDirection, compteDansResultat,
 } from '../lib/direction'
 import { usePhoto } from '../lib/usePhoto'
 import {
@@ -138,7 +139,7 @@ export default function TresorerieDirectionScreen() {
       <Entete titre="Dépenses direction" sous="M. Zreik seul" />
       {contenu}
       {donnees && d && (
-        <FeuilleDepense visible={saisie} donnees={donnees} soldeCoffre={soldeCoffre(d.coffre)} user={user}
+        <FeuilleDepense visible={saisie} donnees={donnees} user={user}
           onFermer={() => setSaisie(false)} apres={recharger} />
       )}
       {donnees && (
@@ -160,7 +161,7 @@ export default function TresorerieDirectionScreen() {
   )
 }
 
-function FeuilleDepense({ visible, donnees, soldeCoffre: solde, user, onFermer, apres }) {
+function FeuilleDepense({ visible, donnees, user, onFermer, apres }) {
   const { styles } = useStylesTreso()
   const { choisirPhoto } = usePhoto()
   const [categorie, setCategorie] = useState(null)
@@ -194,11 +195,10 @@ function FeuilleDepense({ visible, donnees, soldeCoffre: solde, user, onFermer, 
     if (restaurantId === undefined) { Alert.alert('Restaurant manquant', 'Choisissez un restaurant ou « Groupe ».'); return }
     if (!source) { Alert.alert('Source manquante', 'D\'où part l\'argent ?'); return }
     if (!v) { Alert.alert('Montant manquant', 'Saisissez le montant.'); return }
-    if (source === 'coffre' && v > solde) { Alert.alert('Coffre insuffisant', `Le coffre ne contient que ${fmt(solde)} F.`); return }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Écrivez la date au format AAAA-MM-JJ.'); return }
     setOccupe(true)
     try {
-      const estCompte = source !== 'especes' && source !== 'coffre'
+      const estCompte = source !== 'especes'
       await ajouterDepenseDirection({
         date, categorie, restaurantId, montant: v,
         source: estCompte ? 'compte' : source, compteId: estCompte ? source : null,
@@ -225,8 +225,8 @@ function FeuilleDepense({ visible, donnees, soldeCoffre: solde, user, onFermer, 
       <Text style={styles.label}>Payé depuis</Text>
       <Puces options={[
         ...donnees.comptes.map(c => ({ valeur: c.id, label: c.nom })),
-        { valeur: 'especes', label: 'Espèces' },
-        { valeur: 'coffre', label: `Coffre (${fmt(solde)})` },
+        // Ancienne option sans compte : seulement avant la migration des espèces.
+        ...(donnees.comptes.some(c => c.nom === 'Espèces') ? [] : [{ valeur: 'especes', label: 'Espèces' }]),
       ]} valeur={source} onChange={setSource} />
       <ChampMontant label="Montant" valeur={montant} onChange={setMontant} />
       <Champ label="Date (AAAA-MM-JJ)" value={date} onChangeText={setDate} autoCapitalize="none" />

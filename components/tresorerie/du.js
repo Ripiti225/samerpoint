@@ -58,9 +58,9 @@ export function FeuilleDetail({
   const nomCompte = id => donnees.comptes.find(c => c.id === id)?.nom || '?'
   const peutModifier = peutModifierDu(niveau, du)
   const cs = couleursStatut(colors)
-  // Passage manuel en Dette : autres charges seulement (les charges en série y
-  // vont seules, les créanciers y sont déjà).
-  const peutBasculer = du.categorie === 'autre' && reste > 0 && peut(niveau, 'payer')
+  // Passage manuel en Dette : autres charges et prêts en espèces (les charges
+  // en série y vont seules, les autres créanciers y sont déjà).
+  const peutBasculer = (du.categorie === 'autre' || du.est_pret) && reste > 0 && peut(niveau, 'payer')
 
   // Les lignes d'un même versement s'annulent ensemble.
   function annuler(p) {
@@ -261,9 +261,11 @@ export function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFer
     }
   }
 
+  // Espèces est un compte (étape 2) ; l'ancienne option sans compte ne reste
+  // que tant que la migration supabase_tresorerie_especes.sql n'est pas passée.
   const sources = [
     ...donnees.comptes.map(c => ({ valeur: c.id, label: c.nom })),
-    { valeur: 'especes', label: 'Espèces' },
+    ...(donnees.comptes.some(c => c.nom === 'Espèces') ? [] : [{ valeur: 'especes', label: 'Espèces' }]),
   ]
   const titre = estLoyer
     ? `Payer le loyer ${nomResto(restaurantId)}`
@@ -293,7 +295,7 @@ export function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFer
       <Bouton secondaire titre={photo ? 'Changer la photo' : '📷 Ajouter une photo'} onPress={ajouterPhoto} occupe={photoEnCours} style={{ marginBottom: 14 }} />
       <Bouton titre="Enregistrer le paiement" onPress={enregistrer} occupe={occupe} />
       <Text style={[styles.petit, { marginTop: 10, color: colors.textMuted }]}>
-        Payé depuis BACI ou SIB : la sortie apparaît dans la banque. En espèces : rien ne bouge en banque.
+        Le montant sort du compte choisi : Espèces, BACI ou SIB.
       </Text>
     </Feuille>
   )

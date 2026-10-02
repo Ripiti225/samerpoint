@@ -12,7 +12,7 @@ import { Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'r
 import {
   Bouton, ChampMontant, Entete, EtatEcran, Feuille, Ligne, Puces, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
-import { objectifDuMois, progression, soldeCoffre } from '../lib/direction'
+import { objectifDuMois, progression, resteARembourser, soldeCoffre } from '../lib/direction'
 import { chargerAlertes, chargerPlafonds, enregistrerPlafonds } from '../lib/alertesDb'
 import { totalPartenaires } from '../lib/partenaires'
 import {
@@ -102,7 +102,7 @@ export default function TresorerieScreen() {
               {r.nette >= 0 ? '+ ' : '− '}{fmt(Math.abs(r.nette))} F
             </Text>
             <View style={styles.sep} />
-            <Ligne label="Banque (BACI + SIB)" valeur={r.banque} />
+            <Ligne label="Banque et espèces" valeur={r.banque} />
             <Ligne
               label={donnees.partenaires === null ? '+ Partenaires à recevoir (migration à passer)' : '+ Partenaires à recevoir'}
               valeur={r.partenaires} signe="+" couleur={donnees.partenaires === null ? colors.textMuted : colors.success}
@@ -125,6 +125,7 @@ export default function TresorerieScreen() {
             const solde = soldeCoffre(donnees.direction.coffre)
             const objectif = objectifDuMois(donnees.direction.objectifs, premierDuMois(aujourdhuiISO()))
             const pct = progression(solde, objectif)
+            const aRendre = resteARembourser(donnees.direction.emprunts)
             return (
               <TouchableOpacity style={styles.carte} onPress={() => router.push('/tresorerie-coffre')}>
                 <View style={styles.ligne}>
@@ -138,12 +139,13 @@ export default function TresorerieScreen() {
                   <Text style={styles.petit}>{fmt(solde)} F</Text>
                   <Text style={styles.petit}>{objectif ? `objectif ${fmt(objectif)} F` : 'objectif à fixer'}</Text>
                 </View>
+                {aRendre > 0 && <Text style={[styles.petit, { color: colors.warningDark, fontWeight: '700' }]}>À rembourser au coffre : {fmt(aRendre)} F</Text>}
               </TouchableOpacity>
             )
           })()}
 
           <View style={styles.tuiles}>
-            <Tuile icone="🏦" titre="Banque" sous={`${fmt(r.banque)} F · BACI · SIB`} route="/tresorerie-banque" />
+            <Tuile icone="🏦" titre="Banque et espèces" sous={`${fmt(r.banque)} F · BACI · SIB · espèces`} route="/tresorerie-banque" />
             <Tuile icone="🛵" titre="Partenaires" sous={`${fmt(r.partenaires)} F à recevoir`} route="/tresorerie-partenaires" />
             <Tuile icone="📋" titre="À payer" sous="Loyers · salaires · CNPS · impôts · dettes" route="/tresorerie-a-payer" />
             {peut(niveau, 'voir_dettes') && (
