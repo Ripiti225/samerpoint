@@ -157,13 +157,14 @@ export default function TresorerieScreen() {
           {/* Chaque bloc se déroule sur place (montants) ; les écrans s'ouvrent par les raccourcis du bas. */}
           <Bloc titre="Trésorerie nette réelle" grand valeur={s.nette} ouvert={ouvert.nette} onBasculer={() => basculer('nette')}
             couleur={s.nette >= 0 ? colors.success : colors.error}>
-            <Ligne label="Banque et espèces" valeur={s.banque + s.especes} />
+            <Ligne label="Banque, espèces et têtes de fond" valeur={s.banque + s.especes + s.tetes} />
             <Ligne label="− Prévisions" valeur={s.prevu} signe="-" couleur={colors.error} />
           </Bloc>
 
           <Bloc titre="Trésorerie" valeur={s.tresorerie} ouvert={ouvert.tresorerie} onBasculer={() => basculer('tresorerie')}>
             <Ligne label="Banque (BACI, SIB)" valeur={s.banque} />
             <Ligne label={aEspeces ? 'Espèces' : 'Espèces (migration à passer)'} valeur={s.especes} />
+            <Ligne label="Têtes de fond (OM, Wave, Djamo)" valeur={s.tetes} />
             <Ligne label={donnees.partenaires === null ? 'Partenaires à recevoir (migration à passer)' : 'Partenaires à recevoir'}
               valeur={s.partenaires} />
             <Text style={[styles.petit, { marginTop: 6 }]}>
@@ -262,7 +263,7 @@ export default function TresorerieScreen() {
           })()}
 
           <View style={styles.tuiles}>
-            <Tuile icone="🏦" titre="Banque et espèces" sous={`${fmt(s.banque + s.especes)} F · BACI · SIB · espèces`} route="/tresorerie-banque" />
+            <Tuile icone="🏦" titre="Banque et espèces" sous={`${fmt(s.banque + s.especes + s.tetes)} F · BACI · SIB · espèces · têtes de fond`} route="/tresorerie-banque" />
             <Tuile icone="🛵" titre="Partenaires" sous={`${fmt(s.partenaires)} F à recevoir`} route="/tresorerie-partenaires" />
             <Tuile icone="📋" titre="À payer" sous="Loyers · salaires · CNPS · impôts…" route="/tresorerie-a-payer" />
             {peut(niveau, 'voir_dettes') && (

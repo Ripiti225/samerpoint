@@ -289,3 +289,19 @@ Décisions du 02/10/2026 :
 
 Migration : `supabase_tresorerie_rappels.sql` (pg_cron, pg_net, deux tâches).
 Tests : `lib/rappelsTresorerie.test.mjs`.
+
+---
+
+## Têtes de fond OM, Wave, Djamo (02/10/2026)
+
+- L'argent de chaque restaurant arrive d'abord sur la **tête de fond** du
+  partenaire : trois comptes « Tête de fond OM / Wave / Djamo » à côté de
+  BACI, SIB et Espèces ; ils comptent dans la trésorerie (ligne à part).
+- Mode de versement `tete_de_fond` (par défaut pour OM, Wave, Djamo) : en bas
+  de la période, « Marquer reçu » liste chaque restaurant (attendu, montant
+  réellement reçu, prérempli, peut dépasser l'attendu) ; le **total** entre
+  sur la tête de fond en un seul mouvement ; l'écart est noté par restaurant.
+- Le passage vers la banque se fait par « Virement entre comptes ».
+- Annuler une réception l'annule en entier (tous ses restaurants).
+
+Migration : `supabase_tresorerie_tetes_de_fond.sql`.

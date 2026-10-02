@@ -1,6 +1,7 @@
 // ──────────────────────────────────────────────────────────────────────────────
-// Trésorerie — Banque et espèces : soldes BACI / SIB / Espèces, recalage,
-// reçus banque, entrées d'espèces (restaurant ou prêt), virements.
+// Trésorerie — Banque et espèces : soldes BACI / SIB / Espèces / têtes de fond
+// (OM, Wave, Djamo), recalage, reçus banque, entrées d'espèces (restaurant ou
+// prêt), virements (ex. tête de fond → BACI).
 //
 // Le solde n'est jamais saisi directement : c'est la somme des mouvements.
 // « Recaler » ajoute le mouvement qui aligne l'app sur le relevé (ou sur la
@@ -42,6 +43,7 @@ const LIES = {
 }
 
 const estEspeces = c => c?.nom === 'Espèces'
+const estTete = c => String(c?.nom || '').startsWith('Tête de fond')
 
 export default function TresorerieBanqueScreen() {
   const { styles, colors } = useStylesTreso()
@@ -109,12 +111,12 @@ export default function TresorerieBanqueScreen() {
                 {peutSaisir && (
                   <View style={[styles.rangee, { marginTop: 10 }]}>
                     <Bouton style={[styles.btnPetit, { flex: 1 }]} secondaire
-                      titre={!dernierRecalage ? 'Saisir le solde de départ' : estEspeces(c) ? 'Recaler sur la caisse' : 'Recaler sur relevé'}
+                      titre={!dernierRecalage ? 'Saisir le solde de départ' : estEspeces(c) ? 'Recaler sur la caisse' : estTete(c) ? 'Recaler sur le solde' : 'Recaler sur relevé'}
                       onPress={() => setSaisie({ mode: 'recalage', compte: c })} />
                     {estEspeces(c) ? (
                       <Bouton style={[styles.btnPetit, { flex: 1 }]} titre="+ Entrée d'espèces" onPress={() => setEspeces(c)} />
                     ) : (
-                      <Bouton style={[styles.btnPetit, { flex: 1 }]} titre="+ Reçu banque"
+                      <Bouton style={[styles.btnPetit, { flex: 1 }]} titre={estTete(c) ? '+ Entrée' : '+ Reçu banque'}
                         onPress={() => setSaisie({ mode: 'recu_banque', compte: c })} />
                     )}
                   </View>

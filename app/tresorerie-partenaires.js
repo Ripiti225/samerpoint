@@ -4,11 +4,13 @@
 // Une période affiche UNE valeur : l'export s'il est importé (l'estimé est alors
 // barré), sinon l'estimé tiré des points. Seules les périodes terminées comptent
 // dans le total. La période en cours est affichée à part, pour information.
-// Chaque partenaire a ses propres réceptions ; seul Yango verse en un virement.
+// Chaque partenaire a ses propres réceptions : Glovo par restaurant, Yango en un
+// virement, OM / Wave / Djamo sur leur tête de fond (reçu noté par restaurant,
+// le total entre sur la tête de fond ; un virement l'envoie ensuite en banque).
 // Logique : lib/partenaires.js · lecture des exports : lib/partenairesImport.js
 // ──────────────────────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { Alert, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
 
 import {
   Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Ligne, Puces, useStylesTreso, useTresorerie,
@@ -16,15 +18,21 @@ import {
 import ChampDate from '../components/ChampDate'
 import { choisirEtLireExcel } from '../lib/lireExcel'
 import {
-  INFOS_PARTENAIRE, MODE_PAR_DEFAUT, PARTENAIRES, ajouterJours, estimerPeriode, libellePeriode,
+  COMPTE_TETE_DE_FOND, INFOS_PARTENAIRE, MODE_PAR_DEFAUT, PARTENAIRES, ajouterJours, estimerPeriode, libellePeriode,
   periodeDe, periodesSuivies, situationPeriode,
 } from '../lib/partenaires'
 import { CODES, analyserGlovo, analyserYango } from '../lib/partenairesImport'
 import { aujourdhuiISO, fmt, formatDateFR, peut } from '../lib/tresorerie'
 import {
   ajouterPub, annulerReception, enregistrerAlias, enregistrerReglagePartenaire, importerExport,
-  recevoir, supprimerImport, supprimerLignePub,
+  recevoir, recevoirDetaille, supprimerImport, supprimerLignePub,
 } from '../lib/tresorerieDb'
+
+const LIBELLES_MODE = {
+  groupe: 'un virement pour tous les restaurants',
+  restaurant: 'un virement par restaurant',
+  tete_de_fond: 'reçu par restaurant sur la tête de fond',
+}
 
 const PERIODES_RECUES_VISIBLES = 3
 
@@ -136,7 +144,7 @@ function CartePartenaire({ partenaire, vue, niveau, onOuvrir, onRegler, onImport
         <Text style={[styles.ligneValeur, { fontSize: 16 }]}>{fmt(vue.total)}</Text>
       </View>
       <Text style={styles.petit}>
-        {info.rythme} · {vue.mode === 'groupe' ? 'un virement pour tous les restaurants' : 'un virement par restaurant'}
+        {info.rythme} · {LIBELLES_MODE[vue.mode] || LIBELLES_MODE.restaurant}
         {reg.date_depart ? ` · suivi depuis le ${formatDateFR(reg.date_depart)}` : ''}
       </Text>
 
@@ -228,6 +236,7 @@ function LignePeriode({ s, onPress, enCours }) {
 function FeuillePeriode({ ouverte, situation, vue, donnees, niveau, nomResto, user, onFermer, apres, onImporter }) {
   const { styles, colors } = useStylesTreso()
   const [reception, setReception] = useState(null)   // { restaurantId | null, attendu }
+  const [receptionTete, setReceptionTete] = useState(false)
   const [pubVisible, setPubVisible] = useState(false)
 
   if (!ouverte || !situation) return null
@@ -239,7 +248,11 @@ function FeuillePeriode({ ouverte, situation, vue, donnees, niveau, nomResto, us
   const nomCompte = id => donnees.comptes.find(c => c.id === id)?.nom || '?'
 
   function annuler(l) {
-    Alert.alert('Annuler cette réception ?', `${fmt(l.montant)} F du ${formatDateFR(l.date)}. L'entrée en banque est retirée aussi.`, [
+    // Une réception sur la tête de fond regroupe plusieurs restaurants : elle s'annule en entier.
+    const memes = l.mouvement_id ? lignes.filter(x => x.type === 'recu' && x.mouvement_id === l.mouvement_id) : [l]
+    const total = memes.reduce((t, x) => t + Number(x.montant || 0), 0)
+    const detail = memes.length > 1 ? ` (toute la réception : ${memes.length} restaurants)` : ''
+    Alert.alert('Annuler cette réception ?', `${fmt(total)} F du ${formatDateFR(l.date)}${detail}. L'entrée sur le compte est retirée aussi.`, [
       { text: 'Garder', style: 'cancel' },
       {
         text: 'Annuler la réception', style: 'destructive', onPress: async () => {
@@ -275,6 +288,7 @@ function FeuillePeriode({ ouverte, situation, vue, donnees, niveau, nomResto, us
   }
 
   const groupe = vue.mode === 'groupe'
+  const tete = vue.mode === 'tete_de_fond'
   const recusGroupe = lignes.filter(l => l.type === 'recu' && !l.restaurant_id)
 
   return (
@@ -302,7 +316,7 @@ function FeuillePeriode({ ouverte, situation, vue, donnees, niveau, nomResto, us
                 </Text>
               </View>
               <Text style={styles.ligneValeur}>{fmt(r.attendu)}</Text>
-              {!groupe && !r.recuFait && peutRecevoir && situation.terminee && (
+              {!groupe && !tete && !r.recuFait && peutRecevoir && situation.terminee && (
                 <Bouton titre="Reçu" style={styles.btnPetit}
                   onPress={() => setReception({ restaurantId: r.restaurant_id, attendu: r.attendu })} />
               )}
@@ -322,6 +336,20 @@ function FeuillePeriode({ ouverte, situation, vue, donnees, niveau, nomResto, us
           )}
           {!situation.recuFait && peutRecevoir && situation.terminee && (
             <Bouton titre="✓ Marquer reçu" style={{ marginTop: 8 }} onPress={() => setReception({ restaurantId: null, attendu: situation.attendu })} />
+          )}
+        </View>
+      )}
+
+      {tete && (
+        <View style={styles.carte}>
+          <Text style={[styles.lbl, { marginBottom: 6 }]}>Réception sur la tête de fond</Text>
+          <Text style={styles.petit}>
+            {situation.recuFait
+              ? 'Reçu. Pour l\'envoyer en banque : Banque et espèces → Virement entre comptes.'
+              : 'Notez ce que chaque restaurant a versé ; le total entre sur la tête de fond.'}
+          </Text>
+          {!situation.recuFait && peutRecevoir && situation.terminee && (
+            <Bouton titre="✓ Marquer reçu" style={{ marginTop: 8 }} onPress={() => setReceptionTete(true)} />
           )}
         </View>
       )}
@@ -367,6 +395,10 @@ function FeuillePeriode({ ouverte, situation, vue, donnees, niveau, nomResto, us
       <FeuilleReception
         demande={reception} partenaire={partenaire} periode={periode} donnees={donnees} nomResto={nomResto} user={user}
         onFermer={() => setReception(null)} apres={apres}
+      />
+      <FeuilleReceptionTete
+        visible={receptionTete} partenaire={partenaire} periode={periode} situation={situation} donnees={donnees}
+        nomResto={nomResto} user={user} onFermer={() => setReceptionTete(false)} apres={apres}
       />
       <FeuillePub
         visible={pubVisible} partenaire={partenaire} periode={periode} situation={situation} donnees={donnees} user={user}
@@ -437,6 +469,104 @@ function FeuilleReception({ demande, partenaire, periode, donnees, nomResto, use
       )}
       <Bouton titre="Enregistrer la réception" onPress={enregistrer} occupe={occupe} />
       <Text style={[styles.petit, { marginTop: 10 }]}>Le montant entre dans le solde du compte choisi.</Text>
+    </Feuille>
+  )
+}
+
+// ── Marquer reçu sur la tête de fond (OM, Wave, Djamo) ───────────────────────
+
+// Le reçu de chaque restaurant (prérempli avec l'attendu, il peut le dépasser) ;
+// leur total entre sur la tête de fond en une seule entrée.
+function FeuilleReceptionTete({ visible, partenaire, periode, situation, donnees, nomResto, user, onFermer, apres }) {
+  const { styles, colors } = useStylesTreso()
+  const [valeurs, setValeurs] = useState({})
+  const [compte, setCompte] = useState(null)
+  const [date, setDate] = useState(aujourdhuiISO())
+  const [note, setNote] = useState('')
+  const [occupe, setOccupe] = useState(false)
+
+  const attendus = useMemo(
+    () => Object.fromEntries((situation?.parResto || []).map(r => [r.restaurant_id, r.attendu])),
+    [situation],
+  )
+  // Restaurants qui ont un attendu d'abord, puis les autres (un reçu imprévu reste possible).
+  const restos = useMemo(() => [...(donnees.restaurants || [])]
+    .sort((a, b) => (attendus[b.id] ? 1 : 0) - (attendus[a.id] ? 1 : 0) || a.nom.localeCompare(b.nom)), [donnees, attendus])
+
+  useEffect(() => {
+    if (!visible) return
+    setValeurs(Object.fromEntries(restos.map(r => [r.id, attendus[r.id] > 0 ? String(attendus[r.id]) : ''])))
+    const tete = donnees.comptes.find(c => c.nom === COMPTE_TETE_DE_FOND[partenaire])
+    setCompte(tete?.id || null)
+    setDate(aujourdhuiISO())
+    setNote('')
+  }, [visible])
+
+  if (!visible || !situation) return null
+  const info = INFOS_PARTENAIRE[partenaire]
+  const lire = t => (t === '' || t == null ? 0 : parseInt(t, 10) || 0)
+  const total = restos.reduce((t, r) => t + lire(valeurs[r.id]), 0)
+  const ecart = total - situation.attendu
+
+  async function enregistrer() {
+    const parts = restos.map(r => ({ restaurant_id: r.id, montant: lire(valeurs[r.id]) })).filter(x => x.montant > 0)
+    if (!parts.length) { Alert.alert('Montant manquant', 'Saisissez ce que chaque restaurant a versé.'); return }
+    if (!compte) { Alert.alert('Compte manquant', 'Choisissez le compte où l\'argent est arrivé (la tête de fond).'); return }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Écrivez la date au format AAAA-MM-JJ.'); return }
+    setOccupe(true)
+    try {
+      await recevoirDetaille({
+        partenaire, periodeDebut: periode.debut, parts, compteId: compte, date, note: note.trim(),
+        libelle: `${info.nom} ${libellePeriode(periode)} · ${parts.length} restaurant${parts.length > 1 ? 's' : ''}`,
+      }, user)
+      await apres()
+      onFermer()
+    } catch (e) {
+      Alert.alert('Réception non enregistrée', e?.message || 'Réessayez.')
+    } finally {
+      setOccupe(false)
+    }
+  }
+
+  return (
+    <Feuille visible onFermer={onFermer} titre={`${info.nom} reçu · ${libellePeriode(periode)}`}>
+      <Text style={[styles.petit, { marginBottom: 10 }]}>
+        Ce que chaque restaurant a réellement versé sur la tête de fond (prérempli avec l'attendu).
+      </Text>
+      {restos.map(r => {
+        const a = attendus[r.id] || 0
+        const e = lire(valeurs[r.id]) - a
+        return (
+          <View key={r.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.itemTitre}>{nomResto(r.id)}</Text>
+              <Text style={styles.petit}>attendu {fmt(a)}{valeurs[r.id] !== '' && e !== 0 ? ` · écart ${e > 0 ? '+' : '−'} ${fmt(Math.abs(e))}` : ''}</Text>
+            </View>
+            <TextInput
+              style={[styles.input, { width: 140, textAlign: 'right', paddingVertical: 9 }]}
+              value={valeurs[r.id] ?? ''} placeholder="0" placeholderTextColor={colors.textMuted} keyboardType="number-pad"
+              onChangeText={t => setValeurs(x => ({ ...x, [r.id]: t.replace(/[^\d]/g, '') }))}
+            />
+          </View>
+        )
+      })}
+      <View style={styles.carte}>
+        <Ligne label="Attendu" valeur={situation.attendu} />
+        <Ligne label="Total reçu" valeur={total} fort />
+        {total > 0 && ecart !== 0 && (
+          <Text style={[styles.petit, { color: ecart > 0 ? colors.success : colors.error }]}>
+            Écart de {ecart > 0 ? '+' : '−'} {fmt(Math.abs(ecart))} F avec l'attendu.
+          </Text>
+        )}
+      </View>
+      <Text style={styles.label}>Arrivé sur</Text>
+      <Puces options={donnees.comptes.map(c => ({ valeur: c.id, label: c.nom }))} valeur={compte} onChange={setCompte} />
+      <Champ label="Date de réception (AAAA-MM-JJ)" value={date} onChangeText={setDate} autoCapitalize="none" />
+      <Champ label="Note (facultatif)" value={note} onChangeText={setNote} />
+      <Bouton titre={`Enregistrer · ${fmt(total)} F`} onPress={enregistrer} occupe={occupe} />
+      <Text style={[styles.petit, { marginTop: 10 }]}>
+        Le total entre sur le compte choisi. Pour l'envoyer en banque : Banque et espèces → Virement entre comptes.
+      </Text>
     </Feuille>
   )
 }
@@ -538,7 +668,11 @@ function FeuilleReglage({ partenaire, reglages, user, onFermer, apres }) {
       )}
       <Text style={styles.label}>Versement</Text>
       <Puces
-        options={[{ valeur: 'groupe', label: 'Un virement pour tous' }, { valeur: 'restaurant', label: 'Un virement par restaurant' }]}
+        options={[
+          { valeur: 'groupe', label: 'Un virement pour tous' },
+          { valeur: 'restaurant', label: 'Un virement par restaurant' },
+          ...(COMPTE_TETE_DE_FOND[partenaire] ? [{ valeur: 'tete_de_fond', label: 'Par restaurant sur la tête de fond' }] : []),
+        ]}
         valeur={mode} onChange={setMode}
       />
       <Bouton titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
