@@ -1,22 +1,27 @@
 // ──────────────────────────────────────────────────────────────────────────────
-// Trésorerie — vue d'ensemble : la trésorerie nette réelle et sa formule.
+// Trésorerie — accueil.
 //
-// En haut : les alertes en cours (déficit, CNPS > 60 j, fond bas), chargées à
-// part pour ne pas retarder l'affichage de la trésorerie.
-// Spéc : docs/superpowers/specs/2026-10-01-tresorerie-socle-design.md
+// De haut en bas : alertes · trésorerie nette réelle (banque + espèces −
+// prévisions) · trésorerie (+ partenaires à recevoir) · prévisions · dépenses
+// du mois · dette récente · dette · coffre · raccourcis. Les blocs mènent à
+// leur écran ; une ligne de dépense ou de dette ouvre son détail (payer).
+// Les alertes sont chargées à part pour ne pas retarder l'affichage.
+// Spéc : docs/superpowers/specs/2026-10-02-nouvelle-tresorerie-design.md (étape 3)
 // ──────────────────────────────────────────────────────────────────────────────
 import { Redirect, router } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 
 import {
-  Bouton, ChampMontant, Entete, EtatEcran, Feuille, Ligne, Puces, useStylesTreso, useTresorerie,
+  Bouton, ChampMontant, Entete, EtatEcran, Feuille, Puces, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
+import { Badge, FeuilleDetail, FeuillePaiement, couleursStatut, titreDu } from '../components/tresorerie/du'
 import { objectifDuMois, progression, resteARembourser, soldeCoffre } from '../lib/direction'
 import { chargerAlertes, chargerPlafonds, enregistrerPlafonds } from '../lib/alertesDb'
 import { totalPartenaires } from '../lib/partenaires'
 import {
-  NIVEAUX, aujourdhuiISO, calculerTresorerieNette, fmt, fournisseursDus, peut, premierDuMois,
+  LIBELLES_CATEGORIE, NIVEAUX, aujourdhuiISO, classerTous, depensesDuMois, fmt, formatDateFR, fournisseursDus,
+  joursDeRetard, libelleMoisCourt, paiementsParDu, peut, premierDuMois, resteDu, syntheseTresorerie, totalPaye,
 } from '../lib/tresorerie'
 import { chargerUtilisateursAdmin, enregistrerDroit, retirerDroit } from '../lib/tresorerieDb'
 
@@ -28,6 +33,9 @@ export default function TresorerieScreen() {
   const [plafondsVisible, setPlafondsVisible] = useState(false)
   const [alertes, setAlertes] = useState(null)
   const [toutesAlertes, setToutesAlertes] = useState(false)
+  const [ouvert, setOuvert] = useState({ dette_recente: false, dette: false })
+  const [detail, setDetail] = useState(null)       // dû ouvert
+  const [paiement, setPaiement] = useState(null)   // { du } ou { categorie: 'loyer', restaurantId }
 
   useEffect(() => {
     if (!peut(niveau, 'voir_vue') || !donnees) return
@@ -36,23 +44,27 @@ export default function TresorerieScreen() {
     return () => { vivant = false }
   }, [niveau, donnees])
 
+  const aujourdhui = aujourdhuiISO()
   const partenaires = useMemo(() => {
     const p = donnees?.partenaires
     if (!p) return null
-    return totalPartenaires({ reglages: p.reglages, points: p.points, lignes: p.lignes, aujourdhui: aujourdhuiISO() })
-  }, [donnees])
+    return totalPartenaires({ reglages: p.reglages, points: p.points, lignes: p.lignes, aujourdhui })
+  }, [donnees, aujourdhui])
 
-  const r = useMemo(() => {
-    if (!donnees) return null
-    return calculerTresorerieNette({
-      comptes: donnees.comptes,
-      dus: donnees.dus,
-      paiements: donnees.paiements,
-      fournisseursDus: fournisseursDus(donnees.fournisseurs),
-      partenaires: partenaires?.total || 0,
-      moisCourant: premierDuMois(aujourdhuiISO()),
-    })
-  }, [donnees, partenaires])
+  // Prévisions : étape 4 (0 en attendant).
+  const s = useMemo(
+    () => (donnees ? syntheseTresorerie({ comptes: donnees.comptes, partenaires: partenaires?.total || 0, prevu: 0 }) : null),
+    [donnees, partenaires],
+  )
+  const parDu = useMemo(() => paiementsParDu(donnees?.paiements), [donnees])
+  const classement = useMemo(
+    () => (donnees ? classerTous(donnees.dus, donnees.paiements, aujourdhui) : {}),
+    [donnees, aujourdhui],
+  )
+  const depenses = useMemo(
+    () => (donnees ? depensesDuMois(donnees.dus, donnees.paiements, aujourdhui) : []),
+    [donnees, aujourdhui],
+  )
 
   // Le RH ne saisit que les charges (loyers, salaires, CNPS, impôts…) : on l'y
   // emmène directement. <Redirect> plutôt que router.replace dans un effet : ce
@@ -60,8 +72,14 @@ export default function TresorerieScreen() {
   // le montage du layout).
   if (niveau === 'saisie_rh') return <Redirect href="/tresorerie-a-payer?onglet=loyer" />
 
-  const etat = <EtatEcran {...t} autorise={peut(niveau, 'voir_vue') || niveau === 'saisie_rh'} />
+  const etat = <EtatEcran {...t} autorise={peut(niveau, 'voir_vue')} />
   const bloque = (t.loading && !donnees) || t.erreur || !niveau || !peut(niveau, 'voir_vue')
+  const nomResto = id => donnees?.restaurants.find(r => r.id === id)?.nom || 'Groupe'
+  const reste = d => resteDu(d, parDu[d.id])
+  const enDette = cle => (donnees?.dus || []).filter(d => classement[d.id] === cle)
+    .sort((a, b) => (a.echeance || '9999').localeCompare(b.echeance || '9999'))
+  const sections = ['dette_recente', ...(peut(niveau, 'voir_dettes') ? ['dette'] : [])]
+  const aEspeces = (donnees?.comptes || []).some(c => c.nom === 'Espèces')
 
   return (
     <SafeAreaView style={styles.container}>
@@ -96,40 +114,88 @@ export default function TresorerieScreen() {
             </TouchableOpacity>
           )}
 
-          <View style={styles.carte}>
+          {/* 1 · Trésorerie nette réelle */}
+          <TouchableOpacity style={styles.carte} onPress={() => router.push('/tresorerie-banque')}>
             <Text style={styles.lbl}>Trésorerie nette réelle</Text>
-            <Text style={[styles.grand, { color: r.nette >= 0 ? colors.success : colors.error }]}>
-              {r.nette >= 0 ? '+ ' : '− '}{fmt(Math.abs(r.nette))} F
+            <Text style={[styles.grand, { color: s.nette >= 0 ? colors.success : colors.error }]}>
+              {s.nette >= 0 ? '' : '− '}{fmt(Math.abs(s.nette))} F
             </Text>
-            <View style={styles.sep} />
-            <Ligne label="Banque et espèces" valeur={r.banque} />
-            <Ligne
-              label={donnees.partenaires === null ? '+ Partenaires à recevoir (migration à passer)' : '+ Partenaires à recevoir'}
-              valeur={r.partenaires} signe="+" couleur={donnees.partenaires === null ? colors.textMuted : colors.success}
+            <Text style={styles.petit}>Banque et espèces {fmt(s.banque + s.especes)} − prévisions {fmt(s.prevu)}</Text>
+          </TouchableOpacity>
+
+          {/* 2 · Trésorerie */}
+          <View style={styles.carte}>
+            <Text style={[styles.lbl, { marginBottom: 4 }]}>Trésorerie</Text>
+            <LigneLien label="Banque (BACI, SIB)" valeur={s.banque} onPress={() => router.push('/tresorerie-banque')} />
+            <LigneLien label={aEspeces ? 'Espèces' : 'Espèces (migration à passer)'} valeur={s.especes} onPress={() => router.push('/tresorerie-banque')} />
+            <LigneLien
+              label={donnees.partenaires === null ? 'Partenaires à recevoir (migration à passer)' : 'Partenaires à recevoir'}
+              valeur={s.partenaires} onPress={() => router.push('/tresorerie-partenaires')}
             />
-            <Ligne label="− Loyers restants" valeur={r.loyers} signe="-" couleur={colors.error} />
-            <Ligne label="− Salaires restants" valeur={r.salaires} signe="-" couleur={colors.error} />
-            <Ligne label="− CNPS" valeur={r.cnps} signe="-" couleur={colors.error} />
-            <Ligne label="− Impôts, ITS, TEE, bail et autres charges" valeur={r.admin} signe="-" couleur={colors.error} />
-            {peut(niveau, 'voir_dettes') && (
-              <Ligne label="− Carnet de dettes" valeur={r.dettes} signe="-" couleur={colors.error} />
-            )}
             <View style={styles.sep} />
-            <Text style={[styles.lbl, { marginBottom: 2 }]}>Pour information · payé par les restaurants</Text>
-            <Ligne label="Fournisseurs dus" valeur={r.fournisseurs} couleur={colors.textMuted} />
-            <Ligne label="ODP et mairie restants" valeur={r.adminRestaurants} couleur={colors.textMuted} />
-            <Text style={styles.petit}>Ces montants ne sont pas soustraits de la trésorerie nette.</Text>
+            <View style={styles.ligne}>
+              <Text style={[styles.ligneLabel, { fontWeight: '800' }]}>Total</Text>
+              <Text style={[styles.ligneValeur, { fontWeight: '800' }]}>{fmt(s.tresorerie)} F</Text>
+            </View>
+            <TouchableOpacity onPress={() => router.push('/credits-fournisseurs')} style={{ marginTop: 6 }}>
+              <Text style={styles.petit}>Pour information : fournisseurs dus {fmt(fournisseursDus(donnees.fournisseurs))} F (payés par les restaurants) ›</Text>
+            </TouchableOpacity>
           </View>
 
+          {/* 3 · Prévisions (étape 4) */}
+          <View style={styles.carte}>
+            <View style={styles.ligne}>
+              <Text style={styles.lbl}>Prévisions</Text>
+              <Text style={styles.ligneValeur}>{fmt(s.prevu)} F</Text>
+            </View>
+            <Text style={styles.petit}>Aucune prévision pour l'instant.</Text>
+          </View>
+
+          {/* 4 · Dépenses du mois */}
+          <View style={styles.carte}>
+            <TouchableOpacity style={styles.ligne} onPress={() => router.push('/tresorerie-a-payer')}>
+              <Text style={styles.lbl}>Dépenses du mois ›</Text>
+              <Text style={[styles.ligneValeur, { color: colors.warningDark }]}>{fmt(depenses.reduce((x, d) => x + reste(d), 0))} F</Text>
+            </TouchableOpacity>
+            {depenses.length === 0 && <Text style={styles.petit}>Rien à payer d'ici les prochaines dates limites.</Text>}
+            {depenses.map(d => (
+              <LigneDu key={d.id} du={d} reste={reste(d)} paye={totalPaye(parDu[d.id])} nomResto={nomResto}
+                info={`avant le ${formatDateFR(d.echeance)}`} onPress={() => setDetail(d)} />
+            ))}
+          </View>
+
+          {/* 5 · Dette récente, 6 · Dette */}
+          {sections.map(cle => {
+            const lignes = enDette(cle)
+            const total = lignes.reduce((x, d) => x + reste(d), 0)
+            return (
+              <View key={cle} style={styles.carte}>
+                <TouchableOpacity style={styles.ligne} onPress={() => setOuvert(o => ({ ...o, [cle]: !o[cle] }))}>
+                  <Text style={styles.lbl}>{cle === 'dette' ? 'Dette' : 'Dette récente'} · {lignes.length} {ouvert[cle] ? '▴' : '▾'}</Text>
+                  <Text style={[styles.ligneValeur, { color: total ? colors.error : colors.success }]}>{fmt(total)} F</Text>
+                </TouchableOpacity>
+                {ouvert[cle] && lignes.length === 0 && <Text style={styles.petit}>Rien ici.</Text>}
+                {ouvert[cle] && lignes.map(d => {
+                  const j = d.echeance ? joursDeRetard(d.echeance, aujourdhui) : 0
+                  return (
+                    <LigneDu key={d.id} du={d} reste={reste(d)} paye={totalPaye(parDu[d.id])} nomResto={nomResto}
+                      info={j ? `${j} j de retard` : d.est_pret ? 'prêt' : ''} badge={cle} onPress={() => setDetail(d)} />
+                  )
+                })}
+              </View>
+            )
+          })}
+
+          {/* Coffre */}
           {peut(niveau, 'voir_coffre') && donnees.direction && (() => {
             const solde = soldeCoffre(donnees.direction.coffre)
-            const objectif = objectifDuMois(donnees.direction.objectifs, premierDuMois(aujourdhuiISO()))
+            const objectif = objectifDuMois(donnees.direction.objectifs, premierDuMois(aujourdhui))
             const pct = progression(solde, objectif)
             const aRendre = resteARembourser(donnees.direction.emprunts)
             return (
               <TouchableOpacity style={styles.carte} onPress={() => router.push('/tresorerie-coffre')}>
                 <View style={styles.ligne}>
-                  <Text style={styles.lbl}>Coffre de sécurité</Text>
+                  <Text style={styles.lbl}>Coffre (épargne)</Text>
                   <Text style={styles.ligneValeur}>{pct === null ? '—' : `${pct} %`}</Text>
                 </View>
                 <View style={{ height: 10, backgroundColor: colors.surfaceAlt, borderRadius: 6, overflow: 'hidden', marginVertical: 6 }}>
@@ -145,31 +211,36 @@ export default function TresorerieScreen() {
           })()}
 
           <View style={styles.tuiles}>
-            <Tuile icone="🏦" titre="Banque et espèces" sous={`${fmt(r.banque)} F · BACI · SIB · espèces`} route="/tresorerie-banque" />
-            <Tuile icone="🛵" titre="Partenaires" sous={`${fmt(r.partenaires)} F à recevoir`} route="/tresorerie-partenaires" />
             <Tuile icone="📋" titre="À payer" sous="Loyers · salaires · CNPS · impôts · dettes" route="/tresorerie-a-payer" />
-            {peut(niveau, 'voir_dettes') && (
-              <Tuile icone="📒" titre="Dettes" sous={`${fmt(r.dettes)} F à rembourser`} route="/tresorerie-a-payer?onglet=dette" />
-            )}
             {peut(niveau, 'voir_resultats') && (
               <Tuile icone="📊" titre="Résultats" sous="Net par restaurant / mois" route="/tresorerie-resultats" />
             )}
-            {peut(niveau, 'voir_coffre') && <Tuile icone="🔒" titre="Coffre" sous="Dépôts · retraits · objectif" route="/tresorerie-coffre" />}
-            {peut(niveau, 'voir_direction') && <Tuile icone="💼" titre="Dépenses direction" sous="Fond, réparation, équipement…" route="/tresorerie-direction" />}
+            {peut(niveau, 'voir_direction') && <Tuile icone="💼" titre="Dépenses direction" sous="Autres charges, réparations…" route="/tresorerie-direction" />}
             {peut(niveau, 'gerer_droits') && (
               <TouchableOpacity style={styles.tuile} onPress={() => setPlafondsVisible(true)}>
                 <Text style={styles.tuileTitre}>🚨 Plafonds de fond</Text>
                 <Text style={styles.tuileSous}>Alerte « fond bas » par restaurant</Text>
               </TouchableOpacity>
             )}
-            <Tuile icone="💳" titre="Fournisseurs" sous={`${fmt(r.fournisseurs)} F dus`} route="/credits-fournisseurs" />
           </View>
         </ScrollView>
       )}
 
       {donnees && (
-        <FeuillePlafonds visible={plafondsVisible} restaurants={donnees.restaurants}
-          onFermer={() => setPlafondsVisible(false)} apres={recharger} />
+        <>
+          <FeuilleDetail
+            du={detail} paiements={detail ? parDu[detail.id] || [] : []} classement={detail ? classement[detail.id] : null}
+            donnees={donnees} niveau={niveau} aujourdhui={aujourdhui} nomResto={nomResto} user={user}
+            onFermer={() => setDetail(null)}
+            onPayer={du => { setDetail(null); setPaiement(du.categorie === 'loyer' ? { categorie: 'loyer', restaurantId: du.restaurant_id } : { du }) }}
+            onModifier={du => { setDetail(null); router.push(`/tresorerie-a-payer?onglet=${du.categorie}`) }}
+            apres={recharger}
+          />
+          <FeuillePaiement demande={paiement} donnees={donnees} parDu={parDu} nomResto={nomResto} user={user}
+            onFermer={() => setPaiement(null)} apres={recharger} />
+          <FeuillePlafonds visible={plafondsVisible} restaurants={donnees.restaurants}
+            onFermer={() => setPlafondsVisible(false)} apres={recharger} />
+        </>
       )}
       <FeuilleDroits
         visible={droitsVisible}
@@ -179,6 +250,38 @@ export default function TresorerieScreen() {
         apres={recharger}
       />
     </SafeAreaView>
+  )
+}
+
+// Une ligne de la trésorerie qui mène à son écran.
+function LigneLien({ label, valeur, onPress }) {
+  const { styles } = useStylesTreso()
+  return (
+    <TouchableOpacity style={styles.ligne} onPress={onPress}>
+      <Text style={styles.ligneLabel}>{label} ›</Text>
+      <Text style={styles.ligneValeur}>{fmt(valeur)} F</Text>
+    </TouchableOpacity>
+  )
+}
+
+// Une charge ou une dette : « Loyer · Lavage · sept. », reste, info, état.
+function LigneDu({ du, reste, paye, nomResto, info, badge, onPress }) {
+  const { styles, colors } = useStylesTreso()
+  const cs = couleursStatut(colors)
+  return (
+    <TouchableOpacity style={styles.item} onPress={onPress}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.itemTitre}>
+          {LIBELLES_CATEGORIE[du.categorie]} · {titreDu(du, nomResto)}{du.mois ? ` · ${libelleMoisCourt(du.mois)}` : ''}
+        </Text>
+        <Text style={styles.petit}>
+          {paye > 0 ? `payé ${fmt(paye)} · ` : ''}
+          <Text style={{ fontWeight: '800', color: colors.text }}>reste {fmt(reste)}</Text>
+          {info ? ` · ${info}` : ''}
+        </Text>
+      </View>
+      {badge && cs[badge] && <Badge c={cs[badge]} />}
+    </TouchableOpacity>
   )
 }
 
