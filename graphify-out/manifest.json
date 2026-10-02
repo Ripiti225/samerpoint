@@ -54,9 +54,9 @@
     "semantic_hash": ""
   },
   "app/accueil.js": {
-    "mtime": 1790827163.4528244,
-    "seen": 1790827220.273843,
-    "ast_hash": "3ddf6b0dc396309c0d6bbc3e86b33cd0",
+    "mtime": 1790959409.839328,
+    "seen": 1790960750.638688,
+    "ast_hash": "2cd4d87425262964f62a11171bc8a293",
     "semantic_hash": ""
   },
   "app/brouillons-fournisseurs.js": {
@@ -630,9 +630,9 @@
     "semantic_hash": ""
   },
   "lib/notifications.js": {
-    "mtime": 1787567987.512193,
-    "seen": 1788454354.111356,
-    "ast_hash": "bc36c054379be66f2071045e7c492e4a",
+    "mtime": 1790960678.8945005,
+    "seen": 1790960750.638767,
+    "ast_hash": "11428ff2b99e5caf5b05e318064664dc",
     "semantic_hash": ""
   },
   "lib/notificationsInterne.js": {
@@ -738,9 +738,9 @@
     "semantic_hash": ""
   },
   "lib/webPush.js": {
-    "mtime": 1787567987.515131,
-    "seen": 1788454354.1113632,
-    "ast_hash": "2de84f2c21a2efa1742ea4ae497ccff0",
+    "mtime": 1790959409.8391576,
+    "seen": 1790960750.6387892,
+    "ast_hash": "ca12cd2de53d4bfb9911ae72d664fb7f",
     "semantic_hash": ""
   },
   "package.json": {
@@ -786,9 +786,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/send-web-push/index.ts": {
-    "mtime": 1787567987.517974,
-    "seen": 1788454354.111367,
-    "ast_hash": "30bc25a8e00e8ea8d75ddef2e6d3663b",
+    "mtime": 1790960678.895174,
+    "seen": 1790960750.638794,
+    "ast_hash": "71c9429aa78ecf95d58f0e9da0fa6a3f",
     "semantic_hash": ""
   },
   "supabase_annuler_deduction_inventaire.sql": {
@@ -1500,21 +1500,21 @@
     "semantic_hash": ""
   },
   "app/tresorerie-a-payer.js": {
-    "mtime": 1790870290.8520327,
-    "seen": 1790870329.67836,
-    "ast_hash": "7d49b6fe327d5d8a3d25a3ed69215c97",
+    "mtime": 1790958645.8694527,
+    "seen": 1790958733.363023,
+    "ast_hash": "bf46f0f1a544e9963d3bb2a5f8c63456",
     "semantic_hash": ""
   },
   "app/tresorerie-banque.js": {
-    "mtime": 1790827163.4777408,
-    "seen": 1790827220.273867,
-    "ast_hash": "f78bce7ddc4195105ed26c90fb5d174a",
+    "mtime": 1790961922.880102,
+    "seen": 1790961952.3599842,
+    "ast_hash": "dfbf1e17cef61c7f89b321b269a578f8",
     "semantic_hash": ""
   },
   "app/tresorerie.js": {
-    "mtime": 1790827163.479755,
-    "seen": 1790827220.2738712,
-    "ast_hash": "8b34cce9610aeed3b60dcd4bd76367c3",
+    "mtime": 1790961922.879493,
+    "seen": 1790961952.359987,
+    "ast_hash": "d7b39021cd5810ebc9d34575ad79c80f",
     "semantic_hash": ""
   },
   "components/BarreComparaison.js": {
@@ -1584,21 +1584,21 @@
     "semantic_hash": ""
   },
   "lib/tresorerie.js": {
-    "mtime": 1790870151.4346306,
-    "seen": 1790870329.678426,
-    "ast_hash": "6547c3713f836a8dcb2e67904b0b3fdb",
+    "mtime": 1790961828.9006035,
+    "seen": 1790961952.360062,
+    "ast_hash": "e55a31b6db23faf7c2e5fb8810a86fe7",
     "semantic_hash": ""
   },
   "lib/tresorerie.test.mjs": {
-    "mtime": 1790870167.8119452,
-    "seen": 1790870329.678427,
-    "ast_hash": "b6f7381c559abd8453f077ef66d1106b",
+    "mtime": 1790961814.7886527,
+    "seen": 1790961952.360063,
+    "ast_hash": "b5bcf75bb21ab689e1b4b60679f7a0d5",
     "semantic_hash": ""
   },
   "lib/tresorerieDb.js": {
-    "mtime": 1790870210.8910728,
-    "seen": 1790870329.678427,
-    "ast_hash": "ab586d82bf9341ea61f8ab48f8d3d0a3",
+    "mtime": 1790961868.867126,
+    "seen": 1790961952.360064,
+    "ast_hash": "fae8ae928d14938522e8103f887c2dc6",
     "semantic_hash": ""
   },
   "supabase_tresorerie.sql": {
@@ -1620,9 +1620,9 @@
     "semantic_hash": ""
   },
   "app/tresorerie-partenaires.js": {
-    "mtime": 1790861672.5936844,
-    "seen": 1790870329.6783628,
-    "ast_hash": "efafa3e274c27872fd4ecd0819a486e5",
+    "mtime": 1790961904.468825,
+    "seen": 1790961952.3599858,
+    "ast_hash": "cb788f424216d35e0eccf13e119d3a7b",
     "semantic_hash": ""
   },
   "lib/lireExcel.js": {
@@ -1632,15 +1632,15 @@
     "semantic_hash": ""
   },
   "lib/partenaires.js": {
-    "mtime": 1790861836.1985812,
-    "seen": 1790870329.678414,
-    "ast_hash": "5d62d3f54bf0861672d523a6716f2dd4",
+    "mtime": 1790961828.9004416,
+    "seen": 1790961952.360047,
+    "ast_hash": "e39b504eaa3086e91b8c027534172ab7",
     "semantic_hash": ""
   },
   "lib/partenaires.test.mjs": {
-    "mtime": 1790861836.1990974,
-    "seen": 1790870329.678415,
-    "ast_hash": "b5835cd897d990c3c3eff98f740052cd",
+    "mtime": 1790961814.7882946,
+    "seen": 1790961952.360047,
+    "ast_hash": "61dab8c6d088c719a125c00fe77cd337",
     "semantic_hash": ""
   },
   "lib/partenairesImport.js": {
@@ -1662,33 +1662,33 @@
     "semantic_hash": ""
   },
   "app/tresorerie-coffre.js": {
-    "mtime": 1790827163.478217,
-    "seen": 1790827220.273868,
-    "ast_hash": "b6bec8c599ac1d8de8886d98f621ff2f",
+    "mtime": 1790956736.6906614,
+    "seen": 1790956823.235163,
+    "ast_hash": "c2ce6762dc75f4aa7d743e1f9946ab8e",
     "semantic_hash": ""
   },
   "app/tresorerie-direction.js": {
-    "mtime": 1790827163.478531,
-    "seen": 1790827220.273868,
-    "ast_hash": "edf67dc7d3657efe1e2d2af1e0255b83",
+    "mtime": 1790958645.8698251,
+    "seen": 1790958733.363026,
+    "ast_hash": "60f246b6c2199da213d373cdb34d8c43",
     "semantic_hash": ""
   },
   "app/tresorerie-resultats.js": {
-    "mtime": 1790827163.4793427,
-    "seen": 1790827220.27387,
-    "ast_hash": "0fd4d64fb6318744da5114e26ebd8cab",
+    "mtime": 1790955005.9211824,
+    "seen": 1790955476.18435,
+    "ast_hash": "421f7e3daf64591ed54c6db92347b39f",
     "semantic_hash": ""
   },
   "lib/direction.js": {
-    "mtime": 1790823901.237401,
-    "seen": 1790824093.4724422,
-    "ast_hash": "59c742428e235611129f26aafca8beae",
+    "mtime": 1790956574.3298151,
+    "seen": 1790956823.2352052,
+    "ast_hash": "28156e3036cc0818f514a19b7026910e",
     "semantic_hash": ""
   },
   "lib/direction.test.mjs": {
-    "mtime": 1790823902.2629476,
-    "seen": 1790824093.4724422,
-    "ast_hash": "67c2b36ea7c1ca57ee1495313e5e9a65",
+    "mtime": 1790956562.1840186,
+    "seen": 1790956823.2352052,
+    "ast_hash": "c2fbdca44066502fbb1d03dbf1bc8052",
     "semantic_hash": ""
   },
   "supabase_tresorerie_direction.sql": {
@@ -1728,15 +1728,15 @@
     "semantic_hash": ""
   },
   "lib/chargesMois.js": {
-    "mtime": 1790826953.4339125,
-    "seen": 1790827013.9585679,
-    "ast_hash": "83d38819fb4a3bbe1d540f61b85e6765",
+    "mtime": 1790954638.2238493,
+    "seen": 1790955476.1843781,
+    "ast_hash": "6555b370b1a9887f517f6ac77431b77b",
     "semantic_hash": ""
   },
   "lib/chargesMois.test.mjs": {
-    "mtime": 1790826944.9597368,
-    "seen": 1790827013.9585679,
-    "ast_hash": "86f430b7a253c2186e61fd23f4eac2ef",
+    "mtime": 1790954615.8085468,
+    "seen": 1790955476.1843789,
+    "ast_hash": "af0c0fbcd92a372448fb9fd8d3a9ac89",
     "semantic_hash": ""
   },
   "lib/navigation.js": {
@@ -1749,6 +1749,150 @@
     "mtime": 1790861323.7522907,
     "seen": 1790861502.799466,
     "ast_hash": "171ad0a7fad9dd8d41e9553e599bac03",
+    "semantic_hash": ""
+  },
+  "components/tresorerie/du.js": {
+    "mtime": 1790958630.967771,
+    "seen": 1790958733.363041,
+    "ast_hash": "83586cbb0d892a9535c18e14bda20c48",
+    "semantic_hash": ""
+  },
+  "components/tresorerie/reglagesCharges.js": {
+    "mtime": 1790955994.762505,
+    "seen": 1790956151.3182359,
+    "ast_hash": "7bfafb76bdcb75f56df05f266e3e39aa",
+    "semantic_hash": ""
+  },
+  "supabase_tresorerie_charges.sql": {
+    "mtime": 1790955169.3056471,
+    "seen": 1790955476.184444,
+    "ast_hash": "ad07bea07475f3bc6932959144bf8e67",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-02-tresorerie-etape1-charges.md": {
+    "mtime": 1790954416.9176953,
+    "seen": 1790955476.184455,
+    "ast_hash": "8b419248d99615061e6e69c3993c5c35",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-02-nouvelle-tresorerie-design.md": {
+    "mtime": 1790961946.6765242,
+    "seen": 1790961952.360128,
+    "ast_hash": "53490cc0ecfd21f6b03b1ad53e63ee21",
+    "semantic_hash": ""
+  },
+  "components/tresorerie/saisieGroupee.js": {
+    "mtime": 1790956070.310176,
+    "seen": 1790956151.3182368,
+    "ast_hash": "39bf9bec2d84b29f06784e789ad580cb",
+    "semantic_hash": ""
+  },
+  "supabase_tresorerie_especes.sql": {
+    "mtime": 1790956541.5690708,
+    "seen": 1790956823.235258,
+    "ast_hash": "b035709acab8d44f2c2328ec7acc7b73",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-02-tresorerie-etape2-especes-coffre.md": {
+    "mtime": 1790956503.4335363,
+    "seen": 1790956823.2352698,
+    "ast_hash": "816cd024ae23f997a030cac530427db0",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-02-tresorerie-etape3-accueil.md": {
+    "mtime": 1790957158.522246,
+    "seen": 1790957304.58864,
+    "ast_hash": "6c76ca392964928c0d95223a085459ee",
+    "semantic_hash": ""
+  },
+  "lib/previsions.js": {
+    "mtime": 1790958568.624417,
+    "seen": 1790958733.363095,
+    "ast_hash": "fae955ab01c46635a5678c73b8e12596",
+    "semantic_hash": ""
+  },
+  "lib/previsions.test.mjs": {
+    "mtime": 1790958546.3481617,
+    "seen": 1790958733.363095,
+    "ast_hash": "f8f09a4d30fb39397826a4f25bd0452d",
+    "semantic_hash": ""
+  },
+  "supabase_tresorerie_previsions.sql": {
+    "mtime": 1790958520.9348662,
+    "seen": 1790958733.36313,
+    "ast_hash": "19618f250ae2b9d2b3b5b2868d8b7ef1",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-02-tresorerie-etape4-previsions.md": {
+    "mtime": 1790958520.9330044,
+    "seen": 1790958733.3631418,
+    "ast_hash": "25b572e65e8be52f49dea7014bcdd269",
+    "semantic_hash": ""
+  },
+  "lib/rappelsTresorerie.js": {
+    "mtime": 1790960678.8941178,
+    "seen": 1790960750.638779,
+    "ast_hash": "50127ba2bd5f00aa5bc506d6f0868ed0",
+    "semantic_hash": ""
+  },
+  "lib/rappelsTresorerie.test.mjs": {
+    "mtime": 1790960543.1737776,
+    "seen": 1790960750.638779,
+    "ast_hash": "a033c5f8d768c04c596b4f0ad8331022",
+    "semantic_hash": ""
+  },
+  "public/manifest.json": {
+    "mtime": 1790959381.7421005,
+    "seen": 1790960750.63879,
+    "ast_hash": "b14eeaa7b89306199b55e5ad43355b5d",
+    "semantic_hash": ""
+  },
+  "supabase/functions/rappels-tresorerie/index.ts": {
+    "mtime": 1790960926.4532578,
+    "seen": 1790961952.360072,
+    "ast_hash": "e57a5d2303bcc8d2438c5c6e3e883e9c",
+    "semantic_hash": ""
+  },
+  "supabase_tresorerie_rappels.sql": {
+    "mtime": 1790960715.891224,
+    "seen": 1790960750.638816,
+    "ast_hash": "f61af635ce36930d1ba4aaf8d133fa15",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-02-tresorerie-etape5-notifications.md": {
+    "mtime": 1790960519.5552714,
+    "seen": 1790960750.638828,
+    "ast_hash": "374e653236e16e47751c73736754753d",
+    "semantic_hash": ""
+  },
+  "public/index.html": {
+    "mtime": 1790959381.7441692,
+    "seen": 1790960750.638837,
+    "ast_hash": "081a7950d695942cf12c8654fadfb9c7",
+    "semantic_hash": ""
+  },
+  "public/apple-touch-icon.png": {
+    "mtime": 1790959366.7039912,
+    "seen": 1790960750.6388469,
+    "ast_hash": "3551e64dda8dcb6c78065f59909fd490",
+    "semantic_hash": ""
+  },
+  "public/icon-192.png": {
+    "mtime": 1790959366.702463,
+    "seen": 1790960750.6388469,
+    "ast_hash": "9457e74bb4814bde2f3e4609c56921e8",
+    "semantic_hash": ""
+  },
+  "public/icon-512.png": {
+    "mtime": 1790959366.7006052,
+    "seen": 1790960750.638848,
+    "ast_hash": "8cd5986d2895ddde06d5f5ef4325c955",
+    "semantic_hash": ""
+  },
+  "supabase_tresorerie_tetes_de_fond.sql": {
+    "mtime": 1790961848.6884143,
+    "seen": 1790961952.360107,
+    "ast_hash": "b5029279a089996d0d992356fd3ff719",
     "semantic_hash": ""
   }
 }
