@@ -348,9 +348,11 @@ function FeuilleEdition({ du, donnees, user, onFermer, apres }) {
 
   useEffect(() => {
     if (!du) return
+    // Post-payé : on saisit d'habitude le mois écoulé (l'état de septembre en octobre).
+    const moisPrecedent = moisEntre('2000-01-01', premierDuMois(aujourdhuiISO())).slice(-2)[0]
     setForm({
       restaurant_id: du.restaurant_id || null,
-      mois: du.mois || premierDuMois(aujourdhuiISO()),
+      mois: du.mois || moisPrecedent,
       montant: du.montant_du != null ? String(du.montant_du) : '',
       creancier: du.creancier || '',
       note: du.note || '',
@@ -382,7 +384,7 @@ function FeuilleEdition({ du, donnees, user, onFermer, apres }) {
     const montant = form.montant === '' ? null : parseInt(form.montant, 10)
     if (montant === null || montant <= 0) { Alert.alert('Montant manquant', 'Saisissez le montant dû.'); return }
     if (serie && !form.restaurant_id) { Alert.alert('Restaurant manquant', 'Choisissez le restaurant.'); return }
-    if (cat === 'dette' && !form.creancier.trim()) { Alert.alert('Créancier manquant', 'À qui doit-on cet argent ?'); return }
+    if (cat === 'dette' && !(form.creancier || '').trim()) { Alert.alert('Créancier manquant', 'À qui doit-on cet argent ?'); return }
     setOccupe(true)
     try {
       await enregistrerDu({
@@ -391,10 +393,10 @@ function FeuilleEdition({ du, donnees, user, onFermer, apres }) {
         restaurant_id: form.restaurant_id,
         mois: serie ? form.mois : null,
         libelle: du.libelle || null,
-        creancier: cat === 'dette' ? form.creancier.trim() : null,
+        creancier: cat === 'dette' ? (form.creancier || '').trim() : null,
         montant_du: montant,
         echeance: serie ? echeanceDe(form.mois, form.restaurant_id) : du.echeance || null,
-        note: form.note.trim(),
+        note: (form.note || '').trim(),
       }, user)
       await apres()
       onFermer()
@@ -412,7 +414,7 @@ function FeuilleEdition({ du, donnees, user, onFermer, apres }) {
   return (
     <Feuille visible onFermer={onFermer} titre={titre}>
       {cat === 'dette' && (
-        <Champ label="Créancier" value={form.creancier} onChangeText={v => maj('creancier', v)} placeholder="Ex : Zabad" />
+        <Champ label="Créancier" value={form.creancier ?? ''} onChangeText={v => maj('creancier', v)} placeholder="Ex : Zabad" />
       )}
       {serie && (
         <>
@@ -426,9 +428,9 @@ function FeuilleEdition({ du, donnees, user, onFermer, apres }) {
           )}
         </>
       )}
-      <ChampMontant label="Montant dû" valeur={form.montant} onChange={v => maj('montant', v)} />
+      <ChampMontant label="Montant dû" valeur={form.montant ?? ''} onChange={v => maj('montant', v)} />
       {echeance && <Text style={[styles.petit, { marginBottom: 10 }]}>À payer avant le {formatDateFR(echeance)}.</Text>}
-      <Champ label="Note (facultatif)" value={form.note} onChangeText={v => maj('note', v)} />
+      <Champ label="Note (facultatif)" value={form.note ?? ''} onChangeText={v => maj('note', v)} />
       <Bouton titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
     </Feuille>
   )

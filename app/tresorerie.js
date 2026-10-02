@@ -5,7 +5,7 @@
 // part pour ne pas retarder l'affichage de la trésorerie.
 // Spéc : docs/superpowers/specs/2026-10-01-tresorerie-socle-design.md
 // ──────────────────────────────────────────────────────────────────────────────
-import { router } from 'expo-router'
+import { Redirect, router } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 
@@ -36,11 +36,6 @@ export default function TresorerieScreen() {
     return () => { vivant = false }
   }, [niveau, donnees])
 
-  // Le RH ne saisit que les charges (loyers, salaires, CNPS, impôts…) : on l'y emmène directement.
-  useEffect(() => {
-    if (niveau === 'saisie_rh') router.replace('/tresorerie-a-payer?onglet=loyer')
-  }, [niveau])
-
   const partenaires = useMemo(() => {
     const p = donnees?.partenaires
     if (!p) return null
@@ -58,6 +53,12 @@ export default function TresorerieScreen() {
       moisCourant: premierDuMois(aujourdhuiISO()),
     })
   }, [donnees, partenaires])
+
+  // Le RH ne saisit que les charges (loyers, salaires, CNPS, impôts…) : on l'y
+  // emmène directement. <Redirect> plutôt que router.replace dans un effet : ce
+  // dernier plantait quand la page était chargée directement (navigation avant
+  // le montage du layout).
+  if (niveau === 'saisie_rh') return <Redirect href="/tresorerie-a-payer?onglet=loyer" />
 
   const etat = <EtatEcran {...t} autorise={peut(niveau, 'voir_vue') || niveau === 'saisie_rh'} />
   const bloque = (t.loading && !donnees) || t.erreur || !niveau || !peut(niveau, 'voir_vue')

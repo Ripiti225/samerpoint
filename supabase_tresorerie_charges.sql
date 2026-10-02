@@ -58,6 +58,12 @@ WHERE d.categorie = 'loyer' AND d.restaurant_id = l.restaurant_id
   AND d.echeance IS NOT NULL
   AND date_trunc('month', d.echeance) = date_trunc('month', d.mois);
 
+-- Le réglage des loyers du 01/10/2026 fixait le premier mois automatique au
+-- mois SUIVANT (novembre). En post-payé, le mois en cours se crée tout de suite
+-- (loyer d'octobre, dû en novembre) : ces réglages repartent d'octobre.
+UPDATE tresorerie_loyers SET mois_depart = '2026-10-01'
+WHERE mois_depart = '2026-11-01' AND updated_at < '2026-10-03';
+
 DO $$
 DECLARE t text;
 BEGIN
