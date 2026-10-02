@@ -234,3 +234,29 @@ Coffre, Dépenses direction, Plafonds de fond, Fournisseurs). La Dette est
 toujours affichée, avec « + Ajouter une dette » (créancier, montant).
 
 Tests : `lib/tresorerie.test.mjs` (dépenses du mois, synthèse).
+
+---
+
+## Étape 4 — Prévisions de paiement
+
+Décisions du 02/10/2026 :
+
+- Une prévision porte sur **une ligne non payée** (charge à échéance, dette
+  récente, dette, autre charge à payer) : un montant, et **quand** — à une
+  date, ou à la prochaine réception Glovo, Yango, Wave, OM ou Djamo (réception
+  marquée « reçu » après la prévision). Plusieurs prévisions par ligne.
+- Le moment venu, elle passe **orange** (« Glovo reçu : à payer », « prévu
+  aujourd'hui », « prévu le …, pas encore payé ») et le reste jusqu'au
+  paiement. Le paiement se fait à la main, montant prévu prérempli ; il est
+  rattaché à la prévision (`tresorerie_paiements.prevision_id`).
+- Payer moins que prévu : **le reste reste prévu**. Une prévision entièrement
+  payée (ou dont la ligne est soldée) passe dans l'**historique** « Prévisions
+  réalisées ». Annuler le paiement la rouvre.
+- **Nette réelle** = banque + espèces − total prévu ; le total prévu d'une ligne
+  ne dépasse jamais son reste.
+- Où : bloc « Prévisions » de l'accueil (liste, orange en tête, « + Prévoir un
+  paiement » qui propose les lignes non payées, historique) ; fiche de chaque
+  ligne (« Prévoir un paiement », ses prévisions). Propriétaire seulement.
+- Les notifications (9 h, relance 14 h) arrivent à l'étape 5.
+
+Migration : `supabase_tresorerie_previsions.sql`. Tests : `lib/previsions.test.mjs`.
