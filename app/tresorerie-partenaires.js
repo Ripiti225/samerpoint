@@ -302,10 +302,14 @@ function FeuillePeriode({ ouverte, situation, vue, donnees, niveau, nomResto, us
         {situation.parResto.length === 0 && <Text style={styles.vide}>Aucune vente sur cette période.</Text>}
         {situation.parResto
           .slice().sort((a, b) => nomResto(a.restaurant_id).localeCompare(nomResto(b.restaurant_id)))
-          .map(r => (
-            <View key={r.restaurant_id} style={styles.item}>
+          .map(r => {
+            // Tête de fond : chaque restaurant peut être reçu à part, dès que son argent arrive (OM surtout).
+            const recevable = !groupe && !r.recuFait && peutRecevoir && situation.terminee
+            const ouvrir = () => setReception({ restaurantId: r.restaurant_id, attendu: r.attendu })
+            return (
+            <TouchableOpacity key={r.restaurant_id} style={styles.item} disabled={!(tete && recevable)} onPress={ouvrir}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.itemTitre}>{nomResto(r.restaurant_id)}</Text>
+                <Text style={styles.itemTitre}>{nomResto(r.restaurant_id)}{tete && recevable ? ' ›' : ''}</Text>
                 <Text style={styles.petit}>
                   {r.reel !== null
                     ? <Text style={{ textDecorationLine: 'line-through' }}>estimé {fmt(r.estime)}</Text>
@@ -316,12 +320,10 @@ function FeuillePeriode({ ouverte, situation, vue, donnees, niveau, nomResto, us
                 </Text>
               </View>
               <Text style={styles.ligneValeur}>{fmt(r.attendu)}</Text>
-              {!groupe && !tete && !r.recuFait && peutRecevoir && situation.terminee && (
-                <Bouton titre="Reçu" style={styles.btnPetit}
-                  onPress={() => setReception({ restaurantId: r.restaurant_id, attendu: r.attendu })} />
-              )}
-            </View>
-          ))}
+              {recevable && <Bouton titre="Reçu" style={styles.btnPetit} onPress={ouvrir} />}
+            </TouchableOpacity>
+            )
+          })}
         <View style={styles.sep} />
         <Ligne label="Attendu" valeur={situation.attendu} fort />
         {situation.terminee && <Ligne label="Reste à recevoir" valeur={situation.aRecevoir} fort couleur={situation.aRecevoir ? colors.error : colors.success} />}
@@ -345,11 +347,11 @@ function FeuillePeriode({ ouverte, situation, vue, donnees, niveau, nomResto, us
           <Text style={[styles.lbl, { marginBottom: 6 }]}>Réception sur la tête de fond</Text>
           <Text style={styles.petit}>
             {situation.recuFait
-              ? 'Reçu. Pour l\'envoyer en banque : Banque et espèces → Virement entre comptes.'
-              : 'Notez ce que chaque restaurant a versé ; le total entre sur la tête de fond.'}
+              ? 'Tout est reçu. Pour l\'envoyer en banque : Banque et espèces → Virement entre comptes.'
+              : 'Un restaurant à la fois (appuyez sur son nom, dès que son argent arrive), ou tous ceux qui restent d\'un coup.'}
           </Text>
           {!situation.recuFait && peutRecevoir && situation.terminee && (
-            <Bouton titre="✓ Marquer reçu" style={{ marginTop: 8 }} onPress={() => setReceptionTete(true)} />
+            <Bouton titre="✓ Marquer reçu (tous ceux qui restent)" style={{ marginTop: 8 }} onPress={() => setReceptionTete(true)} />
           )}
         </View>
       )}
@@ -394,6 +396,7 @@ function FeuillePeriode({ ouverte, situation, vue, donnees, niveau, nomResto, us
 
       <FeuilleReception
         demande={reception} partenaire={partenaire} periode={periode} donnees={donnees} nomResto={nomResto} user={user}
+        compteParDefaut={tete ? donnees.comptes.find(c => c.nom === COMPTE_TETE_DE_FOND[partenaire])?.id : null}
         onFermer={() => setReception(null)} apres={apres}
       />
       <FeuilleReceptionTete
@@ -410,7 +413,7 @@ function FeuillePeriode({ ouverte, situation, vue, donnees, niveau, nomResto, us
 
 // ── Marquer reçu ────────────────────────────────────────────────────────────
 
-function FeuilleReception({ demande, partenaire, periode, donnees, nomResto, user, onFermer, apres }) {
+function FeuilleReception({ demande, partenaire, periode, donnees, nomResto, user, compteParDefaut = null, onFermer, apres }) {
   const { styles } = useStylesTreso()
   const [montant, setMontant] = useState('')
   const [compte, setCompte] = useState(null)
@@ -421,7 +424,7 @@ function FeuilleReception({ demande, partenaire, periode, donnees, nomResto, use
   useEffect(() => {
     if (!demande) return
     setMontant(demande.attendu > 0 ? String(demande.attendu) : '')
-    setCompte(null)
+    setCompte(compteParDefaut || null)
     setDate(aujourdhuiISO())
     setNote('')
   }, [demande])
@@ -489,9 +492,13 @@ function FeuilleReceptionTete({ visible, partenaire, periode, situation, donnees
     () => Object.fromEntries((situation?.parResto || []).map(r => [r.restaurant_id, r.attendu])),
     [situation],
   )
-  // Restaurants qui ont un attendu d'abord, puis les autres (un reçu imprévu reste possible).
-  const restos = useMemo(() => [...(donnees.restaurants || [])]
-    .sort((a, b) => (attendus[b.id] ? 1 : 0) - (attendus[a.id] ? 1 : 0) || a.nom.localeCompare(b.nom)), [donnees, attendus])
+  // Seulement les restaurants pas encore reçus (ceux reçus un par un sont déjà notés) ;
+  // ceux qui ont un attendu d'abord, puis les autres (un reçu imprévu reste possible).
+  const restos = useMemo(() => {
+    const recus = new Set((situation?.parResto || []).filter(r => r.recuFait).map(r => r.restaurant_id))
+    return [...(donnees.restaurants || [])].filter(r => !recus.has(r.id))
+      .sort((a, b) => (attendus[b.id] ? 1 : 0) - (attendus[a.id] ? 1 : 0) || a.nom.localeCompare(b.nom))
+  }, [donnees, attendus, situation])
 
   useEffect(() => {
     if (!visible) return
@@ -506,7 +513,8 @@ function FeuilleReceptionTete({ visible, partenaire, periode, situation, donnees
   const info = INFOS_PARTENAIRE[partenaire]
   const lire = t => (t === '' || t == null ? 0 : parseInt(t, 10) || 0)
   const total = restos.reduce((t, r) => t + lire(valeurs[r.id]), 0)
-  const ecart = total - situation.attendu
+  const attenduRestant = restos.reduce((t, r) => t + (attendus[r.id] || 0), 0)
+  const ecart = total - attenduRestant
 
   async function enregistrer() {
     const parts = restos.map(r => ({ restaurant_id: r.id, montant: lire(valeurs[r.id]) })).filter(x => x.montant > 0)
@@ -551,7 +559,7 @@ function FeuilleReceptionTete({ visible, partenaire, periode, situation, donnees
         )
       })}
       <View style={styles.carte}>
-        <Ligne label="Attendu" valeur={situation.attendu} />
+        <Ligne label="Attendu (restaurants restants)" valeur={attenduRestant} />
         <Ligne label="Total reçu" valeur={total} fort />
         {total > 0 && ecart !== 0 && (
           <Text style={[styles.petit, { color: ecart > 0 ? colors.success : colors.error }]}>
