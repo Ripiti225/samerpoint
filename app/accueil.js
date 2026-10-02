@@ -13,7 +13,9 @@ import { useApp } from '../context/AppContext'
 import { useNotifications } from '../context/NotificationsContext'
 import { useTheme } from '../context/ThemeContext'
 import { enregistrerTokenDirecteur } from '../lib/notifications'
-import { pushSupporte, etatPermissionPush, synchroniserWebPush, activerNotificationsPush } from '../lib/webPush'
+import {
+  pushSupporte, etatPermissionPush, synchroniserWebPush, activerNotificationsPush, iPhoneHorsApplication, iPhoneTropAncien,
+} from '../lib/webPush'
 import SignatureFooter from '../components/SignatureFooter'
 import { supabase } from '../lib/supabase'
 import { SPRINGS, staggerDelay } from '../lib/animations'
@@ -271,6 +273,20 @@ export default function AccueilScreen() {
           <Text style={styles.pushBannerTxt}>🔔 Activer les alertes sur ce téléphone</Text>
           <Text style={styles.pushBannerSous}>{"Pour être prévenu même sans ouvrir l'app"}</Text>
         </TouchableOpacity>
+      )}
+      {iPhoneHorsApplication() && (
+        <View style={styles.pushBanner}>
+          <Text style={styles.pushBannerTxt}>🔔 Pour recevoir les alertes sur iPhone</Text>
+          <Text style={styles.pushBannerSous}>
+            {"1. Appuyez sur Partager (le carré avec une flèche), puis « Sur l'écran d'accueil ».\n2. Ouvrez SAMER depuis sa nouvelle icône.\n3. Appuyez sur « Activer les alertes »."}
+          </Text>
+        </View>
+      )}
+      {iPhoneTropAncien() && (
+        <View style={styles.pushBanner}>
+          <Text style={styles.pushBannerTxt}>🔔 Alertes indisponibles sur cet iPhone</Text>
+          <Text style={styles.pushBannerSous}>{"Mettez l'iPhone à jour (iOS 16.4 ou plus récent) pour recevoir les alertes."}</Text>
+        </View>
       )}
       {pushMsg ? <Text style={styles.pushMsg}>{pushMsg}</Text> : null}
 
