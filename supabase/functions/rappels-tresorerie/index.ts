@@ -8,8 +8,9 @@
 //  notification dans l'app. Un même rappel (date + moment + compte) ne part
 //  jamais deux fois (clé dans tresorerie_alertes_envoyees).
 //
-//  Corps : { "moment": "matin" | "apres_midi", "essai": true? }
-//  « essai » calcule et renvoie les messages SANS rien envoyer ni noter.
+//  Corps : { "moment": "matin" | "apres_midi", "essai": true?, "date": "AAAA-MM-JJ"? }
+//  « essai » calcule et renvoie les messages SANS rien envoyer ni noter ;
+//  « date » (essai seulement) simule un autre jour.
 //
 //  Déploiement : les fichiers lib/ sont envoyés avec la fonction (mêmes
 //  chemins relatifs que dans le dépôt) — voir supabase_tresorerie_rappels.sql.
@@ -68,11 +69,14 @@ Deno.serve(async (req) => {
     const corpsRequete = await req.json().catch(() => ({}))
     const moment = corpsRequete.moment === 'apres_midi' ? 'apres_midi' : 'matin'
     const essai = corpsRequete.essai === true
-    const aujourdhui = new Date().toISOString().slice(0, 10) // Abidjan = UTC
+    // Abidjan = UTC. En essai seulement, « date » simule un autre jour.
+    const dateEssai = essai && /^\d{4}-\d{2}-\d{2}$/.test(corpsRequete.date || '') ? corpsRequete.date : null
+    const aujourdhui = dateEssai || new Date().toISOString().slice(0, 10)
 
     const [dus, paiements, previsions, receptions, emprunts, restaurants, utilisateurs, droits, tokens] = await Promise.all([
       toutes('tresorerie_dus'),
-      toutes('tresorerie_paiements', 'id, du_id, montant, date, prevision_id'),
+      // '*' : prevision_id n'existe qu'après supabase_tresorerie_previsions.sql.
+      toutes('tresorerie_paiements'),
       facultatif(toutes('tresorerie_previsions')),
       facultatif(toutes('tresorerie_partenaire_lignes', 'id, partenaire, type, created_at', q => q.eq('type', 'recu'))),
       facultatif(toutes('tresorerie_coffre_emprunts')),
