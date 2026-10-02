@@ -168,3 +168,36 @@ résultat (réparation, matériel, équipement d'un restaurant).
 payer / dette récente / dette, droits RH) et `lib/chargesMois.test.mjs`
 (résultat net au mois de la date limite, sans double compte avec l'ancien
 tableau `charges`).
+
+---
+
+## Étape 2 — Banque, espèces et coffre
+
+Décisions du 02/10/2026 :
+
+- **Espèces = un vrai compte**, à côté de BACI et SIB (`tresorerie_comptes`,
+  ligne « Espèces »). Payer « en espèces » (charge, dépense direction, dépôt au
+  coffre) fait baisser son solde. L'ancienne source « espèces » sans compte ne
+  sert plus qu'à l'historique.
+- **Entrée d'espèces** (saisie à la main) avec son origine :
+  - un restaurant (choisi dans la liste) ;
+  - un prêt : nom du prêteur (créancier) ; la dette du même montant est créée
+    en même temps (`est_pret`), en **dette récente**, passée en Dette à la main.
+    Annuler l'entrée retire la dette tant qu'aucun remboursement n'a été fait.
+- **Virement** entre deux comptes (Espèces, BACI, SIB) : deux mouvements liés
+  (`groupe`), le total ne bouge pas ; ils s'annulent ensemble.
+- L'écran « Banque » devient **« Banque et espèces »**.
+- **Coffre = épargne**, hors trésorerie :
+  - **Épargner** à tout moment, depuis Espèces, BACI ou SIB (ancien « dépôt ») ;
+    raccourci depuis « Banque et espèces ».
+  - **Emprunter** remplace le retrait : montant, compte qui reçoit l'argent, et
+    quand rembourser — à une date, ou à la prochaine réception Glovo, Yango,
+    Wave, OM ou Djamo (réception marquée « reçu » après l'emprunt). Le moment
+    venu, l'emprunt passe « à rembourser » (orange) ; simple rappel, la
+    trésorerie ne bouge pas. **Rembourser** = remettre le montant au coffre
+    depuis un compte au choix. Les retraits d'avant restent dans l'historique.
+- Vue d'ensemble : ligne « Banque et espèces » ; carte du coffre avec ce qui
+  reste à lui rembourser.
+
+Migration : `supabase_tresorerie_especes.sql`.
+Tests : `lib/tresorerie.test.mjs` (prêt en dette récente), `lib/direction.test.mjs` (état d'un emprunt).
