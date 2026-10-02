@@ -225,4 +225,12 @@ Décisions du 02/10/2026 (remplace la vue d'ensemble) :
    bas : À payer, Résultats, Dépenses direction, Plafonds de fond ; bouton
    Droits en haut à droite.
 
+**Corrigé le 02/10/2026 (retour utilisateur)** : un appui sur un bloc le
+**déroule sur place** avec ses montants, il n'ouvre aucun écran ; même
+comportement pour tous les blocs (nette réelle, trésorerie, prévisions,
+dépenses du mois, dette récente, dette, coffre). Tous les raccourcis d'avant
+restent en bas (Banque et espèces, Partenaires, À payer, Dettes, Résultats,
+Coffre, Dépenses direction, Plafonds de fond, Fournisseurs). La Dette est
+toujours affichée, avec « + Ajouter une dette » (créancier, montant).
+
 Tests : `lib/tresorerie.test.mjs` (dépenses du mois, synthèse).

@@ -3,8 +3,9 @@
 //
 // De haut en bas : alertes · trésorerie nette réelle (banque + espèces −
 // prévisions) · trésorerie (+ partenaires à recevoir) · prévisions · dépenses
-// du mois · dette récente · dette · coffre · raccourcis. Les blocs mènent à
-// leur écran ; une ligne de dépense ou de dette ouvre son détail (payer).
+// du mois · dette récente · dette · coffre · tous les raccourcis. Un appui sur
+// un bloc le déroule sur place avec ses montants (il n'ouvre pas d'écran) ;
+// une ligne de dépense ou de dette ouvre son détail (payer).
 // Les alertes sont chargées à part pour ne pas retarder l'affichage.
 // Spéc : docs/superpowers/specs/2026-10-02-nouvelle-tresorerie-design.md (étape 3)
 // ──────────────────────────────────────────────────────────────────────────────
@@ -13,7 +14,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 
 import {
-  Bouton, ChampMontant, Entete, EtatEcran, Feuille, Puces, useStylesTreso, useTresorerie,
+  Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Ligne, Puces, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import { Badge, FeuilleDetail, FeuillePaiement, couleursStatut, titreDu } from '../components/tresorerie/du'
 import { objectifDuMois, progression, resteARembourser, soldeCoffre } from '../lib/direction'
@@ -23,7 +24,7 @@ import {
   LIBELLES_CATEGORIE, NIVEAUX, aujourdhuiISO, classerTous, depensesDuMois, fmt, formatDateFR, fournisseursDus,
   joursDeRetard, libelleMoisCourt, paiementsParDu, peut, premierDuMois, resteDu, syntheseTresorerie, totalPaye,
 } from '../lib/tresorerie'
-import { chargerUtilisateursAdmin, enregistrerDroit, retirerDroit } from '../lib/tresorerieDb'
+import { chargerUtilisateursAdmin, enregistrerDroit, enregistrerDu, retirerDroit } from '../lib/tresorerieDb'
 
 export default function TresorerieScreen() {
   const { styles, colors } = useStylesTreso()
@@ -33,7 +34,8 @@ export default function TresorerieScreen() {
   const [plafondsVisible, setPlafondsVisible] = useState(false)
   const [alertes, setAlertes] = useState(null)
   const [toutesAlertes, setToutesAlertes] = useState(false)
-  const [ouvert, setOuvert] = useState({ dette_recente: false, dette: false })
+  const [ouvert, setOuvert] = useState({})           // blocs déroulés
+  const [nouvelleDette, setNouvelleDette] = useState(false)
   const [detail, setDetail] = useState(null)       // dû ouvert
   const [paiement, setPaiement] = useState(null)   // { du } ou { categorie: 'loyer', restaurantId }
 
@@ -80,6 +82,7 @@ export default function TresorerieScreen() {
     .sort((a, b) => (a.echeance || '9999').localeCompare(b.echeance || '9999'))
   const sections = ['dette_recente', ...(peut(niveau, 'voir_dettes') ? ['dette'] : [])]
   const aEspeces = (donnees?.comptes || []).some(c => c.nom === 'Espèces')
+  const basculer = cle => setOuvert(o => ({ ...o, [cle]: !o[cle] }))
 
   return (
     <SafeAreaView style={styles.container}>
@@ -114,107 +117,85 @@ export default function TresorerieScreen() {
             </TouchableOpacity>
           )}
 
-          {/* 1 · Trésorerie nette réelle */}
-          <TouchableOpacity style={styles.carte} onPress={() => router.push('/tresorerie-banque')}>
-            <Text style={styles.lbl}>Trésorerie nette réelle</Text>
-            <Text style={[styles.grand, { color: s.nette >= 0 ? colors.success : colors.error }]}>
-              {s.nette >= 0 ? '' : '− '}{fmt(Math.abs(s.nette))} F
+          {/* Chaque bloc se déroule sur place (montants) ; les écrans s'ouvrent par les raccourcis du bas. */}
+          <Bloc titre="Trésorerie nette réelle" grand valeur={s.nette} ouvert={ouvert.nette} onBasculer={() => basculer('nette')}
+            couleur={s.nette >= 0 ? colors.success : colors.error}>
+            <Ligne label="Banque et espèces" valeur={s.banque + s.especes} />
+            <Ligne label="− Prévisions" valeur={s.prevu} signe="-" couleur={colors.error} />
+          </Bloc>
+
+          <Bloc titre="Trésorerie" valeur={s.tresorerie} ouvert={ouvert.tresorerie} onBasculer={() => basculer('tresorerie')}>
+            <Ligne label="Banque (BACI, SIB)" valeur={s.banque} />
+            <Ligne label={aEspeces ? 'Espèces' : 'Espèces (migration à passer)'} valeur={s.especes} />
+            <Ligne label={donnees.partenaires === null ? 'Partenaires à recevoir (migration à passer)' : 'Partenaires à recevoir'}
+              valeur={s.partenaires} />
+            <Text style={[styles.petit, { marginTop: 6 }]}>
+              Pour information : fournisseurs dus {fmt(fournisseursDus(donnees.fournisseurs))} F (payés par les restaurants).
             </Text>
-            <Text style={styles.petit}>Banque et espèces {fmt(s.banque + s.especes)} − prévisions {fmt(s.prevu)}</Text>
-          </TouchableOpacity>
+          </Bloc>
 
-          {/* 2 · Trésorerie */}
-          <View style={styles.carte}>
-            <Text style={[styles.lbl, { marginBottom: 4 }]}>Trésorerie</Text>
-            <LigneLien label="Banque (BACI, SIB)" valeur={s.banque} onPress={() => router.push('/tresorerie-banque')} />
-            <LigneLien label={aEspeces ? 'Espèces' : 'Espèces (migration à passer)'} valeur={s.especes} onPress={() => router.push('/tresorerie-banque')} />
-            <LigneLien
-              label={donnees.partenaires === null ? 'Partenaires à recevoir (migration à passer)' : 'Partenaires à recevoir'}
-              valeur={s.partenaires} onPress={() => router.push('/tresorerie-partenaires')}
-            />
-            <View style={styles.sep} />
-            <View style={styles.ligne}>
-              <Text style={[styles.ligneLabel, { fontWeight: '800' }]}>Total</Text>
-              <Text style={[styles.ligneValeur, { fontWeight: '800' }]}>{fmt(s.tresorerie)} F</Text>
-            </View>
-            <TouchableOpacity onPress={() => router.push('/credits-fournisseurs')} style={{ marginTop: 6 }}>
-              <Text style={styles.petit}>Pour information : fournisseurs dus {fmt(fournisseursDus(donnees.fournisseurs))} F (payés par les restaurants) ›</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* 3 · Prévisions (étape 4) */}
-          <View style={styles.carte}>
-            <View style={styles.ligne}>
-              <Text style={styles.lbl}>Prévisions</Text>
-              <Text style={styles.ligneValeur}>{fmt(s.prevu)} F</Text>
-            </View>
+          <Bloc titre="Prévisions" valeur={s.prevu} ouvert={ouvert.prevision} onBasculer={() => basculer('prevision')}>
             <Text style={styles.petit}>Aucune prévision pour l'instant.</Text>
-          </View>
+          </Bloc>
 
-          {/* 4 · Dépenses du mois */}
-          <View style={styles.carte}>
-            <TouchableOpacity style={styles.ligne} onPress={() => router.push('/tresorerie-a-payer')}>
-              <Text style={styles.lbl}>Dépenses du mois ›</Text>
-              <Text style={[styles.ligneValeur, { color: colors.warningDark }]}>{fmt(depenses.reduce((x, d) => x + reste(d), 0))} F</Text>
-            </TouchableOpacity>
+          <Bloc titre={`Dépenses du mois · ${depenses.length}`} valeur={depenses.reduce((x, d) => x + reste(d), 0)}
+            couleur={colors.warningDark} ouvert={ouvert.depenses} onBasculer={() => basculer('depenses')}>
             {depenses.length === 0 && <Text style={styles.petit}>Rien à payer d'ici les prochaines dates limites.</Text>}
             {depenses.map(d => (
               <LigneDu key={d.id} du={d} reste={reste(d)} paye={totalPaye(parDu[d.id])} nomResto={nomResto}
                 info={`avant le ${formatDateFR(d.echeance)}`} onPress={() => setDetail(d)} />
             ))}
-          </View>
+          </Bloc>
 
-          {/* 5 · Dette récente, 6 · Dette */}
           {sections.map(cle => {
             const lignes = enDette(cle)
             const total = lignes.reduce((x, d) => x + reste(d), 0)
             return (
-              <View key={cle} style={styles.carte}>
-                <TouchableOpacity style={styles.ligne} onPress={() => setOuvert(o => ({ ...o, [cle]: !o[cle] }))}>
-                  <Text style={styles.lbl}>{cle === 'dette' ? 'Dette' : 'Dette récente'} · {lignes.length} {ouvert[cle] ? '▴' : '▾'}</Text>
-                  <Text style={[styles.ligneValeur, { color: total ? colors.error : colors.success }]}>{fmt(total)} F</Text>
-                </TouchableOpacity>
-                {ouvert[cle] && lignes.length === 0 && <Text style={styles.petit}>Rien ici.</Text>}
-                {ouvert[cle] && lignes.map(d => {
+              <Bloc key={cle} titre={`${cle === 'dette' ? 'Dette' : 'Dette récente'} · ${lignes.length}`} valeur={total}
+                couleur={total ? colors.error : colors.success} ouvert={ouvert[cle]} onBasculer={() => basculer(cle)}>
+                {lignes.length === 0 && <Text style={styles.petit}>Rien ici.</Text>}
+                {lignes.map(d => {
                   const j = d.echeance ? joursDeRetard(d.echeance, aujourdhui) : 0
                   return (
                     <LigneDu key={d.id} du={d} reste={reste(d)} paye={totalPaye(parDu[d.id])} nomResto={nomResto}
                       info={j ? `${j} j de retard` : d.est_pret ? 'prêt' : ''} badge={cle} onPress={() => setDetail(d)} />
                   )
                 })}
-              </View>
+                {cle === 'dette' && peut(niveau, 'saisir_dus') && (
+                  <Bouton secondaire titre="+ Ajouter une dette" style={{ marginTop: 8 }} onPress={() => setNouvelleDette(true)} />
+                )}
+              </Bloc>
             )
           })}
 
-          {/* Coffre */}
           {peut(niveau, 'voir_coffre') && donnees.direction && (() => {
             const solde = soldeCoffre(donnees.direction.coffre)
             const objectif = objectifDuMois(donnees.direction.objectifs, premierDuMois(aujourdhui))
             const pct = progression(solde, objectif)
             const aRendre = resteARembourser(donnees.direction.emprunts)
             return (
-              <TouchableOpacity style={styles.carte} onPress={() => router.push('/tresorerie-coffre')}>
-                <View style={styles.ligne}>
-                  <Text style={styles.lbl}>Coffre (épargne)</Text>
-                  <Text style={styles.ligneValeur}>{pct === null ? '—' : `${pct} %`}</Text>
-                </View>
+              <Bloc titre="Coffre (épargne)" valeur={solde} ouvert={ouvert.coffre} onBasculer={() => basculer('coffre')}>
                 <View style={{ height: 10, backgroundColor: colors.surfaceAlt, borderRadius: 6, overflow: 'hidden', marginVertical: 6 }}>
                   <View style={{ height: '100%', width: `${Math.min(100, pct || 0)}%`, backgroundColor: colors.success }} />
                 </View>
-                <View style={styles.ligne}>
-                  <Text style={styles.petit}>{fmt(solde)} F</Text>
-                  <Text style={styles.petit}>{objectif ? `objectif ${fmt(objectif)} F` : 'objectif à fixer'}</Text>
-                </View>
-                {aRendre > 0 && <Text style={[styles.petit, { color: colors.warningDark, fontWeight: '700' }]}>À rembourser au coffre : {fmt(aRendre)} F</Text>}
-              </TouchableOpacity>
+                <Ligne label="Objectif du mois" valeur={objectif} />
+                <Ligne label="Atteint" valeur={solde} />
+                {aRendre > 0 && <Ligne label="À rembourser au coffre" valeur={aRendre} couleur={colors.warningDark} />}
+              </Bloc>
             )
           })()}
 
           <View style={styles.tuiles}>
-            <Tuile icone="📋" titre="À payer" sous="Loyers · salaires · CNPS · impôts · dettes" route="/tresorerie-a-payer" />
+            <Tuile icone="🏦" titre="Banque et espèces" sous={`${fmt(s.banque + s.especes)} F · BACI · SIB · espèces`} route="/tresorerie-banque" />
+            <Tuile icone="🛵" titre="Partenaires" sous={`${fmt(s.partenaires)} F à recevoir`} route="/tresorerie-partenaires" />
+            <Tuile icone="📋" titre="À payer" sous="Loyers · salaires · CNPS · impôts…" route="/tresorerie-a-payer" />
+            {peut(niveau, 'voir_dettes') && (
+              <Tuile icone="📒" titre="Dettes" sous={`${fmt(enDette('dette').reduce((x, d) => x + reste(d), 0))} F à rembourser`} route="/tresorerie-a-payer?onglet=dette" />
+            )}
             {peut(niveau, 'voir_resultats') && (
               <Tuile icone="📊" titre="Résultats" sous="Net par restaurant / mois" route="/tresorerie-resultats" />
             )}
+            {peut(niveau, 'voir_coffre') && <Tuile icone="🔒" titre="Coffre" sous="Épargner · emprunter · objectif" route="/tresorerie-coffre" />}
             {peut(niveau, 'voir_direction') && <Tuile icone="💼" titre="Dépenses direction" sous="Autres charges, réparations…" route="/tresorerie-direction" />}
             {peut(niveau, 'gerer_droits') && (
               <TouchableOpacity style={styles.tuile} onPress={() => setPlafondsVisible(true)}>
@@ -222,6 +203,7 @@ export default function TresorerieScreen() {
                 <Text style={styles.tuileSous}>Alerte « fond bas » par restaurant</Text>
               </TouchableOpacity>
             )}
+            <Tuile icone="💳" titre="Fournisseurs" sous={`${fmt(fournisseursDus(donnees.fournisseurs))} F dus`} route="/credits-fournisseurs" />
           </View>
         </ScrollView>
       )}
@@ -238,6 +220,8 @@ export default function TresorerieScreen() {
           />
           <FeuillePaiement demande={paiement} donnees={donnees} parDu={parDu} nomResto={nomResto} user={user}
             onFermer={() => setPaiement(null)} apres={recharger} />
+          <FeuilleNouvelleDette visible={nouvelleDette} donnees={donnees} user={user}
+            onFermer={() => setNouvelleDette(false)} apres={recharger} />
           <FeuillePlafonds visible={plafondsVisible} restaurants={donnees.restaurants}
             onFermer={() => setPlafondsVisible(false)} apres={recharger} />
         </>
@@ -253,14 +237,63 @@ export default function TresorerieScreen() {
   )
 }
 
-// Une ligne de la trésorerie qui mène à son écran.
-function LigneLien({ label, valeur, onPress }) {
+// Un bloc de l'accueil : titre et montant ; un appui le déroule sur place.
+function Bloc({ titre, valeur, couleur, grand, ouvert, onBasculer, children }) {
   const { styles } = useStylesTreso()
   return (
-    <TouchableOpacity style={styles.ligne} onPress={onPress}>
-      <Text style={styles.ligneLabel}>{label} ›</Text>
-      <Text style={styles.ligneValeur}>{fmt(valeur)} F</Text>
-    </TouchableOpacity>
+    <View style={styles.carte}>
+      <TouchableOpacity onPress={onBasculer}>
+        <View style={styles.ligne}>
+          <Text style={styles.lbl}>{titre} {ouvert ? '▴' : '▾'}</Text>
+          {!grand && <Text style={[styles.ligneValeur, couleur && { color: couleur }]}>{fmt(valeur)} F</Text>}
+        </View>
+        {grand && (
+          <Text style={[styles.grand, couleur && { color: couleur }]}>{valeur < 0 ? '− ' : ''}{fmt(Math.abs(valeur))} F</Text>
+        )}
+      </TouchableOpacity>
+      {ouvert && <View style={{ marginTop: 6 }}>{children}</View>}
+    </View>
+  )
+}
+
+// Ajouter une dette envers un créancier (ex. Zabad), directement depuis l'accueil.
+function FeuilleNouvelleDette({ visible, donnees, user, onFermer, apres }) {
+  const [creancier, setCreancier] = useState('')
+  const [montant, setMontant] = useState('')
+  const [note, setNote] = useState('')
+  const [occupe, setOccupe] = useState(false)
+
+  const connus = useMemo(() => [...new Set((donnees.dus || [])
+    .filter(d => d.categorie === 'dette' && d.creancier).map(d => d.creancier.trim()))].sort(), [donnees])
+
+  if (!visible) return null
+
+  function fermer() { setCreancier(''); setMontant(''); setNote(''); onFermer() }
+
+  async function enregistrer() {
+    const v = montant === '' ? 0 : parseInt(montant, 10)
+    if (!creancier.trim()) { Alert.alert('Créancier manquant', 'À qui doit-on cet argent ?'); return }
+    if (!v) { Alert.alert('Montant manquant', 'Saisissez le montant dû.'); return }
+    setOccupe(true)
+    try {
+      await enregistrerDu({ categorie: 'dette', creancier: creancier.trim(), montant_du: v, note: note.trim() }, user)
+      await apres()
+      fermer()
+    } catch (e) {
+      Alert.alert('Non enregistrée', e?.message || 'Réessayez.')
+    } finally {
+      setOccupe(false)
+    }
+  }
+
+  return (
+    <Feuille visible onFermer={fermer} titre="Ajouter une dette">
+      <Champ label="Créancier" value={creancier} onChangeText={setCreancier} placeholder="Ex : Zabad" />
+      {connus.length > 0 && <Puces options={connus.map(c => ({ valeur: c, label: c }))} valeur={creancier.trim()} onChange={setCreancier} />}
+      <ChampMontant label="Montant dû" valeur={montant} onChange={setMontant} />
+      <Champ label="Note (facultatif)" value={note} onChangeText={setNote} />
+      <Bouton titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
+    </Feuille>
   )
 }
 
