@@ -15,7 +15,7 @@ import { Alert, Image, SafeAreaView, ScrollView, Text, TouchableOpacity, View } 
 import {
   Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Puces, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
-import { Badge, FeuilleDetail, FeuillePaiement, couleursStatut } from '../components/tresorerie/du'
+import { Badge, FeuilleDetail, FeuillePaiement, FeuillePrevision, couleursStatut } from '../components/tresorerie/du'
 import {
   CATEGORIES_CHARGE_A_PAYER, CATEGORIES_DIRECTION, categorieDirection, compteDansResultat,
 } from '../lib/direction'
@@ -32,7 +32,8 @@ export default function TresorerieDirectionScreen() {
   const [saisie, setSaisie] = useState(false)
   const [charge, setCharge] = useState(null)      // autre charge en création / modification
   const [detail, setDetail] = useState(null)      // autre charge ouverte
-  const [paiement, setPaiement] = useState(null)  // { du }
+  const [paiement, setPaiement] = useState(null)  // { du, prevision? }
+  const [prevoir, setPrevoir] = useState(null)    // autre charge dont on prévoit le paiement
 
   const aujourdhui = aujourdhuiISO()
   const parDu = useMemo(() => paiementsParDu(donnees?.paiements), [donnees])
@@ -149,10 +150,13 @@ export default function TresorerieDirectionScreen() {
             du={detail} paiements={detail ? parDu[detail.id] || [] : []} classement={detail ? classement[detail.id] : null}
             donnees={donnees} niveau={niveau} aujourdhui={aujourdhui} nomResto={nomResto} user={user}
             onFermer={() => setDetail(null)}
-            onPayer={x => { setDetail(null); setPaiement({ du: x }) }}
+            onPayer={(x, prevision) => { setDetail(null); setPaiement({ du: x, prevision }) }}
             onModifier={x => { setDetail(null); setCharge(x) }}
+            onPrevoir={x => { setDetail(null); setPrevoir(x) }}
             apres={recharger}
           />
+          <FeuillePrevision du={prevoir} donnees={donnees} nomResto={nomResto} user={user}
+            onFermer={() => setPrevoir(null)} apres={recharger} />
           <FeuillePaiement demande={paiement} donnees={donnees} parDu={parDu} nomResto={nomResto} user={user}
             onFermer={() => setPaiement(null)} apres={recharger} />
         </>

@@ -16,7 +16,8 @@ import { Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'r
 import {
   Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Ligne, Puces, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
-import { Badge, FeuilleDetail, FeuillePaiement, couleursStatut, titreDu } from '../components/tresorerie/du'
+import { Badge, FeuilleDetail, FeuillePaiement, FeuillePrevision, couleursStatut, titreDu } from '../components/tresorerie/du'
+import { etatPrevision, totalPrevu, trierPrevisions } from '../lib/previsions'
 import { objectifDuMois, progression, resteARembourser, soldeCoffre } from '../lib/direction'
 import { chargerAlertes, chargerPlafonds, enregistrerPlafonds } from '../lib/alertesDb'
 import { totalPartenaires } from '../lib/partenaires'
@@ -37,7 +38,10 @@ export default function TresorerieScreen() {
   const [ouvert, setOuvert] = useState({})           // blocs déroulés
   const [nouvelleDette, setNouvelleDette] = useState(false)
   const [detail, setDetail] = useState(null)       // dû ouvert
-  const [paiement, setPaiement] = useState(null)   // { du } ou { categorie: 'loyer', restaurantId }
+  const [paiement, setPaiement] = useState(null)   // { du, prevision? } ou { categorie: 'loyer', restaurantId }
+  const [prevoir, setPrevoir] = useState(null)     // dû dont on prévoit le paiement
+  const [choix, setChoix] = useState(false)        // choisir la ligne à prévoir
+  const [historique, setHistorique] = useState(false)
 
   useEffect(() => {
     if (!peut(niveau, 'voir_vue') || !donnees) return
@@ -53,12 +57,28 @@ export default function TresorerieScreen() {
     return totalPartenaires({ reglages: p.reglages, points: p.points, lignes: p.lignes, aujourdhui })
   }, [donnees, aujourdhui])
 
-  // Prévisions : étape 4 (0 en attendant).
-  const s = useMemo(
-    () => (donnees ? syntheseTresorerie({ comptes: donnees.comptes, partenaires: partenaires?.total || 0, prevu: 0 }) : null),
-    [donnees, partenaires],
-  )
   const parDu = useMemo(() => paiementsParDu(donnees?.paiements), [donnees])
+  // Prévisions : chaque ligne avec son état ; ouvertes (orange d'abord) et réalisées.
+  const prev = useMemo(() => {
+    if (!donnees) return { ouvertes: [], realisees: [], total: 0, parDu: {} }
+    const lignes = (donnees.previsions || []).map(p => {
+      const du = donnees.dus.find(d => d.id === p.du_id)
+      return du ? { prevision: p, du, etat: etatPrevision(p, { du, paiementsDu: parDu[du.id] || [], receptions: donnees.receptions, aujourdhui }) } : null
+    }).filter(Boolean)
+    const ouvertes = trierPrevisions(lignes.filter(l => l.etat.statut !== 'realisee'))
+    const parLigne = {}
+    for (const l of ouvertes) parLigne[l.du.id] = (parLigne[l.du.id] || 0) + l.etat.reste
+    return {
+      ouvertes,
+      realisees: lignes.filter(l => l.etat.statut === 'realisee').reverse(),
+      total: totalPrevu(donnees.previsions, donnees.dus, donnees.paiements, donnees.receptions, aujourdhui),
+      parDu: parLigne,
+    }
+  }, [donnees, parDu, aujourdhui])
+  const s = useMemo(
+    () => (donnees ? syntheseTresorerie({ comptes: donnees.comptes, partenaires: partenaires?.total || 0, prevu: prev.total }) : null),
+    [donnees, partenaires, prev],
+  )
   const classement = useMemo(
     () => (donnees ? classerTous(donnees.dus, donnees.paiements, aujourdhui) : {}),
     [donnees, aujourdhui],
@@ -83,6 +103,23 @@ export default function TresorerieScreen() {
   const sections = ['dette_recente', ...(peut(niveau, 'voir_dettes') ? ['dette'] : [])]
   const aEspeces = (donnees?.comptes || []).some(c => c.nom === 'Espèces')
   const basculer = cle => setOuvert(o => ({ ...o, [cle]: !o[cle] }))
+  const nbOrange = prev.ouvertes.filter(l => l.etat.statut === 'a_payer').length
+  const infoPrevu = d => (prev.parDu[d.id] ? `prévu ${fmt(prev.parDu[d.id])}` : '')
+  // Lignes qu'on peut prévoir : dépenses du mois, dette récente, dette, autres
+  // charges à payer, puis les charges qui viennent plus tard (ex. loyer du mois en cours).
+  const groupesAPrevoir = () => {
+    const vus = new Set(depenses.map(d => d.id))
+    const ouvertes = (donnees?.dus || []).filter(d => reste(d) > 0)
+    const plusTard = ouvertes.filter(d => classement[d.id] === 'a_payer' && d.categorie !== 'autre' && !vus.has(d.id))
+      .sort((a, b) => (a.echeance || '').localeCompare(b.echeance || ''))
+    return [
+      { titre: 'Dépenses du mois', lignes: depenses },
+      { titre: 'Dette récente', lignes: enDette('dette_recente') },
+      ...(peut(niveau, 'voir_dettes') ? [{ titre: 'Dette', lignes: enDette('dette') }] : []),
+      { titre: 'Autres charges à payer', lignes: ouvertes.filter(d => d.categorie === 'autre' && classement[d.id] === 'a_payer') },
+      { titre: 'Plus tard', lignes: plusTard },
+    ]
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -134,8 +171,46 @@ export default function TresorerieScreen() {
             </Text>
           </Bloc>
 
-          <Bloc titre="Prévisions" valeur={s.prevu} ouvert={ouvert.prevision} onBasculer={() => basculer('prevision')}>
-            <Text style={styles.petit}>Aucune prévision pour l'instant.</Text>
+          <Bloc titre={`Prévisions · ${prev.ouvertes.length}${nbOrange ? ` · ${nbOrange} à payer` : ''}`} valeur={s.prevu}
+            couleur={nbOrange ? colors.warningDark : undefined} ouvert={ouvert.prevision} onBasculer={() => basculer('prevision')}>
+            {prev.ouvertes.length === 0 && <Text style={styles.petit}>Aucune prévision.</Text>}
+            {prev.ouvertes.map(({ prevision: p, du, etat }) => {
+              const orange = etat.statut === 'a_payer'
+              return (
+                <TouchableOpacity key={p.id} onPress={() => setDetail(du)}
+                  style={[styles.item, orange && { backgroundColor: colors.warningLight, borderRadius: 10, paddingHorizontal: 8 }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.itemTitre}>
+                      {LIBELLES_CATEGORIE[du.categorie]} · {titreDu(du, nomResto)}{du.mois ? ` · ${libelleMoisCourt(du.mois)}` : ''}
+                    </Text>
+                    <Text style={[styles.petit, orange && { color: colors.warningDark, fontWeight: '700' }]}>
+                      <Text style={{ fontWeight: '800', color: colors.text }}>{fmt(etat.reste)} F</Text> · {etat.message}
+                    </Text>
+                  </View>
+                  {orange && peut(niveau, 'payer') && (
+                    <Bouton titre="Payer" style={styles.btnPetit} onPress={() => setPaiement({ du, prevision: p })} />
+                  )}
+                </TouchableOpacity>
+              )
+            })}
+            {peut(niveau, 'payer') && (
+              <Bouton secondaire titre="+ Prévoir un paiement" style={{ marginTop: 8 }} onPress={() => setChoix(true)} />
+            )}
+            {prev.realisees.length > 0 && (
+              <TouchableOpacity onPress={() => setHistorique(h => !h)} style={{ marginTop: 10 }}>
+                <Text style={[styles.petit, { fontWeight: '700' }]}>Prévisions réalisées · {prev.realisees.length} {historique ? '▴' : '▾'}</Text>
+              </TouchableOpacity>
+            )}
+            {historique && prev.realisees.map(({ prevision: p, du, etat }) => (
+              <View key={p.id} style={styles.item}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.itemTitre, { color: colors.textMuted }]}>
+                    {LIBELLES_CATEGORIE[du.categorie]} · {titreDu(du, nomResto)}{du.mois ? ` · ${libelleMoisCourt(du.mois)}` : ''}
+                  </Text>
+                  <Text style={styles.petit}>prévu {fmt(p.montant)} F · payé {fmt(etat.realise)} F · {etat.message.toLowerCase()}</Text>
+                </View>
+              </View>
+            ))}
           </Bloc>
 
           <Bloc titre={`Dépenses du mois · ${depenses.length}`} valeur={depenses.reduce((x, d) => x + reste(d), 0)}
@@ -143,7 +218,7 @@ export default function TresorerieScreen() {
             {depenses.length === 0 && <Text style={styles.petit}>Rien à payer d'ici les prochaines dates limites.</Text>}
             {depenses.map(d => (
               <LigneDu key={d.id} du={d} reste={reste(d)} paye={totalPaye(parDu[d.id])} nomResto={nomResto}
-                info={`avant le ${formatDateFR(d.echeance)}`} onPress={() => setDetail(d)} />
+                info={[`avant le ${formatDateFR(d.echeance)}`, infoPrevu(d)].filter(Boolean).join(' · ')} onPress={() => setDetail(d)} />
             ))}
           </Bloc>
 
@@ -158,7 +233,8 @@ export default function TresorerieScreen() {
                   const j = d.echeance ? joursDeRetard(d.echeance, aujourdhui) : 0
                   return (
                     <LigneDu key={d.id} du={d} reste={reste(d)} paye={totalPaye(parDu[d.id])} nomResto={nomResto}
-                      info={j ? `${j} j de retard` : d.est_pret ? 'prêt' : ''} badge={cle} onPress={() => setDetail(d)} />
+                      info={[j ? `${j} j de retard` : d.est_pret ? 'prêt' : '', infoPrevu(d)].filter(Boolean).join(' · ')}
+                      badge={cle} onPress={() => setDetail(d)} />
                   )
                 })}
                 {cle === 'dette' && peut(niveau, 'saisir_dus') && (
@@ -214,10 +290,18 @@ export default function TresorerieScreen() {
             du={detail} paiements={detail ? parDu[detail.id] || [] : []} classement={detail ? classement[detail.id] : null}
             donnees={donnees} niveau={niveau} aujourdhui={aujourdhui} nomResto={nomResto} user={user}
             onFermer={() => setDetail(null)}
-            onPayer={du => { setDetail(null); setPaiement(du.categorie === 'loyer' ? { categorie: 'loyer', restaurantId: du.restaurant_id } : { du }) }}
+            onPayer={(du, prevision) => {
+              setDetail(null)
+              setPaiement(du.categorie === 'loyer' && !prevision ? { categorie: 'loyer', restaurantId: du.restaurant_id } : { du, prevision })
+            }}
             onModifier={du => { setDetail(null); router.push(`/tresorerie-a-payer?onglet=${du.categorie}`) }}
+            onPrevoir={du => { setDetail(null); setPrevoir(du) }}
             apres={recharger}
           />
+          <FeuillePrevision du={prevoir} donnees={donnees} nomResto={nomResto} user={user}
+            onFermer={() => setPrevoir(null)} apres={recharger} />
+          <FeuilleChoixLigne visible={choix} groupes={groupesAPrevoir()} nomResto={nomResto} reste={reste}
+            onChoisir={du => { setChoix(false); setPrevoir(du) }} onFermer={() => setChoix(false)} />
           <FeuillePaiement demande={paiement} donnees={donnees} parDu={parDu} nomResto={nomResto} user={user}
             onFermer={() => setPaiement(null)} apres={recharger} />
           <FeuilleNouvelleDette visible={nouvelleDette} donnees={donnees} user={user}
@@ -253,6 +337,30 @@ function Bloc({ titre, valeur, couleur, grand, ouvert, onBasculer, children }) {
       </TouchableOpacity>
       {ouvert && <View style={{ marginTop: 6 }}>{children}</View>}
     </View>
+  )
+}
+
+// Choisir la ligne dont on prévoit le paiement, rangée comme l'accueil.
+function FeuilleChoixLigne({ visible, groupes, nomResto, reste, onChoisir, onFermer }) {
+  const { styles } = useStylesTreso()
+  if (!visible) return null
+  return (
+    <Feuille visible onFermer={onFermer} titre="Prévoir un paiement : quelle dépense ?">
+      {groupes.every(g => !g.lignes.length) && <Text style={styles.vide}>Rien à payer.</Text>}
+      {groupes.filter(g => g.lignes.length).map(g => (
+        <View key={g.titre} style={{ marginBottom: 10 }}>
+          <Text style={[styles.lbl, { marginBottom: 4 }]}>{g.titre}</Text>
+          {g.lignes.map(d => (
+            <TouchableOpacity key={d.id} style={styles.item} onPress={() => onChoisir(d)}>
+              <Text style={[styles.itemTitre, { flex: 1 }]}>
+                {LIBELLES_CATEGORIE[d.categorie]} · {titreDu(d, nomResto)}{d.mois ? ` · ${libelleMoisCourt(d.mois)}` : ''}
+              </Text>
+              <Text style={styles.petit}>{fmt(reste(d))} F</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ))}
+    </Feuille>
   )
 }
 

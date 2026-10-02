@@ -16,7 +16,7 @@ import { Alert, SafeAreaView, ScrollView, Switch, Text, TouchableOpacity, View }
 import {
   Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Puces, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
-import { Badge, FeuilleDetail, FeuillePaiement, couleursStatut, titreDu } from '../components/tresorerie/du'
+import { Badge, FeuilleDetail, FeuillePaiement, FeuillePrevision, couleursStatut, titreDu } from '../components/tresorerie/du'
 import { FeuilleEcheance, FeuilleMontantsFixes, FeuilleReglageLoyers } from '../components/tresorerie/reglagesCharges'
 import { FeuilleSaisieBaux, FeuilleSaisieMois } from '../components/tresorerie/saisieGroupee'
 import {
@@ -49,7 +49,8 @@ export default function TresorerieAPayerScreen() {
   const [restantsSeulement, setRestantsSeulement] = useState(true)
   const [detail, setDetail] = useState(null)        // dû ouvert
   const [edition, setEdition] = useState(null)      // dû en création / modification
-  const [paiement, setPaiement] = useState(null)    // { du } ou { categorie: 'loyer', restaurantId }
+  const [paiement, setPaiement] = useState(null)    // { du, prevision? } ou { categorie: 'loyer', restaurantId }
+  const [prevoir, setPrevoir] = useState(null)      // dû dont on prévoit le paiement
   const [reglage, setReglage] = useState(null)      // 'loyer' | 'echeance' | 'montants' | 'bail' | 'mois'
 
   useEffect(() => {
@@ -158,10 +159,16 @@ export default function TresorerieAPayerScreen() {
             du={detail} paiements={detail ? parDu[detail.id] || [] : []} classement={detail ? classement[detail.id] : null}
             donnees={donnees} niveau={niveau} aujourdhui={aujourdhui} nomResto={nomResto} user={user}
             onFermer={() => setDetail(null)}
-            onPayer={du => { setDetail(null); setPaiement(du.categorie === 'loyer' ? { categorie: 'loyer', restaurantId: du.restaurant_id } : { du }) }}
+            onPayer={(du, prevision) => {
+              setDetail(null)
+              setPaiement(du.categorie === 'loyer' && !prevision ? { categorie: 'loyer', restaurantId: du.restaurant_id } : { du, prevision })
+            }}
             onModifier={du => { setDetail(null); setEdition(du) }}
+            onPrevoir={du => { setDetail(null); setPrevoir(du) }}
             apres={recharger}
           />
+          <FeuillePrevision du={prevoir} donnees={donnees} nomResto={nomResto} user={user}
+            onFermer={() => setPrevoir(null)} apres={recharger} />
           <FeuilleEdition du={edition} donnees={donnees} user={user} onFermer={() => setEdition(null)} apres={recharger} />
           <FeuillePaiement demande={paiement} donnees={donnees} parDu={parDu} nomResto={nomResto} user={user}
             onFermer={() => setPaiement(null)} apres={recharger} />

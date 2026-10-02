@@ -5,13 +5,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, Image, Text, TouchableOpacity, View } from 'react-native'
 
+import { PARTENAIRES_PREVISION, etatPrevision, trierPrevisions } from '../../lib/previsions'
 import { usePhoto } from '../../lib/usePhoto'
 import {
   CATEGORIES_SERIE, LIBELLES_CATEGORIE, aujourdhuiISO, echeancePostPayee, fmt, formatDateFR, joursDeRetard,
   libelleMois, libelleMoisCourt, moisEntre, peut, premierDuMois, repartirPaiement, resteDu, totalPaye,
 } from '../../lib/tresorerie'
 import {
-  annulerPaiement, basculerDette, chargerDusLoyer, enregistrerDu, payer, supprimerDu,
+  ajouterPrevision, annulerPaiement, basculerDette, chargerDusLoyer, enregistrerDu, payer, supprimerDu, supprimerPrevision,
 } from '../../lib/tresorerieDb'
 import { Bouton, Champ, ChampMontant, Feuille, Ligne, Puces, useStylesTreso } from './commun'
 
@@ -49,8 +50,9 @@ export function peutModifierDu(niveau, du) {
 
 // ── Détail ───────────────────────────────────────────────────────────────────
 
+// onPayer(du, prevision?) ; onPrevoir(du) : ouvre la feuille de prévision.
 export function FeuilleDetail({
-  du, paiements, classement, donnees, niveau, aujourdhui, nomResto, user, onFermer, onPayer, onModifier, apres,
+  du, paiements, classement, donnees, niveau, aujourdhui, nomResto, user, onFermer, onPayer, onModifier, onPrevoir, apres,
 }) {
   const { styles, colors } = useStylesTreso()
   if (!du) return null
@@ -103,6 +105,20 @@ export function FeuilleDetail({
   }
 
   const retard = reste && du.echeance ? joursDeRetard(du.echeance, aujourdhui) : 0
+  const previsions = trierPrevisions((donnees.previsions || []).filter(x => x.du_id === du.id)
+    .map(x => ({ prevision: x, etat: etatPrevision(x, { du, paiementsDu: paiements, receptions: donnees.receptions, aujourdhui }) })))
+
+  function retirerPrevision(x) {
+    Alert.alert('Supprimer cette prévision ?', `${fmt(x.montant)} F. Les paiements déjà faits restent.`, [
+      { text: 'Garder', style: 'cancel' },
+      {
+        text: 'Supprimer', style: 'destructive', onPress: async () => {
+          try { await supprimerPrevision(x, user); await apres() }
+          catch (e) { Alert.alert('Suppression impossible', e?.message || 'Réessayez.') }
+        },
+      },
+    ])
+  }
 
   return (
     <Feuille visible onFermer={onFermer}
@@ -122,6 +138,39 @@ export function FeuilleDetail({
         {!!du.note && <Text style={[styles.petit, { marginTop: 6 }]}>{du.note}</Text>}
         {!!du.cree_par_nom && <Text style={styles.petit}>Saisi par {du.cree_par_nom}</Text>}
       </View>
+
+      {(previsions.length > 0 || (reste > 0 && onPrevoir && peut(niveau, 'payer'))) && (
+        <>
+          <Text style={[styles.lbl, { marginBottom: 6 }]}>Prévisions</Text>
+          <View style={styles.carte}>
+            {previsions.length === 0 && <Text style={styles.vide}>Aucune prévision.</Text>}
+            {previsions.map(({ prevision: x, etat }) => {
+              const orange = etat.statut === 'a_payer'
+              return (
+                <View key={x.id} style={[styles.item, orange && { backgroundColor: colors.warningLight, borderRadius: 10, paddingHorizontal: 8 }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.itemTitre, etat.statut === 'realisee' && { color: colors.textMuted }]}>
+                      {fmt(x.montant)} F{etat.realise > 0 && etat.statut !== 'realisee' ? ` · reste ${fmt(etat.reste)}` : ''}
+                    </Text>
+                    <Text style={[styles.petit, orange && { color: colors.warningDark, fontWeight: '700' }]}>
+                      {etat.statut === 'realisee' ? `${etat.message} · réalisée` : etat.message}{x.note ? ` · ${x.note}` : ''}
+                    </Text>
+                  </View>
+                  {orange && peut(niveau, 'payer') && <Bouton titre="Payer" style={styles.btnPetit} onPress={() => onPayer(du, x)} />}
+                  {etat.statut !== 'realisee' && peut(niveau, 'payer') && (
+                    <TouchableOpacity onPress={() => retirerPrevision(x)} style={{ marginLeft: 8 }}>
+                      <Text style={{ color: colors.error, fontSize: 13 }}>Retirer</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )
+            })}
+            {reste > 0 && onPrevoir && peut(niveau, 'payer') && (
+              <Bouton secondaire titre="Prévoir un paiement" style={{ marginTop: 8 }} onPress={() => onPrevoir(du)} />
+            )}
+          </View>
+        </>
+      )}
 
       <Text style={[styles.lbl, { marginBottom: 6 }]}>Paiements</Text>
       <View style={styles.carte}>
@@ -156,8 +205,10 @@ export function FeuilleDetail({
 
 // ── Paiement ─────────────────────────────────────────────────────────────────
 
-// demande : { du } pour une ligne, ou { categorie: 'loyer', restaurantId } pour
-// un loyer dont le mois se choisit à la main (rien n'est présélectionné).
+// demande : { du } pour une ligne (ou { du, prevision } depuis une prévision :
+// montant prévu prérempli, paiement rattaché à la prévision), ou
+// { categorie: 'loyer', restaurantId } pour un loyer dont le mois se choisit à
+// la main (rien n'est présélectionné).
 export function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFermer, apres }) {
   const { styles, colors } = useStylesTreso()
   const { choisirPhoto } = usePhoto()
@@ -190,7 +241,14 @@ export function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFer
     setSource(null)
     setDate(aujourdhuiISO())
     setPhoto(null)
-    setMontant(demande.du ? String(resteDu(demande.du, parDu[demande.du.id])) : '')
+    if (demande.du && demande.prevision) {
+      const e = etatPrevision(demande.prevision, {
+        du: demande.du, paiementsDu: parDu[demande.du.id] || [], receptions: donnees.receptions, aujourdhui: aujourdhuiISO(),
+      })
+      setMontant(String(e.aPayer))
+    } else {
+      setMontant(demande.du ? String(resteDu(demande.du, parDu[demande.du.id])) : '')
+    }
   }, [demande])
 
   // Reste du mois choisi ; un mois payé d'avance n'existe pas encore : loyer plein.
@@ -251,7 +309,10 @@ export function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFer
       const libelle = estLoyer
         ? `Loyer ${nomResto(restaurantId)} · ${libelleMoisCourt(moisChoisi)}`
         : `${LIBELLES_CATEGORIE[demande.du.categorie]} · ${titreDu(demande.du, nomResto)}${demande.du.mois ? ` · ${libelleMoisCourt(demande.du.mois)}` : ''}`
-      await payer({ parts, source: compte ? 'compte' : 'especes', compteId: compte, date, libelle, photoUrl: photo }, user)
+      await payer({
+        parts, source: compte ? 'compte' : 'especes', compteId: compte, date, libelle, photoUrl: photo,
+        previsionId: demande.prevision?.id || null,
+      }, user)
       await apres()
       onFermer()
     } catch (e) {
@@ -299,4 +360,82 @@ export function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFer
       </Text>
     </Feuille>
   )
+}
+
+// ── Prévoir un paiement ──────────────────────────────────────────────────────
+
+// Combien et quand : à une date, ou à la prochaine réception d'un partenaire.
+export function FeuillePrevision({ du, donnees, nomResto, user, onFermer, apres }) {
+  const { styles } = useStylesTreso()
+  const [montant, setMontant] = useState('')
+  const [quand, setQuand] = useState(null)        // 'date' | 'reception'
+  const [datePrevue, setDatePrevue] = useState('')
+  const [partenaire, setPartenaire] = useState(null)
+  const [note, setNote] = useState('')
+  const [occupe, setOccupe] = useState(false)
+
+  const parDu = useMemo(() => paiementsDeLaLigne(donnees, du), [donnees, du])
+  const reste = du ? resteDu(du, parDu) : 0
+  // Déjà prévu sur cette ligne (prévisions ouvertes), pour proposer le reste.
+  const dejaPrevu = du ? (donnees.previsions || []).filter(x => x.du_id === du.id)
+    .map(x => etatPrevision(x, { du, paiementsDu: parDu, receptions: donnees.receptions, aujourdhui: aujourdhuiISO() }))
+    .filter(e => e.statut !== 'realisee').reduce((t, e) => t + e.reste, 0) : 0
+
+  useEffect(() => {
+    if (!du) return
+    setMontant(String(Math.max(0, reste - dejaPrevu) || reste))
+    setQuand(null); setDatePrevue(''); setPartenaire(null); setNote('')
+  }, [du])
+
+  if (!du) return null
+
+  async function enregistrer() {
+    const v = montant === '' ? 0 : parseInt(montant, 10)
+    if (!v) { Alert.alert('Montant manquant', 'Combien comptez-vous payer ?'); return }
+    if (v > reste) { Alert.alert('Montant trop élevé', `Il ne reste que ${fmt(reste)} F à payer sur cette ligne.`); return }
+    if (!quand) { Alert.alert('Quand ?', 'Choisissez une date ou la prochaine réception d\'un partenaire.'); return }
+    if (quand === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(datePrevue)) {
+      Alert.alert('Date invalide', 'Écrivez la date au format AAAA-MM-JJ, par exemple 2026-10-15.'); return
+    }
+    if (quand === 'reception' && !partenaire) { Alert.alert('Partenaire manquant', 'À la réception de quel partenaire ?'); return }
+    setOccupe(true)
+    try {
+      await ajouterPrevision({
+        du, montant: v, datePrevue: quand === 'date' ? datePrevue : null,
+        partenaire: quand === 'reception' ? partenaire : null, note: note.trim(),
+      }, user)
+      await apres()
+      onFermer()
+    } catch (e) {
+      Alert.alert('Non enregistrée', e?.message || 'Réessayez.')
+    } finally {
+      setOccupe(false)
+    }
+  }
+
+  return (
+    <Feuille visible onFermer={onFermer}
+      titre={`Prévoir · ${LIBELLES_CATEGORIE[du.categorie]} · ${titreDu(du, nomResto)}${du.mois ? ` · ${libelleMoisCourt(du.mois)}` : ''}`}>
+      <Text style={[styles.petit, { marginBottom: 10 }]}>
+        Reste à payer : {fmt(reste)} F{dejaPrevu ? ` · déjà prévu : ${fmt(dejaPrevu)} F` : ''}
+      </Text>
+      <ChampMontant label="Montant prévu" valeur={montant} onChange={setMontant} />
+      <Text style={styles.label}>Quand ?</Text>
+      <Puces options={[{ valeur: 'date', label: 'À une date' }, { valeur: 'reception', label: 'À la prochaine réception' }]}
+        valeur={quand} onChange={setQuand} />
+      {quand === 'date' && (
+        <Champ label="Date (AAAA-MM-JJ)" value={datePrevue} onChangeText={setDatePrevue} autoCapitalize="none" placeholder="Ex : 2026-10-15" />
+      )}
+      {quand === 'reception' && <Puces options={PARTENAIRES_PREVISION} valeur={partenaire} onChange={setPartenaire} />}
+      <Champ label="Note (facultatif)" value={note} onChangeText={setNote} />
+      <Bouton titre="Enregistrer la prévision" onPress={enregistrer} occupe={occupe} />
+      <Text style={[styles.petit, { marginTop: 10 }]}>
+        Le montant prévu est retiré tout de suite de la trésorerie nette réelle. Le moment venu, la prévision passe en orange : vous payez à la main.
+      </Text>
+    </Feuille>
+  )
+}
+
+function paiementsDeLaLigne(donnees, du) {
+  return du ? (donnees.paiements || []).filter(p => p.du_id === du.id) : []
 }
