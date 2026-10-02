@@ -1,6 +1,7 @@
 // ──────────────────────────────────────────────────────────────────────────────
 // Trésorerie — réglages des charges à échéance (RH et propriétaire) :
-// loyers, jour limite commun, montants fixes (impôts, ITS, TEE), baux.
+// loyers, jour limite commun, montants fixes (impôts, ITS, TEE).
+// Les baux se saisissent par année : components/tresorerie/saisieGroupee.js.
 // Tout se paie après coup : la charge du mois M est due au jour limite de M+1.
 // Spéc : docs/superpowers/specs/2026-10-02-nouvelle-tresorerie-design.md
 // ──────────────────────────────────────────────────────────────────────────────
@@ -12,7 +13,7 @@ import {
   paiementsParDu, planReglageLoyer, premierDuMois, resteDu, resumeLoyersParRestaurant,
 } from '../../lib/tresorerie'
 import { enregistrerChargeFixe, enregistrerEcheance, enregistrerLoyer } from '../../lib/tresorerieDb'
-import { Bouton, Champ, ChampMontant, Feuille, Puces, useStylesTreso } from './commun'
+import { Bouton, Champ, ChampMontant, Feuille, useStylesTreso } from './commun'
 
 const NOMS_MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
 
@@ -248,90 +249,6 @@ export function FeuilleMontantsFixes({ categorie, donnees, user, onFermer, apres
           onChange={v => setValeurs(x => ({ ...x, [r.id]: v }))} placeholder="Pas de montant" />
       ))}
       <Bouton titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
-    </Feuille>
-  )
-}
-
-// ── Contrats de bail (une fois par an, date propre à chaque restaurant) ──────
-
-export function FeuilleBaux({ visible, donnees, user, onFermer, apres }) {
-  const { styles, colors } = useStylesTreso()
-  const [restaurantId, setRestaurantId] = useState(null)
-  const [montant, setMontant] = useState('')
-  const [jour, setJour] = useState('')
-  const [mois, setMois] = useState(null)
-  const [occupe, setOccupe] = useState(false)
-
-  const baux = useMemo(
-    () => Object.fromEntries((donnees.chargesFixes || []).filter(f => f.categorie === 'bail').map(f => [f.restaurant_id, f])),
-    [donnees],
-  )
-
-  useEffect(() => {
-    if (!restaurantId) return
-    const b = baux[restaurantId]
-    setMontant(b ? String(b.montant) : '')
-    setJour(b ? String(b.bail_jour) : '')
-    setMois(b ? b.bail_mois : null)
-  }, [restaurantId])
-
-  if (!visible) return null
-
-  async function enregistrer() {
-    const v = montant === '' ? 0 : parseInt(montant, 10)
-    const j = lireJour(jour)
-    if (!restaurantId) { Alert.alert('Restaurant manquant', 'Choisissez le restaurant.'); return }
-    if (!v) { Alert.alert('Montant manquant', 'Saisissez le montant annuel du bail.'); return }
-    if (!j || !mois) { Alert.alert('Date limite manquante', 'Choisissez le jour et le mois de la date limite.'); return }
-    const avant = baux[restaurantId]
-    const maj = dusAMettreAJour({
-      categorie: 'bail', restaurantId, montant: v, bail: { mois, jour: j },
-      dus: donnees.dus, paiements: donnees.paiements, aujourdhui: aujourdhuiISO(),
-    })
-    setOccupe(true)
-    try {
-      await enregistrerChargeFixe({
-        categorie: 'bail', restaurantId, montant: v, moisDepart: avant?.mois_depart || premierDuMois(aujourdhuiISO()),
-        bailMois: mois, bailJour: j, actif: true,
-      }, maj, user)
-      await apres()
-      setRestaurantId(null)
-    } catch (e) {
-      Alert.alert('Non enregistré', e?.message || 'Réessayez.')
-    } finally {
-      setOccupe(false)
-    }
-  }
-
-  return (
-    <Feuille visible onFermer={onFermer} titre="Contrats de bail">
-      {donnees.restaurants.map(r => {
-        const b = baux[r.id]
-        return (
-          <TouchableOpacity key={r.id} style={[styles.item, restaurantId === r.id && { backgroundColor: colors.primaryLight }]}
-            onPress={() => setRestaurantId(r.id)}>
-            <Text style={[styles.itemTitre, { flex: 1 }]}>{r.nom}</Text>
-            <Text style={styles.petit}>
-              {b ? `${fmt(b.montant)} F · le ${b.bail_jour} ${NOMS_MOIS[b.bail_mois - 1].toLowerCase()}` : 'non réglé'}
-            </Text>
-          </TouchableOpacity>
-        )
-      })}
-
-      {restaurantId && (
-        <View style={[styles.carte, { marginTop: 12 }]}>
-          <Text style={[styles.itemTitre, { marginBottom: 10 }]}>{donnees.restaurants.find(r => r.id === restaurantId)?.nom}</Text>
-          <ChampMontant label="Montant annuel" valeur={montant} onChange={setMontant} />
-          <Champ label="Jour de la date limite (1 à 31)" value={jour}
-            onChangeText={t => setJour(t.replace(/[^\d]/g, ''))} keyboardType="number-pad" />
-          <Text style={styles.label}>Mois de la date limite</Text>
-          <Puces options={NOMS_MOIS.map((nom, i) => ({ valeur: i + 1, label: nom }))} valeur={mois} onChange={setMois} />
-          <Text style={[styles.petit, { marginBottom: 10 }]}>
-            Chaque année, la ligne du bail apparaît un mois avant sa date limite.
-          </Text>
-          <Bouton titre="Enregistrer le bail" onPress={enregistrer} occupe={occupe} />
-        </View>
-      )}
     </Feuille>
   )
 }

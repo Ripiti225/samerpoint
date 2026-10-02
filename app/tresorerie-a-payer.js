@@ -17,9 +17,8 @@ import {
   Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Puces, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import { Badge, FeuilleDetail, FeuillePaiement, couleursStatut, titreDu } from '../components/tresorerie/du'
-import {
-  FeuilleBaux, FeuilleEcheance, FeuilleMontantsFixes, FeuilleReglageLoyers,
-} from '../components/tresorerie/reglagesCharges'
+import { FeuilleEcheance, FeuilleMontantsFixes, FeuilleReglageLoyers } from '../components/tresorerie/reglagesCharges'
+import { FeuilleSaisieBaux, FeuilleSaisieMois } from '../components/tresorerie/saisieGroupee'
 import {
   CATEGORIES_JOUR_COMMUN, CATEGORIES_MONTANT_FIXE, CATEGORIES_SERIE, LIBELLES_CATEGORIE, LIBELLES_ONGLET,
   aujourdhuiISO, categoriesVisibles, classerTous, echeancePostPayee, fmt, formatDateFR, jourCommun,
@@ -28,13 +27,13 @@ import {
 } from '../lib/tresorerie'
 import { enregistrerDu } from '../lib/tresorerieDb'
 
-const TITRES_AJOUT = {
-  salaire: '+ État de salaires',
-  cnps: '+ Déclaration CNPS',
-  impot: '+ Une ligne d\'impôts (exceptionnelle)',
-  its: '+ Une ligne d\'ITS (exceptionnelle)',
-  tee: '+ Une ligne de TEE (exceptionnelle)',
-  dette: '+ Dette',
+// Saisie groupée d'un mois : tous les restaurants sur un seul écran.
+const TITRES_SAISIE = {
+  salaire: 'Saisir l\'état de salaires d\'un mois',
+  cnps: 'Saisir la CNPS d\'un mois',
+  impot: 'Saisir ou corriger un mois',
+  its: 'Saisir ou corriger un mois',
+  tee: 'Saisir ou corriger un mois',
 }
 
 const EN_RETARD = ['dette_recente', 'dette']
@@ -51,7 +50,7 @@ export default function TresorerieAPayerScreen() {
   const [detail, setDetail] = useState(null)        // dû ouvert
   const [edition, setEdition] = useState(null)      // dû en création / modification
   const [paiement, setPaiement] = useState(null)    // { du } ou { categorie: 'loyer', restaurantId }
-  const [reglage, setReglage] = useState(null)      // 'loyer' | 'echeance' | 'montants' | 'bail'
+  const [reglage, setReglage] = useState(null)      // 'loyer' | 'echeance' | 'montants' | 'bail' | 'mois'
 
   useEffect(() => {
     if (onglets.length && !onglets.includes(onglet)) setOnglet(onglets[0])
@@ -78,7 +77,6 @@ export default function TresorerieAPayerScreen() {
     .filter(d => EN_RETARD.includes(onglet) || !d.mois || d.mois < moisCourant || classement[d.id] !== 'a_payer')
     .reduce((s, d) => s + resteDu(d, parDu[d.id]), 0)
 
-  const peutSaisir = c => (CATEGORIES_SERIE.includes(c) ? peut(niveau, 'saisir_charges') : peut(niveau, 'saisir_dus'))
   const bloque = (t.loading && !donnees) || t.erreur || !onglets.length
 
   return (
@@ -138,13 +136,16 @@ export default function TresorerieAPayerScreen() {
                 <Bouton secondaire titre="Régler les montants par restaurant" onPress={() => setReglage('montants')} />
               )}
               {onglet === 'bail' && peut(niveau, 'saisir_charges') && (
-                <Bouton secondaire titre="Régler les contrats de bail" onPress={() => setReglage('bail')} />
+                <Bouton titre="Saisir les baux d'une année" onPress={() => setReglage('bail')} />
               )}
               {CATEGORIES_JOUR_COMMUN.includes(onglet) && peut(niveau, 'saisir_charges') && (
                 <Bouton secondaire titre="Changer la date limite" onPress={() => setReglage('echeance')} />
               )}
-              {TITRES_AJOUT[onglet] && peutSaisir(onglet) && (
-                <Bouton titre={TITRES_AJOUT[onglet]} onPress={() => setEdition({ categorie: onglet })} />
+              {TITRES_SAISIE[onglet] && peut(niveau, 'saisir_charges') && (
+                <Bouton titre={TITRES_SAISIE[onglet]} onPress={() => setReglage('mois')} />
+              )}
+              {onglet === 'dette' && peut(niveau, 'saisir_dus') && (
+                <Bouton titre="+ Dette" onPress={() => setEdition({ categorie: 'dette' })} />
               )}
             </View>
           </ScrollView>
@@ -170,7 +171,9 @@ export default function TresorerieAPayerScreen() {
             onFermer={() => setReglage(null)} apres={recharger} />
           <FeuilleMontantsFixes categorie={reglage === 'montants' ? onglet : null} donnees={donnees} user={user}
             onFermer={() => setReglage(null)} apres={recharger} />
-          <FeuilleBaux visible={reglage === 'bail'} donnees={donnees} user={user}
+          <FeuilleSaisieBaux visible={reglage === 'bail'} donnees={donnees} user={user}
+            onFermer={() => setReglage(null)} apres={recharger} />
+          <FeuilleSaisieMois categorie={reglage === 'mois' ? onglet : null} donnees={donnees} user={user}
             onFermer={() => setReglage(null)} apres={recharger} />
         </>
       )}

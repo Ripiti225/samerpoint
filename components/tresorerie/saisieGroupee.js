@@ -1,0 +1,264 @@
+// ──────────────────────────────────────────────────────────────────────────────
+// Trésorerie — saisie groupée : tous les restaurants sur un seul écran.
+//  - un mois de salaires, CNPS, impôts, ITS ou TEE : un montant par restaurant ;
+//  - une année de baux : montant + date limite par restaurant.
+// Une ligne déjà saisie apparaît préremplie et se corrige ici, sauf si un
+// paiement a déjà été fait (elle se corrige alors depuis son détail).
+// Logique : planSaisieGroupee / planSaisieBaux (lib/tresorerie.js).
+// ──────────────────────────────────────────────────────────────────────────────
+import { useEffect, useMemo, useState } from 'react'
+import { Alert, Text, TextInput, View } from 'react-native'
+
+import {
+  CATEGORIES_MONTANT_FIXE, LIBELLES_CATEGORIE, aujourdhuiISO, fmt, jourCommun, libelleMois, moisEntre,
+  paiementsParDu, planSaisieBaux, planSaisieGroupee, premierDuMois,
+} from '../../lib/tresorerie'
+import { appliquerPlanDus, enregistrerChargeFixe } from '../../lib/tresorerieDb'
+import { Bouton, Feuille, Puces, useStylesTreso } from './commun'
+
+const TITRES = {
+  salaire: 'État de salaires',
+  cnps: 'Déclaration CNPS',
+  impot: 'Impôts du mois',
+  its: 'ITS du mois',
+  tee: 'TEE du mois',
+}
+
+const lireMontant = t => (t === '' || t == null ? null : parseInt(t, 10) || 0)
+
+// Le restaurant à gauche, ses champs en face.
+function Rangee({ nom, children }) {
+  const { styles } = useStylesTreso()
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+      <Text style={[styles.itemTitre, { flex: 1 }]} numberOfLines={2}>{nom}</Text>
+      {children}
+    </View>
+  )
+}
+
+function Saisie({ valeur, onChange, placeholder, largeur, montant = false }) {
+  const { styles, colors } = useStylesTreso()
+  return (
+    <TextInput
+      style={[styles.input, { width: largeur, textAlign: 'right', paddingVertical: 9 }]}
+      value={valeur}
+      onChangeText={t => onChange(montant ? t.replace(/[^\d]/g, '') : t)}
+      keyboardType={montant ? 'number-pad' : 'numbers-and-punctuation'}
+      placeholder={placeholder}
+      placeholderTextColor={colors.textMuted}
+    />
+  )
+}
+
+// Ligne verrouillée : un paiement existe, on n'y touche pas d'ici.
+function LigneEntamee({ nom, montant }) {
+  const { styles } = useStylesTreso()
+  return (
+    <View style={[styles.item, { marginBottom: 8 }]}>
+      <Text style={[styles.itemTitre, { flex: 1 }]}>{nom}</Text>
+      <Text style={styles.petit}>{fmt(montant)} F · déjà payé en partie, à corriger depuis son détail</Text>
+    </View>
+  )
+}
+
+// ── Un mois, tous les restaurants ────────────────────────────────────────────
+
+export function FeuilleSaisieMois({ categorie, donnees, user, onFermer, apres }) {
+  const { styles, colors } = useStylesTreso()
+  const courant = premierDuMois(aujourdhuiISO())
+  const [mois, setMois] = useState(null)
+  const [valeurs, setValeurs] = useState({})
+  const [occupe, setOccupe] = useState(false)
+
+  const parDu = useMemo(() => paiementsParDu(donnees.paiements), [donnees])
+  const ligneDe = restaurantId => donnees.dus.find(d => d.categorie === categorie && d.restaurant_id === restaurantId && d.mois === mois)
+
+  // Post-payé : on saisit d'habitude le mois écoulé (l'état de septembre en octobre).
+  useEffect(() => {
+    if (categorie) setMois(moisEntre('2000-01-01', courant).slice(-2)[0])
+  }, [categorie])
+
+  // Préremplissage : la ligne du mois si elle existe ; sinon, pour un montant
+  // fixe (impôts, ITS, TEE), le montant réglé du restaurant.
+  useEffect(() => {
+    if (!categorie || !mois) return
+    const fixes = Object.fromEntries((donnees.chargesFixes || [])
+      .filter(f => f.categorie === categorie && f.actif).map(f => [f.restaurant_id, f.montant]))
+    setValeurs(Object.fromEntries(donnees.restaurants.map(r => {
+      const d = ligneDe(r.id)
+      const v = d ? d.montant_du : CATEGORIES_MONTANT_FIXE.includes(categorie) ? fixes[r.id] : null
+      return [r.id, v != null ? String(v) : '']
+    })))
+  }, [categorie, mois])
+
+  if (!categorie) return null
+
+  const choixMois = [...moisEntre('2000-01-01', courant).slice(-12), ...moisEntre(courant, '2999-12-01').slice(1, 2)]
+    .reverse().map(m => ({ valeur: m, label: libelleMois(m) }))
+  const entamee = r => { const d = ligneDe(r.id); return d && parDu[d.id]?.length ? d : null }
+  const total = donnees.restaurants.reduce((s, r) => {
+    const d = entamee(r)
+    return s + (d ? Number(d.montant_du) : lireMontant(valeurs[r.id]) || 0)
+  }, 0)
+
+  async function enregistrer() {
+    const montants = {}
+    for (const r of donnees.restaurants) if (!entamee(r)) montants[r.id] = lireMontant(valeurs[r.id])
+    const plan = planSaisieGroupee({
+      categorie, mois, montants, jour: jourCommun(donnees.echeances, categorie),
+      dus: donnees.dus, paiements: donnees.paiements,
+    })
+    if (!plan.aCreer.length && !plan.aModifier.length && !plan.aSupprimer.length) {
+      Alert.alert('Rien à enregistrer', 'Aucun montant n\'a changé.'); return
+    }
+    setOccupe(true)
+    try {
+      await appliquerPlanDus(plan, user, { categorie, mois })
+      await apres()
+      onFermer()
+    } catch (e) {
+      Alert.alert('Non enregistré', e?.message || 'Réessayez.')
+    } finally {
+      setOccupe(false)
+    }
+  }
+
+  const jour = jourCommun(donnees.echeances, categorie)
+  return (
+    <Feuille visible onFermer={onFermer} titre={TITRES[categorie] || LIBELLES_CATEGORIE[categorie]}>
+      <Text style={styles.label}>Mois concerné</Text>
+      <Puces options={choixMois} valeur={mois} onChange={setMois} />
+      {mois && (
+        <Text style={[styles.petit, { marginBottom: 12 }]}>
+          À payer avant le {jour} du mois suivant. {CATEGORIES_MONTANT_FIXE.includes(categorie)
+            ? 'Champ vide = 0 F ce mois-ci (la ligne se crée chaque mois toute seule).'
+            : 'Champ vide = pas de ligne pour ce restaurant ce mois-ci.'}
+        </Text>
+      )}
+      {mois && donnees.restaurants.map(r => {
+        const d = entamee(r)
+        if (d) return <LigneEntamee key={r.id} nom={r.nom} montant={d.montant_du} />
+        return (
+          <Rangee key={r.id} nom={r.nom}>
+            <Saisie montant largeur={150} valeur={valeurs[r.id] ?? ''} placeholder="0"
+              onChange={v => setValeurs(x => ({ ...x, [r.id]: v }))} />
+          </Rangee>
+        )
+      })}
+      <View style={[styles.ligne, { marginVertical: 10 }]}>
+        <Text style={styles.ligneLabel}>Total {mois ? libelleMois(mois) : ''}</Text>
+        <Text style={[styles.ligneValeur, { color: colors.text }]}>{fmt(total)} F</Text>
+      </View>
+      <Bouton titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
+    </Feuille>
+  )
+}
+
+// ── Une année de baux, tous les restaurants ──────────────────────────────────
+
+// « 20/11 » → { jour: 20, mois: 11 } ; null si la date n'est pas lisible.
+function lireDate(texte) {
+  const m = String(texte || '').trim().match(/^(\d{1,2})\s*[/.-]\s*(\d{1,2})$/)
+  if (!m) return null
+  const jour = Number(m[1])
+  const mois = Number(m[2])
+  return jour >= 1 && jour <= 31 && mois >= 1 && mois <= 12 ? { jour, mois } : null
+}
+
+const jjmm = (jour, mois) => `${String(jour).padStart(2, '0')}/${String(mois).padStart(2, '0')}`
+
+export function FeuilleSaisieBaux({ visible, donnees, user, onFermer, apres }) {
+  const { styles, colors } = useStylesTreso()
+  const anCourant = Number(aujourdhuiISO().slice(0, 4))
+  const [an, setAn] = useState(anCourant)
+  const [valeurs, setValeurs] = useState({})   // { [restaurant_id]: { montant, date } }
+  const [occupe, setOccupe] = useState(false)
+
+  const parDu = useMemo(() => paiementsParDu(donnees.paiements), [donnees])
+  const ligneDe = restaurantId => donnees.dus.find(d => d.categorie === 'bail' && d.restaurant_id === restaurantId && d.mois?.startsWith(`${an}-`))
+
+  // Préremplissage : la ligne de l'année si elle existe, sinon le réglage du restaurant.
+  useEffect(() => {
+    if (!visible) return
+    const fixes = Object.fromEntries((donnees.chargesFixes || [])
+      .filter(f => f.categorie === 'bail' && f.actif).map(f => [f.restaurant_id, f]))
+    setValeurs(Object.fromEntries(donnees.restaurants.map(r => {
+      const d = ligneDe(r.id)
+      const f = fixes[r.id]
+      if (d) return [r.id, { montant: String(d.montant_du), date: jjmm(Number(d.echeance.slice(8, 10)), Number(d.echeance.slice(5, 7))) }]
+      if (f) return [r.id, { montant: String(f.montant), date: jjmm(f.bail_jour, f.bail_mois) }]
+      return [r.id, { montant: '', date: '' }]
+    })))
+  }, [visible, an])
+
+  if (!visible) return null
+
+  const entamee = r => { const d = ligneDe(r.id); return d && parDu[d.id]?.length ? d : null }
+  const maj = (id, k, v) => setValeurs(x => ({ ...x, [id]: { ...(x[id] || {}), [k]: v } }))
+  const total = donnees.restaurants.reduce((s, r) => {
+    const d = entamee(r)
+    return s + (d ? Number(d.montant_du) : lireMontant(valeurs[r.id]?.montant) || 0)
+  }, 0)
+
+  async function enregistrer() {
+    const saisies = {}
+    for (const r of donnees.restaurants) {
+      if (entamee(r)) continue
+      const v = valeurs[r.id] || {}
+      const montant = lireMontant(v.montant)
+      if (!montant) { saisies[r.id] = null; continue }
+      const date = lireDate(v.date)
+      if (!date) {
+        Alert.alert('Date limite à corriger', `${r.nom} : écrivez la date limite comme 20/11 (jour/mois).`); return
+      }
+      saisies[r.id] = { montant, ...date }
+    }
+    const plan = planSaisieBaux({
+      an, saisies, dus: donnees.dus, paiements: donnees.paiements, fixes: donnees.chargesFixes || [],
+      moisCourant: premierDuMois(aujourdhuiISO()),
+    })
+    if (!plan.reglages.length && !plan.aCreer.length && !plan.aModifier.length && !plan.aSupprimer.length) {
+      Alert.alert('Rien à enregistrer', 'Aucun bail n\'a changé.'); return
+    }
+    setOccupe(true)
+    try {
+      for (const g of plan.reglages) await enregistrerChargeFixe({ categorie: 'bail', ...g }, [], user)
+      await appliquerPlanDus(plan, user, { categorie: 'bail', an })
+      await apres()
+      onFermer()
+    } catch (e) {
+      Alert.alert('Non enregistré', e?.message || 'Réessayez.')
+    } finally {
+      setOccupe(false)
+    }
+  }
+
+  return (
+    <Feuille visible onFermer={onFermer} titre="Contrats de bail">
+      <Text style={styles.label}>Année</Text>
+      <Puces options={[anCourant - 1, anCourant, anCourant + 1].map(a => ({ valeur: a, label: String(a) }))} valeur={an} onChange={setAn} />
+      <Text style={[styles.petit, { marginBottom: 12 }]}>
+        En face de chaque restaurant : le montant annuel et la date limite (jour/mois, ex : 20/11). Les années suivantes, la ligne apparaît toute seule
+        un mois avant sa date, avec ces valeurs. Champ vide = plus de bail pour ce restaurant.
+      </Text>
+      {donnees.restaurants.map(r => {
+        const d = entamee(r)
+        if (d) return <LigneEntamee key={r.id} nom={r.nom} montant={d.montant_du} />
+        return (
+          <Rangee key={r.id} nom={r.nom}>
+            <Saisie montant largeur={120} valeur={valeurs[r.id]?.montant ?? ''} placeholder="Montant"
+              onChange={v => maj(r.id, 'montant', v)} />
+            <Saisie largeur={78} valeur={valeurs[r.id]?.date ?? ''} placeholder="JJ/MM"
+              onChange={v => maj(r.id, 'date', v)} />
+          </Rangee>
+        )
+      })}
+      <View style={[styles.ligne, { marginVertical: 10 }]}>
+        <Text style={styles.ligneLabel}>Total {an}</Text>
+        <Text style={[styles.ligneValeur, { color: colors.text }]}>{fmt(total)} F</Text>
+      </View>
+      <Bouton titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
+    </Feuille>
+  )
+}

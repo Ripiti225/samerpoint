@@ -147,6 +147,13 @@ résultat (réparation, matériel, équipement d'un restaurant).
   Dette récente · Dettes. Chaque ligne porte son état (à payer, dette récente,
   dette, payé). Dette récente et Dettes regroupent toutes les catégories, avec
   leur total. Réglages : jours limites communs, montants fixes, baux.
+- **Saisie groupée** (02/10/2026) : salaires, CNPS, impôts, ITS, TEE → on
+  choisit le mois, le montant de chaque restaurant en face, tout en une fois
+  (mois écoulé proposé). Baux → on choisit l'année, montant + date limite
+  (jour/mois) en face de chaque restaurant ; ces valeurs servent aux années
+  suivantes. Une ligne déjà saisie est préremplie et se corrige, sauf si un
+  paiement existe. Champ vidé : ligne supprimée (salaires, CNPS), mise à 0
+  (impôts, ITS, TEE, qui restent créés automatiquement), bail arrêté.
 - **Dépenses direction** : section « À payer » pour les autres charges
   (catégorie, restaurant ou Groupe, libellé, montant) ; payer, passer en Dette.
 - **Vue d'ensemble actuelle** : les nouvelles catégories s'ajoutent à la ligne
