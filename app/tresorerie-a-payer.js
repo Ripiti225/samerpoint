@@ -1,29 +1,43 @@
 // ──────────────────────────────────────────────────────────────────────────────
-// Trésorerie — À payer : loyers, salaires, CNPS, charges admin, dettes.
+// Trésorerie — À payer : loyers, salaires, CNPS, impôts, ITS, TEE, baux, puis
+// la dette récente et les dettes.
 //
-// Chaque ligne est un « dû » payable en plusieurs fois : « dû · payé · reste ».
-// Loyers : un par restaurant et par mois, créés tout seuls depuis le réglage du
-// loyer. Au paiement, le mois retenu par le propriétaire se choisit TOUJOURS à
-// la main (rien n'est présélectionné) : un versement du 02/09 peut couvrir août.
-// Spéc : docs/superpowers/specs/2026-10-01-tresorerie-socle-design.md
+// Tout se paie après coup : la charge du mois M est due au jour limite de M+1.
+// Chaque ligne est un « dû » payable en plusieurs fois, classée à payer →
+// dette récente (date limite passée) → dette (la suivante de la même série est
+// en retard à son tour). Ce classement se calcule (lib/tresorerie.js, classerDu).
+// Loyers : au paiement, le mois retenu par le propriétaire se choisit à la main.
+// Spéc : docs/superpowers/specs/2026-10-02-nouvelle-tresorerie-design.md
 // ──────────────────────────────────────────────────────────────────────────────
 import { useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Image, SafeAreaView, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native'
+import { Alert, SafeAreaView, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native'
 
 import {
-  Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Ligne, Puces, useStylesTreso, useTresorerie,
+  Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Puces, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
-import { usePhoto } from '../lib/usePhoto'
+import { Badge, FeuilleDetail, FeuillePaiement, couleursStatut, titreDu } from '../components/tresorerie/du'
 import {
-  CATEGORIES_MENSUELLES, LIBELLES_ADMIN, adminPayeParRestaurant, LIBELLES_CATEGORIE, aujourdhuiISO, categoriesVisibles,
-  echeanceCnpsParDefaut, echeancePostPayee, fmt, formatDateFR, joursDeRetard, libelleMois, libelleMoisCourt,
-  moisDepartApresReglage, moisEntre, paiementsParDu, peut, planReglageLoyer, premierDuMois, repartirPaiement, resteDu,
-  resumeLoyersParRestaurant, classerDu, totalPaye,
+  FeuilleBaux, FeuilleEcheance, FeuilleMontantsFixes, FeuilleReglageLoyers,
+} from '../components/tresorerie/reglagesCharges'
+import {
+  CATEGORIES_JOUR_COMMUN, CATEGORIES_MONTANT_FIXE, CATEGORIES_SERIE, LIBELLES_CATEGORIE, LIBELLES_ONGLET,
+  aujourdhuiISO, categoriesVisibles, classerTous, echeancePostPayee, fmt, formatDateFR, jourCommun,
+  joursDeRetard, libelleMois, libelleMoisCourt, moisEntre, paiementsParDu, peut, premierDuMois, resteDu,
+  resumeLoyersParRestaurant, totalPaye,
 } from '../lib/tresorerie'
-import {
-  annulerPaiement, chargerDusLoyer, enregistrerDu, enregistrerLoyer, payer, supprimerDu,
-} from '../lib/tresorerieDb'
+import { enregistrerDu } from '../lib/tresorerieDb'
+
+const TITRES_AJOUT = {
+  salaire: '+ État de salaires',
+  cnps: '+ Déclaration CNPS',
+  impot: '+ Une ligne d\'impôts (exceptionnelle)',
+  its: '+ Une ligne d\'ITS (exceptionnelle)',
+  tee: '+ Une ligne de TEE (exceptionnelle)',
+  dette: '+ Dette',
+}
+
+const EN_RETARD = ['dette_recente', 'dette']
 
 export default function TresorerieAPayerScreen() {
   const { styles, colors } = useStylesTreso()
@@ -34,10 +48,10 @@ export default function TresorerieAPayerScreen() {
   const onglets = categoriesVisibles(niveau)
   const [onglet, setOnglet] = useState(params.onglet || null)
   const [restantsSeulement, setRestantsSeulement] = useState(true)
-  const [detail, setDetail] = useState(null)       // dû ouvert
-  const [edition, setEdition] = useState(null)     // dû en création / modification
-  const [paiement, setPaiement] = useState(null)   // { du } ou { restaurantId } (loyer)
-  const [reglageLoyers, setReglageLoyers] = useState(false)
+  const [detail, setDetail] = useState(null)        // dû ouvert
+  const [edition, setEdition] = useState(null)      // dû en création / modification
+  const [paiement, setPaiement] = useState(null)    // { du } ou { categorie: 'loyer', restaurantId }
+  const [reglage, setReglage] = useState(null)      // 'loyer' | 'echeance' | 'montants' | 'bail'
 
   useEffect(() => {
     if (onglets.length && !onglets.includes(onglet)) setOnglet(onglets[0])
@@ -46,51 +60,63 @@ export default function TresorerieAPayerScreen() {
   const aujourdhui = aujourdhuiISO()
   const moisCourant = premierDuMois(aujourdhui)
   const parDu = useMemo(() => paiementsParDu(donnees?.paiements), [donnees])
+  const classement = useMemo(
+    () => (donnees ? classerTous(donnees.dus, donnees.paiements, aujourdhui) : {}),
+    [donnees, aujourdhui],
+  )
   const nomResto = id => donnees?.restaurants.find(r => r.id === id)?.nom || 'Groupe'
 
   const dusOnglet = useMemo(() => {
     if (!donnees || !onglet) return []
+    if (EN_RETARD.includes(onglet)) return donnees.dus.filter(d => classement[d.id] === onglet)
     return donnees.dus.filter(d => d.categorie === onglet)
-  }, [donnees, onglet])
+  }, [donnees, onglet, classement])
 
-  // ODP et mairie sont payés par les restaurants : hors total, comme dans la vue d'ensemble.
+  // Reste de l'onglet : pour une charge en série, sans le mois en cours ni les
+  // mois payés d'avance (ils ne sont pas encore dus).
   const resteOnglet = dusOnglet
-    .filter(d => (!d.mois || d.mois <= moisCourant) && !adminPayeParRestaurant(d))
+    .filter(d => EN_RETARD.includes(onglet) || !d.mois || d.mois < moisCourant || classement[d.id] !== 'a_payer')
     .reduce((s, d) => s + resteDu(d, parDu[d.id]), 0)
 
+  const peutSaisir = c => (CATEGORIES_SERIE.includes(c) ? peut(niveau, 'saisir_charges') : peut(niveau, 'saisir_dus'))
   const bloque = (t.loading && !donnees) || t.erreur || !onglets.length
 
   return (
     <SafeAreaView style={styles.container}>
-      <Entete titre="À payer" sous={onglet ? `${LIBELLES_CATEGORIE[onglet]} · reste ${fmt(resteOnglet)} F` : null} />
+      <Entete titre="À payer" sous={onglet ? `${LIBELLES_ONGLET[onglet]} · reste ${fmt(resteOnglet)} F` : null} />
       {bloque ? <EtatEcran {...t} autorise={onglets.length > 0} /> : (
         <>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.ongletsBarre} contentContainerStyle={styles.onglets}>
             {onglets.map(c => (
               <TouchableOpacity key={c} style={[styles.onglet, onglet === c && styles.ongletActif]} onPress={() => setOnglet(c)}>
-                <Text style={[styles.ongletTxt, onglet === c && styles.ongletTxtActif]}>{LIBELLES_CATEGORIE[c]}</Text>
+                <Text style={[styles.ongletTxt, onglet === c && styles.ongletTxtActif]}>{LIBELLES_ONGLET[c]}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
 
           <ScrollView style={styles.body} contentContainerStyle={styles.bodyContenu}>
-            {onglet === 'loyer' ? (
+            {onglet === 'loyer' && (
               <ListeLoyers
                 dus={dusOnglet} loyers={donnees.loyers} paiements={donnees.paiements} parDu={parDu}
-                aujourdhui={aujourdhui} nomResto={nomResto}
-                peutPayer={peut(niveau, 'payer')}
-                peutRegler={peut(niveau, 'saisir_dus')}
+                classement={classement} aujourdhui={aujourdhui} nomResto={nomResto}
+                peutPayer={peut(niveau, 'payer')} peutRegler={peut(niveau, 'saisir_charges')}
                 onPayer={restaurantId => setPaiement({ categorie: 'loyer', restaurantId })}
                 onOuvrir={setDetail}
               />
-            ) : (
+            )}
+            {CATEGORIES_SERIE.includes(onglet) && onglet !== 'loyer' && (
               <ListeDus
-                categorie={onglet} dus={dusOnglet} parDu={parDu} aujourdhui={aujourdhui} moisCourant={moisCourant}
-                nomResto={nomResto} restantsSeulement={restantsSeulement} onOuvrir={setDetail}
+                categorie={onglet} dus={dusOnglet} parDu={parDu} classement={classement} aujourdhui={aujourdhui}
+                moisCourant={moisCourant} nomResto={nomResto} restantsSeulement={restantsSeulement} onOuvrir={setDetail}
+              />
+            )}
+            {EN_RETARD.includes(onglet) && (
+              <ListeDettes
+                onglet={onglet} dus={dusOnglet} parDu={parDu} aujourdhui={aujourdhui} nomResto={nomResto} onOuvrir={setDetail}
               />
             )}
 
-            {onglet !== 'loyer' && (
+            {CATEGORIES_SERIE.includes(onglet) && onglet !== 'loyer' && (
               <View style={[styles.ligne, { marginTop: 4 }]}>
                 <Text style={styles.ligneLabel}>Restants seulement</Text>
                 <Switch value={restantsSeulement} onValueChange={setRestantsSeulement}
@@ -98,11 +124,26 @@ export default function TresorerieAPayerScreen() {
               </View>
             )}
 
+            {CATEGORIES_JOUR_COMMUN.includes(onglet) && (
+              <Text style={[styles.petit, { marginTop: 8 }]}>
+                Date limite : le {jourCommun(donnees.echeances, onglet)} du mois suivant, pour tous les restaurants.
+              </Text>
+            )}
+
             <View style={{ gap: 8, marginTop: 10 }}>
-              {onglet === 'loyer' && peut(niveau, 'saisir_dus') && (
-                <Bouton secondaire titre="Régler les loyers des restaurants" onPress={() => setReglageLoyers(true)} />
+              {onglet === 'loyer' && peut(niveau, 'saisir_charges') && (
+                <Bouton secondaire titre="Régler les loyers des restaurants" onPress={() => setReglage('loyer')} />
               )}
-              {onglet !== 'loyer' && peutSaisirCategorie(niveau, onglet) && (
+              {CATEGORIES_MONTANT_FIXE.includes(onglet) && peut(niveau, 'saisir_charges') && (
+                <Bouton secondaire titre="Régler les montants par restaurant" onPress={() => setReglage('montants')} />
+              )}
+              {onglet === 'bail' && peut(niveau, 'saisir_charges') && (
+                <Bouton secondaire titre="Régler les contrats de bail" onPress={() => setReglage('bail')} />
+              )}
+              {CATEGORIES_JOUR_COMMUN.includes(onglet) && peut(niveau, 'saisir_charges') && (
+                <Bouton secondaire titre="Changer la date limite" onPress={() => setReglage('echeance')} />
+              )}
+              {TITRES_AJOUT[onglet] && peutSaisir(onglet) && (
                 <Bouton titre={TITRES_AJOUT[onglet]} onPress={() => setEdition({ categorie: onglet })} />
               )}
             </View>
@@ -113,8 +154,8 @@ export default function TresorerieAPayerScreen() {
       {donnees && (
         <>
           <FeuilleDetail
-            du={detail} paiements={detail ? parDu[detail.id] || [] : []} donnees={donnees} niveau={niveau}
-            aujourdhui={aujourdhui} nomResto={nomResto} user={user}
+            du={detail} paiements={detail ? parDu[detail.id] || [] : []} classement={detail ? classement[detail.id] : null}
+            donnees={donnees} niveau={niveau} aujourdhui={aujourdhui} nomResto={nomResto} user={user}
             onFermer={() => setDetail(null)}
             onPayer={du => { setDetail(null); setPaiement(du.categorie === 'loyer' ? { categorie: 'loyer', restaurantId: du.restaurant_id } : { du }) }}
             onModifier={du => { setDetail(null); setEdition(du) }}
@@ -123,48 +164,31 @@ export default function TresorerieAPayerScreen() {
           <FeuilleEdition du={edition} donnees={donnees} user={user} onFermer={() => setEdition(null)} apres={recharger} />
           <FeuillePaiement demande={paiement} donnees={donnees} parDu={parDu} nomResto={nomResto} user={user}
             onFermer={() => setPaiement(null)} apres={recharger} />
-          <FeuilleReglageLoyers visible={reglageLoyers} donnees={donnees} user={user}
-            onFermer={() => setReglageLoyers(false)} apres={recharger} />
+          <FeuilleReglageLoyers visible={reglage === 'loyer'} donnees={donnees} user={user}
+            onFermer={() => setReglage(null)} apres={recharger} />
+          <FeuilleEcheance categorie={reglage === 'echeance' ? onglet : null} donnees={donnees} user={user}
+            onFermer={() => setReglage(null)} apres={recharger} />
+          <FeuilleMontantsFixes categorie={reglage === 'montants' ? onglet : null} donnees={donnees} user={user}
+            onFermer={() => setReglage(null)} apres={recharger} />
+          <FeuilleBaux visible={reglage === 'bail'} donnees={donnees} user={user}
+            onFermer={() => setReglage(null)} apres={recharger} />
         </>
       )}
     </SafeAreaView>
   )
 }
 
-const TITRES_AJOUT = {
-  salaire: '+ État de salaires',
-  cnps: '+ Déclaration CNPS',
-  admin: '+ Charge admin (ODP, mairie, impôts…)',
-  dette: '+ Dette',
+// Jours de retard + mention, pour une ligne en dette récente ou en dette.
+function texteRetard(d, aujourdhui) {
+  const j = joursDeRetard(d.echeance, aujourdhui)
+  return j ? `${j} j de retard` : ''
 }
 
-function peutSaisirCategorie(niveau, categorie) {
-  if (categorie === 'salaire' || categorie === 'cnps') return peut(niveau, 'saisir_salaires')
-  return peut(niveau, 'saisir_dus')
-}
+// ── Loyers : une carte par restaurant ────────────────────────────────────────
 
-// ── Listes ───────────────────────────────────────────────────────────────────
-
-function couleursStatut(colors) {
-  return {
-    paye: { trait: colors.success, fond: colors.successLight, texte: colors.successDark, label: 'payé' },
-    a_payer: { trait: colors.warning, fond: colors.warningLight, texte: colors.warningDark, label: 'à payer' },
-    en_retard: { trait: colors.error, fond: colors.errorLight, texte: colors.errorDark, label: 'en retard' },
-  }
-}
-
-function Badge({ c }) {
-  const { styles } = useStylesTreso()
-  return (
-    <View style={[styles.badge, { backgroundColor: c.fond }]}>
-      <Text style={[styles.badgeTxt, { color: c.texte }]}>{c.label}</Text>
-    </View>
-  )
-}
-
-// Une carte par restaurant : ce qu'il doit en tout (mois échus), puis chaque
-// mois encore ouvert avec son reste. Toucher un mois ouvre son détail.
-function ListeLoyers({ dus, loyers, paiements, parDu, aujourdhui, nomResto, peutPayer, peutRegler, onPayer, onOuvrir }) {
+// Ce que le restaurant doit (mois consommés terminés), puis chaque mois encore
+// ouvert avec son reste et son état. Toucher un mois ouvre son détail.
+function ListeLoyers({ dus, loyers, paiements, parDu, classement, aujourdhui, nomResto, peutPayer, peutRegler, onPayer, onOuvrir }) {
   const { styles, colors } = useStylesTreso()
   const cs = couleursStatut(colors)
   const moisCourant = premierDuMois(aujourdhui)
@@ -193,22 +217,20 @@ function ListeLoyers({ dus, loyers, paiements, parDu, aujourdhui, nomResto, peut
                 {r.reste ? `doit ${fmt(r.reste)} F` : 'à jour'}
               </Text>
             </View>
-            {l && <Text style={[styles.petit, { marginBottom: 6 }]}>Loyer {fmt(l.montant)} F / mois · à payer avant le {l.jour_echeance}</Text>}
+            {l && <Text style={[styles.petit, { marginBottom: 6 }]}>Loyer {fmt(l.montant)} F / mois · à payer avant le {l.jour_echeance} du mois suivant</Text>}
             {r.ouverts.map(d => {
               const p = parDu[d.id] || []
-              const cl = classerDu(d, dus, parDu, aujourdhui)
-              const st = cl === 'paye' || cl === 'a_payer' ? cl : 'en_retard'
-              const retard = st === 'en_retard' ? joursDeRetard(d.echeance, aujourdhui) : 0
-              const avance = d.mois > moisCourant
+              const st = classement[d.id] || 'a_payer'
+              const suffixe = d.mois > moisCourant ? ' (d\'avance)' : d.mois === moisCourant ? ' (en cours)' : ''
               return (
                 <TouchableOpacity key={d.id} style={[styles.item, { borderLeftWidth: 4, borderLeftColor: cs[st].trait, paddingLeft: 8 }]}
                   onPress={() => onOuvrir(d)}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.itemTitre}>{libelleMois(d.mois)}{avance ? ' (d\'avance)' : ''}</Text>
+                    <Text style={styles.itemTitre}>{libelleMois(d.mois)}{suffixe}</Text>
                     <Text style={styles.petit}>
                       {totalPaye(p) > 0 ? `payé ${fmt(totalPaye(p))} · ` : ''}
                       <Text style={{ fontWeight: '800', color: colors.text }}>reste {fmt(resteDu(d, p))}</Text>
-                      {retard ? ` · ${retard} j de retard` : ` · avant le ${formatDateFR(d.echeance)}`}
+                      {EN_RETARD.includes(st) ? ` · ${texteRetard(d, aujourdhui)}` : ` · avant le ${formatDateFR(d.echeance)}`}
                     </Text>
                   </View>
                   <Badge c={cs[st]} />
@@ -221,12 +243,16 @@ function ListeLoyers({ dus, loyers, paiements, parDu, aujourdhui, nomResto, peut
           </View>
         )
       })}
-      <Text style={styles.petit}>Un loyer est payé pour le mois que le propriétaire a retenu, pas pour le mois où l'argent est sorti. Chaque nouveau mois s'ajoute tout seul le 1er.</Text>
+      <Text style={styles.petit}>
+        Le loyer d'un mois se paie le mois suivant. Il est payé pour le mois que le propriétaire a retenu, pas pour le mois où l'argent est sorti.
+      </Text>
     </>
   )
 }
 
-function ListeDus({ categorie, dus, parDu, aujourdhui, moisCourant, nomResto, restantsSeulement, onOuvrir }) {
+// ── Salaires, CNPS, impôts, ITS, TEE, baux : regroupés par mois consommé ────
+
+function ListeDus({ categorie, dus, parDu, classement, aujourdhui, moisCourant, nomResto, restantsSeulement, onOuvrir }) {
   const { styles, colors } = useStylesTreso()
   const cs = couleursStatut(colors)
 
@@ -235,40 +261,34 @@ function ListeDus({ categorie, dus, parDu, aujourdhui, moisCourant, nomResto, re
     return <Text style={styles.vide}>{restantsSeulement ? 'Rien à payer ici.' : 'Aucune ligne.'}</Text>
   }
 
-  const mensuel = CATEGORIES_MENSUELLES.includes(categorie)
-  const groupes = mensuel
-    ? [...new Set(filtres.map(d => d.mois))].sort().reverse().map(m => ({ cle: m, titre: libelleMois(m), dus: filtres.filter(d => d.mois === m) }))
-    : [{ cle: 'tous', titre: null, dus: filtres }]
+  const groupes = [...new Set(filtres.map(d => d.mois))].sort().reverse()
+    .map(m => ({ cle: m, titre: libelleMois(m), dus: filtres.filter(d => d.mois === m) }))
 
   return groupes.map(g => {
     const resteGroupe = g.dus.reduce((s, d) => s + resteDu(d, parDu[d.id]), 0)
+    const enCours = categorie !== 'bail' && g.cle >= moisCourant
     return (
       <View key={g.cle} style={styles.carte}>
-        {g.titre && (
-          <View style={styles.ligne}>
-            <Text style={styles.lbl}>{LIBELLES_CATEGORIE[categorie]} · {g.titre}{g.cle > moisCourant ? ' (à venir)' : ''}</Text>
-            <Text style={[styles.ligneValeur, { color: resteGroupe ? colors.error : colors.success }]}>reste {fmt(resteGroupe)}</Text>
-          </View>
-        )}
+        <View style={styles.ligne}>
+          <Text style={styles.lbl}>{LIBELLES_CATEGORIE[categorie]} · {g.titre}{enCours ? ' (en cours)' : ''}</Text>
+          <Text style={[styles.ligneValeur, { color: resteGroupe ? colors.error : colors.success }]}>reste {fmt(resteGroupe)}</Text>
+        </View>
         {g.dus
           .sort((a, b) => titreDu(a, nomResto).localeCompare(titreDu(b, nomResto)))
           .map(d => {
             const p = parDu[d.id] || []
             const reste = resteDu(d, p)
-            const retard = reste > 0 ? joursDeRetard(d.echeance, aujourdhui) : 0
-            const c = reste === 0 ? cs.paye : retard > 0 ? cs.en_retard : cs.a_payer
-            const badge = categorie === 'cnps' && retard > 60 ? { ...cs.en_retard, label: '> 60 j' } : c
+            const st = classement[d.id] || 'a_payer'
             return (
               <TouchableOpacity key={d.id} style={styles.item} onPress={() => onOuvrir(d)}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.itemTitre}>{titreDu(d, nomResto)}</Text>
                   <Text style={styles.petit}>
                     dû {fmt(d.montant_du)} · payé {fmt(totalPaye(p))} · <Text style={{ fontWeight: '800', color: colors.text }}>reste {fmt(reste)}</Text>
-                    {retard ? ` · ${retard} j de retard` : d.echeance && reste ? ` · échéance ${formatDateFR(d.echeance)}` : ''}
-                    {adminPayeParRestaurant(d) ? ' · payé par le restaurant, hors trésorerie' : ''}
+                    {EN_RETARD.includes(st) ? ` · ${texteRetard(d, aujourdhui)}` : d.echeance && reste ? ` · avant le ${formatDateFR(d.echeance)}` : ''}
                   </Text>
                 </View>
-                <Badge c={badge} />
+                <Badge c={cs[st]} />
               </TouchableOpacity>
             )
           })}
@@ -277,99 +297,50 @@ function ListeDus({ categorie, dus, parDu, aujourdhui, moisCourant, nomResto, re
   })
 }
 
-function titreDu(d, nomResto) {
-  if (d.categorie === 'dette') return d.creancier || 'Créancier'
-  if (d.categorie === 'admin') return `${d.libelle || 'Charge admin'}${d.restaurant_id ? ` · ${nomResto(d.restaurant_id)}` : ''}`
-  return nomResto(d.restaurant_id)
-}
+// ── Dette récente / Dettes : toutes catégories confondues ────────────────────
 
-// ── Détail d'un dû ───────────────────────────────────────────────────────────
-
-function FeuilleDetail({ du, paiements, donnees, niveau, aujourdhui, nomResto, user, onFermer, onPayer, onModifier, apres }) {
+function ListeDettes({ onglet, dus, parDu, aujourdhui, nomResto, onOuvrir }) {
   const { styles, colors } = useStylesTreso()
-  if (!du) return null
-  const reste = resteDu(du, paiements)
-  const nomCompte = id => donnees.comptes.find(c => c.id === id)?.nom || '?'
-  const peutModifier = du.categorie === 'loyer' ? peut(niveau, 'saisir_dus') : peutSaisirCategorie(niveau, du.categorie)
-
-  // Les lignes d'un même versement (plusieurs mois de loyer) s'annulent ensemble.
-  function annuler(p) {
-    const lignes = donnees.paiements.filter(x => x.groupe === p.groupe)
-    const total = lignes.reduce((s, x) => s + Number(x.montant || 0), 0)
-    Alert.alert(
-      'Annuler ce paiement ?',
-      `${fmt(total)} F du ${formatDateFR(p.date)}${lignes.length > 1 ? ` (versement réparti sur ${lignes.length} mois, tout sera annulé)` : ''}. La sortie de banque liée est retirée aussi.`,
-      [
-        { text: 'Garder', style: 'cancel' },
-        {
-          text: 'Annuler le paiement', style: 'destructive', onPress: async () => {
-            try { await annulerPaiement(p.groupe, { du_id: du.id, montant: total }, user); await apres(); onFermer() }
-            catch (e) { Alert.alert('Annulation impossible', e?.message || 'Réessayez.') }
-          },
-        },
-      ],
-    )
+  const cs = couleursStatut(colors)
+  if (!dus.length) {
+    return <Text style={styles.vide}>{onglet === 'dette' ? 'Aucune dette.' : 'Aucune dette récente : tout est payé à temps.'}</Text>
   }
-
-  function supprimer() {
-    Alert.alert(
-      'Supprimer cette ligne ?',
-      paiements.length ? 'Ses paiements et les sorties de banque liées seront supprimés aussi.' : 'Elle disparaîtra de la trésorerie.',
-      [
-        { text: 'Garder', style: 'cancel' },
-        {
-          text: 'Supprimer', style: 'destructive', onPress: async () => {
-            try { await supprimerDu(du, user); await apres(); onFermer() }
-            catch (e) { Alert.alert('Suppression impossible', e?.message || 'Réessayez.') }
-          },
-        },
-      ],
-    )
-  }
-
+  // Les plus anciennes d'abord ; les créanciers (sans date limite) à la fin.
+  const tries = [...dus].sort((a, b) => (a.echeance || '9999').localeCompare(b.echeance || '9999'))
+  const total = tries.reduce((s, d) => s + resteDu(d, parDu[d.id]), 0)
   return (
-    <Feuille visible onFermer={onFermer}
-      titre={`${LIBELLES_CATEGORIE[du.categorie]} · ${titreDu(du, nomResto)}${du.mois ? ` · ${libelleMoisCourt(du.mois)}` : ''}`}>
-      <View style={styles.carte}>
-        <Ligne label="Dû" valeur={du.montant_du} />
-        <Ligne label="Déjà payé" valeur={totalPaye(paiements)} />
-        <View style={styles.sep} />
-        <Ligne label="Reste" valeur={reste} fort couleur={reste ? colors.error : colors.success} />
-        {!!du.echeance && <Text style={styles.petit}>Échéance : {formatDateFR(du.echeance)}{reste && joursDeRetard(du.echeance, aujourdhui) ? ` · ${joursDeRetard(du.echeance, aujourdhui)} j de retard` : ''}</Text>}
-        {!!du.note && <Text style={[styles.petit, { marginTop: 6 }]}>{du.note}</Text>}
-        {!!du.cree_par_nom && <Text style={styles.petit}>Saisi par {du.cree_par_nom}</Text>}
+    <View style={styles.carte}>
+      <View style={styles.ligne}>
+        <Text style={styles.lbl}>{LIBELLES_ONGLET[onglet]} · {tries.length} ligne{tries.length > 1 ? 's' : ''}</Text>
+        <Text style={[styles.ligneValeur, { color: colors.error }]}>{fmt(total)} F</Text>
       </View>
-
-      <Text style={[styles.lbl, { marginBottom: 6 }]}>Paiements</Text>
-      <View style={styles.carte}>
-        {paiements.length === 0 && <Text style={styles.vide}>Aucun paiement.</Text>}
-        {paiements.map(p => (
-          <View key={p.id} style={styles.item}>
+      {tries.map(d => {
+        const p = parDu[d.id] || []
+        return (
+          <TouchableOpacity key={d.id} style={styles.item} onPress={() => onOuvrir(d)}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.itemTitre}>{fmt(p.montant)} F</Text>
+              <Text style={styles.itemTitre}>
+                {LIBELLES_CATEGORIE[d.categorie]} · {titreDu(d, nomResto)}{d.mois ? ` · ${libelleMoisCourt(d.mois)}` : ''}
+              </Text>
               <Text style={styles.petit}>
-                {formatDateFR(p.date)} · {p.source === 'compte' ? nomCompte(p.compte_id) : 'Espèces'}
-                {p.photo_url ? ' · 📷' : ''}{p.cree_par_nom ? ` · ${p.cree_par_nom}` : ''}
+                {totalPaye(p) > 0 ? `payé ${fmt(totalPaye(p))} · ` : ''}
+                <Text style={{ fontWeight: '800', color: colors.text }}>reste {fmt(resteDu(d, p))}</Text>
+                {d.echeance ? ` · ${texteRetard(d, aujourdhui)}` : ''}
+                {d.en_dette_depuis ? ` · en dette depuis le ${formatDateFR(d.en_dette_depuis)}` : ''}
               </Text>
             </View>
-            {peut(niveau, 'payer') && (
-              <TouchableOpacity onPress={() => annuler(p)}><Text style={{ color: colors.error, fontSize: 13 }}>Annuler</Text></TouchableOpacity>
-            )}
-          </View>
-        ))}
-      </View>
-
-      <View style={{ gap: 8 }}>
-        {reste > 0 && peut(niveau, 'payer') && <Bouton titre="Payer" onPress={() => onPayer(du)} />}
-        {peutModifier && <Bouton secondaire titre="Modifier" onPress={() => onModifier(du)} />}
-        {peutModifier && <Bouton danger titre="Supprimer" onPress={supprimer} />}
-      </View>
-    </Feuille>
+            <Badge c={cs[onglet]} />
+          </TouchableOpacity>
+        )
+      })}
+    </View>
   )
 }
 
-// ── Création / modification d'un dû ──────────────────────────────────────────
+// ── Création / modification d'une ligne ──────────────────────────────────────
 
+// Charges en série : restaurant, mois consommé, montant ; la date limite se
+// calcule (jour commun ou jour du loyer, dans le mois suivant). Dette : créancier.
 function FeuilleEdition({ du, donnees, user, onFermer, apres }) {
   const { styles } = useStylesTreso()
   const [form, setForm] = useState({})
@@ -377,53 +348,52 @@ function FeuilleEdition({ du, donnees, user, onFermer, apres }) {
 
   useEffect(() => {
     if (!du) return
-    const typeAdmin = du.categorie === 'admin'
-      ? (LIBELLES_ADMIN.includes(du.libelle) ? du.libelle : du.libelle ? 'Autre' : 'ODP')
-      : null
     setForm({
       restaurant_id: du.restaurant_id || null,
       mois: du.mois || premierDuMois(aujourdhuiISO()),
       montant: du.montant_du != null ? String(du.montant_du) : '',
-      echeance: du.echeance || '',
       creancier: du.creancier || '',
-      typeAdmin,
-      precision: typeAdmin === 'Autre' ? du.libelle || '' : '',
       note: du.note || '',
     })
   }, [du])
 
   if (!du) return null
   const cat = du.categorie
-  const mensuel = CATEGORIES_MENSUELLES.includes(cat)
+  const serie = CATEGORIES_SERIE.includes(cat)
   const maj = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   // Mois proposés : les 12 derniers et le suivant.
   const courant = premierDuMois(aujourdhuiISO())
-  const debut = moisEntre('2000-01-01', courant).slice(-12)[0]
-  const choixMois = moisEntre(debut, courant)
+  const choixMois = moisEntre('2000-01-01', courant).slice(-12)
   const suivant = moisEntre(courant, '2999-12-01').slice(1, 2)
   const optionsMois = [...choixMois, ...suivant].reverse().map(m => ({ valeur: m, label: libelleMois(m) }))
+
+  // Date limite d'une ligne en série. Bail : sa date reste celle de la ligne.
+  function echeanceDe(mois, restaurantId) {
+    if (cat === 'bail') return du.echeance || null
+    if (cat === 'loyer') {
+      const l = donnees.loyers.find(x => x.restaurant_id === restaurantId)
+      return echeancePostPayee(mois, l?.jour_echeance || 5)
+    }
+    return echeancePostPayee(mois, jourCommun(donnees.echeances, cat))
+  }
 
   async function enregistrer() {
     const montant = form.montant === '' ? null : parseInt(form.montant, 10)
     if (montant === null || montant <= 0) { Alert.alert('Montant manquant', 'Saisissez le montant dû.'); return }
-    if (mensuel && !form.restaurant_id) { Alert.alert('Restaurant manquant', 'Choisissez le restaurant.'); return }
+    if (serie && !form.restaurant_id) { Alert.alert('Restaurant manquant', 'Choisissez le restaurant.'); return }
     if (cat === 'dette' && !form.creancier.trim()) { Alert.alert('Créancier manquant', 'À qui doit-on cet argent ?'); return }
-    if (cat === 'admin' && form.typeAdmin === 'Autre' && !form.precision.trim()) { Alert.alert('Précision manquante', 'Précisez la charge.'); return }
-    if (form.echeance && !/^\d{4}-\d{2}-\d{2}$/.test(form.echeance)) {
-      Alert.alert('Échéance invalide', 'Écrivez la date au format AAAA-MM-JJ, par exemple 2026-10-15.'); return
-    }
     setOccupe(true)
     try {
       await enregistrerDu({
         id: du.id,
         categorie: cat,
         restaurant_id: form.restaurant_id,
-        mois: mensuel || cat === 'admin' ? form.mois : null,
-        libelle: cat === 'admin' ? (form.typeAdmin === 'Autre' ? form.precision.trim() : form.typeAdmin) : null,
+        mois: serie ? form.mois : null,
+        libelle: du.libelle || null,
         creancier: cat === 'dette' ? form.creancier.trim() : null,
         montant_du: montant,
-        echeance: form.echeance || (cat === 'cnps' ? echeanceCnpsParDefaut(form.mois) : null),
+        echeance: serie ? echeanceDe(form.mois, form.restaurant_id) : du.echeance || null,
         note: form.note.trim(),
       }, user)
       await apres()
@@ -437,302 +407,29 @@ function FeuilleEdition({ du, donnees, user, onFermer, apres }) {
 
   const restos = donnees.restaurants.map(r => ({ valeur: r.id, label: r.nom }))
   const titre = `${du.id ? 'Modifier' : 'Ajouter'} · ${LIBELLES_CATEGORIE[cat]}`
+  const echeance = serie && form.mois && form.restaurant_id ? echeanceDe(form.mois, form.restaurant_id) : null
 
   return (
     <Feuille visible onFermer={onFermer} titre={titre}>
       {cat === 'dette' && (
         <Champ label="Créancier" value={form.creancier} onChangeText={v => maj('creancier', v)} placeholder="Ex : Zabad" />
       )}
-      {cat === 'admin' && (
+      {serie && (
         <>
-          <Text style={styles.label}>Type</Text>
-          <Puces options={LIBELLES_ADMIN.map(l => ({ valeur: l, label: l }))} valeur={form.typeAdmin} onChange={v => maj('typeAdmin', v)} />
-          {form.typeAdmin === 'Autre' && (
-            <Champ label="Précision" value={form.precision} onChangeText={v => maj('precision', v)} placeholder="Ex : taxe enseigne" />
+          <Text style={styles.label}>Restaurant</Text>
+          <Puces options={restos} valeur={form.restaurant_id} onChange={v => maj('restaurant_id', v)} />
+          {cat !== 'bail' && (
+            <>
+              <Text style={styles.label}>Mois concerné</Text>
+              <Puces options={optionsMois} valeur={form.mois} onChange={v => maj('mois', v)} />
+            </>
           )}
-        </>
-      )}
-      {(mensuel || cat === 'admin') && cat !== 'loyer' && (
-        <>
-          <Text style={styles.label}>Restaurant{cat === 'admin' ? ' (facultatif)' : ''}</Text>
-          <Puces
-            options={cat === 'admin' ? [{ valeur: null, label: 'Groupe' }, ...restos] : restos}
-            valeur={form.restaurant_id} onChange={v => maj('restaurant_id', v)}
-          />
-        </>
-      )}
-      {(mensuel || cat === 'admin') && cat !== 'loyer' && (
-        <>
-          <Text style={styles.label}>{cat === 'admin' ? 'Mois concerné (compte dans les charges de ce mois)' : 'Mois'}</Text>
-          <Puces options={optionsMois} valeur={form.mois} onChange={v => maj('mois', v)} />
         </>
       )}
       <ChampMontant label="Montant dû" valeur={form.montant} onChange={v => maj('montant', v)} />
-      {cat !== 'dette' && (
-        <Champ
-          label={cat === 'cnps' ? 'Échéance (vide = le 15 du mois suivant)' : 'Échéance (facultatif, AAAA-MM-JJ)'}
-          value={form.echeance} onChangeText={v => maj('echeance', v)} autoCapitalize="none"
-          placeholder={cat === 'cnps' && form.mois ? echeanceCnpsParDefaut(form.mois) : 'AAAA-MM-JJ'}
-        />
-      )}
+      {echeance && <Text style={[styles.petit, { marginBottom: 10 }]}>À payer avant le {formatDateFR(echeance)}.</Text>}
       <Champ label="Note (facultatif)" value={form.note} onChangeText={v => maj('note', v)} />
       <Bouton titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
-    </Feuille>
-  )
-}
-
-// ── Paiement ─────────────────────────────────────────────────────────────────
-
-function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFermer, apres }) {
-  const { styles, colors } = useStylesTreso()
-  const { choisirPhoto } = usePhoto()
-  const [montant, setMontant] = useState('')
-  const [moisChoisi, setMoisChoisi] = useState(null)
-  const [source, setSource] = useState(null)
-  const [date, setDate] = useState(aujourdhuiISO())
-  const [photo, setPhoto] = useState(null)
-  const [occupe, setOccupe] = useState(false)
-  const [photoEnCours, setPhotoEnCours] = useState(false)
-
-  const estLoyer = demande?.categorie === 'loyer'
-  const restaurantId = estLoyer ? demande.restaurantId : demande?.du?.restaurant_id
-  const loyer = estLoyer ? donnees.loyers.find(l => l.restaurant_id === restaurantId) : null
-
-  // Mois de loyer proposés : tous ceux qui ont un reste, plus les deux suivants
-  // (paiement d'avance). Rien n'est coché d'office.
-  const optionsMois = useMemo(() => {
-    if (!estLoyer) return []
-    const dus = donnees.dus.filter(d => d.categorie === 'loyer' && d.restaurant_id === restaurantId)
-    const ouverts = dus.filter(d => resteDu(d, parDu[d.id]) > 0).map(d => d.mois)
-    const courant = premierDuMois(aujourdhuiISO())
-    const avance = moisEntre(courant, '2999-12-01').slice(1, 3).filter(m => !dus.some(d => d.mois === m))
-    return [...new Set([...ouverts, ...avance])].sort()
-  }, [estLoyer, donnees, restaurantId, parDu])
-
-  useEffect(() => {
-    if (!demande) return
-    setMoisChoisi(null)
-    setSource(null)
-    setDate(aujourdhuiISO())
-    setPhoto(null)
-    setMontant(demande.du ? String(resteDu(demande.du, parDu[demande.du.id])) : '')
-  }, [demande])
-
-  // Reste du mois choisi ; un mois payé d'avance n'existe pas encore : loyer plein.
-  const resteMois = m => {
-    const d = donnees.dus.find(x => x.categorie === 'loyer' && x.restaurant_id === restaurantId && x.mois === m)
-    return d ? resteDu(d, parDu[d.id]) : Number(loyer?.montant || 0)
-  }
-
-  // Montant proposé = reste du mois choisi, modifiable pour un paiement partiel.
-  useEffect(() => {
-    if (!estLoyer) return
-    const r = moisChoisi ? resteMois(moisChoisi) : 0
-    setMontant(r ? String(r) : '')
-  }, [moisChoisi])
-
-  if (!demande) return null
-
-  async function ajouterPhoto() {
-    setPhotoEnCours(true)
-    const url = await choisirPhoto('photos')
-    if (url) setPhoto(url)
-    setPhotoEnCours(false)
-  }
-
-  async function enregistrer() {
-    const valeur = montant === '' ? 0 : parseInt(montant, 10)
-    if (estLoyer && !moisChoisi) {
-      Alert.alert('Mois manquant', 'Choisissez le mois retenu par le propriétaire.'); return
-    }
-    if (!valeur || valeur <= 0) { Alert.alert('Montant manquant', 'Saisissez le montant versé.'); return }
-    if (estLoyer && valeur > resteMois(moisChoisi)) {
-      Alert.alert('Montant trop élevé', `Il ne reste que ${fmt(resteMois(moisChoisi))} F à payer pour ${libelleMois(moisChoisi)}.`); return
-    }
-    if (!source) { Alert.alert('Source manquante', 'Choisissez d\'où part l\'argent : BACI, SIB ou espèces.'); return }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      Alert.alert('Date invalide', 'Écrivez la date au format AAAA-MM-JJ, par exemple 2026-10-01.'); return
-    }
-    setOccupe(true)
-    try {
-      let dusCibles
-      if (estLoyer) {
-        // Un mois payé d'avance n'existe pas encore : on le crée d'abord.
-        const existe = donnees.dus.some(d => d.categorie === 'loyer' && d.restaurant_id === restaurantId && d.mois === moisChoisi)
-        if (!existe) {
-          await enregistrerDu({
-            categorie: 'loyer', restaurant_id: restaurantId, mois: moisChoisi,
-            montant_du: Number(loyer?.montant || 0),
-            echeance: echeancePostPayee(moisChoisi, loyer?.jour_echeance || 5),
-          }, user)
-        }
-        dusCibles = await chargerDusLoyer(restaurantId, [moisChoisi])
-      } else {
-        dusCibles = [demande.du]
-      }
-      const parts = repartirPaiement(valeur, dusCibles, donnees.paiements)
-      const compte = source === 'especes' ? null : source
-      const libelle = estLoyer
-        ? `Loyer ${nomResto(restaurantId)} · ${libelleMoisCourt(moisChoisi)}`
-        : `${LIBELLES_CATEGORIE[demande.du.categorie]} · ${titreDu(demande.du, nomResto)}${demande.du.mois ? ` · ${libelleMoisCourt(demande.du.mois)}` : ''}`
-      await payer({ parts, source: compte ? 'compte' : 'especes', compteId: compte, date, libelle, photoUrl: photo }, user)
-      await apres()
-      onFermer()
-    } catch (e) {
-      Alert.alert('Paiement non enregistré', e?.message || 'Réessayez.')
-    } finally {
-      setOccupe(false)
-    }
-  }
-
-  const sources = [
-    ...donnees.comptes.map(c => ({ valeur: c.id, label: c.nom })),
-    { valeur: 'especes', label: 'Espèces' },
-  ]
-  const titre = estLoyer
-    ? `Payer le loyer ${nomResto(restaurantId)}`
-    : `Payer · ${titreDu(demande.du, nomResto)}`
-
-  return (
-    <Feuille visible onFermer={onFermer} titre={titre}>
-      {estLoyer && (
-        <>
-          {loyer && <Text style={[styles.petit, { marginBottom: 10 }]}>Loyer mensuel : {fmt(loyer.montant)} F</Text>}
-          <Text style={styles.label}>Mois retenu par le propriétaire</Text>
-          <Puces options={optionsMois.map(m => ({ valeur: m, label: `${libelleMois(m)} · reste ${fmt(resteMois(m))}` }))}
-            valeur={moisChoisi} onChange={setMoisChoisi} />
-          {moisChoisi && (
-            <Text style={[styles.petit, { marginBottom: 10 }]}>
-              Payez moins que le reste si besoin : le reste de {libelleMois(moisChoisi)} se met à jour tout seul.
-            </Text>
-          )}
-        </>
-      )}
-      <ChampMontant label="Montant versé" valeur={montant} onChange={setMontant} />
-      <Text style={styles.label}>Payé depuis</Text>
-      <Puces options={sources} valeur={source} onChange={setSource} />
-      <Champ label="Date du versement (AAAA-MM-JJ)" value={date} onChangeText={setDate} autoCapitalize="none" />
-      <Text style={styles.label}>Reçu (photo, facultatif)</Text>
-      {photo ? <Image source={{ uri: photo }} style={{ width: '100%', height: 150, borderRadius: 10, marginBottom: 10 }} resizeMode="cover" /> : null}
-      <Bouton secondaire titre={photo ? 'Changer la photo' : '📷 Ajouter une photo'} onPress={ajouterPhoto} occupe={photoEnCours} style={{ marginBottom: 14 }} />
-      <Bouton titre="Enregistrer le paiement" onPress={enregistrer} occupe={occupe} />
-      <Text style={[styles.petit, { marginTop: 10, color: colors.textMuted }]}>
-        Payé depuis BACI ou SIB : la sortie apparaît dans la banque. En espèces : rien ne bouge en banque.
-      </Text>
-    </Feuille>
-  )
-}
-
-// ── Réglage des loyers ───────────────────────────────────────────────────────
-
-// Réglage : le loyer mensuel, le jour limite, et les mois que l'on doit encore
-// (cochés). Les mois suivants s'ajoutent tout seuls, à partir du mois prochain.
-function FeuilleReglageLoyers({ visible, donnees, user, onFermer, apres }) {
-  const { styles, colors } = useStylesTreso()
-  const [restaurantId, setRestaurantId] = useState(null)
-  const [montant, setMontant] = useState('')
-  const [jour, setJour] = useState('5')
-  const [moisCoches, setMoisCoches] = useState([])
-  const [occupe, setOccupe] = useState(false)
-
-  const courant = premierDuMois(aujourdhuiISO())
-  const moisProposes = moisEntre('2000-01-01', courant).slice(-12)
-  const parDu = useMemo(() => paiementsParDu(donnees.paiements), [donnees])
-  const dusResto = donnees.dus.filter(d => d.categorie === 'loyer' && d.restaurant_id === restaurantId)
-  const entame = m => dusResto.some(d => d.mois === m && parDu[d.id]?.length)
-  const resume = useMemo(() => resumeLoyersParRestaurant(donnees.dus, donnees.paiements, courant), [donnees, courant])
-
-  useEffect(() => {
-    if (!restaurantId) return
-    const l = donnees.loyers.find(x => x.restaurant_id === restaurantId)
-    setMontant(l ? String(l.montant) : '')
-    setJour(l ? String(l.jour_echeance) : '5')
-    setMoisCoches(dusResto.filter(d => moisProposes.includes(d.mois)).map(d => d.mois))
-  }, [restaurantId])
-
-  if (!visible) return null
-
-  function basculer(m) {
-    if (entame(m)) {
-      Alert.alert('Mois déjà entamé', `Un paiement existe pour ${libelleMois(m)}. Annulez-le d'abord depuis le détail du mois.`)
-      return
-    }
-    setMoisCoches(l => (l.includes(m) ? l.filter(x => x !== m) : [...l, m]))
-  }
-
-  async function enregistrer() {
-    const v = montant === '' ? 0 : parseInt(montant, 10)
-    const j = parseInt(jour, 10)
-    if (!restaurantId) { Alert.alert('Restaurant manquant', 'Choisissez le restaurant.'); return }
-    if (!v) { Alert.alert('Montant manquant', 'Saisissez le loyer mensuel.'); return }
-    if (!(j >= 1 && j <= 31)) { Alert.alert('Jour invalide', 'Le jour limite va de 1 à 31.'); return }
-    const l = donnees.loyers.find(x => x.restaurant_id === restaurantId)
-    const plan = planReglageLoyer({
-      restaurantId, montant: v, jourEcheance: j, moisCoches, moisProposes,
-      dusExistants: donnees.dus, paiements: donnees.paiements,
-    })
-    setOccupe(true)
-    try {
-      await enregistrerLoyer({
-        restaurantId, montant: v, jourEcheance: j, moisDepart: moisDepartApresReglage(courant),
-        actif: l ? l.actif : true, plan,
-      }, user)
-      await apres()
-      setRestaurantId(null)
-    } catch (e) {
-      Alert.alert('Non enregistré', e?.message || 'Réessayez.')
-    } finally {
-      setOccupe(false)
-    }
-  }
-
-  const totalCoche = moisCoches.reduce((s, m) => {
-    const d = dusResto.find(x => x.mois === m)
-    return s + (d && parDu[d.id]?.length ? resteDu(d, parDu[d.id]) : (parseInt(montant, 10) || 0))
-  }, 0)
-
-  return (
-    <Feuille visible onFermer={onFermer} titre="Loyers des restaurants">
-      {donnees.restaurants.map(r => {
-        const l = donnees.loyers.find(x => x.restaurant_id === r.id)
-        const doit = resume[r.id]?.reste || 0
-        return (
-          <TouchableOpacity key={r.id} style={[styles.item, restaurantId === r.id && { backgroundColor: colors.primaryLight }]}
-            onPress={() => setRestaurantId(r.id)}>
-            <Text style={[styles.itemTitre, { flex: 1 }]}>{r.nom}</Text>
-            <Text style={styles.petit}>
-              {l ? `${fmt(l.montant)} F · le ${l.jour_echeance}${doit ? ` · doit ${fmt(doit)} F` : ''}` : 'non réglé'}
-            </Text>
-          </TouchableOpacity>
-        )
-      })}
-
-      {restaurantId && (
-        <View style={[styles.carte, { marginTop: 12 }]}>
-          <Text style={[styles.itemTitre, { marginBottom: 10 }]}>{donnees.restaurants.find(r => r.id === restaurantId)?.nom}</Text>
-          <ChampMontant label="Loyer mensuel" valeur={montant} onChange={setMontant} />
-          <Champ label="À payer avant le (jour du mois, 1 à 31)" value={jour} onChangeText={t => setJour(t.replace(/[^\d]/g, ''))} keyboardType="number-pad" />
-          <Text style={styles.label}>Mois que l'on doit encore</Text>
-          <View style={styles.puces}>
-            {[...moisProposes].reverse().map(m => {
-              const actif = moisCoches.includes(m)
-              return (
-                <TouchableOpacity key={m} style={[styles.puce, actif && styles.puceActive]} onPress={() => basculer(m)}>
-                  <Text style={[styles.puceTxt, actif && styles.puceTxtActive]}>{libelleMois(m)}{entame(m) ? ' · entamé' : ''}</Text>
-                </TouchableOpacity>
-              )
-            })}
-          </View>
-          <View style={[styles.ligne, { marginBottom: 10 }]}>
-            <Text style={styles.ligneLabel}>Total dû pour ces mois</Text>
-            <Text style={[styles.ligneValeur, { color: totalCoche ? colors.error : colors.success }]}>{fmt(totalCoche)} F</Text>
-          </View>
-          <Text style={[styles.petit, { marginBottom: 10 }]}>
-            Les mois suivants s'ajoutent tout seuls le 1er de chaque mois. Un nouveau montant s'applique aux mois cochés sans paiement.
-          </Text>
-          <Bouton titre="Enregistrer le loyer" onPress={enregistrer} occupe={occupe} />
-        </View>
-      )}
     </Feuille>
   )
 }
