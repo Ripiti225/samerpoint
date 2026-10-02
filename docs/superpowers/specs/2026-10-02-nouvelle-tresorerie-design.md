@@ -201,3 +201,28 @@ Décisions du 02/10/2026 :
 
 Migration : `supabase_tresorerie_especes.sql`.
 Tests : `lib/tresorerie.test.mjs` (prêt en dette récente), `lib/direction.test.mjs` (état d'un emprunt).
+
+---
+
+## Étape 3 — Nouvel accueil
+
+Décisions du 02/10/2026 (remplace la vue d'ensemble) :
+
+1. **Alertes** en haut (déficit, CNPS > 60 j, fond bas), comme avant.
+2. **Trésorerie nette réelle** = Banque + Espèces − prévisions (0 tant que
+   l'étape 4 n'est pas livrée). Touche → Banque et espèces.
+3. **Trésorerie** : Banque (BACI + SIB), Espèces, Partenaires à recevoir,
+   total. Chaque ligne ouvre son écran. En dessous, pour information :
+   fournisseurs dus (→ Crédits fournisseurs).
+4. **Prévisions** (vide jusqu'à l'étape 4).
+5. **Dépenses du mois** : pour chaque série (catégorie + restaurant), la plus
+   ancienne charge non payée dont la date limite n'est pas passée ; charges à
+   échéance seulement (pas les autres charges). Triées par date limite, total.
+   Toucher une ligne ouvre son détail (payer).
+6. **Dette récente** puis **Dette** (managers en lecture : pas la Dette) :
+   total, on touche pour dérouler, chaque ligne ouvre son détail.
+7. Carte du **coffre** (solde, objectif, à rembourser) ; raccourcis restants en
+   bas : À payer, Résultats, Dépenses direction, Plafonds de fond ; bouton
+   Droits en haut à droite.
+
+Tests : `lib/tresorerie.test.mjs` (dépenses du mois, synthèse).
