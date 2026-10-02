@@ -17,9 +17,9 @@ import {
 import { usePhoto } from '../lib/usePhoto'
 import {
   CATEGORIES_MENSUELLES, LIBELLES_ADMIN, adminPayeParRestaurant, LIBELLES_CATEGORIE, aujourdhuiISO, categoriesVisibles,
-  echeanceCnpsParDefaut, echeanceDansMois, fmt, formatDateFR, joursDeRetard, libelleMois, libelleMoisCourt,
+  echeanceCnpsParDefaut, echeancePostPayee, fmt, formatDateFR, joursDeRetard, libelleMois, libelleMoisCourt,
   moisDepartApresReglage, moisEntre, paiementsParDu, peut, planReglageLoyer, premierDuMois, repartirPaiement, resteDu,
-  resumeLoyersParRestaurant, statutLoyer, totalPaye,
+  resumeLoyersParRestaurant, classerDu, totalPaye,
 } from '../lib/tresorerie'
 import {
   annulerPaiement, chargerDusLoyer, enregistrerDu, enregistrerLoyer, payer, supprimerDu,
@@ -196,7 +196,8 @@ function ListeLoyers({ dus, loyers, paiements, parDu, aujourdhui, nomResto, peut
             {l && <Text style={[styles.petit, { marginBottom: 6 }]}>Loyer {fmt(l.montant)} F / mois · à payer avant le {l.jour_echeance}</Text>}
             {r.ouverts.map(d => {
               const p = parDu[d.id] || []
-              const st = statutLoyer(d, p, aujourdhui)
+              const cl = classerDu(d, dus, parDu, aujourdhui)
+              const st = cl === 'paye' || cl === 'a_payer' ? cl : 'en_retard'
               const retard = st === 'en_retard' ? joursDeRetard(d.echeance, aujourdhui) : 0
               const avance = d.mois > moisCourant
               return (
@@ -562,7 +563,7 @@ function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFermer, ap
           await enregistrerDu({
             categorie: 'loyer', restaurant_id: restaurantId, mois: moisChoisi,
             montant_du: Number(loyer?.montant || 0),
-            echeance: echeanceDansMois(moisChoisi, loyer?.jour_echeance || 5),
+            echeance: echeancePostPayee(moisChoisi, loyer?.jour_echeance || 5),
           }, user)
         }
         dusCibles = await chargerDusLoyer(restaurantId, [moisChoisi])
