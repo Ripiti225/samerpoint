@@ -719,9 +719,9 @@ export default function DashboardGlobalScreen() {
     const val = (serie, champ) => serie.map(p => Number(p[champ]) || 0)
     const renta = serie => serie.map(p => (p.vente_total ? (p.benefice_sc / p.vente_total) * 100 : 0))
     const courbes = [
-      { cle: 'ventes', icone: 'chart-areaspline', titre: 'Ventes par jour', a: val(sA, 'vente_total'), b: val(sB, 'vente_total'), format: fmtCourt },
-      { cle: 'benefice', icone: 'cash-plus', titre: 'Bénéfice SC par jour', a: val(sA, 'benefice_sc'), b: val(sB, 'benefice_sc'), format: fmtCourt },
-      { cle: 'renta', icone: 'percent-outline', titre: 'Rentabilité par jour', a: renta(sA), b: renta(sB), format: v => `${Math.round(v)}%` },
+      { cle: 'ventes', icone: 'chart-areaspline', titre: 'Ventes par jour', a: val(sA, 'vente_total'), b: val(sB, 'vente_total'), format: fmtCourt, detail: fmt },
+      { cle: 'benefice', icone: 'cash-plus', titre: 'Bénéfice SC par jour', a: val(sA, 'benefice_sc'), b: val(sB, 'benefice_sc'), format: fmtCourt, detail: fmt },
+      { cle: 'renta', icone: 'percent-outline', titre: 'Rentabilité par jour', a: renta(sA), b: renta(sB), format: v => `${Math.round(v)}%`, detail: v => `${v.toFixed(1)} %` },
     ]
     return courbes.map(c => (
       <CarteGraphique key={c.cle} icone={c.icone} couleur={compar.couleurA} titre={c.titre}
@@ -731,9 +731,9 @@ export default function DashboardGlobalScreen() {
           { nom: `B · ${compar.libelleB}`, couleur: compar.couleurB, opacite: compar.opaciteB, pointille: true },
         ]}>
         {l => (
-          <CourbeAire largeur={l} etiquettes={etiquettes} format={c.format} series={[
-            { nom: 'A', valeurs: c.a, couleur: compar.couleurA, aire: true },
-            { nom: 'B', valeurs: c.b, couleur: compar.couleurB, pointille: true, opacite: Math.max(0.6, compar.opaciteB) },
+          <CourbeAire largeur={l} etiquettes={etiquettes} format={c.format} formatDetail={c.detail} series={[
+            { nom: `A · ${compar.libelleA}`, valeurs: c.a, couleur: compar.couleurA, aire: true },
+            { nom: `B · ${compar.libelleB}`, valeurs: c.b, couleur: compar.couleurB, pointille: true, opacite: Math.max(0.6, compar.opaciteB) },
           ]} />
         )}
       </CarteGraphique>
@@ -944,7 +944,7 @@ export default function DashboardGlobalScreen() {
           sous="Le point le plus haut est signalé"
           legende={[{ nom: 'Ventes', couleur: '#EF9F27' }, { nom: 'Bénéfice SC', couleur: '#10B981' }]}>
           {l => (
-            <CourbeAire largeur={l} hauteur={210} etiquettes={etiquettesJours} series={[
+            <CourbeAire largeur={l} hauteur={210} etiquettes={etiquettesJours} formatDetail={fmt} series={[
               { nom: 'Ventes', valeurs: serieJours.map(p => Number(p.vente_total) || 0), couleur: '#EF9F27', aire: true },
               { nom: 'Bénéfice SC', valeurs: serieJours.map(p => Number(p.benefice_sc) || 0), couleur: '#10B981', aire: true },
             ]} />
@@ -954,7 +954,7 @@ export default function DashboardGlobalScreen() {
         <CarteGraphique icone="chart-bar" couleur="#EF4444" titre="Ventes et dépenses par jour"
           legende={[{ nom: 'Ventes', couleur: '#EF9F27' }, { nom: 'Dépenses', couleur: '#EF4444' }]}>
           {l => (
-            <Barres largeur={l} etiquettes={etiquettesJours} series={[
+            <Barres largeur={l} etiquettes={etiquettesJours} formatDetail={fmt} series={[
               { nom: 'Ventes', valeurs: serieJours.map(p => Number(p.vente_total) || 0), couleur: '#EF9F27' },
               { nom: 'Dépenses', valeurs: serieJours.map(p => Number(p.depense_total) || 0), couleur: '#EF4444' },
             ]} />
@@ -963,7 +963,7 @@ export default function DashboardGlobalScreen() {
 
         <CarteGraphique icone="percent-outline" couleur="#6C63E0" titre="Rentabilité par jour" sous="Ligne pointillée : seuil de 20 %">
           {l => (
-            <CourbeAire largeur={l} etiquettes={etiquettesJours} format={v => `${Math.round(v)}%`}
+            <CourbeAire largeur={l} etiquettes={etiquettesJours} format={v => `${Math.round(v)}%`} formatDetail={v => `${v.toFixed(1)} %`}
               seuil={{ valeur: 20, libelle: 'seuil 20 %', couleur: '#F59E0B' }}
               series={[{ nom: 'Rentabilité', valeurs: serieJours.map(p => (p.vente_total ? (p.benefice_sc / p.vente_total) * 100 : 0)), couleur: '#6C63E0', aire: true }]} />
           )}
@@ -971,7 +971,7 @@ export default function DashboardGlobalScreen() {
 
         <CarteGraphique icone="cash-plus" couleur="#10B981" titre="Bénéfice SC par jour" sous="Vert : gagné · rouge : perdu">
           {l => (
-            <Barres largeur={l} etiquettes={etiquettesJours} series={[{
+            <Barres largeur={l} etiquettes={etiquettesJours} formatDetail={fmt} series={[{
               nom: 'Bénéfice', valeurs: serieJours.map(p => Number(p.benefice_sc) || 0),
               couleur: '#10B981', couleurs: serieJours.map(p => ((p.benefice_sc || 0) >= 0 ? '#10B981' : '#EF4444')),
             }]} />
@@ -1208,6 +1208,15 @@ export default function DashboardGlobalScreen() {
         {l => (
           <Barres largeur={l} hauteur={200} format={v => `${Math.round(v)}`}
             etiquettes={heures.map(h => `${h.h}h`)} surligne={iPic} attenuer={false} valeurSurligne={picPOS ? `${picPOS.nb} cmd` : null}
+            detail={i => ({
+              titre: libelleCreneau(heures[i].h),
+              lignes: [
+                { couleur: melangerCouleurs('#FDE68A', '#DC2626', heures[i].nb / maxH), label: 'Commandes', valeur: heures[i].nb.toLocaleString('fr-FR') },
+                { label: 'Encaissé', valeur: fmt(heures[i].ca) },
+                { label: 'Ticket moyen', valeur: heures[i].nb ? `${Math.round(heures[i].ca / heures[i].nb).toLocaleString('fr-FR')} F` : '—' },
+                { label: 'Part de la journée', valeur: `${Math.round((heures[i].nb / Math.max(1, Number(t.nb))) * 100)} %` },
+              ],
+            })}
             series={[{ nom: 'Commandes', valeurs: heures.map(h => h.nb), couleur: '#E11D48',
               couleurs: heures.map(h => melangerCouleurs('#FDE68A', '#DC2626', h.nb / maxH)) }]} />
         )}
@@ -1225,6 +1234,13 @@ export default function DashboardGlobalScreen() {
         {l => (
           <Barres largeur={l} hauteur={180} format={v => `${Math.round(v)}`} etiquettes={parJour.map(j => j.court)}
             surligne={meilleur ? meilleur.j - 1 : null}
+            detail={i => ({
+              titre: parJour[i].long.charAt(0).toUpperCase() + parJour[i].long.slice(1),
+              lignes: [
+                { couleur: '#6C63E0', label: 'Commandes', valeur: parJour[i].nb.toLocaleString('fr-FR') },
+                { label: 'Part de la semaine', valeur: `${Math.round((parJour[i].nb / Math.max(1, parJour.reduce((x, j) => x + j.nb, 0))) * 100)} %` },
+              ],
+            })}
             series={[{ nom: 'Commandes', valeurs: parJour.map(j => j.nb), couleur: '#6C63E0' }]} />
         )}
       </CarteGraphique>
@@ -1233,6 +1249,7 @@ export default function DashboardGlobalScreen() {
         <CarteGraphique icone="receipt-text-outline" couleur="#0EA5E9" titre="Ticket moyen par jour" sous="Encaissé ÷ nombre de commandes">
           {l => (
             <CourbeAire largeur={l} etiquettes={parJourPOS.map(d => axisLabelJour(d.d))} format={fmtCourt}
+              formatDetail={v => `${Math.round(v).toLocaleString('fr-FR')} F`}
               series={[{ nom: 'Ticket moyen', valeurs: parJourPOS.map(d => (d.nb ? Math.round(d.ca / d.nb) : 0)), couleur: '#0EA5E9', aire: true }]} />
           )}
         </CarteGraphique>
