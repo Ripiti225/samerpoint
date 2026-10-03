@@ -1,3 +1,5 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
+import OngletAnalyse from '../components/rapports/OngletAnalyse'
 import { retour } from '../lib/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { useTheme } from '../context/ThemeContext'
@@ -98,7 +100,7 @@ function VariationBadge({ valeur, reference }) {
 export default function RapportsScreen() {
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
-  const [onglet, setOnglet] = useState('hebdo')
+  const [onglet, setOnglet] = useState('analyse')
   const [rapports, setRapports] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -194,7 +196,7 @@ export default function RapportsScreen() {
           .footer { margin-top: 30px; font-size: 10px; color: #bbb; text-align: right; }
         </style>
       </head><body>
-        <h1>📊 Rapport Hebdomadaire — SAMER</h1>
+        <h1>Rapport hebdomadaire — SAMER</h1>
         <div class="sub">${restoNom} · Semaine du ${formatDateFr(rapport.semaine_debut)} au ${formatDateFr(rapport.semaine_fin)}</div>
         <div class="kpi-row">
           <div class="kpi"><div class="kpi-label">Ventes totales</div><div class="kpi-val" style="color:#BA7517">${venteT.toLocaleString('fr-FR')} F</div></div>
@@ -235,33 +237,49 @@ export default function RapportsScreen() {
 
   const enTete = (
     <View style={styles.header}>
-      <TouchableOpacity onPress={() => retour()} style={styles.backBtn}>
-        <Text style={styles.backTxt}>← Retour</Text>
-      </TouchableOpacity>
-      <Text style={styles.headerTitre}>Rapports</Text>
-      <Text style={styles.headerSub}>
-        {onglet === 'hebdo'
-          ? '3 derniers mois · tous restaurants'
-          : 'Mois clos · PowerPoint, Excel et PDF'}
-      </Text>
+      <View style={styles.headerLigne}>
+        <TouchableOpacity onPress={() => retour()} style={styles.enteteBtn} accessibilityRole="button" accessibilityLabel="Retour">
+          <MaterialCommunityIcons name="chevron-left" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+        <View style={styles.headerCentre}>
+          <View style={styles.headerIcone}><MaterialCommunityIcons name="file-chart" size={18} color="#FFFFFF" /></View>
+          <View style={{ flexShrink: 1 }}>
+            <Text style={styles.headerTitre}>Rapports</Text>
+            <Text style={styles.headerSub} numberOfLines={1}>
+              {onglet === 'analyse' ? 'Analyse complète d’un mois'
+                : onglet === 'hebdo' ? '3 derniers mois · semaine par semaine'
+                  : 'Mois clos · PowerPoint, Excel et PDF'}
+            </Text>
+          </View>
+        </View>
+        <View style={{ width: 40 }} />
+      </View>
     </View>
   )
 
   const onglets = (
     <View style={styles.ongletBar}>
-      {[['hebdo', 'Hebdo'], ['mensuel', 'Mensuel']].map(([cle, libelle]) => (
-        <TouchableOpacity
-          key={cle}
-          style={[styles.ongletBtn, onglet === cle && styles.ongletBtnActif]}
-          onPress={() => setOnglet(cle)}
-        >
-          <Text style={[styles.ongletTxt, onglet === cle && styles.ongletTxtActif]}>
-            {libelle}
-          </Text>
-        </TouchableOpacity>
-      ))}
+      {[['analyse', 'Analyse', 'chart-box-outline'], ['hebdo', 'Hebdo', 'calendar-week'], ['mensuel', 'Exports', 'file-export-outline']].map(([cle, libelle, icone]) => {
+        const actif = onglet === cle
+        return (
+          <TouchableOpacity key={cle} style={[styles.ongletBtn, actif && styles.ongletBtnActif]} onPress={() => setOnglet(cle)}>
+            <MaterialCommunityIcons name={icone} size={16} color={actif ? '#FFFFFF' : colors.primary} />
+            <Text style={[styles.ongletTxt, actif && styles.ongletTxtActif]}>{libelle}</Text>
+          </TouchableOpacity>
+        )
+      })}
     </View>
   )
+
+  if (onglet === 'analyse') {
+    return (
+      <SafeAreaView style={styles.container}>
+        {enTete}
+        {onglets}
+        <OngletAnalyse onExporter={() => setOnglet('mensuel')} />
+      </SafeAreaView>
+    )
+  }
 
   if (onglet === 'mensuel') {
     return (
@@ -279,7 +297,7 @@ export default function RapportsScreen() {
         {enTete}
         {onglets}
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color="#534AB7" />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       </SafeAreaView>
     )
@@ -320,11 +338,11 @@ export default function RapportsScreen() {
       <ScrollView
         style={styles.body}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#534AB7" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
         {rapports.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyIcon}>📊</Text>
+            <MaterialCommunityIcons name="chart-box-outline" size={44} color={colors.textMuted} />
             <Text style={styles.emptyTitre}>Aucune donnée</Text>
             <Text style={styles.emptySub}>Aucun point trouvé sur les 3 derniers mois.</Text>
           </View>
@@ -352,9 +370,9 @@ export default function RapportsScreen() {
 // secondes : on ne la lance qu'au clic sur un bouton d'export.
 
 const FORMATS = [
-  { cle: 'pptx', libelle: 'PowerPoint', icone: '📄', exporter: exporterPptx },
-  { cle: 'xlsx', libelle: 'Excel', icone: '📊', exporter: exporterXlsx },
-  { cle: 'pdf', libelle: 'PDF', icone: '📕', exporter: exporterPdf },
+  { cle: 'pptx', libelle: 'PowerPoint', icone: 'file-powerpoint-outline', couleur: '#C2410C', exporter: exporterPptx },
+  { cle: 'xlsx', libelle: 'Excel', icone: 'file-excel-outline', couleur: '#15803D', exporter: exporterXlsx },
+  { cle: 'pdf', libelle: 'PDF', icone: 'file-pdf-box', couleur: '#B91C1C', exporter: exporterPdf },
 ]
 
 function OngletMensuel() {
@@ -423,7 +441,7 @@ function OngletMensuel() {
 
       {mois.length === 0 && !erreur ? (
         <View style={styles.emptyBox}>
-          <Text style={styles.emptyIcon}>🗂️</Text>
+          <MaterialCommunityIcons name="folder-open-outline" size={44} color={colors.textMuted} />
           <Text style={styles.emptyTitre}>Aucun mois clos</Text>
           <Text style={styles.emptySub}>
             Le rapport mensuel ne porte que sur des mois terminés. Le mois en cours
@@ -498,7 +516,7 @@ function MoisCard({ mois, travail, bloque, onExporter }) {
               disabled={bloque}
               onPress={() => onExporter(f)}
             >
-              <Text style={styles.formatIcone}>{f.icone}</Text>
+              <MaterialCommunityIcons name={f.icone} size={22} color={f.couleur} />
               <Text style={styles.formatTxt}>{f.libelle}</Text>
             </TouchableOpacity>
           ))}
@@ -531,7 +549,7 @@ function RapportCard({ rapport, precedent, restoFiltre, onPartager, exporting })
       <View style={styles.cardHeader}>
         <TouchableOpacity style={{ flex: 1 }} onPress={() => setExpanded(e => !e)} activeOpacity={0.7}>
           <Text style={styles.cardSemaine}>
-            📅 Semaine du {formatDateFr(rapport.semaine_debut)} au {formatDateFr(rapport.semaine_fin)}
+            Semaine du {formatDateFr(rapport.semaine_debut)} au {formatDateFr(rapport.semaine_fin)}
           </Text>
           <Text style={styles.cardMeta}>
             {rapport.nb_restaurants} restaurant{rapport.nb_restaurants > 1 ? 's' : ''} · {rapport.nb_points} point{rapport.nb_points > 1 ? 's' : ''}
@@ -542,10 +560,12 @@ function RapportCard({ rapport, precedent, restoFiltre, onPartager, exporting })
           onPress={onPartager}
           disabled={exporting}
         >
-          <Text style={styles.partagerTxt}>{exporting ? '⏳' : '📤 Partager'}</Text>
+          {exporting
+            ? <ActivityIndicator size="small" color={colors.primary} />
+            : <MaterialCommunityIcons name="share-variant-outline" size={18} color={colors.primary} />}
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setExpanded(e => !e)} style={{ paddingLeft: 8 }}>
-          <Text style={styles.chevron}>{expanded ? '▲' : '▼'}</Text>
+          <MaterialCommunityIcons name={expanded ? 'chevron-up' : 'chevron-down'} size={22} color={colors.textMuted} />
         </TouchableOpacity>
       </View>
 
@@ -597,27 +617,38 @@ function RapportCard({ rapport, precedent, restoFiltre, onPartager, exporting })
 
 function makeStyles(colors) { return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: { backgroundColor: colors.headerBg, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 },
-  backBtn: { marginBottom: 8 },
-  backTxt: { color: colors.primaryText, fontSize: 14 },
-  headerTitre: { fontSize: 22, fontWeight: '700', color: colors.surface },
-  headerSub: { fontSize: 13, color: colors.primaryText, marginTop: 3 },
-  body: { flex: 1, padding: 16 },
+  header: {
+    backgroundColor: colors.headerBg, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 14,
+    borderBottomLeftRadius: 22, borderBottomRightRadius: 22, zIndex: 2,
+    shadowColor: colors.headerBg, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 14, elevation: 6,
+  },
+  headerLigne: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  enteteBtn: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)' },
+  headerCentre: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  headerIcone: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.18)' },
+  headerTitre: { fontSize: 18, fontWeight: '800', color: colors.headerText, letterSpacing: -0.3 },
+  headerSub: { fontSize: 12, color: colors.primaryText, fontWeight: '600', marginTop: 1 },
+  body: { flex: 1, paddingHorizontal: 14, paddingTop: 12 },
 
-  ongletBar: { flexDirection: 'row', backgroundColor: colors.surface, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
-  ongletBtn: { flex: 1, paddingVertical: 13, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  ongletBtnActif: { borderBottomColor: colors.primary },
-  ongletTxt: { fontSize: 14, fontWeight: '600', color: colors.textMuted, letterSpacing: 0.3 },
-  ongletTxtActif: { color: colors.primary },
+  ongletBar: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingTop: 12 },
+  ongletBtn: {
+    flex: 1, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', minHeight: 42,
+    borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderLight,
+  },
+  ongletBtnActif: {
+    backgroundColor: colors.primary, borderColor: colors.primary,
+    shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 3,
+  },
+  ongletTxt: { fontSize: 13.5, fontWeight: '700', color: colors.textSecondary },
+  ongletTxtActif: { color: '#FFFFFF', fontWeight: '800' },
 
   moisHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 },
   moisTitre: { fontSize: 17, fontWeight: '700', color: colors.text, marginBottom: 2 },
 
   formatsRow: { flexDirection: 'row', gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: colors.borderLight },
-  formatBtn: { flex: 1, backgroundColor: colors.primaryLight, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
+  formatBtn: { flex: 1, backgroundColor: colors.surfaceAlt, borderRadius: 14, paddingVertical: 12, alignItems: 'center', gap: 4 },
   formatBtnBloque: { opacity: 0.4 },
-  formatIcone: { fontSize: 18, marginBottom: 3 },
-  formatTxt: { fontSize: 12, fontWeight: '600', color: colors.primaryDark },
+  formatTxt: { fontSize: 12.5, fontWeight: '800', color: colors.text },
 
   travailBox: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: colors.borderLight },
   travailTxt: { flex: 1, fontSize: 13, color: colors.textSecondary },
@@ -625,47 +656,44 @@ function makeStyles(colors) { return StyleSheet.create({
   erreurBox: { backgroundColor: colors.errorLight, borderRadius: 10, padding: 14, marginBottom: 14 },
   erreurTxt: { fontSize: 13, color: colors.errorDark },
 
-  restoBar: { backgroundColor: colors.surface, maxHeight: 50, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
-  restoChip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.borderLight },
+  restoBar: { maxHeight: 56, marginTop: 4 },
+  restoChip: { paddingHorizontal: 14, paddingVertical: 8, minHeight: 36, justifyContent: 'center', borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderLight },
   restoChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  restoChipTxt: { fontSize: 13, color: colors.textMuted },
+  restoChipTxt: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
   restoChipTxtActive: { color: '#fff', fontWeight: '600' },
 
   emptyBox: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 24 },
-  emptyIcon: { fontSize: 48, marginBottom: 16 },
-  emptyTitre: { fontSize: 18, fontWeight: '700', color: colors.primary, marginBottom: 8 },
+  emptyTitre: { fontSize: 17, fontWeight: '800', color: colors.text, marginTop: 12, marginBottom: 6 },
   emptySub: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
 
-  card: { backgroundColor: colors.surface, borderRadius: 12, marginBottom: 14, overflow: 'hidden', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4 },
+  card: { backgroundColor: colors.surface, borderRadius: 20, marginBottom: 14, overflow: 'hidden', borderWidth: 1, borderColor: colors.borderLight },
   cardHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 },
-  cardSemaine: { fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 2 },
+  cardSemaine: { fontSize: 15, fontWeight: '800', color: colors.text, marginBottom: 2 },
   cardMeta: { fontSize: 12, color: colors.textMuted },
-  chevron: { fontSize: 12, color: colors.textMuted },
 
-  partagerBtn: { backgroundColor: colors.primaryLight, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginLeft: 8 },
-  partagerTxt: { fontSize: 12, color: colors.primaryDark, fontWeight: '600' },
+  partagerBtn: { backgroundColor: colors.primaryLight, borderRadius: 12, width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
 
   kpiRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: colors.borderLight },
   kpiItem: { flex: 1, alignItems: 'center', paddingVertical: 12, borderRightWidth: 1, borderRightColor: colors.borderLight },
-  kpiLabel: { fontSize: 11, color: colors.textMuted, marginBottom: 4 },
-  kpiVente: { fontSize: 13, fontWeight: '700', color: colors.primary },
-  kpiBenef: { fontSize: 13, fontWeight: '700', color: '#27A369' },
-  kpiDep: { fontSize: 13, fontWeight: '700', color: '#E05050' },
-  kpiNeg: { color: '#E05050' },
+  kpiLabel: { fontSize: 10.5, color: colors.textMuted, marginBottom: 4, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
+  kpiVente: { fontSize: 14, fontWeight: '800', color: colors.text },
+  kpiBenef: { fontSize: 14, fontWeight: '800', color: colors.successDark },
+  kpiDep: { fontSize: 14, fontWeight: '800', color: colors.error },
+  kpiNeg: { color: colors.error },
 
   varBadge: { borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2, marginTop: 4 },
   varPos: { backgroundColor: colors.successLight },
   varNeg: { backgroundColor: colors.errorLight },
   varTxt: { fontSize: 10, fontWeight: '600' },
-  varTxtPos: { color: '#1B7E4F' },
-  varTxtNeg: { color: '#C0392B' },
+  varTxtPos: { color: colors.successDark },
+  varTxtNeg: { color: colors.error },
 
   detailBox: { borderTopWidth: 1, borderTopColor: colors.borderLight, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4 },
   detailTitre: { fontSize: 12, fontWeight: '700', color: colors.primary, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
   restoRow: { marginBottom: 10 },
   restoNom: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 4 },
   restoStats: { flexDirection: 'row', gap: 8 },
-  restoStat: { flex: 1, backgroundColor: colors.surfaceAlt, borderRadius: 8, padding: 8, alignItems: 'center' },
+  restoStat: { flex: 1, backgroundColor: colors.surfaceAlt, borderRadius: 12, padding: 8, alignItems: 'center' },
   restoStatLabel: { fontSize: 10, color: colors.textMuted, marginBottom: 2 },
   restoStatVal: { fontSize: 12, fontWeight: '700', color: colors.text },
 }) }
