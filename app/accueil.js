@@ -19,7 +19,7 @@ import {
 import SignatureFooter from '../components/SignatureFooter'
 import { supabase } from '../lib/supabase'
 import { SPRINGS, staggerDelay } from '../lib/animations'
-import { organiserAccueilAdmin } from '../lib/groupesAccueil'
+import AccueilManager from '../components/accueil/AccueilManager'
 import { tuilesPourRole, chargerAccesConfig, ACCES_DEFAUT } from '../lib/menus'
 import { useLargeurCase } from '../lib/grille'
 
@@ -159,36 +159,6 @@ export default function AccueilScreen() {
       bloque: t.verrouSiPointValide ? estBloque(pointValide) : false,
     }))
   }, [roleEffectif, accesConfig, pointValide])
-
-  // Manager / directeur : favoris en accès direct, puis bannières qui se
-  // déroulent sur place (lib/groupesAccueil.js).
-  const [groupeOuvert, setGroupeOuvert] = useState({})
-  const accueilAdmin = useMemo(
-    () => ((isManager || isDirecteur) ? organiserAccueilAdmin(menuItems) : null),
-    [isManager, isDirecteur, menuItems],
-  )
-
-  function renderBanniere(g) {
-    const ouvert = !!groupeOuvert[g.id]
-    return (
-      <View key={g.id} style={styles.banniere}>
-        <TouchableOpacity style={styles.banniereEntete} activeOpacity={0.7}
-          onPress={() => setGroupeOuvert(o => ({ ...o, [g.id]: !o[g.id] }))}>
-          <Text style={styles.banniereIcon}>{g.icon}</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.banniereTitre}>{g.titre}</Text>
-            <Text style={styles.banniereSous} numberOfLines={1}>{g.tuiles.map(t => t.titre).join(' · ')}</Text>
-          </View>
-          <Text style={styles.banniereChevron}>{ouvert ? '▴' : '▾'}</Text>
-        </TouchableOpacity>
-        {ouvert && (
-          <View style={[styles.grid, { marginTop: 12 }]}>
-            {g.tuiles.map((item, i) => <MenuCard key={item.id || i} item={item} index={i} />)}
-          </View>
-        )}
-      </View>
-    )
-  }
 
   function renderMenu(items, titre) {
     return (
@@ -369,16 +339,9 @@ export default function AccueilScreen() {
 
         {/* Menu construit depuis le catalogue central + config par rôle.
             Manager & directeur : accès total. RH/gérant/caissier : configurable. */}
-        {accueilAdmin ? (
-          <>
-            {accueilAdmin.favoris.length > 0 && renderMenu(accueilAdmin.favoris, 'Accès direct')}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitre}>Tout</Text>
-              {accueilAdmin.groupes.map(renderBanniere)}
-              {accueilAdmin.autres.length > 0 && renderBanniere({ id: 'autres', icon: '➕', titre: 'Autres', tuiles: accueilAdmin.autres })}
-            </View>
-          </>
-        ) : renderMenu(menuItems, isCaissier ? 'Mon point du jour' : null)}
+        {(isManager || isDirecteur)
+          ? <AccueilManager items={menuItems} />
+          : renderMenu(menuItems, isCaissier ? 'Mon point du jour' : null)}
 
         {/* Mode sombre */}
         <View style={styles.themeRow}>
@@ -515,15 +478,6 @@ function makeStyles(colors) { return StyleSheet.create({
     letterSpacing: 1, marginBottom: 12, textTransform: 'uppercase',
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  banniere: {
-    backgroundColor: colors.surface, borderRadius: 16, padding: 14, marginBottom: 10,
-    borderWidth: 1, borderColor: colors.borderLight,
-  },
-  banniereEntete: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 },
-  banniereIcon: { fontSize: 24 },
-  banniereTitre: { fontSize: 15, fontWeight: '700', color: colors.text },
-  banniereSous: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
-  banniereChevron: { fontSize: 16, color: colors.textMuted, paddingHorizontal: 4 },
   cardWrap: {},
   card: {
     backgroundColor: colors.surface, borderRadius: 18,
