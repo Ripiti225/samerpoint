@@ -19,6 +19,7 @@ import * as Print from 'expo-print'
 import * as Sharing from 'expo-sharing'
 import { supabase } from '../lib/supabase'
 import { listerMoisAvecTotaux, chargerRapportMensuel } from '../lib/rapportMensuel'
+import { chargerAnalyse } from '../lib/analyseMoisDb'
 import { exporterPptx, exporterXlsx, exporterPdf } from '../lib/exportRapportMensuel'
 import '../lib/webAlert'   // remplace Alert.alert par les dialogues du navigateur
 
@@ -405,6 +406,12 @@ function OngletMensuel() {
     try {
       const suivre = etape => setTravail(t => (t ? { ...t, etape } : t))
       const rapport = await chargerRapportMensuel(m.mois, suivre)
+      // L'analyse (faits, résultat net, POS, équipe) rejoint l'export ; si elle
+      // échoue, le rapport sort quand même, sans ces sections.
+      rapport.analyse = await chargerAnalyse(m.mois, suivre).catch(e => {
+        console.warn('[RapportMensuel] analyse indisponible', e?.message)
+        return null
+      })
       await format.exporter(rapport, suivre)
     } catch (e) {
       console.error('[RapportMensuel] export', e)
