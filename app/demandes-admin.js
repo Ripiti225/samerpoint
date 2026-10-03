@@ -1,65 +1,35 @@
 import { retour } from '../lib/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Text, View } from 'react-native'
+import { CarteDemande } from '../components/demandes/Cartes'
 import {
-  ActivityIndicator,
-  Alert,
-  Keyboard,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
-} from 'react-native'
-import { Calendar } from 'react-native-calendars'
+  Bouton, ChampDates, Champ, Compteurs, EnTete, Feuille, Libelle, Puces, Recherche, Vide, useDemandesStyles,
+} from '../components/demandes/ui'
 import { useApp } from '../context/AppContext'
-import { useTheme } from '../context/ThemeContext'
 import { journaliser } from '../lib/journal'
 import { TYPES_DEMANDE } from '../lib/constants'
+import { FILTRES_DEMANDE, STATUTS_DEMANDE, VIOLET, compterDemandes, filtrerDemandes, fmtMontant } from '../lib/demandes'
 import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifDemandeStatut } from '../lib/notifications'
 import { supabase } from '../lib/supabase'
 
-const STATUT_CONFIG = {
-  en_attente: { label: '🟡 En attente', bg: '#FEF9EC', text: '#854F0B' },
-  validee:    { label: '✅ Validée',    bg: '#EAF3DE', text: '#3B6D11' },
-  declinee:   { label: '❌ Déclinée',   bg: '#FAECE7', text: '#993C1D' },
-  annulee:    { label: '🚫 Annulée',    bg: '#F1EFE8', text: '#666'    },
-}
-
-const FILTRES_STATUT = ['Toutes', 'En attente', 'Validées', 'Déclinées', 'Annulées']
-const STATUT_FILTRE_MAP = {
-  'En attente': 'en_attente',
-  'Validées': 'validee',
-  'Déclinées': 'declinee',
-  'Annulées': 'annulee',
-}
-
-function fmtDate(d) {
-  if (!d) return ''
-  const [y, m, j] = d.split('-')
-  const mois = ['jan','fév','mar','avr','mai','juin','jul','aoû','sep','oct','nov','déc']
-  return `${parseInt(j)} ${mois[parseInt(m) - 1]} ${y}`
-}
-
 export default function DemandesAdminScreen() {
   const { userId, userNom, roleActif } = useApp()
-  const { colors } = useTheme()
-  const styles = useMemo(() => makeStyles(colors), [colors])
+  const { styles, colors, accent } = useDemandesStyles()
 
   const peutAnnuler = roleActif === 'rh' || roleActif === 'directeur' || roleActif === 'manager'
 
   const [restaurants, setRestaurants] = useState([])
   const [restoFilter, setRestoFilter] = useState(null)
-  const [statutFilter, setStatutFilter] = useState('Toutes')
   const [demandes, setDemandes] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showRestoPicker, setShowRestoPicker] = useState(false)
+
+  // Filtres de la liste : statut (compteurs cliquables) et recherche, côté téléphone
+  // pour que les compteurs restent justes quel que soit le filtre.
+  const [filtre, setFiltre] = useState(null)
+  const [recherche, setRecherche] = useState('')
+  const comptes = useMemo(() => compterDemandes(demandes), [demandes])
+  const visibles = useMemo(() => filtrerDemandes(demandes, { statut: filtre, recherche }), [demandes, filtre, recherche])
 
   // Modal déclin
   const [showDeclineModal, setShowDeclineModal] = useState(false)
@@ -91,7 +61,7 @@ export default function DemandesAdminScreen() {
 
   useEffect(() => {
     charger()
-  }, [restoFilter, statutFilter])
+  }, [restoFilter])
 
   async function chargerRestaurants() {
     const { data } = await supabase.from('restaurants').select('id, nom').order('nom')
@@ -102,8 +72,6 @@ export default function DemandesAdminScreen() {
     setLoading(true)
     let q = supabase.from('demandes').select('*').order('created_at', { ascending: false })
     if (restoFilter) q = q.eq('restaurant_id', restoFilter)
-    const sf = STATUT_FILTRE_MAP[statutFilter]
-    if (sf) q = q.eq('statut', sf)
     const { data } = await q
     setDemandes(data || [])
     setLoading(false)
@@ -268,432 +236,139 @@ export default function DemandesAdminScreen() {
     setSaving(false); setShowCreer(false); charger()
   }
 
-  const restoNom = restoFilter
-    ? restaurants.find(r => r.id === restoFilter)?.nom || 'Restaurant'
-    : 'Tous les restaurants'
+  const restoNom = restoFilter ? restaurants.find(r => r.id === restoFilter)?.nom || 'Restaurant' : 'Tous les restaurants'
+  const nomResto = id => restaurants.find(r => r.id === id)?.nom || ''
+  const compteurs = FILTRES_DEMANDE.map(f => ({
+    cle: f.cle, label: f.label, valeur: comptes[f.cle],
+    couleur: f.cle ? STATUTS_DEMANDE[f.cle].couleur : accent,
+  }))
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => retour()}>
-          <Text style={styles.back}>‹ Retour</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitre}>Demandes</Text>
-        <View style={{ width: 60 }} />
-      </View>
+      <EnTete titre="Demandes" sous={restoNom} onRetour={() => retour()} styles={styles} />
 
-      {/* Filtre restaurant + création */}
-      <View style={styles.filtersRow}>
-        <TouchableOpacity style={styles.restoBtn} onPress={() => setShowRestoPicker(true)}>
-          <Text style={styles.restoBtnTxt}>🏪 {restoNom} ▾</Text>
-        </TouchableOpacity>
-        {peutCreer && (
-          <TouchableOpacity style={styles.addBtnSmall} onPress={ouvrirCreer}>
-            <Text style={styles.addBtnSmallTxt}>+ Nouvelle demande</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Filtre statut */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.statutFilters, { flexGrow: 0 }]} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
-        {FILTRES_STATUT.map(f => (
-          <TouchableOpacity
-            key={f}
-            style={[styles.statutFilterBtn, statutFilter === f && styles.statutFilterBtnActive]}
-            onPress={() => setStatutFilter(f)}
-          >
-            <Text style={[styles.statutFilterTxt, statutFilter === f && styles.statutFilterTxtActive]}>{f}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      <Puces ligne styles={styles} actif={restoFilter} onChoisir={setRestoFilter}
+        elements={[{ cle: null, label: 'Tous' }, ...restaurants.map(r => ({ cle: r.id, label: r.nom }))]} />
+      <Compteurs elements={compteurs} actif={filtre} onChoisir={setFiltre} styles={styles} />
+      <Recherche value={recherche} onChange={setRecherche} placeholder="🔍 Rechercher un travailleur, un type…" styles={styles} colors={colors} />
 
       {loading ? (
-        <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color="#534AB7" />
-        </View>
+        <View style={styles.loadingBox}><ActivityIndicator size="large" color={accent} /></View>
       ) : (
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-          {demandes.length === 0 ? (
-            <View style={styles.emptyBox}>
-              <Text style={styles.emptyIcon}>📋</Text>
-              <Text style={styles.emptyTxt}>Aucune demande{statutFilter !== 'Toutes' ? ` (${statutFilter.toLowerCase()})` : ''}</Text>
+          {peutCreer && (
+            <View style={{ marginBottom: 14 }}>
+              <Bouton label="+ Nouvelle demande (validée directement)" variante="plein" grand styles={styles} onPress={ouvrirCreer} />
             </View>
-          ) : (
-            demandes.map(d => {
-              const cfg = STATUT_CONFIG[d.statut] || STATUT_CONFIG.en_attente
-              const typeDef = TYPES_DEMANDE.find(t => t.label === d.type)
-              const restoNomCarte = restaurants.find(r => r.id === d.restaurant_id)?.nom || ''
-              return (
-                <View key={d.id} style={styles.card}>
-                  <View style={styles.cardTop}>
-                    <Text style={styles.cardType}>{typeDef?.icon || '📋'} {d.type}</Text>
-                    <View style={[styles.statutBadge, { backgroundColor: cfg.bg }]}>
-                      <Text style={[styles.statutTxt, { color: cfg.text }]}>{cfg.label}</Text>
-                    </View>
-                  </View>
-
-                  <Text style={styles.cardTrav}>{d.travailleur_nom}</Text>
-                  {restoNomCarte ? <Text style={styles.cardResto}>🏪 {restoNomCarte}</Text> : null}
-                  {d.cree_par_nom ? <Text style={styles.cardGerant}>👤 Soumis par {d.cree_par_nom}</Text> : null}
-                  {d.date_debut && (
-                    <Text style={styles.cardDates}>📅 {fmtDate(d.date_debut)} → {fmtDate(d.date_fin)}</Text>
-                  )}
-                  {d.montant > 0 && (
-                    <Text style={styles.cardMontant}>💰 Montant demandé : {Math.round(d.montant).toLocaleString('fr-FR')} FCFA</Text>
-                  )}
-                  {d.description ? <Text style={styles.cardDesc}>{`« ${d.description} »`}</Text> : null}
-                  <Text style={styles.cardMeta}>Le {fmtDate(d.created_at?.split('T')[0])}</Text>
-
-                  {d.statut === 'validee' && d.montant_alloue > 0 && (
-                    <Text style={styles.cardMontant}>✅ Montant alloué : {Math.round(d.montant_alloue).toLocaleString('fr-FR')} FCFA</Text>
-                  )}
-                  {d.statut === 'validee' && d.traite_par_nom && (
-                    <Text style={styles.cardMeta}>✅ Validé par {d.traite_par_nom}</Text>
-                  )}
-                  {d.statut === 'declinee' && (
-                    <View style={styles.declineBox}>
-                      <Text style={styles.declineTitre}>Motif du refus :</Text>
-                      <Text style={styles.declineTxt}>{d.motif_decline}</Text>
-                    </View>
-                  )}
-                  {d.statut === 'annulee' && d.annule_par_nom && (
-                    <Text style={styles.cardMeta}>🚫 Annulé par {d.annule_par_nom}</Text>
-                  )}
-
-                  {/* Actions */}
-                  {d.statut === 'en_attente' && (
-                    <View style={styles.actions}>
-                      <TouchableOpacity style={styles.btnValider} onPress={() => demanderValidation(d)} disabled={saving}>
-                        <Text style={styles.btnValiderTxt}>✅ Valider</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.btnDecliner} onPress={() => ouvrirDeclin(d)} disabled={saving}>
-                        <Text style={styles.btnDeclinerTxt}>❌ Décliner</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                  {d.statut === 'validee' && peutAnnuler && (
-                    <TouchableOpacity style={styles.btnAnnuler} onPress={() => confirmerAnnulation(d)} disabled={saving}>
-                      <Text style={styles.btnAnnulerTxt}>🚫 Annuler la validation</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )
-            })
           )}
+          {visibles.length > 0 && (
+            <Text style={styles.resultat}>
+              {visibles.length} demande(s){filtre ? ` · ${STATUTS_DEMANDE[filtre].label.toLowerCase()}` : ''}
+            </Text>
+          )}
+          {visibles.length === 0 ? (
+            <Vide icone="📋" styles={styles} texte="Aucune demande trouvée"
+              sous={demandes.length === 0 ? 'Aucune demande pour ce choix de restaurant.' : 'Changez le filtre ou la recherche.'} />
+          ) : visibles.map(d => (
+            <CarteDemande key={d.id} d={d} restoNom={nomResto(d.restaurant_id)} styles={styles}>
+              {d.statut === 'en_attente' && (
+                <View style={styles.actions}>
+                  <Bouton label="✅ Valider" couleur="#3B8D2F" flex styles={styles} onPress={() => demanderValidation(d)} disabled={saving} />
+                  <Bouton label="❌ Décliner" couleur="#C2462B" flex styles={styles} onPress={() => ouvrirDeclin(d)} disabled={saving} />
+                </View>
+              )}
+              {d.statut === 'validee' && peutAnnuler && (
+                <View style={styles.actions}>
+                  <Bouton label="🚫 Annuler la validation" couleur="#7A7A86" flex styles={styles} onPress={() => confirmerAnnulation(d)} disabled={saving} />
+                </View>
+              )}
+            </CarteDemande>
+          ))}
           <View style={{ height: 40 }} />
         </ScrollView>
       )}
 
-      {/* Picker restaurant */}
-      <Modal visible={showRestoPicker} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={() => setShowRestoPicker(false)}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.pickerModal}>
-              <Text style={styles.pickerTitre}>Choisir un restaurant</Text>
-              <TouchableOpacity style={styles.pickerItem} onPress={() => { setRestoFilter(null); setShowRestoPicker(false) }}>
-                <Text style={[styles.pickerItemTxt, !restoFilter && { fontWeight: '700', color: '#534AB7' }]}>🌍 Tous les restaurants</Text>
-              </TouchableOpacity>
-              {restaurants.map(r => (
-                <TouchableOpacity key={r.id} style={styles.pickerItem} onPress={() => { setRestoFilter(r.id); setShowRestoPicker(false) }}>
-                  <Text style={[styles.pickerItemTxt, restoFilter === r.id && { fontWeight: '700', color: '#534AB7' }]}>
-                    🏪 {r.nom}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      {/* Confirmation d'annulation */}
+      <Feuille visible={showAnnulerModal} titre="Annuler la validation ?" styles={styles}
+        sous={demandeAnnuler ? `${demandeAnnuler.type} pour ${demandeAnnuler.travailleur_nom}` : null}
+        onFermer={() => { setShowAnnulerModal(false); setDemandeAnnuler(null) }}>
+        <Text style={[styles.infoTxt, { marginBottom: 16 }]}>Le travailleur redeviendra immédiatement modifiable dans Présences.</Text>
+        <View style={{ gap: 8 }}>
+          <Bouton label={saving ? 'Annulation…' : "🚫 Confirmer l'annulation"} variante="plein" couleur="#5F5F6B" grand
+            onPress={executerAnnulation} disabled={saving} styles={styles} />
+          <Bouton label="Retour" variante="contour" couleur={colors.textSecondary} grand styles={styles}
+            onPress={() => { setShowAnnulerModal(false); setDemandeAnnuler(null) }} />
+        </View>
+      </Feuille>
 
-      {/* Modal confirmation annulation */}
-      <Modal visible={showAnnulerModal} transparent animationType="fade">
-        <TouchableWithoutFeedback onPress={() => { setShowAnnulerModal(false); setDemandeAnnuler(null) }}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={[styles.declineModal, { padding: 24 }]}>
-                <Text style={[styles.modalTitre, { marginBottom: 12 }]}>Annuler la validation ?</Text>
-                {demandeAnnuler && (
-                  <Text style={[styles.declineInfo, { marginBottom: 16 }]}>
-                    {demandeAnnuler.type} pour {demandeAnnuler.travailleur_nom}{'\n'}
-                    Le travailleur redeviendra immédiatement modifiable dans Présences.
-                  </Text>
-                )}
-                <TouchableOpacity
-                  style={[styles.btnDeclinerConfirm, { backgroundColor: '#666' }, saving && { opacity: 0.5 }]}
-                  onPress={executerAnnulation}
-                  disabled={saving}
-                >
-                  <Text style={styles.btnDeclinerConfirmTxt}>{saving ? 'Annulation...' : '🚫 Confirmer l\'annulation'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.btnDeclinerConfirm, { backgroundColor: colors.surface, marginTop: 10 }]}
-                  onPress={() => { setShowAnnulerModal(false); setDemandeAnnuler(null) }}
-                >
-                  <Text style={[styles.btnDeclinerConfirmTxt, { color: colors.text }]}>Retour</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      {/* Motif du refus */}
+      <Feuille visible={showDeclineModal} titre="Motif du refus" styles={styles}
+        sous={demandeEnCours ? `${demandeEnCours.type} — ${demandeEnCours.travailleur_nom}` : null}
+        onFermer={() => { setShowDeclineModal(false); setMotifDecline('') }}>
+        <Champ styles={styles} colors={colors} multiline numberOfLines={4} autoFocus
+          placeholder="Expliquez le motif du refus (obligatoire)…" value={motifDecline} onChangeText={setMotifDecline} />
+        <Bouton label={saving ? 'Envoi…' : '❌ Confirmer le refus'} variante="plein" couleur="#C2462B" grand
+          onPress={confirmerDeclin} disabled={!motifDecline.trim() || saving} styles={styles} />
+      </Feuille>
 
-      {/* Modal motif déclin */}
-      <Modal visible={showDeclineModal} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
-          <View style={styles.modalOverlay}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
-              <View style={styles.declineModal}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitre}>Motif du refus</Text>
-                  <TouchableOpacity onPress={() => { setShowDeclineModal(false); setMotifDecline('') }}>
-                    <Text style={styles.modalClose}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-                {demandeEnCours && (
-                  <Text style={styles.declineInfo}>
-                    {demandeEnCours.type} — {demandeEnCours.travailleur_nom}
-                  </Text>
-                )}
-                <TextInput
-                  style={[styles.textArea, { color: colors.text, borderColor: colors.border }]}
-                  placeholder="Expliquez le motif du refus (obligatoire)..."
-                  placeholderTextColor={colors.textMuted}
-                  multiline
-                  numberOfLines={4}
-                  value={motifDecline}
-                  onChangeText={setMotifDecline}
-                  autoFocus
-                />
-                <TouchableOpacity
-                  style={[styles.btnDeclinerConfirm, (!motifDecline.trim() || saving) && { opacity: 0.5 }]}
-                  onPress={confirmerDeclin}
-                  disabled={!motifDecline.trim() || saving}
-                >
-                  <Text style={styles.btnDeclinerConfirmTxt}>{saving ? 'Envoi...' : '❌ Confirmer le refus'}</Text>
-                </TouchableOpacity>
-              </View>
-            </KeyboardAvoidingView>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      {/* Montant alloué (validation d'une demande financière) */}
+      <Feuille visible={showMontantModal} titre="Montant alloué" styles={styles}
+        sous={demandeEnCours ? `${demandeEnCours.type} — ${demandeEnCours.travailleur_nom}${demandeEnCours.montant > 0 ? ` · demandé ${fmtMontant(demandeEnCours.montant)}` : ''}` : null}
+        onFermer={() => { setShowMontantModal(false); setMontantAlloue('') }}>
+        <Champ styles={styles} colors={colors} autoFocus keyboardType="numeric" placeholder="Montant accordé (FCFA)"
+          value={montantAlloue} onChangeText={v => setMontantAlloue(v.replace(/[^0-9]/g, ''))} />
+        <Bouton label={saving ? 'Validation…' : '✅ Valider la demande'} variante="plein" couleur="#3B8D2F" grand
+          onPress={confirmerValidation} disabled={!(parseFloat(montantAlloue) > 0) || saving} styles={styles} />
+      </Feuille>
 
-      {/* Modal montant alloué (validation d'une demande financière) */}
-      <Modal visible={showMontantModal} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
-          <View style={styles.modalOverlay}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
-              <View style={styles.declineModal}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitre}>Montant alloué</Text>
-                  <TouchableOpacity onPress={() => { setShowMontantModal(false); setMontantAlloue('') }}>
-                    <Text style={styles.modalClose}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-                {demandeEnCours && (
-                  <Text style={styles.declineInfo}>
-                    {demandeEnCours.type} — {demandeEnCours.travailleur_nom}
-                    {demandeEnCours.montant > 0 ? ` · demandé ${Math.round(demandeEnCours.montant).toLocaleString('fr-FR')} FCFA` : ''}
-                  </Text>
-                )}
-                <TextInput
-                  style={[styles.input, { color: colors.text, borderColor: colors.border }]}
-                  placeholder="Montant accordé (FCFA)"
-                  placeholderTextColor={colors.textMuted}
-                  keyboardType="numeric"
-                  value={montantAlloue}
-                  onChangeText={v => setMontantAlloue(v.replace(/[^0-9]/g, ''))}
-                  autoFocus
-                />
-                <TouchableOpacity
-                  style={[styles.btnValider, { paddingVertical: 13 }, (!(parseFloat(montantAlloue) > 0) || saving) && { opacity: 0.5 }]}
-                  onPress={confirmerValidation}
-                  disabled={!(parseFloat(montantAlloue) > 0) || saving}
-                >
-                  <Text style={styles.btnValiderTxt}>{saving ? 'Validation...' : '✅ Valider la demande'}</Text>
-                </TouchableOpacity>
-              </View>
-            </KeyboardAvoidingView>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      {/* Création directe par un admin (validée) */}
+      <Feuille visible={showCreer} titre="Nouvelle demande" sous="Créée directement validée" styles={styles} onFermer={() => setShowCreer(false)}>
+        <Libelle styles={styles}>Type de demande</Libelle>
+        <Puces styles={styles} actif={cType?.label}
+          elements={TYPES_DEMANDE.map(t => ({ cle: t.label, label: `${t.icon} ${t.label}` }))}
+          onChoisir={label => { setCType(TYPES_DEMANDE.find(t => t.label === label)); setCDebut(''); setCFin(''); setCDateChamp(null) }} />
 
-      {/* Modal création (admin) */}
-      <Modal visible={showCreer} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
-          <View style={styles.modalOverlay}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
-              <View style={styles.creerModal}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitre}>Nouvelle demande</Text>
-                  <TouchableOpacity onPress={() => setShowCreer(false)}><Text style={styles.modalClose}>✕</Text></TouchableOpacity>
-                </View>
-                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                  <Text style={styles.label}>Type de demande</Text>
-                  <View style={styles.typesGrid}>
-                    {TYPES_DEMANDE.map(t => (
-                      <TouchableOpacity
-                        key={t.label}
-                        style={[styles.typeChip, cType?.label === t.label && styles.typeChipActive]}
-                        onPress={() => { setCType(t); setCDebut(''); setCFin(''); setCDateChamp(null) }}
-                      >
-                        <Text style={[styles.typeChipTxt, cType?.label === t.label && styles.typeChipTxtActive]}>{t.icon} {t.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+        <Libelle styles={styles}>Restaurant</Libelle>
+        <Puces styles={styles} petit actif={creerResto?.id}
+          elements={restaurants.map(r => ({ cle: r.id, label: r.nom }))}
+          onChoisir={id => choisirRestoCreer(restaurants.find(r => r.id === id))} />
 
-                  <Text style={styles.label}>Restaurant</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 14 }}>
-                    {restaurants.map(r => (
-                      <TouchableOpacity key={r.id} style={[styles.travChip, creerResto?.id === r.id && styles.travChipActive]} onPress={() => choisirRestoCreer(r)}>
-                        <Text style={[styles.travChipTxt, creerResto?.id === r.id && styles.travChipTxtActive]}>{r.nom}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+        {creerResto && (
+          <>
+            <Libelle styles={styles}>Travailleur</Libelle>
+            {travCreer.length === 0 ? (
+              <Text style={[styles.infoTxt, { fontStyle: 'italic', marginBottom: 16 }]}>Aucun travailleur actif</Text>
+            ) : (
+              <Puces styles={styles} petit actif={cTrav?.id}
+                elements={travCreer.map(t => ({ cle: t.id, label: t.nom }))}
+                onChoisir={id => setCTrav(travCreer.find(t => t.id === id))} />
+            )}
+          </>
+        )}
 
-                  {creerResto && (
-                    <>
-                      <Text style={styles.label}>Travailleur</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 14 }}>
-                        {travCreer.length === 0 ? (
-                          <Text style={{ color: colors.textMuted, fontStyle: 'italic' }}>Aucun travailleur actif</Text>
-                        ) : travCreer.map(t => (
-                          <TouchableOpacity key={t.id} style={[styles.travChip, cTrav?.id === t.id && styles.travChipActive]} onPress={() => setCTrav(t)}>
-                            <Text style={[styles.travChipTxt, cTrav?.id === t.id && styles.travChipTxtActive]}>{t.nom}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    </>
-                  )}
+        {cType?.necessiteDates && (
+          <>
+            <Libelle styles={styles}>Dates (futures autorisées)</Libelle>
+            <ChampDates debut={cDebut} fin={cFin} setDebut={setCDebut} setFin={setCFin}
+              champ={cDateChamp} setChamp={setCDateChamp} styles={styles} colors={colors} accent={accent} />
+          </>
+        )}
 
-                  {cType?.necessiteDates && (
-                    <>
-                      <Text style={styles.label}>Dates (futures autorisées)</Text>
-                      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
-                        <TouchableOpacity style={[styles.dateBtn, cDateChamp === 'debut' && styles.dateBtnActive]} onPress={() => setCDateChamp(cDateChamp === 'debut' ? null : 'debut')}>
-                          <Text style={[styles.dateBtnTxt, cDebut && { color: colors.text, fontWeight: '600' }, cDateChamp === 'debut' && { color: '#fff' }]}>{cDebut ? fmtDate(cDebut) : '📅 Début'}</Text>
-                        </TouchableOpacity>
-                        <Text style={{ color: colors.textMuted, alignSelf: 'center' }}>→</Text>
-                        <TouchableOpacity style={[styles.dateBtn, cDateChamp === 'fin' && styles.dateBtnActive]} onPress={() => setCDateChamp(cDateChamp === 'fin' ? null : 'fin')}>
-                          <Text style={[styles.dateBtnTxt, cFin && { color: colors.text, fontWeight: '600' }, cDateChamp === 'fin' && { color: '#fff' }]}>{cFin ? fmtDate(cFin) : '📅 Fin'}</Text>
-                        </TouchableOpacity>
-                      </View>
-                      {cDateChamp !== null && (
-                        <Calendar
-                          onDayPress={day => {
-                            if (cDateChamp === 'debut') setCDebut(day.dateString)
-                            else setCFin(day.dateString)
-                            setCDateChamp(null)
-                          }}
-                          markedDates={{
-                            ...(cDebut ? { [cDebut]: { selected: true, selectedColor: '#534AB7' } } : {}),
-                            ...(cFin ? { [cFin]: { selected: true, selectedColor: '#3B6D11' } } : {}),
-                          }}
-                          theme={{
-                            selectedDayBackgroundColor: cDateChamp === 'debut' ? '#534AB7' : '#3B6D11',
-                            todayTextColor: '#534AB7', arrowColor: '#534AB7',
-                            monthTextColor: colors.text, dayTextColor: colors.text, textDisabledColor: '#ccc',
-                          }}
-                        />
-                      )}
-                    </>
-                  )}
+        {cType?.necessiteMontant && (
+          <>
+            <Libelle styles={styles}>Montant (FCFA)</Libelle>
+            <Champ styles={styles} colors={colors} placeholder="Ex : 50000" keyboardType="numeric"
+              value={cMontant} onChangeText={v => setCMontant(v.replace(/[^0-9]/g, ''))} />
+          </>
+        )}
 
-                  {cType?.necessiteMontant && (
-                    <>
-                      <Text style={styles.label}>Montant (FCFA)</Text>
-                      <TextInput style={[styles.input, { color: colors.text, borderColor: colors.border }]} placeholder="Ex : 50000" placeholderTextColor={colors.textMuted} keyboardType="numeric" value={cMontant} onChangeText={v => setCMontant(v.replace(/[^0-9]/g, ''))} />
-                    </>
-                  )}
+        <Libelle styles={styles}>Description (optionnelle)</Libelle>
+        <Champ styles={styles} colors={colors} multiline placeholder="Précisez les détails…" value={cDesc} onChangeText={setCDesc} />
 
-                  <Text style={styles.label}>Description (optionnelle)</Text>
-                  <TextInput style={[styles.textArea, { color: colors.text, borderColor: colors.border }]} placeholder="Précisez les détails..." placeholderTextColor={colors.textMuted} multiline value={cDesc} onChangeText={setCDesc} />
-
-                  <TouchableOpacity style={[styles.btnValider, { paddingVertical: 13 }, saving && { opacity: 0.5 }]} onPress={soumettreCreation} disabled={saving}>
-                    <Text style={styles.btnValiderTxt}>{saving ? 'Enregistrement...' : '✅ Enregistrer (validée)'}</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.hint}>Créée directement validée. Idéal pour planifier un congé à une date future.</Text>
-                  <View style={{ height: 30 }} />
-                </ScrollView>
-              </View>
-            </KeyboardAvoidingView>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+        <Bouton label={saving ? 'Enregistrement…' : '✅ Enregistrer (validée)'} variante="plein" couleur={VIOLET} grand
+          onPress={soumettreCreation} disabled={saving} styles={styles} />
+        <Text style={styles.hint}>Créée directement validée. Idéal pour planifier un congé à une date future.</Text>
+      </Feuille>
     </SafeAreaView>
   )
-}
-
-function makeStyles(colors) {
-  return StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background },
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
-    back: { fontSize: 16, color: '#534AB7', fontWeight: '500' },
-    headerTitre: { fontSize: 18, fontWeight: '700', color: colors.text },
-    filtersRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6, gap: 8 },
-    restoBtn: { backgroundColor: colors.surface, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: colors.border },
-    restoBtnTxt: { fontSize: 14, color: colors.text, fontWeight: '500' },
-    addBtnSmall: { backgroundColor: '#534AB7', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
-    addBtnSmallTxt: { color: '#fff', fontWeight: '700', fontSize: 13 },
-    statutFilters: { paddingVertical: 8 },
-    statutFilterBtn: { backgroundColor: colors.surface, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, borderColor: colors.border },
-    statutFilterBtnActive: { backgroundColor: '#534AB7', borderColor: '#534AB7' },
-    statutFilterTxt: { fontSize: 13, color: colors.textMuted, fontWeight: '500' },
-    statutFilterTxtActive: { color: '#fff' },
-    loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    body: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    emptyBox: { alignItems: 'center', paddingTop: 60 },
-    emptyIcon: { fontSize: 44, marginBottom: 12 },
-    emptyTxt: { color: colors.textMuted, fontSize: 15 },
-    card: { backgroundColor: colors.surface, borderRadius: 14, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-    cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-    cardType: { fontSize: 15, fontWeight: '700', color: colors.text, flex: 1 },
-    statutBadge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
-    statutTxt: { fontSize: 12, fontWeight: '600' },
-    cardTrav: { fontSize: 14, color: colors.text, fontWeight: '600', marginBottom: 2 },
-    cardResto: { fontSize: 13, color: colors.textMuted, marginBottom: 2 },
-    cardGerant: { fontSize: 13, color: colors.textMuted, marginBottom: 2 },
-    cardDates: { fontSize: 13, color: colors.textMuted, marginBottom: 4 },
-    cardMontant: { fontSize: 13, color: '#3B6D11', fontWeight: '700', marginBottom: 4 },
-    cardDesc: { fontSize: 13, color: colors.textMuted, fontStyle: 'italic', marginBottom: 4 },
-    cardMeta: { fontSize: 12, color: colors.textMuted, marginTop: 4 },
-    declineBox: { backgroundColor: '#FAECE7', borderRadius: 8, padding: 10, marginTop: 8 },
-    declineTitre: { fontSize: 12, fontWeight: '700', color: '#993C1D', marginBottom: 2 },
-    declineTxt: { fontSize: 13, color: '#993C1D' },
-    actions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-    btnValider: { flex: 1, backgroundColor: '#EAF3DE', borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-    btnValiderTxt: { color: '#3B6D11', fontWeight: '700', fontSize: 14 },
-    btnDecliner: { flex: 1, backgroundColor: '#FAECE7', borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-    btnDeclinerTxt: { color: '#993C1D', fontWeight: '700', fontSize: 14 },
-    btnAnnuler: { marginTop: 10, backgroundColor: '#F1EFE8', borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-    btnAnnulerTxt: { color: '#666', fontWeight: '600', fontSize: 13 },
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    pickerModal: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '60%' },
-    pickerTitre: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 14 },
-    pickerItem: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-    pickerItemTxt: { fontSize: 15, color: colors.text },
-    declineModal: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
-    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-    modalTitre: { fontSize: 18, fontWeight: '700', color: colors.text },
-    modalClose: { fontSize: 20, color: colors.textMuted, padding: 4 },
-    declineInfo: { fontSize: 14, color: colors.textMuted, marginBottom: 12, fontStyle: 'italic' },
-    input: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 15, marginBottom: 16, backgroundColor: colors.background },
-    textArea: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 14, minHeight: 100, textAlignVertical: 'top', marginBottom: 16, backgroundColor: colors.background },
-    btnDeclinerConfirm: { backgroundColor: '#993C1D', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-    btnDeclinerConfirmTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
-    creerModal: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '92%' },
-    label: { fontSize: 13, fontWeight: '600', color: colors.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
-    typesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-    typeChip: { backgroundColor: colors.background, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colors.border },
-    typeChipActive: { backgroundColor: '#534AB7', borderColor: '#534AB7' },
-    typeChipTxt: { fontSize: 13, color: colors.textMuted, fontWeight: '500' },
-    typeChipTxtActive: { color: '#fff' },
-    travChip: { backgroundColor: colors.background, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colors.border, marginRight: 8 },
-    travChipActive: { backgroundColor: '#534AB7', borderColor: '#534AB7' },
-    travChipTxt: { fontSize: 13, color: colors.textMuted, fontWeight: '500' },
-    travChipTxtActive: { color: '#fff' },
-    dateBtn: { flex: 1, backgroundColor: colors.background, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
-    dateBtnActive: { backgroundColor: '#534AB7', borderColor: '#534AB7' },
-    dateBtnTxt: { fontSize: 13, color: colors.textMuted, fontWeight: '500' },
-    hint: { fontSize: 12, color: colors.textMuted, textAlign: 'center', marginTop: 10, fontStyle: 'italic' },
-  })
 }

@@ -1,41 +1,19 @@
 import { router } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
-import {
-  ActivityIndicator,
-  Alert,
-  Keyboard,
-  KeyboardAvoidingView,
-  Linking,
-  Modal,
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
-} from 'react-native'
+import { ActivityIndicator, Alert, Linking, Platform, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { CarteExplication } from '../components/demandes/Cartes'
+import { Bouton, Champ, Compteurs, EnTete, Feuille, Libelle, Puces, Recherche, Vide, useDemandesStyles } from '../components/demandes/ui'
 import { useApp } from '../context/AppContext'
-import { useTheme } from '../context/ThemeContext'
+import { COULEURS_ETAPES, ETAPES_EXPLICATION, VIOLET, compterExplications, filtrerExplications } from '../lib/demandes'
 import { journaliser } from '../lib/journal'
 import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifExplicationStatut } from '../lib/notifications'
 import { genererPdfExplication } from '../lib/pdfDocuments'
 import { supabase } from '../lib/supabase'
-import { STATUT_EXPLICATION, fmtDateHeure } from './demandes-explication'
-
-const TROIS_JOURS = 3 * 24 * 60 * 60 * 1000
-
-function enRetard(d) {
-  return d.statut === 'envoyee' && d.envoyee_at && (Date.now() - new Date(d.envoyee_at).getTime() > TROIS_JOURS)
-}
 
 export default function DemandesExplicationAdminScreen() {
   const { userId, userNom, roleActif } = useApp()
-  const { colors } = useTheme()
-  const styles = useMemo(() => makeStyles(colors), [colors])
+  const { styles, colors, accent } = useDemandesStyles()
 
   const [onglet, setOnglet] = useState('recues') // 'recues' | 'miennes'
   const [demandes, setDemandes] = useState([])
@@ -43,7 +21,12 @@ export default function DemandesExplicationAdminScreen() {
   const [restoFilter, setRestoFilter] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [showRestoPicker, setShowRestoPicker] = useState(false)
+
+  // Filtres de la liste (compteurs par étape cliquables + recherche)
+  const [etape, setEtape] = useState(null)
+  const [recherche, setRecherche] = useState('')
+  const comptes = useMemo(() => compterExplications(demandes), [demandes])
+  const visibles = useMemo(() => filtrerExplications(demandes, { etape, recherche }), [demandes, etape, recherche])
 
   // Modals action
   const [demandeEnCours, setDemandeEnCours] = useState(null)
@@ -245,343 +228,137 @@ export default function DemandesExplicationAdminScreen() {
   }
 
   const restoNomFiltre = restoFilter ? restaurants.find(r => r.id === restoFilter)?.nom || 'Restaurant' : 'Tous les restaurants'
+  const nomResto = id => restaurants.find(r => r.id === id)?.nom || ''
+  const compteurs = ETAPES_EXPLICATION.map(e => ({
+    cle: e.cle, label: e.label, valeur: comptes[e.cle],
+    couleur: e.cle ? COULEURS_ETAPES[e.cle] : accent,
+    alerte: e.cle === 'attente' && comptes.retard > 0 ? `⏰ ${comptes.retard} en retard` : null,
+  }))
 
   function renderActions(d) {
+    const pdf = <Bouton label="📄 PDF" variante="contour" couleur={accent} styles={styles} onPress={() => imprimerPdf(d)} />
     if (onglet === 'recues' && d.statut === 'en_attente_acceptation') {
       return (
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.btnValider} onPress={() => accepter(d)} disabled={saving}>
-            <Text style={styles.btnValiderTxt}>✅ Accepter</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.btnDecliner} onPress={() => ouvrirRefus(d)} disabled={saving}>
-            <Text style={styles.btnDeclinerTxt}>❌ Refuser</Text>
-          </TouchableOpacity>
+          <Bouton label="✅ Accepter" couleur="#3B8D2F" flex styles={styles} onPress={() => accepter(d)} disabled={saving} />
+          <Bouton label="❌ Refuser" couleur="#C2462B" flex styles={styles} onPress={() => ouvrirRefus(d)} disabled={saving} />
         </View>
       )
     }
     if (d.statut === 'acceptee') {
       return (
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.btnPrimary} onPress={() => marquerEnvoyee(d)} disabled={saving}>
-            <Text style={styles.btnPrimaryTxt}>📤 Marquer envoyée</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.btnGhost} onPress={() => imprimerPdf(d)}>
-            <Text style={styles.btnGhostTxt}>📄 PDF</Text>
-          </TouchableOpacity>
+          <Bouton label="📤 Marquer envoyée" variante="plein" couleur={VIOLET} flex styles={styles} onPress={() => marquerEnvoyee(d)} disabled={saving} />
+          {pdf}
         </View>
       )
     }
     if (d.statut === 'envoyee') {
       return (
-        <>
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.btnValider} onPress={() => ouvrirReponse(d)} disabled={saving}>
-              <Text style={styles.btnValiderTxt}>✅ Réponse récupérée</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.btnRelance} onPress={() => confirmerRelance(d)} disabled={saving}>
-              <Text style={styles.btnRelanceTxt}>🔁 Relancer</Text>
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity style={styles.pdfBtn} onPress={() => imprimerPdf(d)}>
-            <Text style={styles.pdfBtnTxt}>📄 Imprimer le PDF</Text>
-          </TouchableOpacity>
-        </>
+        <View style={styles.actions}>
+          <Bouton label="✅ Réponse récupérée" couleur="#3B8D2F" flex styles={styles} onPress={() => ouvrirReponse(d)} disabled={saving} />
+          <Bouton label="🔁 Relancer" couleur="#C27C1A" flex styles={styles} onPress={() => confirmerRelance(d)} disabled={saving} />
+          {pdf}
+        </View>
       )
     }
     if (['relancee', 'reponse_recuperee'].includes(d.statut)) {
-      return (
-        <TouchableOpacity style={styles.pdfBtn} onPress={() => imprimerPdf(d)}>
-          <Text style={styles.pdfBtnTxt}>📄 Imprimer le PDF</Text>
-        </TouchableOpacity>
-      )
+      return <View style={styles.actions}><Bouton label="📄 Imprimer le PDF" variante="contour" couleur={accent} flex styles={styles} onPress={() => imprimerPdf(d)} /></View>
     }
     return null
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/accueil')}>
-          <Text style={styles.back}>‹ Retour</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitre}>Explications</Text>
-        <View style={{ width: 60 }} />
-      </View>
+      <EnTete titre="Demandes d'explication" sous={restoNomFiltre} styles={styles}
+        onRetour={() => (router.canGoBack() ? router.back() : router.replace('/accueil'))} />
 
-      {/* Onglets */}
-      <View style={styles.tabs}>
-        <TouchableOpacity style={[styles.tab, onglet === 'recues' && styles.tabActive]} onPress={() => setOnglet('recues')}>
-          <Text style={[styles.tabTxt, onglet === 'recues' && styles.tabTxtActive]}>📥 Reçues</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.tab, onglet === 'miennes' && styles.tabActive]} onPress={() => setOnglet('miennes')}>
-          <Text style={[styles.tabTxt, onglet === 'miennes' && styles.tabTxtActive]}>📨 Mes demandes</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.filtersRow}>
-        <TouchableOpacity style={styles.restoBtn} onPress={() => setShowRestoPicker(true)}>
-          <Text style={styles.restoBtnTxt}>🏪 {restoNomFiltre} ▾</Text>
-        </TouchableOpacity>
-        {onglet === 'miennes' && (
-          <TouchableOpacity style={styles.addBtnSmall} onPress={ouvrirCreer}>
-            <Text style={styles.addBtnSmallTxt}>+ Nouvelle</Text>
+      <View style={styles.ongletsWrap}>
+        {[['recues', '📥 Reçues'], ['miennes', '📨 Mes demandes']].map(([cle, label]) => (
+          <TouchableOpacity key={cle} style={[styles.onglet, onglet === cle && styles.ongletActive]} onPress={() => { setOnglet(cle); setEtape(null) }}>
+            <Text style={[styles.ongletTxt, onglet === cle && styles.ongletTxtActive]}>{label}</Text>
           </TouchableOpacity>
-        )}
+        ))}
       </View>
+      <Puces ligne styles={styles} actif={restoFilter} onChoisir={setRestoFilter}
+        elements={[{ cle: null, label: 'Tous' }, ...restaurants.map(r => ({ cle: r.id, label: r.nom }))]} />
+      <Compteurs elements={compteurs} actif={etape} onChoisir={setEtape} styles={styles} />
+      <Recherche value={recherche} onChange={setRecherche} placeholder="🔍 Rechercher un travailleur, un motif…" styles={styles} colors={colors} />
 
       {loading ? (
-        <View style={styles.loadingBox}><ActivityIndicator size="large" color="#534AB7" /></View>
+        <View style={styles.loadingBox}><ActivityIndicator size="large" color={accent} /></View>
       ) : (
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-          {demandes.length === 0 ? (
-            <View style={styles.emptyBox}>
-              <Text style={styles.emptyIcon}>📨</Text>
-              <Text style={styles.emptyTxt}>Aucune demande</Text>
+          {onglet === 'miennes' && (
+            <View style={{ marginBottom: 14 }}>
+              <Bouton label="+ Nouvelle demande d'explication" variante="plein" grand styles={styles} onPress={ouvrirCreer} />
             </View>
-          ) : (
-            demandes.map(d => {
-              const cfg = STATUT_EXPLICATION[d.statut] || STATUT_EXPLICATION.en_attente_acceptation
-              const restoNomCarte = restaurants.find(r => r.id === d.restaurant_id)?.nom || ''
-              const retard = enRetard(d)
-              return (
-                <View key={d.id} style={[styles.card, retard && styles.cardRetard]}>
-                  <View style={styles.cardTop}>
-                    <Text style={styles.cardTrav}>📨 {d.travailleur_nom}{d.travailleur_poste ? ` · ${d.travailleur_poste}` : ''}{d.numero > 1 ? `  (relance ${d.numero})` : ''}</Text>
-                    <View style={[styles.statutBadge, { backgroundColor: cfg.bg }]}>
-                      <Text style={[styles.statutTxt, { color: cfg.text }]}>{cfg.label}</Text>
-                    </View>
-                  </View>
-                  {retard && <Text style={styles.retardTxt}>⏰ En retard — plus de 3 jours sans réponse</Text>}
-                  {restoNomCarte ? <Text style={styles.cardResto}>🏪 {restoNomCarte}</Text> : null}
-                  <Text style={styles.cardMotif}>{d.motif}</Text>
-                  {d.description ? <Text style={styles.cardDesc}>{`« ${d.description} »`}</Text> : null}
-                  {d.cree_par_nom ? <Text style={styles.cardMeta}>👤 Demandé par {d.cree_par_nom}</Text> : null}
-                  {d.envoyee_at && <Text style={styles.cardMeta}>📤 Envoyée le {fmtDateHeure(d.envoyee_at)}</Text>}
-                  {d.statut === 'reponse_recuperee' && (
-                    <Text style={styles.cardMeta}>✅ Réponse récupérée le {fmtDateHeure(d.reponse_recuperee_at)}{d.reponse_note ? ` — ${d.reponse_note}` : ''}</Text>
-                  )}
-                  {d.statut === 'refusee' && (
-                    <View style={styles.declineBox}>
-                      <Text style={styles.declineTitre}>Motif du refus :</Text>
-                      <Text style={styles.declineTxt}>{d.refus_motif}</Text>
-                    </View>
-                  )}
-                  {d.reponse_fichier_url && (
-                    <TouchableOpacity style={styles.reponseVoir} onPress={() => voirFichier(d.reponse_fichier_url)}>
-                      <Text style={styles.reponseVoirTxt}>
-                        {d.reponse_fichier_type === 'pdf' ? '📄' : '🖼️'} Réponse déposée par le gérant — voir
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                  {renderActions(d)}
-                </View>
-              )
-            })
           )}
+          {visibles.length > 0 && <Text style={styles.resultat}>{visibles.length} demande(s)</Text>}
+          {visibles.length === 0 ? (
+            <Vide icone="📨" styles={styles} texte="Aucune demande trouvée"
+              sous={demandes.length === 0
+                ? (onglet === 'recues' ? 'Aucune demande reçue des gérants ou du vérificateur.' : "Vous n'avez créé aucune demande.")
+                : 'Changez le filtre ou la recherche.'} />
+          ) : visibles.map(d => (
+            <CarteExplication key={d.id} d={d} restoNom={nomResto(d.restaurant_id)} styles={styles}
+              onVoirReponse={voirFichier} libelleReponse="Réponse déposée par le gérant — voir">
+              {renderActions(d)}
+            </CarteExplication>
+          ))}
           <View style={{ height: 40 }} />
         </ScrollView>
       )}
 
-      {/* Picker restaurant (filtre) */}
-      <Modal visible={showRestoPicker} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={() => setShowRestoPicker(false)}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.pickerModal}>
-              <Text style={styles.pickerTitre}>Choisir un restaurant</Text>
-              <ScrollView>
-                <TouchableOpacity style={styles.pickerItem} onPress={() => { setRestoFilter(null); setShowRestoPicker(false) }}>
-                  <Text style={[styles.pickerItemTxt, !restoFilter && { fontWeight: '700', color: '#534AB7' }]}>🌍 Tous les restaurants</Text>
-                </TouchableOpacity>
-                {restaurants.map(r => (
-                  <TouchableOpacity key={r.id} style={styles.pickerItem} onPress={() => { setRestoFilter(r.id); setShowRestoPicker(false) }}>
-                    <Text style={[styles.pickerItemTxt, restoFilter === r.id && { fontWeight: '700', color: '#534AB7' }]}>🏪 {r.nom}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      {/* Motif du refus */}
+      <Feuille visible={showRefus} titre="Motif du refus" styles={styles}
+        sous={demandeEnCours ? `${demandeEnCours.travailleur_nom} — ${demandeEnCours.motif}` : null}
+        onFermer={() => { setShowRefus(false); setMotifRefus('') }}>
+        <Champ styles={styles} colors={colors} multiline autoFocus placeholder="Expliquez le motif du refus (obligatoire)…"
+          value={motifRefus} onChangeText={setMotifRefus} />
+        <Bouton label={saving ? 'Envoi…' : '❌ Confirmer le refus'} variante="plein" couleur="#C2462B" grand
+          onPress={confirmerRefus} disabled={!motifRefus.trim() || saving} styles={styles} />
+      </Feuille>
 
-      {/* Modal refus */}
-      <Modal visible={showRefus} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
-          <View style={styles.modalOverlay}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
-              <View style={styles.actionModal}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitre}>Motif du refus</Text>
-                  <TouchableOpacity onPress={() => { setShowRefus(false); setMotifRefus('') }}><Text style={styles.modalClose}>✕</Text></TouchableOpacity>
-                </View>
-                <TextInput
-                  style={[styles.textArea, { color: colors.text, borderColor: colors.border }]}
-                  placeholder="Expliquez le motif du refus (obligatoire)..."
-                  placeholderTextColor={colors.textMuted}
-                  multiline value={motifRefus} onChangeText={setMotifRefus} autoFocus
-                />
-                <TouchableOpacity style={[styles.btnDangerConfirm, (!motifRefus.trim() || saving) && { opacity: 0.5 }]} onPress={confirmerRefus} disabled={!motifRefus.trim() || saving}>
-                  <Text style={styles.btnDangerConfirmTxt}>{saving ? 'Envoi...' : '❌ Confirmer le refus'}</Text>
-                </TouchableOpacity>
-              </View>
-            </KeyboardAvoidingView>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      {/* Réponse récupérée */}
+      <Feuille visible={showReponse} titre="Réponse récupérée" styles={styles}
+        sous={demandeEnCours ? demandeEnCours.travailleur_nom : null}
+        onFermer={() => { setShowReponse(false); setNoteReponse('') }}>
+        <Champ styles={styles} colors={colors} multiline placeholder="Note sur la réponse reçue (optionnel)…"
+          value={noteReponse} onChangeText={setNoteReponse} />
+        <Bouton label={saving ? '…' : '✅ Confirmer'} variante="plein" couleur="#3B8D2F" grand onPress={confirmerReponse} disabled={saving} styles={styles} />
+      </Feuille>
 
-      {/* Modal réponse récupérée */}
-      <Modal visible={showReponse} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
-          <View style={styles.modalOverlay}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
-              <View style={styles.actionModal}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitre}>Réponse récupérée</Text>
-                  <TouchableOpacity onPress={() => { setShowReponse(false); setNoteReponse('') }}><Text style={styles.modalClose}>✕</Text></TouchableOpacity>
-                </View>
-                <TextInput
-                  style={[styles.textArea, { color: colors.text, borderColor: colors.border }]}
-                  placeholder="Note sur la réponse reçue (optionnel)..."
-                  placeholderTextColor={colors.textMuted}
-                  multiline value={noteReponse} onChangeText={setNoteReponse}
-                />
-                <TouchableOpacity style={[styles.btnOkConfirm, saving && { opacity: 0.5 }]} onPress={confirmerReponse} disabled={saving}>
-                  <Text style={styles.btnOkConfirmTxt}>{saving ? '...' : '✅ Confirmer'}</Text>
-                </TouchableOpacity>
-              </View>
-            </KeyboardAvoidingView>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      {/* Création (mes demandes) : acceptée automatiquement */}
+      <Feuille visible={showCreer} titre="Nouvelle demande d'explication" sous="Acceptée automatiquement" styles={styles} onFermer={() => setShowCreer(false)}>
+        <Libelle styles={styles}>Restaurant</Libelle>
+        <Puces styles={styles} petit actif={creerResto?.id}
+          elements={restaurants.map(r => ({ cle: r.id, label: r.nom }))}
+          onChoisir={id => choisirRestoCreer(restaurants.find(r => r.id === id))} />
 
-      {/* Modal création (mes demandes) */}
-      <Modal visible={showCreer} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
-          <View style={styles.modalOverlay}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
-              <View style={styles.creerModal}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitre}>{"Nouvelle demande d'explication"}</Text>
-                  <TouchableOpacity onPress={() => setShowCreer(false)}><Text style={styles.modalClose}>✕</Text></TouchableOpacity>
-                </View>
-                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                  <Text style={styles.label}>Restaurant</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 14 }}>
-                    {restaurants.map(r => (
-                      <TouchableOpacity key={r.id} style={[styles.travChip, creerResto?.id === r.id && styles.travChipActive]} onPress={() => choisirRestoCreer(r)}>
-                        <Text style={[styles.travChipTxt, creerResto?.id === r.id && styles.travChipTxtActive]}>{r.nom}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+        {creerResto && (
+          <>
+            <Libelle styles={styles}>Travailleur</Libelle>
+            {travailleurs.length === 0 ? (
+              <Text style={[styles.infoTxt, { fontStyle: 'italic', marginBottom: 16 }]}>Aucun travailleur actif</Text>
+            ) : (
+              <Puces styles={styles} petit actif={formTrav?.id}
+                elements={travailleurs.map(t => ({ cle: t.id, label: t.nom }))}
+                onChoisir={id => setFormTrav(travailleurs.find(t => t.id === id))} />
+            )}
+          </>
+        )}
 
-                  {creerResto && (
-                    <>
-                      <Text style={styles.label}>Travailleur</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 14 }}>
-                        {travailleurs.length === 0 ? (
-                          <Text style={{ color: colors.textMuted, fontStyle: 'italic' }}>Aucun travailleur actif</Text>
-                        ) : travailleurs.map(t => (
-                          <TouchableOpacity key={t.id} style={[styles.travChip, formTrav?.id === t.id && styles.travChipActive]} onPress={() => setFormTrav(t)}>
-                            <Text style={[styles.travChipTxt, formTrav?.id === t.id && styles.travChipTxtActive]}>{t.nom}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    </>
-                  )}
+        <Libelle styles={styles}>Motif</Libelle>
+        <Champ styles={styles} colors={colors} placeholder="Ex : Retard répété…" value={formMotif} onChangeText={setFormMotif} />
 
-                  <Text style={styles.label}>Motif</Text>
-                  <TextInput style={[styles.input, { color: colors.text, borderColor: colors.border }]} placeholder="Ex : Retard répété…" placeholderTextColor={colors.textMuted} value={formMotif} onChangeText={setFormMotif} />
+        <Libelle styles={styles}>Détails (optionnel)</Libelle>
+        <Champ styles={styles} colors={colors} multiline placeholder="Précisez les faits…" value={formDesc} onChangeText={setFormDesc} />
 
-                  <Text style={styles.label}>Détails (optionnel)</Text>
-                  <TextInput style={[styles.textArea, { color: colors.text, borderColor: colors.border }]} placeholder="Précisez les faits…" placeholderTextColor={colors.textMuted} multiline value={formDesc} onChangeText={setFormDesc} />
-
-                  <TouchableOpacity style={[styles.submitBtn, saving && { opacity: 0.6 }]} onPress={soumettreCreation} disabled={saving}>
-                    <Text style={styles.submitBtnTxt}>{saving ? 'Envoi...' : '📤 Créer (acceptée automatiquement)'}</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.hint}>Vos demandes sont acceptées automatiquement — il reste à les marquer « envoyée ».</Text>
-                  <View style={{ height: 30 }} />
-                </ScrollView>
-              </View>
-            </KeyboardAvoidingView>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+        <Bouton label={saving ? 'Envoi…' : '📤 Créer (acceptée automatiquement)'} variante="plein" couleur={VIOLET} grand
+          onPress={soumettreCreation} disabled={saving} styles={styles} />
+        <Text style={styles.hint}>Vos demandes sont acceptées automatiquement — il reste à les marquer « envoyée ».</Text>
+      </Feuille>
     </SafeAreaView>
   )
-}
-
-function makeStyles(colors) {
-  return StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background },
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
-    back: { fontSize: 16, color: '#534AB7', fontWeight: '500' },
-    headerTitre: { fontSize: 18, fontWeight: '700', color: colors.text },
-    tabs: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 12, gap: 8 },
-    tab: { flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-    tabActive: { backgroundColor: '#534AB7', borderColor: '#534AB7' },
-    tabTxt: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
-    tabTxtActive: { color: '#fff' },
-    filtersRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6, gap: 8 },
-    restoBtn: { backgroundColor: colors.surface, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: colors.border },
-    restoBtnTxt: { fontSize: 14, color: colors.text, fontWeight: '500' },
-    addBtnSmall: { backgroundColor: '#534AB7', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
-    addBtnSmallTxt: { color: '#fff', fontWeight: '700', fontSize: 13 },
-    loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    body: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-    emptyBox: { alignItems: 'center', paddingTop: 60 },
-    emptyIcon: { fontSize: 44, marginBottom: 12 },
-    emptyTxt: { color: colors.textMuted, fontSize: 15 },
-    card: { backgroundColor: colors.surface, borderRadius: 14, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-    cardRetard: { borderWidth: 1.5, borderColor: '#EF9F27' },
-    cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6, gap: 8 },
-    cardTrav: { fontSize: 15, fontWeight: '700', color: colors.text, flex: 1 },
-    statutBadge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4 },
-    statutTxt: { fontSize: 11, fontWeight: '600' },
-    retardTxt: { fontSize: 12, color: '#9A5B0B', fontWeight: '700', marginBottom: 4 },
-    cardResto: { fontSize: 13, color: colors.textMuted, marginBottom: 2 },
-    cardMotif: { fontSize: 14, color: colors.text, marginBottom: 4, marginTop: 2 },
-    cardDesc: { fontSize: 13, color: colors.textMuted, fontStyle: 'italic', marginBottom: 4 },
-    cardMeta: { fontSize: 12, color: colors.textMuted, marginTop: 4 },
-    declineBox: { backgroundColor: '#FAECE7', borderRadius: 8, padding: 10, marginTop: 8 },
-    declineTitre: { fontSize: 12, fontWeight: '700', color: '#993C1D', marginBottom: 2 },
-    declineTxt: { fontSize: 13, color: '#993C1D' },
-    actions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-    btnValider: { flex: 1, backgroundColor: '#EAF3DE', borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-    btnValiderTxt: { color: '#3B6D11', fontWeight: '700', fontSize: 13 },
-    btnDecliner: { flex: 1, backgroundColor: '#FAECE7', borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-    btnDeclinerTxt: { color: '#993C1D', fontWeight: '700', fontSize: 13 },
-    btnPrimary: { flex: 1, backgroundColor: '#534AB7', borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-    btnPrimaryTxt: { color: '#fff', fontWeight: '700', fontSize: 13 },
-    btnGhost: { backgroundColor: colors.background, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 16, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
-    btnGhostTxt: { color: '#534AB7', fontWeight: '700', fontSize: 13 },
-    btnRelance: { flex: 1, backgroundColor: '#FBEEDD', borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-    btnRelanceTxt: { color: '#9A5B0B', fontWeight: '700', fontSize: 13 },
-    pdfBtn: { marginTop: 10, backgroundColor: colors.background, borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
-    pdfBtnTxt: { color: '#534AB7', fontWeight: '700', fontSize: 13 },
-    reponseVoir: { marginTop: 10, backgroundColor: '#E0F9EE', borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: '#A8E8CC' },
-    reponseVoirTxt: { color: '#157548', fontWeight: '700', fontSize: 13 },
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    pickerModal: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '70%' },
-    pickerTitre: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 14 },
-    pickerItem: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-    pickerItemTxt: { fontSize: 15, color: colors.text },
-    actionModal: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
-    creerModal: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '92%' },
-    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-    modalTitre: { fontSize: 18, fontWeight: '700', color: colors.text, flex: 1 },
-    modalClose: { fontSize: 20, color: colors.textMuted, padding: 4 },
-    label: { fontSize: 13, fontWeight: '600', color: colors.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
-    travChip: { backgroundColor: colors.background, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: colors.border, marginRight: 8 },
-    travChipActive: { backgroundColor: '#534AB7', borderColor: '#534AB7' },
-    travChipTxt: { fontSize: 13, color: colors.textMuted, fontWeight: '500' },
-    travChipTxtActive: { color: '#fff' },
-    input: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 15, marginBottom: 16, backgroundColor: colors.background },
-    textArea: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 14, minHeight: 90, textAlignVertical: 'top', marginBottom: 16, backgroundColor: colors.background },
-    submitBtn: { backgroundColor: '#534AB7', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-    submitBtnTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
-    hint: { fontSize: 12, color: colors.textMuted, textAlign: 'center', marginTop: 10, fontStyle: 'italic' },
-    btnDangerConfirm: { backgroundColor: '#993C1D', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-    btnDangerConfirmTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
-    btnOkConfirm: { backgroundColor: '#3B6D11', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-    btnOkConfirmTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  })
 }
