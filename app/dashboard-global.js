@@ -1,20 +1,18 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { router } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import {
     ActivityIndicator,
-    Dimensions,
+    Alert,
     Modal,
     SafeAreaView, ScrollView,
     StyleSheet,
-    Text, TouchableOpacity,
+    Text, TextInput, TouchableOpacity,
     View
 } from 'react-native'
 import { Calendar } from 'react-native-calendars'
-import {
-  VictoryArea, VictoryAxis, VictoryBar,
-  VictoryChart, VictoryLine, VictoryTheme,
-} from 'victory-native'
 import BarreComparaison, { MODE_PERIODES, MODE_RESTOS } from '../components/BarreComparaison'
+import { Anneau, Barres, BarresHorizontales, CarteChaleur, CarteGraphique, CourbeAire } from '../components/graphiques'
 import LigneComparee from '../components/LigneComparee'
 import { useTheme } from '../context/ThemeContext'
 import { getDepensesPeriode, getFournisseursPeriodePaye, getPaiesGerantPeriode, getPresencesPeriode } from '../lib/api'
@@ -22,10 +20,15 @@ import { ecarts as calculerEcarts, formaterEcart, POLARITE, synthese, UNITE } fr
 import { CANAUX, couleurResto, courtNom, detailFondRecu, fmtFCFA, tauxRenta, vueGlobale } from '../lib/dashboardGlobal'
 import { bandeauDeuxPeriodes, estMoisEntier, moisCouverts, periodePrecedente } from '../lib/periodeComparee'
 import { chargerChargesMois } from '../lib/chargesMois'
+import { fmtCourt, melangerCouleurs } from '../lib/graphiques'
+import { progressionObjectif, variation } from '../lib/objectifs'
+import {
+  JOURS_COURTS, ORDRE_HEURES, faitsMarquants, grilleSemaine, heurePic, heuresDuService, joursForts, libelleCreneau,
+  mixCanaux, mixPaiements, ticketMoyen,
+} from '../lib/statsPOS'
+import { POS_NON_INSTALLE, chargerStatsPOS } from '../lib/statsPOSDb'
 import { supabase } from '../lib/supabase'
 
-const { width } = Dimensions.get('window')
-const CHART_WIDTH = width - 48
 
 // Les colonnes de `points` que cet écran lit — une seule liste, trois requêtes.
 const CHAMPS_POINTS = 'id, date, restaurant_id, vente_total, depense_total, benefice_sc, yango_cse, yango_tab, glovo_cse, glovo_tab, wave, om, djamo, fond_recu, fc_compte'
@@ -41,15 +44,16 @@ const PERIODES = [
   { label: '7 jours', key: '7days' },
   { label: 'Ce mois', key: 'month' },
   { label: 'Mois préc.', key: 'lastmonth' },
-  { label: '📅 Période', key: 'custom' },
+  { label: 'Période', key: 'custom', icone: 'calendar-range' },
 ]
 
 const PILIERS = [
-  { key: 'apercu', label: '📈 Aperçu' },
-  { key: 'couts', label: '📊 Coûts' },
-  { key: 'clients', label: '🛵 Clients' },
-  { key: 'alertes', label: '⚠️ Alertes' },
-  { key: 'litiges', label: '⚖️ Litiges' },
+  { key: 'apercu', label: 'Aperçu', icone: 'chart-areaspline' },
+  { key: 'activite', label: 'Activité POS', icone: 'clock-time-eight-outline' },
+  { key: 'couts', label: 'Coûts', icone: 'chart-donut' },
+  { key: 'clients', label: 'Canaux', icone: 'moped' },
+  { key: 'alertes', label: 'Alertes', icone: 'alert-outline' },
+  { key: 'litiges', label: 'Litiges', icone: 'scale-balance' },
 ]
 
 const PIE_COLORS = ['#EF9F27', '#3B6D11', '#185FA5', '#993C1D', '#534AB7', '#888']
@@ -93,7 +97,28 @@ export default function DashboardGlobalScreen() {
   const [cleCoutsB, setCleCoutsB] = useState('')
   const [clePointsB, setClePointsB] = useState('')
 
-  useEffect(() => { chargerRestaurants() }, [])
+  // Période précédente de même durée : sert aux variations des chiffres du haut.
+  const [pointsPrec, setPointsPrec] = useState({})
+  // Bornes réellement chargées (déclenchent la lecture des statistiques POS).
+  const [rangeCharge, setRangeCharge] = useState(null)
+  const [statsPOS, setStatsPOS] = useState(null)        // { stats } | { erreur }
+  const [chargementPOS, setChargementPOS] = useState(false)
+  // Mois en cours, quelle que soit la période : objectifs et effectifs.
+  const [moisEnCours, setMoisEnCours] = useState({ ventes: {}, employes: {} })
+  const [objectifEdite, setObjectifEdite] = useState(null)   // restaurant dont on saisit l'objectif
+  const [objectifSaisi, setObjectifSaisi] = useState('')
+  const [objectifEnCours, setObjectifEnCours] = useState(false)
+
+  useEffect(() => { chargerRestaurants(); chargerMoisEnCours() }, [])
+
+  useEffect(() => {
+    if (!rangeCharge?.debut || !rangeCharge?.fin) return
+    let vivant = true
+    setChargementPOS(true)
+    chargerStatsPOS({ debut: rangeCharge.debut, fin: rangeCharge.fin, restaurantId: restoFiltre })
+      .then(res => { if (vivant) { setStatsPOS(res); setChargementPOS(false) } })
+    return () => { vivant = false }
+  }, [rangeCharge, restoFiltre])
 
   useEffect(() => {
     if (restaurants.length > 0 && periodeKey !== 'custom') {
@@ -102,8 +127,63 @@ export default function DashboardGlobalScreen() {
   }, [periodeKey, restaurants])
 
   async function chargerRestaurants() {
-    const { data } = await supabase.from('restaurants').select('id, nom, couleur').order('nom')
+    // `objectif_mensuel` vient de supabase_rapport_mensuel.sql : sans la
+    // colonne, on recharge sans plutôt que de laisser l'écran vide.
+    let { data, error } = await supabase.from('restaurants').select('id, nom, couleur, objectif_mensuel').order('nom')
+    if (error) ({ data } = await supabase.from('restaurants').select('id, nom, couleur').order('nom'))
     if (data?.length) setRestaurants(data)
+  }
+
+  async function chargerMoisEnCours() {
+    const auj = new Date()
+    const debut = `${auj.getFullYear()}-${String(auj.getMonth() + 1).padStart(2, '0')}-01`
+    const [{ data: pts }, { data: trav }] = await Promise.all([
+      supabase.from('points').select('restaurant_id, vente_total').gte('date', debut),
+      supabase.from('travailleurs').select('restaurant_id').eq('actif', true),
+    ])
+    const ventes = {}, employes = {}
+    ;(pts || []).forEach(p => { ventes[p.restaurant_id] = (ventes[p.restaurant_id] || 0) + (Number(p.vente_total) || 0) })
+    ;(trav || []).forEach(t => { employes[t.restaurant_id] = (employes[t.restaurant_id] || 0) + 1 })
+    setMoisEnCours({ ventes, employes })
+  }
+
+  function grouperParResto(data, list) {
+    const resultats = {}
+    list.forEach(r => { resultats[r.id] = [] })
+    ;(data || []).forEach(p => {
+      if (resultats[p.restaurant_id] !== undefined) resultats[p.restaurant_id].push(p)
+    })
+    return resultats
+  }
+
+  // La période juste avant, de même durée (7 jours → les 7 jours d'avant).
+  async function chargerPrecedente(range, list) {
+    const prec = periodePrecedente(range.debut, range.fin)
+    if (!prec) { setPointsPrec({}); return }
+    const { data } = await supabase.from('points').select(CHAMPS_POINTS).gte('date', prec.debut).lte('date', prec.fin)
+    setPointsPrec(grouperParResto(data, list))
+  }
+
+  async function enregistrerObjectif() {
+    const r = objectifEdite
+    if (!r) return
+    const brut = objectifSaisi.replace(/[\s.]/g, '').trim()
+    const montant = brut === '' ? null : Number(brut)
+    if (montant !== null && (!Number.isFinite(montant) || montant < 0)) {
+      Alert.alert('Montant invalide', 'Saisissez un nombre positif, ou laissez vide pour retirer l\'objectif.')
+      return
+    }
+    setObjectifEnCours(true)
+    const { error } = await supabase.from('restaurants').update({ objectif_mensuel: montant }).eq('id', r.id)
+    setObjectifEnCours(false)
+    if (error) {
+      Alert.alert('Enregistrement impossible', /objectif_mensuel/.test(error.message)
+        ? "La colonne « objectif_mensuel » n'existe pas encore. Passez le script supabase_rapport_mensuel.sql dans Supabase, puis réessayez."
+        : error.message)
+      return
+    }
+    setRestaurants(liste => liste.map(x => (x.id === r.id ? { ...x, objectif_mensuel: montant } : x)))
+    setObjectifEdite(null)
   }
 
   function getDateRange() {
@@ -132,13 +212,10 @@ export default function DashboardGlobalScreen() {
 
     if (error) { console.error('[Dashboard]', error.message); setLoading(false); return }
 
-    const resultats = {}
-    list.forEach(r => { resultats[r.id] = [] })
-    ;(allPoints || []).forEach(p => {
-      if (resultats[p.restaurant_id] !== undefined) resultats[p.restaurant_id].push(p)
-    })
-    setPoints(resultats)
+    setPoints(grouperParResto(allPoints, list))
+    setRangeCharge(range)
     setLoading(false)
+    chargerPrecedente(range, list)
   }
 
   useEffect(() => {
@@ -201,13 +278,6 @@ export default function DashboardGlobalScreen() {
     const mois = ['jan', 'fév', 'mar', 'avr', 'mai', 'juin', 'jul', 'aoû', 'sep', 'oct', 'nov', 'déc']
     return `${parseInt(dd)} ${mois[parseInt(m) - 1]}`
   }
-  // Les séries indexent les jours en `x: i + 1`, pas en date : deux périodes de
-  // même durée se superposent alors jour 1 contre jour 1 (§ 4.2).
-  const serieMilliers = (serie, champ) => serie.map((p, i) => ({ x: i + 1, y: (p[champ] || 0) / 1000 }))
-  const serieRenta = (serie) => serie.map((p, i) => ({ x: i + 1, y: p.vente_total ? (p.benefice_sc / p.vente_total * 100) : 0 }))
-  const dataVentesEvo = serieMilliers(serieJours, 'vente_total')
-  const dataBeneficeEvo = serieMilliers(serieJours, 'benefice_sc')
-  const dataRentaEvo = serieRenta(serieJours)
 
   // ── Le terme B : chargement, bornes, libellés ─────────────────────────────
   const rangeA = getDateRange()
@@ -411,7 +481,6 @@ export default function DashboardGlobalScreen() {
   }, [compar, pilier])
 
   const fmt = fmtFCFA
-  function fmtK(n) { return (Math.round(n) / 1000).toFixed(0) + 'k' }
 
   function formatDate(dateStr) {
     if (!dateStr) return ''
@@ -449,23 +518,20 @@ export default function DashboardGlobalScreen() {
 
     if (error) { console.error('[Dashboard]', error.message); setLoading(false); return }
 
-    const resultats = {}
-    restaurants.forEach(r => { resultats[r.id] = [] })
-    ;(allPoints || []).forEach(p => {
-      if (resultats[p.restaurant_id] !== undefined) resultats[p.restaurant_id].push(p)
-    })
-    setPoints(resultats); setLoading(false)
+    setPoints(grouperParResto(allPoints, restaurants)); setLoading(false)
+    setRangeCharge({ debut: dateDebut, fin: dateFin })
+    chargerPrecedente({ debut: dateDebut, fin: dateFin }, restaurants)
   }
 
   function markedDates() {
     const marked = {}
-    if (dateDebut) marked[dateDebut] = { selected: true, selectedColor: '#534AB7', startingDay: true }
-    if (dateFin) marked[dateFin] = { selected: true, selectedColor: '#534AB7', endingDay: true }
+    if (dateDebut) marked[dateDebut] = { selected: true, selectedColor: colors.primary, startingDay: true }
+    if (dateFin) marked[dateFin] = { selected: true, selectedColor: colors.primary, endingDay: true }
     if (dateDebut && dateFin) {
       let current = new Date(dateDebut); current.setDate(current.getDate() + 1)
       while (current < new Date(dateFin)) {
         const str = current.toISOString().split('T')[0]
-        marked[str] = { selected: true, selectedColor: '#EEEDFE', selectedTextColor: '#3C3489' }
+        marked[str] = { selected: true, selectedColor: colors.primaryLight, selectedTextColor: colors.primary }
         current.setDate(current.getDate() + 1)
       }
     }
@@ -481,8 +547,6 @@ export default function DashboardGlobalScreen() {
     return 'Période personnalisée'
   }
 
-  const maxVentes = Math.max(...classement.map(r => r.ventes), 1)
-  const maxBenefice = Math.max(...classement.map(r => Math.abs(r.benefice)), 1)
 
   // ---- Piliers Coûts et Clients : les mêmes agrégats, lus dans la vue ----
   const caGlobal = total.ventes
@@ -500,7 +564,6 @@ export default function DashboardGlobalScreen() {
   const pctLivraisonGlobal = total.pctLivraison
 
   const dataMixCanauxGlobal = vue.mixCanaux.map(c => ({ x: c.canal, y: c.montant }))
-  const maxMixCanaux = Math.max(...dataMixCanauxGlobal.map(d => d.y), 1)
 
   // ---- Pilier 9 — Alertes (consolidé) ----
   function calculerAlertesGlobal() {
@@ -508,7 +571,7 @@ export default function DashboardGlobalScreen() {
     classementCouts.forEach(r => {
       if (r.ventes > 0 && (r.foodPct > 0 || r.laborPct > 0) && r.primePct > 60) {
         alertes.push({
-          type: 'danger', icon: '🔴', titre: `${r.nom} — Coût primaire élevé`,
+          type: 'danger', icon: 'alert-octagon-outline', titre: `${r.nom} — Coût primaire élevé`,
           message: `Coût primaire à ${r.primePct.toFixed(1)}% (Matières ${r.foodPct.toFixed(1)}% + Salaire ${r.laborPct.toFixed(1)}%) — au-dessus du seuil de 60%`
         })
       }
@@ -516,28 +579,28 @@ export default function DashboardGlobalScreen() {
     classement.forEach(r => {
       if (r.nbJours > 0 && r.benefice < 0) {
         alertes.push({
-          type: 'danger', icon: '🔴', titre: `${r.nom} — Bénéfice négatif`,
+          type: 'danger', icon: 'trending-down', titre: `${r.nom} — Bénéfice négatif`,
           message: `Bénéfice SC de ${fmt(r.benefice)} sur la période`
         })
       }
     })
     if (classement.length && classement[0].benefice > 0) {
       alertes.push({
-        type: 'info', icon: '🏆', titre: 'Meilleur restaurant',
+        type: 'ok', icon: 'trophy-outline', titre: 'Meilleur restaurant',
         message: `${classement[0].nom} en tête avec ${fmt(classement[0].benefice)} de bénéfice SC`
       })
     }
     if (!alertes.length) {
-      alertes.push({ type: 'info', icon: 'ℹ️', titre: 'Aucune alerte', message: 'Aucun seuil critique franchi sur cette période.' })
+      alertes.push({ type: 'ok', icon: 'check-circle-outline', titre: 'Aucune alerte', message: 'Aucun seuil critique franchi sur cette période.' })
     }
     return alertes
   }
 
   const ALERTE_COLORS = {
-    danger: { bg: '#A32D2D15', border: '#A32D2D', txt: '#A32D2D' },
-    warning: { bg: '#BA751715', border: '#BA7517', txt: '#854F0B' },
-    ok: { bg: '#3B6D1115', border: '#3B6D11', txt: '#3B6D11' },
-    info: { bg: colors.bg, border: colors.borderLight, txt: colors.textMuted },
+    danger: { bg: colors.errorLight, txt: colors.errorDark },
+    warning: { bg: colors.warningLight, txt: colors.warningDark },
+    ok: { bg: colors.successLight, txt: colors.successDark },
+    info: { bg: colors.surfaceAlt, txt: colors.textSecondary },
   }
 
 
@@ -546,7 +609,7 @@ export default function DashboardGlobalScreen() {
     if (!compar) {
       return (
         <View style={styles.emptyBox}>
-          <Text style={styles.emptyIcon}>⚖</Text>
+          <MaterialCommunityIcons name="compare-horizontal" size={40} color={colors.textMuted} />
           <Text style={styles.emptyTxt}>Choisissez les deux termes à comparer</Text>
         </View>
       )
@@ -558,7 +621,7 @@ export default function DashboardGlobalScreen() {
     if (chargementB || pointsBAttendus || coutsBAttendus) {
       return (
         <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color="#534AB7" />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingTxt}>Chargement du second terme...</Text>
         </View>
       )
@@ -566,7 +629,7 @@ export default function DashboardGlobalScreen() {
     if (pilier === 'couts' && chargementCouts) {
       return (
         <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color="#534AB7" />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingTxt}>Chargement des coûts...</Text>
         </View>
       )
@@ -575,7 +638,7 @@ export default function DashboardGlobalScreen() {
     if (pilier === 'couts' && periodeKey === 'today') {
       return (
         <View style={styles.emptyBox}>
-          <Text style={styles.emptyIcon}>📊</Text>
+          <MaterialCommunityIcons name="chart-donut" size={40} color={colors.textMuted} />
           <Text style={styles.emptyTxt}>Les coûts ne sont pas calculés sur la seule journée d’aujourd’hui</Text>
         </View>
       )
@@ -589,8 +652,8 @@ export default function DashboardGlobalScreen() {
             <Text style={styles.syntheseLibelle} numberOfLines={1}>• {l.libelle}</Text>
             <Text style={[
               styles.syntheseEcart,
-              l.couleur === 'bon' && { color: '#3B6D11' },
-              l.couleur === 'mauvais' && { color: '#A32D2D' },
+              l.couleur === 'bon' && { color: colors.successDark },
+              l.couleur === 'mauvais' && { color: colors.error },
             ]}>{formaterEcart(l)}</Text>
           </View>
         ))}
@@ -618,46 +681,29 @@ export default function DashboardGlobalScreen() {
     const sB = compar.vueB.serieJours
     if (sA.length < 2 && sB.length < 2) return null
     const n = Math.max(sA.length, sB.length)
-    const ticks = Array.from({ length: n }, (_, i) => i + 1)
-    const pas = Math.max(1, Math.ceil(n / 8))
-    const labels = ticks.map(t => (pas === 1 || t % pas === 1 ? `J${t}` : ''))
+    const etiquettes = Array.from({ length: n }, (_, i) => `J${i + 1}`)
+    const val = (serie, champ) => serie.map(p => Number(p[champ]) || 0)
+    const renta = serie => serie.map(p => (p.vente_total ? (p.benefice_sc / p.vente_total) * 100 : 0))
     const courbes = [
-      { cle: 'ventes', titre: '📈 Ventes par jour (en milliers FCFA)', a: serieMilliers(sA, 'vente_total'), b: serieMilliers(sB, 'vente_total') },
-      { cle: 'benefice', titre: '💰 Bénéfice SC par jour (en milliers FCFA)', a: serieMilliers(sA, 'benefice_sc'), b: serieMilliers(sB, 'benefice_sc') },
-      { cle: 'renta', titre: '📉 Rentabilité par jour (%)', a: serieRenta(sA), b: serieRenta(sB) },
+      { cle: 'ventes', icone: 'chart-areaspline', titre: 'Ventes par jour', a: val(sA, 'vente_total'), b: val(sB, 'vente_total'), format: fmtCourt },
+      { cle: 'benefice', icone: 'cash-plus', titre: 'Bénéfice SC par jour', a: val(sA, 'benefice_sc'), b: val(sB, 'benefice_sc'), format: fmtCourt },
+      { cle: 'renta', icone: 'percent-outline', titre: 'Rentabilité par jour', a: renta(sA), b: renta(sB), format: v => `${Math.round(v)}%` },
     ]
-    return courbes.map(c => {
-      // Une échelle commune aux deux courbes, sinon la comparaison est fausse.
-      const ys = [...c.a, ...c.b].map(pt => pt.y)
-      const bas = Math.min(0, ...ys)
-      const haut = Math.max(1, ...ys)
-      return (
-        <View key={c.cle} style={styles.graphCard}>
-          <Text style={styles.graphTitre}>{c.titre}</Text>
-          <VictoryChart
-            width={CHART_WIDTH} height={200} theme={VictoryTheme.material}
-            padding={{ top: 20, bottom: 40, left: 50, right: 20 }}
-            domain={{ y: [bas, haut] }}
-          >
-            <VictoryAxis tickValues={ticks} tickFormat={labels} style={{ tickLabels: { fontSize: 8, fill: '#888' } }} />
-            <VictoryAxis dependentAxis style={{ tickLabels: { fontSize: 8, fill: '#888' } }} />
-            <VictoryLine data={c.a} style={{ data: { stroke: compar.couleurA, strokeWidth: 2.5 } }} interpolation="monotoneX" />
-            <VictoryLine data={c.b} style={{ data: { stroke: compar.couleurB, strokeWidth: 2, strokeDasharray: '4,4', opacity: compar.opaciteB } }} interpolation="monotoneX" />
-          </VictoryChart>
-          <View style={styles.legende}>
-            <View style={styles.legendeItem}>
-              <View style={[styles.legendeColor, { backgroundColor: compar.couleurA }]} />
-              <Text style={styles.legendeTxt}>A · {compar.libelleA}</Text>
-            </View>
-            <View style={styles.legendeItem}>
-              <View style={[styles.legendeColor, { backgroundColor: compar.couleurB, opacity: compar.opaciteB }]} />
-              <Text style={styles.legendeTxt}>B · {compar.libelleB}</Text>
-            </View>
-          </View>
-          <Text style={styles.graphNote}>Jour 1 contre jour 1 — {compar.nbJours} jour(s) de part et d’autre</Text>
-        </View>
-      )
-    })
+    return courbes.map(c => (
+      <CarteGraphique key={c.cle} icone={c.icone} couleur={compar.couleurA} titre={c.titre}
+        sous={`Jour 1 contre jour 1 — ${compar.nbJours} jour(s) de part et d’autre`}
+        legende={[
+          { nom: `A · ${compar.libelleA}`, couleur: compar.couleurA },
+          { nom: `B · ${compar.libelleB}`, couleur: compar.couleurB, opacite: compar.opaciteB, pointille: true },
+        ]}>
+        {l => (
+          <CourbeAire largeur={l} etiquettes={etiquettes} format={c.format} series={[
+            { nom: 'A', valeurs: c.a, couleur: compar.couleurA, aire: true },
+            { nom: 'B', valeurs: c.b, couleur: compar.couleurB, pointille: true, opacite: Math.max(0.6, compar.opaciteB) },
+          ]} />
+        )}
+      </CarteGraphique>
+    ))
   }
 
   function renderClassementCompare() {
@@ -667,13 +713,13 @@ export default function DashboardGlobalScreen() {
         .sort((x, y) => y.benefice - x.benefice)
       return (
         <View style={styles.section}>
-          <Text style={styles.sectionTitre}>🏆 Classement des deux termes</Text>
+          <Text style={styles.sectionTitre}>Classement des deux termes</Text>
           <View style={styles.classementCard}>
             {deux.map((r, i) => (
               <View key={r.id} style={[styles.classementRow, i === deux.length - 1 && { borderBottomWidth: 0 }]}>
                 <View style={styles.classementLeft}>
                   <View style={[styles.rangBadge, i === 0 && styles.rangOr]}>
-                    <Text style={styles.rangTxt}>{i === 0 ? '🥇' : '#2'}</Text>
+                    <Text style={[styles.rangTxt, i === 0 && { color: '#FFFFFF' }]}>{i + 1}</Text>
                   </View>
                   <View style={styles.classementInfo}>
                     <Text style={styles.classementNom}>{r.nom}</Text>
@@ -683,7 +729,7 @@ export default function DashboardGlobalScreen() {
                   </View>
                 </View>
                 <View style={styles.classementRight}>
-                  <Text style={[styles.classementBenefice, { color: r.benefice >= 0 ? '#3B6D11' : '#A32D2D' }]}>{fmt(r.benefice)}</Text>
+                  <Text style={[styles.classementBenefice, { color: r.benefice >= 0 ? colors.successDark : colors.error }]}>{fmt(r.benefice)}</Text>
                   <Text style={styles.classementVentes}>{fmt(r.ventes)}</Text>
                   <Text style={styles.classementRenta}>{r.renta.toFixed(1)}%</Text>
                 </View>
@@ -699,7 +745,7 @@ export default function DashboardGlobalScreen() {
     const rangs = compar.vueA.classement.map((r, i) => ({ ...r, rangA: i + 1, rangB: rangsB.get(r.id) || null }))
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitre}>🏆 Rang par bénéfice — de B vers A</Text>
+        <Text style={styles.sectionTitre}>Rang par bénéfice — de B vers A</Text>
         <View style={styles.classementCard}>
           {rangs.map((r, i) => {
             const bouge = r.rangB === null ? 0 : r.rangB - r.rangA
@@ -721,96 +767,491 @@ export default function DashboardGlobalScreen() {
     )
   }
 
-  // Graphique barres horizontal custom
-  function GraphiqueBarres({ data, max, couleurFn, labelFn, titre, unite }) {
+  // ── Petits éléments d'affichage ──────────────────────────────────────────
+  const vuePrec = vueGlobale({ points: pointsPrec, restaurants: restosVus, couts: {} })
+  const avecVariation = periodeKey !== 'today' && Object.values(pointsPrec).some(l => l.length)
+  const varVentes = avecVariation ? variation(total.ventes, vuePrec.total.ventes) : null
+  const varBenefice = avecVariation ? variation(total.benefice, vuePrec.total.benefice) : null
+  const varDepenses = avecVariation ? variation(total.depenses, vuePrec.total.depenses) : null
+  const etiquettesJours = serieJours.map(p => axisLabelJour(p.date))
+  const nbJoursVus = serieJours.length || 1
+
+  const pos = statsPOS?.stats || null
+  const posAbsent = statsPOS?.erreur === POS_NON_INSTALLE
+  const posErreur = statsPOS?.erreur && !posAbsent ? statsPOS.erreur : null
+  const posAvecDonnees = !!(pos && Number(pos.totaux?.nb))
+  const picPOS = posAvecDonnees ? heurePic(pos.par_heure) : null
+  const ticketPOS = posAvecDonnees ? ticketMoyen(pos.totaux) : 0
+
+  const aujourdhui = new Date()
+  const joursDuMois = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth() + 1, 0).getDate()
+  const nomMoisCourant = aujourdhui.toLocaleDateString('fr-FR', { month: 'long' })
+
+  function pastille(icone, couleur, taille = 34) {
     return (
-      <View style={styles.graphCard}>
-        <Text style={styles.graphTitre}>{titre}</Text>
-        {data.map((item, i) => {
-          const pct = max > 0 ? (Math.abs(item.valeur) / max) * 100 : 0
-          return (
-            <View key={i} style={styles.barRow}>
-              <Text style={styles.barLabel}>{item.nom}</Text>
-              <View style={styles.barTrack}>
-                <View style={[
-                  styles.barFill,
-                  { width: `${pct}%`, backgroundColor: couleurFn(item) }
-                ]} />
-              </View>
-              <Text style={styles.barValeur}>{labelFn(item.valeur)}</Text>
-            </View>
-          )
-        })}
+      <View style={{ width: taille, height: taille, borderRadius: Math.round(taille * 0.32), alignItems: 'center', justifyContent: 'center', backgroundColor: `${couleur}1F` }}>
+        <MaterialCommunityIcons name={icone} size={Math.round(taille * 0.52)} color={couleur} />
       </View>
     )
+  }
+
+  // « ▲ 12 % » vert si c'est une bonne nouvelle (inverse : une hausse est mauvaise).
+  function pastilleVariation(v, { inverse = false, surFond = false } = {}) {
+    if (v === null || v === undefined) return null
+    const bon = inverse ? v <= 0 : v >= 0
+    const couleur = surFond ? '#FFFFFF' : bon ? colors.successDark : colors.error
+    const fond = surFond ? 'rgba(255,255,255,0.2)' : bon ? colors.successLight : colors.errorLight
+    return (
+      <View style={[styles.variation, { backgroundColor: fond }]}>
+        <MaterialCommunityIcons name={v >= 0 ? 'arrow-up' : 'arrow-down'} size={12} color={couleur} />
+        <Text style={[styles.variationTxt, { color: couleur }]}>{Math.abs(v)} %</Text>
+      </View>
+    )
+  }
+
+  function tuile({ icone, couleur, label, valeur, sous, v, inverse }) {
+    return (
+      <View style={styles.tuile}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          {pastille(icone, couleur)}
+          {pastilleVariation(v, { inverse })}
+        </View>
+        <Text style={styles.tuileLabel}>{label}</Text>
+        <Text style={styles.tuileValeur} numberOfLines={1} adjustsFontSizeToFit>{valeur}</Text>
+        {sous ? <Text style={styles.tuileSous} numberOfLines={1}>{sous}</Text> : null}
+      </View>
+    )
+  }
+
+  function titreSection(icone, titre, droite) {
+    return (
+      <View style={styles.titreSection}>
+        {pastille(icone, colors.primary, 28)}
+        <Text style={styles.titreSectionTxt}>{titre}</Text>
+        {droite ? <Text style={styles.titreSectionDroite}>{droite}</Text> : null}
+      </View>
+    )
+  }
+
+  function legendeDetaillee(lignes) {
+    return (
+      <View style={{ flex: 1, gap: 8 }}>
+        {lignes.map(l => (
+          <View key={l.nom} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: l.couleur }} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 12.5, fontWeight: '700', color: colors.text }} numberOfLines={1}>{l.nom}</Text>
+              <Text style={{ fontSize: 11, color: colors.textMuted }}>{l.sous}</Text>
+            </View>
+            <Text style={{ fontSize: 13, fontWeight: '800', color: colors.text }}>{l.part} %</Text>
+          </View>
+        ))}
+      </View>
+    )
+  }
+
+  // ── Pilier Aperçu ────────────────────────────────────────────────────────
+  function renderApercu() {
+    const parVentes = [...classement].sort((a, b) => b.ventes - a.ventes)
+    const familles = ['Samer', 'Al Kayan'].map(f => {
+      const rs = classement.filter(r => r.famille === f)
+      const ventes = rs.reduce((x, r) => x + r.ventes, 0)
+      const benefice = rs.reduce((x, r) => x + r.benefice, 0)
+      return { nom: f, ventes, benefice, couleur: f === 'Samer' ? '#EF9F27' : '#2D7D46', nb: rs.length }
+    })
+    const totalFamilles = familles.reduce((x, f) => x + f.ventes, 0) || 1
+    return (<>
+      {/* Carte principale */}
+      <View style={styles.hero}>
+        <View style={[styles.heroRond, { top: -70, right: -50, width: 190, height: 190 }]} />
+        <View style={[styles.heroRond, { bottom: -80, left: -40, width: 150, height: 150, opacity: 0.5 }]} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={styles.heroIcone}><MaterialCommunityIcons name="chart-areaspline" size={18} color="#FFFFFF" /></View>
+          <Text style={styles.heroLbl} numberOfLines={1}>Ventes · {titrePeriode()}</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+          <Text style={styles.heroValeur} numberOfLines={1} adjustsFontSizeToFit>{fmt(total.ventes)}</Text>
+          {varVentes !== null ? <View style={{ marginBottom: 8 }}>{pastilleVariation(varVentes, { surFond: true })}</View> : null}
+        </View>
+        <Text style={styles.heroSous}>
+          {varVentes !== null ? 'par rapport à la période précédente de même durée' : `${serieJours.length} jour${serieJours.length > 1 ? 's' : ''} de points validés`}
+        </Text>
+        <View style={styles.heroCases}>
+          {[
+            { label: 'Bénéfice SC', valeur: fmtCourt(total.benefice), point: '#A7F3D0' },
+            { label: 'Dépenses', valeur: fmtCourt(total.depenses), point: '#FCA5A5' },
+            { label: 'Rentabilité', valeur: `${total.renta.toFixed(1)} %`, point: '#FDE68A' },
+          ].map(c => (
+            <View key={c.label} style={styles.heroCase}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.point }} />
+                <Text style={styles.heroCaseLbl}>{c.label}</Text>
+              </View>
+              <Text style={styles.heroCaseVal} numberOfLines={1} adjustsFontSizeToFit>{c.valeur}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.tuiles}>
+        {tuile({ icone: 'calendar-today', couleur: '#EF9F27', label: 'Ventes par jour', valeur: fmtCourt(total.ventes / nbJoursVus), sous: 'moyenne de la période' })}
+        {tuile({ icone: 'cash-plus', couleur: '#10B981', label: 'Bénéfice SC', valeur: fmtCourt(total.benefice), v: varBenefice, sous: 'vs période précédente' })}
+        {tuile({ icone: 'receipt-text-outline', couleur: '#0EA5E9', label: 'Ticket moyen', valeur: posAvecDonnees ? `${ticketPOS.toLocaleString('fr-FR')} F` : '—', sous: posAvecDonnees ? `${Number(pos.totaux.nb).toLocaleString('fr-FR')} commandes (POS)` : 'données du POS' })}
+        {tuile({ icone: 'fire', couleur: '#E11D48', label: 'Heure de pointe', valeur: picPOS ? libelleCreneau(picPOS.h) : '—', sous: picPOS ? `${picPOS.nb} commandes à cette heure` : 'données du POS' })}
+      </View>
+      {varDepenses !== null ? (
+        <Text style={styles.noteVariation}>
+          Dépenses {varDepenses >= 0 ? 'en hausse' : 'en baisse'} de {Math.abs(varDepenses)} % par rapport à la période précédente.
+        </Text>
+      ) : null}
+
+      {serieJours.length > 1 && (<>
+        <CarteGraphique icone="chart-areaspline" couleur="#EF9F27" titre="Ventes et bénéfice par jour"
+          sous="Le point le plus haut est signalé"
+          legende={[{ nom: 'Ventes', couleur: '#EF9F27' }, { nom: 'Bénéfice SC', couleur: '#10B981' }]}>
+          {l => (
+            <CourbeAire largeur={l} hauteur={210} etiquettes={etiquettesJours} series={[
+              { nom: 'Ventes', valeurs: serieJours.map(p => Number(p.vente_total) || 0), couleur: '#EF9F27', aire: true },
+              { nom: 'Bénéfice SC', valeurs: serieJours.map(p => Number(p.benefice_sc) || 0), couleur: '#10B981', aire: true },
+            ]} />
+          )}
+        </CarteGraphique>
+
+        <CarteGraphique icone="chart-bar" couleur="#EF4444" titre="Ventes et dépenses par jour"
+          legende={[{ nom: 'Ventes', couleur: '#EF9F27' }, { nom: 'Dépenses', couleur: '#EF4444' }]}>
+          {l => (
+            <Barres largeur={l} etiquettes={etiquettesJours} series={[
+              { nom: 'Ventes', valeurs: serieJours.map(p => Number(p.vente_total) || 0), couleur: '#EF9F27' },
+              { nom: 'Dépenses', valeurs: serieJours.map(p => Number(p.depense_total) || 0), couleur: '#EF4444' },
+            ]} />
+          )}
+        </CarteGraphique>
+
+        <CarteGraphique icone="percent-outline" couleur="#6C63E0" titre="Rentabilité par jour" sous="Ligne pointillée : seuil de 20 %">
+          {l => (
+            <CourbeAire largeur={l} etiquettes={etiquettesJours} format={v => `${Math.round(v)}%`}
+              seuil={{ valeur: 20, libelle: 'seuil 20 %', couleur: '#F59E0B' }}
+              series={[{ nom: 'Rentabilité', valeurs: serieJours.map(p => (p.vente_total ? (p.benefice_sc / p.vente_total) * 100 : 0)), couleur: '#6C63E0', aire: true }]} />
+          )}
+        </CarteGraphique>
+
+        <CarteGraphique icone="cash-plus" couleur="#10B981" titre="Bénéfice SC par jour" sous="Vert : gagné · rouge : perdu">
+          {l => (
+            <Barres largeur={l} etiquettes={etiquettesJours} series={[{
+              nom: 'Bénéfice', valeurs: serieJours.map(p => Number(p.benefice_sc) || 0),
+              couleur: '#10B981', couleurs: serieJours.map(p => ((p.benefice_sc || 0) >= 0 ? '#10B981' : '#EF4444')),
+            }]} />
+          )}
+        </CarteGraphique>
+      </>)}
+
+      <CarteGraphique icone="podium" couleur="#EF9F27" titre="Ventes par restaurant" sous={titrePeriode()}>
+        {() => (
+          <BarresHorizontales rangs format={fmtCourt} donnees={parVentes.map(r => ({
+            cle: r.id, nom: r.nom, valeur: r.ventes, couleur: r.couleur,
+            sous: `Bénéfice ${fmtCourt(r.benefice)} · ${tauxRenta(r.ventes, r.benefice).toFixed(1)} %`,
+          }))} />
+        )}
+      </CarteGraphique>
+
+      {titreSection('storefront-outline', 'Les restaurants', `objectifs de ${nomMoisCourant}`)}
+      {classement.map((r, i) => {
+        const resto = restaurants.find(x => x.id === r.id) || {}
+        const renta = tauxRenta(r.ventes, r.benefice)
+        const ventesMois = moisEnCours.ventes[r.id] || 0
+        const prog = progressionObjectif({ ventes: ventesMois, objectif: resto.objectif_mensuel, jour: aujourdhui.getDate(), joursMois: joursDuMois })
+        const posResto = pos?.par_resto?.find(x => x.id === r.id)
+        return (
+          <View key={r.id} style={[styles.restoCarte, { borderLeftColor: r.couleur }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={[styles.rang, i < 3 && { backgroundColor: ['#F59E0B', '#94A3B8', '#B45309'][i] }]}>
+                <Text style={[styles.rangTxt, i < 3 && { color: '#FFFFFF' }]}>{i + 1}</Text>
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.restoNom} numberOfLines={1}>{r.nom}</Text>
+                <Text style={styles.restoSous}>
+                  {r.famille} · {r.nbJours > 0 ? `${r.nbJours} j validé${r.nbJours > 1 ? 's' : ''}` : 'aucun point'}
+                  {moisEnCours.employes[r.id] ? ` · ${moisEnCours.employes[r.id]} employés` : ''}
+                </Text>
+              </View>
+              <View style={[styles.rentaPilule, { backgroundColor: renta >= 20 ? colors.successLight : colors.errorLight }]}>
+                <Text style={[styles.rentaTxt, { color: renta >= 20 ? colors.successDark : colors.errorDark }]}>{renta.toFixed(1)} %</Text>
+              </View>
+            </View>
+            <View style={styles.restoChiffres}>
+              <View style={styles.restoChiffre}><Text style={styles.restoChiffreLbl}>Ventes</Text><Text style={styles.restoChiffreVal}>{fmtCourt(r.ventes)}</Text></View>
+              <View style={styles.restoChiffre}><Text style={styles.restoChiffreLbl}>Bénéfice</Text><Text style={[styles.restoChiffreVal, { color: r.benefice >= 0 ? colors.successDark : colors.error }]}>{fmtCourt(r.benefice)}</Text></View>
+              <View style={styles.restoChiffre}><Text style={styles.restoChiffreLbl}>Ticket</Text><Text style={styles.restoChiffreVal}>{posResto?.nb ? fmtCourt(posResto.ca / posResto.nb) : '—'}</Text></View>
+              <View style={styles.restoChiffre}><Text style={styles.restoChiffreLbl}>Pic</Text><Text style={styles.restoChiffreVal}>{posResto?.pic != null ? `${posResto.pic}h` : '—'}</Text></View>
+            </View>
+            <TouchableOpacity style={styles.objectif} activeOpacity={0.7}
+              onPress={() => { setObjectifEdite(resto); setObjectifSaisi(resto.objectif_mensuel == null ? '' : String(Math.round(resto.objectif_mensuel))) }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: prog ? 6 : 0 }}>
+                <MaterialCommunityIcons name="target" size={15} color={prog ? (prog.enAvance ? colors.successDark : colors.warningDark) : colors.textMuted} />
+                <Text style={styles.objectifTxt} numberOfLines={1}>
+                  {prog ? `${fmtCourt(ventesMois)} sur ${fmtCourt(resto.objectif_mensuel)} · ${prog.pct} %` : `Objectif de ${nomMoisCourant} à définir`}
+                </Text>
+                <MaterialCommunityIcons name="pencil-outline" size={15} color={colors.primary} />
+              </View>
+              {prog ? (
+                <>
+                  <View style={styles.objectifPiste}>
+                    <View style={[styles.objectifRempli, { width: `${Math.min(100, prog.pct)}%`, backgroundColor: prog.enAvance ? colors.success : colors.warning }]} />
+                  </View>
+                  <Text style={[styles.restoSous, { marginTop: 4 }]}>
+                    Au rythme actuel : {fmtCourt(prog.projection)} à la fin du mois ({prog.pctProjete} %)
+                  </Text>
+                </>
+              ) : null}
+            </TouchableOpacity>
+          </View>
+        )
+      })}
+
+      <CarteGraphique icone="family-tree" couleur="#2D7D46" titre="Samer et Al Kayan" sous="Part des ventes de chaque famille">
+        {() => (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+            <Anneau taille={130} epaisseur={18} centreValeur={fmtCourt(total.ventes)} centreLibelle="ventes"
+              segments={familles.map(f => ({ nom: f.nom, valeur: f.ventes, couleur: f.couleur }))} />
+            {legendeDetaillee(familles.map(f => ({
+              nom: f.nom, couleur: f.couleur, part: Math.round((f.ventes / totalFamilles) * 100),
+              sous: `${fmtCourt(f.ventes)} · bénéfice ${fmtCourt(f.benefice)} · ${tauxRenta(f.ventes, f.benefice).toFixed(1)} %`,
+            })))}
+          </View>
+        )}
+      </CarteGraphique>
+    </>)
+  }
+
+  // ── Pilier Activité POS ──────────────────────────────────────────────────
+  function renderActivite() {
+    if (chargementPOS && !pos) {
+      return (
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingTxt}>Lecture des commandes du POS…</Text>
+        </View>
+      )
+    }
+    if (posAbsent) {
+      return (
+        <View style={styles.infoCarte}>
+          {pastille('database-cog-outline', colors.primary, 48)}
+          <Text style={styles.infoTitre}>Statistiques du POS à activer</Text>
+          <Text style={styles.infoTxt}>
+            Passez le fichier pos_cloud_stats_dashboard.sql dans le SQL Editor du projet « pos-samer-cloud » (le POS, pas Samtrackly).
+            Ensuite, cet onglet affiche les heures de pointe, les jours forts, les canaux, les paiements et les plats les plus vendus.
+          </Text>
+        </View>
+      )
+    }
+    if (posErreur) {
+      return (
+        <View style={styles.infoCarte}>
+          {pastille('wifi-off', colors.error, 48)}
+          <Text style={styles.infoTitre}>Le POS ne répond pas</Text>
+          <Text style={styles.infoTxt}>{posErreur}</Text>
+        </View>
+      )
+    }
+    if (!posAvecDonnees) {
+      return (
+        <View style={styles.infoCarte}>
+          {pastille('cash-register', colors.textMuted, 48)}
+          <Text style={styles.infoTitre}>Aucune commande au POS sur cette période</Text>
+        </View>
+      )
+    }
+    const heures = heuresDuService(pos.par_heure)
+    const maxH = Math.max(1, ...heures.map(h => h.nb))
+    const iPic = picPOS ? heures.findIndex(h => h.h === picPOS.h) : null
+    const { grille, max: maxGrille } = grilleSemaine(pos.semaine)
+    const { parJour, meilleur } = joursForts(pos.semaine)
+    const canaux = mixCanaux(pos.par_type)
+    const paiements = mixPaiements(pos.paiements, pos.par_type)
+    const parJourPOS = pos.par_jour || []
+    const t = pos.totaux
+    const annulCuisine = pos.annulations_cuisine || { nb: 0, montant: 0 }
+    return (<>
+      <View style={styles.hero}>
+        <View style={[styles.heroRond, { top: -70, right: -50, width: 190, height: 190 }]} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={styles.heroIcone}><MaterialCommunityIcons name="cash-register" size={18} color="#FFFFFF" /></View>
+          <Text style={styles.heroLbl} numberOfLines={1}>Commandes · {titrePeriode()}</Text>
+        </View>
+        <Text style={[styles.heroValeur, { marginTop: 10 }]}>{Number(t.nb).toLocaleString('fr-FR')}</Text>
+        <Text style={styles.heroSous}>commandes payées à la caisse · journées de 6 h à 6 h</Text>
+        <View style={styles.heroCases}>
+          {[
+            { label: 'Encaissé POS', valeur: fmtCourt(t.ca), point: '#FDE68A' },
+            { label: 'Ticket moyen', valeur: `${ticketPOS.toLocaleString('fr-FR')} F`, point: '#BAE6FD' },
+            { label: 'Pic', valeur: picPOS ? `${picPOS.h}h` : '—', point: '#FCA5A5' },
+          ].map(c => (
+            <View key={c.label} style={styles.heroCase}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.point }} />
+                <Text style={styles.heroCaseLbl}>{c.label}</Text>
+              </View>
+              <Text style={styles.heroCaseVal} numberOfLines={1} adjustsFontSizeToFit>{c.valeur}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.faitsCarte}>
+        {faitsMarquants(pos).map(f => (
+          <View key={f.texte} style={styles.fait}>
+            {pastille(f.icone, colors.primary, 30)}
+            <Text style={styles.faitTxt}>{f.texte}</Text>
+          </View>
+        ))}
+      </View>
+
+      <CarteGraphique icone="fire" couleur="#E11D48" titre="Heures de pointe" sous="Commandes par heure, de 6 h du matin à 5 h">
+        {l => (
+          <Barres largeur={l} hauteur={200} format={v => `${Math.round(v)}`}
+            etiquettes={heures.map(h => `${h.h}h`)} surligne={iPic} attenuer={false} valeurSurligne={picPOS ? `${picPOS.nb} cmd` : null}
+            series={[{ nom: 'Commandes', valeurs: heures.map(h => h.nb), couleur: '#E11D48',
+              couleurs: heures.map(h => melangerCouleurs('#FDE68A', '#DC2626', h.nb / maxH)) }]} />
+        )}
+      </CarteGraphique>
+
+      <CarteGraphique icone="calendar-week" couleur="#EA580C" titre="Semaine × heures" sous="Plus la case est foncée, plus il y a de commandes">
+        {l => (
+          <CarteChaleur largeur={l} grille={grille} max={maxGrille} lignes={JOURS_COURTS}
+            colonnes={ORDRE_HEURES.map(h => `${h}h`)} couleur="#EA580C" />
+        )}
+      </CarteGraphique>
+
+      <CarteGraphique icone="calendar-star" couleur="#6C63E0" titre="Jours de la semaine"
+        sous={meilleur?.nb ? `Le ${meilleur.long} est le plus chargé` : null}>
+        {l => (
+          <Barres largeur={l} hauteur={180} format={v => `${Math.round(v)}`} etiquettes={parJour.map(j => j.court)}
+            surligne={meilleur ? meilleur.j - 1 : null}
+            series={[{ nom: 'Commandes', valeurs: parJour.map(j => j.nb), couleur: '#6C63E0' }]} />
+        )}
+      </CarteGraphique>
+
+      {parJourPOS.length > 1 && (
+        <CarteGraphique icone="receipt-text-outline" couleur="#0EA5E9" titre="Ticket moyen par jour" sous="Encaissé ÷ nombre de commandes">
+          {l => (
+            <CourbeAire largeur={l} etiquettes={parJourPOS.map(d => axisLabelJour(d.d))} format={fmtCourt}
+              series={[{ nom: 'Ticket moyen', valeurs: parJourPOS.map(d => (d.nb ? Math.round(d.ca / d.nb) : 0)), couleur: '#0EA5E9', aire: true }]} />
+          )}
+        </CarteGraphique>
+      )}
+
+      <CarteGraphique icone="moped" couleur="#F59E0B" titre="Canaux de vente" sous="Part de l'encaissé">
+        {() => (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+            <Anneau taille={130} epaisseur={18} centreValeur={String(canaux.length)} centreLibelle="canaux"
+              segments={canaux.map(c => ({ nom: c.nom, valeur: c.ca, couleur: c.couleur }))} />
+            {legendeDetaillee(canaux.map(c => ({ nom: c.nom, couleur: c.couleur, part: c.part, sous: `${fmtCourt(c.ca)} · ${c.nb} cmd` })))}
+          </View>
+        )}
+      </CarteGraphique>
+
+      <CarteGraphique icone="credit-card-outline" couleur="#10B981" titre="Modes de paiement" sous="Comment les clients paient">
+        {() => (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+            <Anneau taille={130} epaisseur={18}
+              centreValeur={`${paiements.find(p => p.cle === 'ESPECES')?.part ?? 0} %`} centreLibelle="espèces"
+              segments={paiements.map(p => ({ nom: p.nom, valeur: p.montant, couleur: p.couleur }))} />
+            {legendeDetaillee(paiements.map(p => ({ nom: p.nom, couleur: p.couleur, part: p.part, sous: fmtCourt(p.montant) })))}
+          </View>
+        )}
+      </CarteGraphique>
+
+      <CarteGraphique icone="silverware-fork-knife" couleur="#EF9F27" titre="Plats les plus vendus" sous="Par quantité">
+        {() => (
+          <BarresHorizontales rangs donnees={(pos.top || []).map((p, i, arr) => ({
+            cle: p.nom, nom: p.nom, valeur: Number(p.qte) || 0,
+            couleur: melangerCouleurs('#FCD34D', '#EA580C', arr.length > 1 ? 1 - i / (arr.length - 1) : 1),
+            droite: `${Number(p.qte).toLocaleString('fr-FR')} vendus`, sous: fmt(Number(p.ca) || 0),
+          }))} />
+        )}
+      </CarteGraphique>
+
+      {titreSection('alert-circle-outline', 'Annulations et gestes commerciaux')}
+      <View style={styles.tuiles}>
+        {tuile({ icone: 'close-circle-outline', couleur: colors.error, label: 'Commandes annulées', valeur: String(t.annulees || 0), sous: `sur ${Number(t.nb).toLocaleString('fr-FR')} payées` })}
+        {tuile({ icone: 'food-off-outline', couleur: '#EA580C', label: 'Retirés après cuisine', valeur: String(annulCuisine.nb || 0), sous: annulCuisine.montant ? fmt(annulCuisine.montant) : 'aucun montant' })}
+        {tuile({ icone: 'gift-outline', couleur: '#7C3AED', label: 'Commandes offertes', valeur: String(t.offerts || 0), sous: 'KDO' })}
+        {tuile({ icone: 'ticket-percent-outline', couleur: '#0EA5E9', label: 'Remises et promos', valeur: fmtCourt((Number(t.remises) || 0) + (Number(t.promos) || 0)), sous: `${t.nb_remises || 0} remise(s) manuelle(s)` })}
+      </View>
+      <Text style={styles.noteSource}>Source : caisse POS des restaurants. Les chiffres du haut de l'écran viennent des points validés.</Text>
+    </>)
   }
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/accueil') }}>
-          <Text style={styles.back}>‹ Retour</Text>
-        </TouchableOpacity>
-        <View>
-          <Text style={styles.headerTitre}>Dashboard Global</Text>
-          <Text style={styles.headerSub}>
-            {compar
-              ? `${compar.libelleA} contre ${compar.libelleB}`
-              : (restoFiltre ? (restaurants.find(r => r.id === restoFiltre)?.nom || '…') : 'Tous les restaurants')}
-          </Text>
+        <View style={styles.headerLigne}>
+          <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/accueil') }}
+            style={styles.enteteBtn} accessibilityRole="button" accessibilityLabel="Retour">
+            <MaterialCommunityIcons name="chevron-left" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <View style={styles.headerCentre}>
+            <View style={styles.headerIcone}><MaterialCommunityIcons name="chart-box" size={18} color="#FFFFFF" /></View>
+            <View style={{ flexShrink: 1 }}>
+              <Text style={styles.headerTitre}>Dashboard global</Text>
+              <Text style={styles.headerSub} numberOfLines={1}>
+                {compar
+                  ? `${compar.libelleA} contre ${compar.libelleB}`
+                  : `${restoFiltre ? (restaurants.find(r => r.id === restoFiltre)?.nom || '…') : 'Tous les restaurants'} · ${titrePeriode()}`}
+              </Text>
+            </View>
+          </View>
+          <View style={{ width: 40 }} />
         </View>
-        <View style={{ width: 60 }} />
+        <View style={styles.periodes}>
+          {PERIODES.map(p => {
+            const actif = periodeKey === p.key
+            return (
+              <TouchableOpacity key={p.key} style={[styles.periodeBtn, actif && styles.periodeBtnActive]}
+                onPress={() => (p.key === 'custom' ? ouvrirCalendrier() : setPeriodeKey(p.key))}>
+                {p.icone ? <MaterialCommunityIcons name={p.icone} size={14} color={actif ? colors.headerBg : '#FFFFFF'} /> : null}
+                <Text style={[styles.periodeTxt, actif && styles.periodeTxtActive]}>{p.label}</Text>
+              </TouchableOpacity>
+            )
+          })}
+        </View>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.periodeBar, { flexGrow: 0 }]}>
-        {PERIODES.map(p => (
-          <TouchableOpacity
-            key={p.key}
-            style={[styles.periodeBtn, periodeKey === p.key && styles.periodeBtnActive]}
-            onPress={() => p.key === 'custom' ? ouvrirCalendrier() : setPeriodeKey(p.key)}
-          >
-            <Text style={[styles.periodeTxt, periodeKey === p.key && styles.periodeTxtActive]}>{p.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      <View style={styles.periodeBanner}>
-        <Text style={styles.periodeBannerTxt}>📅 {titrePeriode()}</Text>
-      </View>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.pillsBar, { flexGrow: 0 }]} contentContainerStyle={{ paddingHorizontal: 14 }}>
-        {PILIERS.map(p => (
-          <TouchableOpacity
-            key={p.key}
-            style={[styles.pill, pilier === p.key && styles.pillActive]}
-            onPress={() => setPilier(p.key)}
-          >
-            <Text style={[styles.pillTxt, pilier === p.key && styles.pillTxtActive]}>{p.label}</Text>
-          </TouchableOpacity>
-        ))}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.pillsBar, { flexGrow: 0 }]}
+        contentContainerStyle={{ paddingHorizontal: 14, gap: 8, alignItems: 'center' }}>
+        {PILIERS.map(p => {
+          const actif = pilier === p.key
+          return (
+            <TouchableOpacity key={p.key} style={[styles.pill, actif && styles.pillActive]} onPress={() => setPilier(p.key)}>
+              <MaterialCommunityIcons name={p.icone} size={16} color={actif ? '#FFFFFF' : colors.primary} />
+              <Text style={[styles.pillTxt, actif && styles.pillTxtActive]}>{p.label}</Text>
+            </TouchableOpacity>
+          )
+        })}
       </ScrollView>
 
       {/* Le filtre restaurant. En mode « 2 restaurants » il cède la place aux
           sélecteurs A / B ; en mode « 2 périodes » il reste, car c'est LUI qui
           désigne le restaurant comparé à lui-même. */}
       {!(comparaisonActive && modeComparaison === MODE_RESTOS) && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.restoFiltreBar, { flexGrow: 0 }]} contentContainerStyle={{ paddingHorizontal: 14, alignItems: 'center' }}>
-          <TouchableOpacity
-            style={[styles.restoFiltreBtn, !restoFiltre && styles.restoFiltreBtnActive]}
-            onPress={() => setRestoFiltre(null)}
-          >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.restoFiltreBar, { flexGrow: 0 }]}
+          contentContainerStyle={{ paddingHorizontal: 14, gap: 6, alignItems: 'center' }}>
+          <TouchableOpacity style={[styles.restoFiltreBtn, !restoFiltre && styles.restoFiltreBtnActive]} onPress={() => setRestoFiltre(null)}>
+            <MaterialCommunityIcons name="earth" size={13} color={!restoFiltre ? colors.primary : colors.textMuted} />
             <Text style={[styles.restoFiltreTxt, !restoFiltre && styles.restoFiltreTxtActive]}>Tous</Text>
           </TouchableOpacity>
-          {restaurants.map(r => (
-            <TouchableOpacity
-              key={r.id}
-              style={[styles.restoFiltreBtn, restoFiltre === r.id && styles.restoFiltreBtnActive, restoFiltre === r.id && { borderColor: couleurResto(r.couleur) }]}
-              onPress={() => setRestoFiltre(r.id)}
-            >
-              <View style={[styles.restoDot, { backgroundColor: couleurResto(r.couleur) }]} />
-              <Text style={[styles.restoFiltreTxt, restoFiltre === r.id && styles.restoFiltreTxtActive]}>{courtNom(r.nom)}</Text>
-            </TouchableOpacity>
-          ))}
+          {restaurants.map(r => {
+            const actif = restoFiltre === r.id
+            return (
+              <TouchableOpacity key={r.id}
+                style={[styles.restoFiltreBtn, actif && styles.restoFiltreBtnActive, actif && { borderColor: couleurResto(r.couleur) }]}
+                onPress={() => setRestoFiltre(r.id)}>
+                <View style={[styles.restoDot, { backgroundColor: couleurResto(r.couleur) }]} />
+                <Text style={[styles.restoFiltreTxt, actif && styles.restoFiltreTxtActive]}>{courtNom(r.nom)}</Text>
+              </TouchableOpacity>
+            )
+          })}
         </ScrollView>
       )}
 
@@ -831,394 +1272,149 @@ export default function DashboardGlobalScreen() {
 
       {loading ? (
         <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color="#534AB7" />
-          <Text style={styles.loadingTxt}>Chargement de tous les restaurants...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingTxt}>Chargement de tous les restaurants…</Text>
         </View>
       ) : (
-        <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           {comparaisonActive && PILIERS_COMPARABLES.includes(pilier) && renderComparaison()}
           {comparaisonActive && !PILIERS_COMPARABLES.includes(pilier) && (
             <View style={styles.comparNote}>
+              <MaterialCommunityIcons name="information-outline" size={18} color={colors.primary} />
               <Text style={styles.comparNoteTxt}>
-                Ce pilier est une liste d’événements datés, pas un total à confronter :
-                il reste en lecture simple, sur la période A et le filtre restaurant courant.
+                Cet onglet n’est pas comparé : il reste en lecture simple, sur la période A et le filtre restaurant courant.
               </Text>
             </View>
           )}
 
-          {pilier === 'apercu' && !comparaisonActive && (<>
-          {/* KPIs */}
-          <View style={styles.kpiGrid}>
-            <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>Ventes totales</Text>
-              <Text style={[styles.kpiValue, { color: '#BA7517' }]}>{fmt(total.ventes)}</Text>
-            </View>
-            <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>Dépenses totales</Text>
-              <Text style={[styles.kpiValue, { color: '#A32D2D' }]}>{fmt(total.depenses)}</Text>
-            </View>
-            <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>Bénéfice SC global</Text>
-              <Text style={[styles.kpiValue, { color: '#3B6D11' }]}>{fmt(total.benefice)}</Text>
-            </View>
-            <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>Rentabilité moy.</Text>
-              <Text style={[styles.kpiValue, { color: '#534AB7' }]}>
-                {total.renta.toFixed(1)}%
-              </Text>
-            </View>
-          </View>
+          {pilier === 'apercu' && !comparaisonActive && renderApercu()}
+          {pilier === 'activite' && renderActivite()}
 
-          {/* ── ÉVOLUTION DANS LE TEMPS (courbes comme le portail gérant) — AJOUT ── */}
-          {serieJours.length > 1 && (<>
-            <View style={styles.graphCard}>
-              <Text style={styles.graphTitre}>📈 Évolution des ventes (en milliers FCFA)</Text>
-              <VictoryChart width={CHART_WIDTH} height={200} theme={VictoryTheme.material} padding={{ top: 20, bottom: 40, left: 50, right: 20 }}>
-                <VictoryAxis tickValues={serieJours.map((_, i) => i + 1)} tickFormat={serieJours.map(p => axisLabelJour(p.date))} style={{ tickLabels: { fontSize: 8, fill: '#888', angle: -30 } }} />
-                <VictoryAxis dependentAxis style={{ tickLabels: { fontSize: 8, fill: '#888' } }} />
-                <VictoryLine data={dataVentesEvo} style={{ data: { stroke: '#EF9F27', strokeWidth: 2.5 } }} interpolation="monotoneX" />
-                <VictoryLine data={dataBeneficeEvo} style={{ data: { stroke: '#3B6D11', strokeWidth: 2, strokeDasharray: '4,4' } }} interpolation="monotoneX" />
-              </VictoryChart>
-              <View style={styles.legende}>
-                <View style={styles.legendeItem}><View style={[styles.legendeColor, { backgroundColor: '#EF9F27' }]} /><Text style={styles.legendeTxt}>Ventes</Text></View>
-                <View style={styles.legendeItem}><View style={[styles.legendeColor, { backgroundColor: '#3B6D11' }]} /><Text style={styles.legendeTxt}>Bénéfice SC</Text></View>
-              </View>
-            </View>
-
-            <View style={styles.graphCard}>
-              <Text style={styles.graphTitre}>📊 Ventes vs Dépenses (en milliers FCFA)</Text>
-              <VictoryChart width={CHART_WIDTH} height={200} theme={VictoryTheme.material} padding={{ top: 20, bottom: 40, left: 50, right: 20 }} domainPadding={{ x: 20 }}>
-                <VictoryAxis tickValues={serieJours.map((_, i) => i + 1)} tickFormat={serieJours.map(p => axisLabelJour(p.date))} style={{ tickLabels: { fontSize: 8, fill: '#888', angle: -30 } }} />
-                <VictoryAxis dependentAxis style={{ tickLabels: { fontSize: 8, fill: '#888' } }} />
-                <VictoryBar data={serieJours.map((p, i) => ({ x: i + 1 - 0.2, y: (p.vente_total || 0) / 1000 }))} style={{ data: { fill: '#EF9F27', width: 8 } }} />
-                <VictoryBar data={serieJours.map((p, i) => ({ x: i + 1 + 0.2, y: (p.depense_total || 0) / 1000 }))} style={{ data: { fill: '#A32D2D', width: 8, opacity: 0.7 } }} />
-              </VictoryChart>
-              <View style={styles.legende}>
-                <View style={styles.legendeItem}><View style={[styles.legendeColor, { backgroundColor: '#EF9F27' }]} /><Text style={styles.legendeTxt}>Ventes</Text></View>
-                <View style={styles.legendeItem}><View style={[styles.legendeColor, { backgroundColor: '#A32D2D' }]} /><Text style={styles.legendeTxt}>Dépenses</Text></View>
-              </View>
-            </View>
-
-            <View style={styles.graphCard}>
-              <Text style={styles.graphTitre}>📉 Évolution de la rentabilité (%)</Text>
-              <VictoryChart width={CHART_WIDTH} height={200} theme={VictoryTheme.material} padding={{ top: 20, bottom: 40, left: 50, right: 20 }}>
-                <VictoryAxis tickValues={serieJours.map((_, i) => i + 1)} tickFormat={serieJours.map(p => axisLabelJour(p.date))} style={{ tickLabels: { fontSize: 8, fill: '#888', angle: -30 } }} />
-                <VictoryAxis dependentAxis style={{ tickLabels: { fontSize: 8, fill: '#888' } }} />
-                <VictoryArea data={dataRentaEvo} style={{ data: { fill: '#185FA520', stroke: '#185FA5', strokeWidth: 2 } }} interpolation="monotoneX" />
-              </VictoryChart>
-            </View>
-
-            <View style={styles.graphCard}>
-              <Text style={styles.graphTitre}>🏆 Bénéfice SC par jour (en milliers FCFA)</Text>
-              <VictoryChart width={CHART_WIDTH} height={200} theme={VictoryTheme.material} padding={{ top: 20, bottom: 40, left: 50, right: 20 }} domainPadding={{ x: 15 }}>
-                <VictoryAxis tickValues={serieJours.map((_, i) => i + 1)} tickFormat={serieJours.map(p => axisLabelJour(p.date))} style={{ tickLabels: { fontSize: 8, fill: '#888', angle: -30 } }} />
-                <VictoryAxis dependentAxis style={{ tickLabels: { fontSize: 8, fill: '#888' } }} />
-                <VictoryBar data={serieJours.map((p, i) => ({ x: i + 1, y: (p.benefice_sc || 0) / 1000, fill: (p.benefice_sc || 0) >= 0 ? '#3B6D11' : '#A32D2D' }))} style={{ data: { fill: ({ datum }) => datum.fill, width: 12 } }} />
-              </VictoryChart>
-            </View>
-          </>)}
-
-          {/* GRAPHIQUE 1 — Ventes par restaurant */}
-          <GraphiqueBarres
-            titre="📊 Ventes par restaurant"
-            data={classement.map(r => ({ nom: r.court, valeur: r.ventes, couleur: r.couleur }))}
-            max={maxVentes}
-            couleurFn={item => item.couleur}
-            labelFn={v => fmtK(v)}
-            unite="FCFA"
-          />
-
-          {/* GRAPHIQUE 2 — Bénéfice SC par restaurant */}
-          <GraphiqueBarres
-            titre="💰 Bénéfice SC par restaurant"
-            data={classement.map(r => ({ nom: r.court, valeur: r.benefice, positif: r.benefice >= 0 }))}
-            max={maxBenefice}
-            couleurFn={item => item.positif ? '#3B6D11' : '#A32D2D'}
-            labelFn={v => fmtK(v)}
-            unite="FCFA"
-          />
-
-          {/* GRAPHIQUE 3 — Rentabilité par restaurant */}
-          <View style={styles.graphCard}>
-            <Text style={styles.graphTitre}>📈 Rentabilité par restaurant</Text>
-            {classement.map((r, i) => {
-              const renta = tauxRenta(r.ventes, r.benefice)
-              const pct = Math.min(renta, 100)
-              return (
-                <View key={i} style={styles.barRow}>
-                  <Text style={styles.barLabel}>{r.court}</Text>
-                  <View style={styles.barTrack}>
-                    <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: renta >= 20 ? '#3B6D11' : '#A32D2D' }]} />
-                    <View style={[styles.barMark, { left: '20%' }]} />
-                  </View>
-                  <Text style={[styles.barValeur, { color: renta >= 20 ? '#3B6D11' : '#A32D2D' }]}>{renta.toFixed(1)}%</Text>
-                </View>
-              )
-            })}
-            <Text style={styles.graphNote}>Ligne = seuil 20%</Text>
-            <View style={styles.legende}>
-              <View style={styles.legendeItem}>
-                <View style={[styles.legendeColor, { backgroundColor: '#3B6D11' }]} />
-                <Text style={styles.legendeTxt}>≥ 20%</Text>
-              </View>
-              <View style={styles.legendeItem}>
-                <View style={[styles.legendeColor, { backgroundColor: '#A32D2D' }]} />
-                <Text style={styles.legendeTxt}>{'< 20%'}</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* GRAPHIQUE 4 — Comparaison Samer vs Al Kayan */}
-          <View style={styles.graphCard}>
-            <Text style={styles.graphTitre}>⚖️ Samer vs Al Kayan</Text>
-            {['Samer', 'Al Kayan'].map(famille => {
-              const restos = classement.filter(r => r.famille === famille)
-              const totalBenef = restos.reduce((s, r) => s + r.benefice, 0)
-              const totalVent = restos.reduce((s, r) => s + r.ventes, 0)
-              const renta = tauxRenta(totalVent, totalBenef)
-              const couleur = famille === 'Samer' ? '#EF9F27' : '#2D7D46'
-              const maxGlobal = Math.max(
-                classement.filter(r => r.famille === 'Samer').reduce((s, r) => s + r.benefice, 0),
-                classement.filter(r => r.famille === 'Al Kayan').reduce((s, r) => s + r.benefice, 0),
-                1
-              )
-              const pct = (Math.abs(totalBenef) / maxGlobal) * 100
-              return (
-                <View key={famille} style={styles.familleGraphRow}>
-                  <View style={[styles.famillePuce, { backgroundColor: couleur }]} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.familleGraphNom}>{famille}</Text>
-                    <View style={styles.barTrack}>
-                      <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: couleur }]} />
-                    </View>
-                    <Text style={styles.familleGraphSub}>
-                      BSC: {fmt(totalBenef)} | Renta: {renta.toFixed(1)}%
-                    </Text>
-                  </View>
-                </View>
-              )
-            })}
-          </View>
-
-          {/* Classement */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitre}>🏆 Classement par bénéfice SC</Text>
-            <View style={styles.classementCard}>
-              {classement.map((r, i) => (
-                <View key={r.id} style={[styles.classementRow, i === classement.length - 1 && { borderBottomWidth: 0 }]}>
-                  <View style={styles.classementLeft}>
-                    <View style={[styles.rangBadge, i === 0 && styles.rangOr, i === 1 && styles.rangArgent, i === 2 && styles.rangBronze]}>
-                      <Text style={styles.rangTxt}>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}</Text>
-                    </View>
-                    <View style={styles.classementInfo}>
-                      <Text style={styles.classementNom}>{r.nom}</Text>
-                      <View style={styles.classementBadgeRow}>
-                        <View style={[styles.familleBadge, { backgroundColor: r.famille === 'Samer' ? '#FAEEDA' : '#EAF3DE' }]}>
-                          <Text style={[styles.familleTxt, { color: r.famille === 'Samer' ? '#854F0B' : '#3B6D11' }]}>{r.famille}</Text>
-                        </View>
-                        <Text style={styles.classementJours}>{r.nbJours}j validé(s)</Text>
-                      </View>
-                    </View>
-                  </View>
-                  <View style={styles.classementRight}>
-                    <Text style={[styles.classementBenefice, { color: r.benefice >= 0 ? '#3B6D11' : '#A32D2D' }]}>{fmt(r.benefice)}</Text>
-                    <Text style={styles.classementVentes}>{fmt(r.ventes)}</Text>
-                    <Text style={[styles.classementRenta, { color: tauxRenta(r.ventes, r.benefice) >= 20 ? '#3B6D11' : '#888' }]}>
-                      {tauxRenta(r.ventes, r.benefice).toFixed(1)}%
-                    </Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          {/* Comparaison familles */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitre}>Récapitulatif par famille</Text>
-            <View style={styles.familleCompare}>
-              <View style={[styles.familleBox, { borderColor: '#FAC775' }]}>
-                <Text style={styles.familleTitre}>🟡 Samer</Text>
-                <Text style={styles.familleValeur}>
-                  {fmt(classement.filter(r => r.famille === 'Samer').reduce((sum, r) => sum + r.benefice, 0))}
-                </Text>
-                <Text style={styles.familleSub}>Bénéfice SC</Text>
-                <Text style={styles.familleVenteVal}>
-                  {fmt(classement.filter(r => r.famille === 'Samer').reduce((sum, r) => sum + r.ventes, 0))}
-                </Text>
-                <Text style={styles.familleSub}>Ventes</Text>
-              </View>
-              <View style={[styles.familleBox, { borderColor: '#C0DD97' }]}>
-                <Text style={styles.familleTitre}>🟢 Al Kayan</Text>
-                <Text style={[styles.familleValeur, { color: '#3B6D11' }]}>
-                  {fmt(classement.filter(r => r.famille === 'Al Kayan').reduce((sum, r) => sum + r.benefice, 0))}
-                </Text>
-                <Text style={styles.familleSub}>Bénéfice SC</Text>
-                <Text style={styles.familleVenteVal}>
-                  {fmt(classement.filter(r => r.famille === 'Al Kayan').reduce((sum, r) => sum + r.ventes, 0))}
-                </Text>
-                <Text style={styles.familleSub}>Ventes</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Récapitulatif global */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitre}>Récapitulatif global</Text>
-            <View style={styles.recapCard}>
-              <View style={styles.recapRow}><Text style={styles.recapLabel}>Total ventes</Text><Text style={styles.recapValue}>{fmt(total.ventes)}</Text></View>
-              <View style={styles.recapRow}><Text style={styles.recapLabel}>Total dépenses</Text><Text style={[styles.recapValue, { color: '#A32D2D' }]}>{fmt(total.depenses)}</Text></View>
-              <View style={[styles.recapRow, { borderBottomWidth: 0 }]}>
-                <Text style={[styles.recapLabel, { fontWeight: '600', color: '#1a1a1a' }]}>Bénéfice SC global</Text>
-                <Text style={[styles.recapValue, { color: '#3B6D11', fontWeight: '600', fontSize: 16 }]}>{fmt(total.benefice)}</Text>
-              </View>
-            </View>
-          </View>
-          </>)}
-
-          {/* Pilier 2 — Structure des coûts (consolidé) */}
+          {/* Pilier Coûts (consolidé) */}
           {pilier === 'couts' && !comparaisonActive && (
             chargementCouts ? (
               <View style={styles.loadingBox}>
-                <ActivityIndicator size="large" color="#534AB7" />
-                <Text style={styles.loadingTxt}>Chargement des coûts...</Text>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={styles.loadingTxt}>Chargement des coûts…</Text>
               </View>
             ) : caGlobal <= 0 ? (
-              <View style={styles.emptyBox}>
-                <Text style={styles.emptyIcon}>📊</Text>
-                <Text style={styles.emptyTxt}>Aucune donnée de vente sur cette période</Text>
+              <View style={styles.infoCarte}>
+                {pastille('chart-donut', colors.textMuted, 48)}
+                <Text style={styles.infoTitre}>Aucune donnée de vente sur cette période</Text>
               </View>
             ) : (
               <>
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitre}>Structure des coûts — tous restaurants</Text>
-                  <View style={styles.resultCard}>
-                    <JaugeCout label="Coût matières" pct={foodCostGlobalPct} montant={foodCostGlobalMt} seuil={30} colors={colors} fmt={fmt} />
-                    <JaugeCout label="Coût du salaire" pct={laborCostGlobalPct} montant={laborCostGlobalMt} seuil={30} colors={colors} fmt={fmt} />
-                    <JaugeCout label="Coût primaire" pct={primeCostGlobalPct} montant={foodCostGlobalMt + laborCostGlobalMt} seuil={60} colors={colors} fmt={fmt} accent />
-                    {aDesChargesConfigurees ? (
-                      <JaugeCout label="Charges fixes" pct={chargesFixesGlobalPct} montant={chargesFixesGlobalMt} seuil={20} colors={colors} fmt={fmt} dernier />
-                    ) : (
-                      <TouchableOpacity style={styles.chargesEmptyRow} onPress={() => router.push('/tresorerie-a-payer')}>
-                        <Text style={styles.chargesEmptyTxt}>Charges fixes non saisies pour cette période (Trésorerie → À payer)</Text>
-                        <Text style={styles.chargesEmptyLink}>Configurer ›</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
+                {titreSection('chart-donut', 'Structure des coûts', restoFiltre ? null : 'tous restaurants')}
+                <View style={styles.carte}>
+                  <JaugeCout label="Coût matières" pct={foodCostGlobalPct} montant={foodCostGlobalMt} seuil={30} colors={colors} fmt={fmt} />
+                  <JaugeCout label="Coût du salaire" pct={laborCostGlobalPct} montant={laborCostGlobalMt} seuil={30} colors={colors} fmt={fmt} />
+                  <JaugeCout label="Coût primaire" pct={primeCostGlobalPct} montant={foodCostGlobalMt + laborCostGlobalMt} seuil={60} colors={colors} fmt={fmt} accent />
+                  {aDesChargesConfigurees ? (
+                    <JaugeCout label="Charges fixes" pct={chargesFixesGlobalPct} montant={chargesFixesGlobalMt} seuil={20} colors={colors} fmt={fmt} dernier />
+                  ) : (
+                    <TouchableOpacity style={styles.chargesEmptyRow} onPress={() => router.push('/tresorerie-a-payer')}>
+                      <Text style={styles.chargesEmptyTxt}>Charges fixes non saisies pour cette période (Trésorerie → À payer)</Text>
+                      <Text style={styles.chargesEmptyLink}>Configurer ›</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
 
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitre}>🏆 Classement par Coût primaire</Text>
-                  <View style={styles.classementCard}>
-                    {classementCouts.map((r, i) => (
-                      <View key={r.id} style={[styles.classementRow, i === classementCouts.length - 1 && { borderBottomWidth: 0 }]}>
-                        <View style={styles.classementLeft}>
-                          <View style={styles.rangBadge}>
-                            <Text style={styles.rangTxt}>#{i + 1}</Text>
-                          </View>
-                          <View style={styles.classementInfo}>
-                            <Text style={styles.classementNom}>{r.nom}</Text>
-                            <Text style={styles.classementJours}>Matières {r.foodPct.toFixed(1)}% · Salaire {r.laborPct.toFixed(1)}%</Text>
-                          </View>
-                        </View>
-                        <Text style={[styles.classementBenefice, { color: r.primePct > 60 ? '#A32D2D' : '#3B6D11' }]}>
-                          {r.ventes > 0 ? `${r.primePct.toFixed(1)}%` : '—'}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
+                <CarteGraphique icone="podium" couleur="#EF4444" titre="Coût primaire par restaurant" sous="Matières + salaires, en % des ventes · seuil 60 %">
+                  {() => (
+                    <BarresHorizontales rangs format={v => `${v.toFixed(1)} %`} donnees={classementCouts.map(r => ({
+                      cle: r.id, nom: r.nom, valeur: r.ventes > 0 ? r.primePct : 0,
+                      couleur: r.primePct > 60 ? '#EF4444' : '#10B981',
+                      couleurValeur: r.primePct > 60 ? colors.error : colors.successDark,
+                      droite: r.ventes > 0 ? `${r.primePct.toFixed(1)} %` : '—',
+                      sous: `Matières ${r.foodPct.toFixed(1)} % · Salaire ${r.laborPct.toFixed(1)} %`,
+                    }))} />
+                  )}
+                </CarteGraphique>
 
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitre}>💵 Fond de caisse reçu — {titrePeriode()}</Text>
-                  <View style={styles.resultCard}>
-                    {[...vue.lignes].sort((a, b) => b.fondRecu - a.fondRecu).map(r => {
-                      const ouvert = fondOuvert === r.id
-                      const deroulable = r.joursFondRecu > 0
-                      return (
-                        <View key={r.id}>
-                          <TouchableOpacity
-                            style={styles.resultRow}
-                            disabled={!deroulable}
-                            onPress={() => setFondOuvert(ouvert ? null : r.id)}
-                          >
-                            <View style={{ flex: 1 }}>
-                              <Text style={styles.resultLabel}>{deroulable ? (ouvert ? '▾ ' : '▸ ') : ''}{r.nom}</Text>
-                              <Text style={styles.classementJours}>
-                                {r.nbJours === 0 ? 'Aucun point saisi' : `${r.joursFondRecu} jour${r.joursFondRecu > 1 ? 's' : ''} sur ${r.nbJours}`}
-                              </Text>
-                            </View>
-                            <Text style={[styles.resultValue, { color: '#534AB7' }]}>
-                              {r.nbJours === 0 ? '—' : fmt(r.fondRecu)}
+                {titreSection('cash-refund', 'Fond de caisse reçu', fmt(total.fondRecu))}
+                <View style={styles.carte}>
+                  {[...vue.lignes].sort((a, b) => b.fondRecu - a.fondRecu).map(r => {
+                    const ouvert = fondOuvert === r.id
+                    const deroulable = r.joursFondRecu > 0
+                    return (
+                      <View key={r.id}>
+                        <TouchableOpacity style={styles.resultRow} disabled={!deroulable} onPress={() => setFondOuvert(ouvert ? null : r.id)}>
+                          <View style={[styles.restoDot, { backgroundColor: r.couleur, width: 9, height: 9, borderRadius: 5 }]} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.resultLabel}>{r.nom}</Text>
+                            <Text style={styles.restoSous}>
+                              {r.nbJours === 0 ? 'Aucun point saisi' : `${r.joursFondRecu} jour${r.joursFondRecu > 1 ? 's' : ''} sur ${r.nbJours}`}
                             </Text>
-                          </TouchableOpacity>
-                          {ouvert && detailFondRecu(points[r.id]).map(j => (
-                            <View key={j.date} style={[styles.resultRow, { paddingLeft: 16 }]}>
-                              <Text style={styles.resultLabel}>{formatDateLongue(j.date)}</Text>
-                              <Text style={[styles.resultValue, { color: '#534AB7' }]}>{fmt(j.montant)}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      )
-                    })}
-                    <View style={[styles.resultRow, { borderBottomWidth: 0 }]}>
-                      <Text style={[styles.resultLabel, { fontWeight: '600', color: colors.text }]}>Total</Text>
-                      <Text style={[styles.resultValue, { color: '#534AB7', fontWeight: '700' }]}>{fmt(total.fondRecu)}</Text>
-                    </View>
-                  </View>
+                          </View>
+                          <Text style={[styles.resultValue, { color: colors.primary }]}>{r.nbJours === 0 ? '—' : fmt(r.fondRecu)}</Text>
+                          {deroulable ? <MaterialCommunityIcons name={ouvert ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textMuted} /> : null}
+                        </TouchableOpacity>
+                        {ouvert && detailFondRecu(points[r.id]).map(j => (
+                          <View key={j.date} style={[styles.resultRow, { paddingLeft: 22 }]}>
+                            <Text style={[styles.resultLabel, { flex: 1, fontWeight: '500' }]}>{formatDateLongue(j.date)}</Text>
+                            <Text style={[styles.resultValue, { color: colors.primary }]}>{fmt(j.montant)}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )
+                  })}
                 </View>
               </>
             )
           )}
 
-          {/* Pilier 7 — Comportement clients (consolidé) */}
+          {/* Pilier Canaux (points validés) */}
           {pilier === 'clients' && !comparaisonActive && (
             caGlobal <= 0 ? (
-              <View style={styles.emptyBox}>
-                <Text style={styles.emptyIcon}>🛵</Text>
-                <Text style={styles.emptyTxt}>Aucune donnée de vente sur cette période</Text>
+              <View style={styles.infoCarte}>
+                {pastille('moped', colors.textMuted, 48)}
+                <Text style={styles.infoTitre}>Aucune donnée de vente sur cette période</Text>
               </View>
             ) : (
               <>
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitre}>Livraison vs sur place — tous restaurants</Text>
-                  <View style={styles.resultCard}>
-                    <View style={styles.resultRow}>
-                      <Text style={styles.resultLabel}>🛵 Livraison (Yango/Glovo)</Text>
-                      <Text style={[styles.resultValue, { color: '#EF9F27' }]}>
-                        {fmt(livraisonGlobalMt)} ({pctLivraisonGlobal.toFixed(0)}%)
-                      </Text>
+                <CarteGraphique icone="moped" couleur="#EF9F27" titre="Livraison et sur place" sous="D'après les points validés">
+                  {() => (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                      <Anneau taille={130} epaisseur={18} centreValeur={`${pctLivraisonGlobal.toFixed(0)} %`} centreLibelle="livraison"
+                        segments={[
+                          { nom: 'Livraison', valeur: livraisonGlobalMt, couleur: '#EF9F27' },
+                          { nom: 'Sur place', valeur: surPlaceGlobalMt, couleur: '#6C63E0' },
+                        ]} />
+                      {legendeDetaillee([
+                        { nom: 'Livraison (Yango, Glovo)', couleur: '#EF9F27', part: Math.round(pctLivraisonGlobal), sous: fmt(livraisonGlobalMt) },
+                        { nom: 'Sur place et autres', couleur: '#6C63E0', part: Math.round(100 - pctLivraisonGlobal), sous: fmt(surPlaceGlobalMt) },
+                      ])}
                     </View>
-                    <View style={[styles.resultRow, { borderBottomWidth: 0 }]}>
-                      <Text style={styles.resultLabel}>🍽️ Sur place / autres canaux</Text>
-                      <Text style={[styles.resultValue, { color: '#185FA5' }]}>
-                        {fmt(surPlaceGlobalMt)} ({(100 - pctLivraisonGlobal).toFixed(0)}%)
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
+                  )}
+                </CarteGraphique>
                 {dataMixCanauxGlobal.length > 0 && (
-                  <GraphiqueBarres
-                    titre={`🥧 Mix des canaux de vente — ${titrePeriode()}`}
-                    data={dataMixCanauxGlobal.map((d, i) => ({ nom: d.x, valeur: d.y, couleur: PIE_COLORS[i] }))}
-                    max={maxMixCanaux}
-                    couleurFn={item => item.couleur}
-                    labelFn={v => fmtK(v)}
-                  />
+                  <CarteGraphique icone="chart-bar" couleur="#0EA5E9" titre="Mix des canaux de vente" sous={titrePeriode()}>
+                    {() => (
+                      <BarresHorizontales format={fmtCourt} donnees={dataMixCanauxGlobal.map((d, i) => ({
+                        cle: d.x, nom: d.x, valeur: d.y, couleur: PIE_COLORS[i % PIE_COLORS.length],
+                        sous: `${total.ventes ? Math.round((d.y / total.ventes) * 100) : 0} % des ventes`,
+                      }))} />
+                    )}
+                  </CarteGraphique>
                 )}
+                <TouchableOpacity style={styles.lienCarte} onPress={() => setPilier('activite')}>
+                  {pastille('clock-time-eight-outline', colors.primary, 34)}
+                  <Text style={styles.lienCarteTxt}>Heures de pointe, paiements et plats : onglet Activité POS</Text>
+                  <MaterialCommunityIcons name="chevron-right" size={20} color={colors.primary} />
+                </TouchableOpacity>
               </>
             )
           )}
 
-          {/* Pilier 9 — Alertes (consolidé) */}
+          {/* Pilier Alertes (consolidé) */}
           {pilier === 'alertes' && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitre}>Alertes — {titrePeriode()}</Text>
+            <>
+              {titreSection('alert-outline', 'Alertes', titrePeriode())}
               {calculerAlertesGlobal().map((a, i) => {
-                const c = ALERTE_COLORS[a.type]
+                const c = ALERTE_COLORS[a.type] || ALERTE_COLORS.info
                 return (
-                  <View key={i} style={[styles.alerteCard, { backgroundColor: c.bg, borderColor: c.border }]}>
-                    <Text style={styles.alerteIcon}>{a.icon}</Text>
+                  <View key={i} style={[styles.alerteCard, { backgroundColor: c.bg }]}>
+                    <MaterialCommunityIcons name={a.icon} size={22} color={c.txt} />
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.alerteTitre, { color: c.txt }]}>{a.titre}</Text>
                       <Text style={styles.alerteMsg}>{a.message}</Text>
@@ -1226,38 +1422,64 @@ export default function DashboardGlobalScreen() {
                   </View>
                 )
               })}
-            </View>
+            </>
           )}
 
-          {/* Pilier Litiges — carte récap */}
+          {/* Pilier Litiges — renvoi vers l'écran dédié */}
           {pilier === 'litiges' && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitre}>Litiges & écarts</Text>
-              <View style={styles.litigesCard}>
-                <Text style={styles.litigesIcon}>⚖️</Text>
-                <Text style={styles.litigesTxt}>
-                  Le rapport complet des litiges (avis clients, Yango, Glovo, points non faits, écarts de caisse),
-                  consolidé pour tous les restaurants avec filtres par période et export PDF, est disponible
-                  dans l&apos;écran dédié.
-                </Text>
-                <TouchableOpacity style={styles.litigesBtn} onPress={() => router.push('/litiges')}>
-                  <Text style={styles.litigesBtnTxt}>Voir le rapport complet ›</Text>
-                </TouchableOpacity>
-              </View>
+            <View style={styles.infoCarte}>
+              {pastille('scale-balance', colors.primary, 52)}
+              <Text style={styles.infoTitre}>Litiges et écarts</Text>
+              <Text style={styles.infoTxt}>
+                Avis clients, Yango, Glovo, points non faits et écarts de caisse, pour tous les restaurants,
+                avec filtres par période et export PDF.
+              </Text>
+              <TouchableOpacity style={styles.boutonPlein} onPress={() => router.push('/litiges')}>
+                <Text style={styles.boutonPleinTxt}>Ouvrir les litiges</Text>
+                <MaterialCommunityIcons name="arrow-right" size={18} color="#FFFFFF" />
+              </TouchableOpacity>
             </View>
           )}
-
-          <View style={{ height: 30 }} />
         </ScrollView>
       )}
+
+      {/* Objectif mensuel d'un restaurant (lu aussi par Rapports → Mensuel) */}
+      <Modal visible={!!objectifEdite} transparent animationType="fade" onRequestClose={() => setObjectifEdite(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitre}>Objectif de {nomMoisCourant}</Text>
+              <TouchableOpacity onPress={() => setObjectifEdite(null)} style={styles.fermerBtn} accessibilityLabel="Fermer">
+                <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[styles.restoSous, { marginBottom: 10 }]}>
+              {objectifEdite?.nom} · chiffre d'affaires visé pour le mois. Vide = pas d'objectif.
+            </Text>
+            <TextInput
+              style={styles.input} value={objectifSaisi} onChangeText={setObjectifSaisi}
+              keyboardType="numeric" placeholder="Ex. 15000000" placeholderTextColor={colors.textPlaceholder}
+              autoFocus editable={!objectifEnCours}
+            />
+            <View style={styles.modalBtns}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setObjectifEdite(null)}>
+                <Text style={styles.modalCancelTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalConfirm, objectifEnCours && { opacity: 0.5 }]} onPress={enregistrerObjectif} disabled={objectifEnCours}>
+                <Text style={styles.modalConfirmTxt}>{objectifEnCours ? 'Enregistrement…' : 'Enregistrer'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={modalCalendrier} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitre}>Choisir une période</Text>
-              <TouchableOpacity onPress={() => setModalCalendrier(false)}>
-                <Text style={styles.modalClose}>✕</Text>
+              <TouchableOpacity onPress={() => setModalCalendrier(false)} style={styles.fermerBtn} accessibilityLabel="Fermer">
+                <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <View style={styles.etapeRow}>
@@ -1271,15 +1493,15 @@ export default function DashboardGlobalScreen() {
             </View>
             <View style={styles.selectedDates}>
               <View style={{ flex: 1, alignItems: 'center' }}>
-                <Text style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>Début</Text>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: dateDebut ? '#1a1a1a' : '#ccc' }}>
+                <Text style={{ fontSize: 10, color: colors.textMuted, marginBottom: 4 }}>Début</Text>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: dateDebut ? colors.text : colors.textPlaceholder }}>
                   {dateDebut ? formatDate(dateDebut) : 'Non sélectionné'}
                 </Text>
               </View>
-              <Text style={{ fontSize: 16, color: '#534AB7', marginHorizontal: 8 }}>→</Text>
+              <MaterialCommunityIcons name="arrow-right" size={18} color={colors.primary} style={{ marginHorizontal: 8 }} />
               <View style={{ flex: 1, alignItems: 'center' }}>
-                <Text style={{ fontSize: 10, color: '#888', marginBottom: 4 }}>Fin</Text>
-                <Text style={{ fontSize: 13, fontWeight: '600', color: dateFin ? '#1a1a1a' : '#ccc' }}>
+                <Text style={{ fontSize: 10, color: colors.textMuted, marginBottom: 4 }}>Fin</Text>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: dateFin ? colors.text : colors.textPlaceholder }}>
                   {dateFin ? formatDate(dateFin) : 'Non sélectionné'}
                 </Text>
               </View>
@@ -1290,13 +1512,14 @@ export default function DashboardGlobalScreen() {
               markingType="period"
               maxDate={new Date().toISOString().split('T')[0]}
               theme={{
-                selectedDayBackgroundColor: '#534AB7',
+                calendarBackground: colors.surface,
+                selectedDayBackgroundColor: colors.primary,
                 selectedDayTextColor: '#fff',
-                todayTextColor: '#534AB7',
-                dayTextColor: '#1a1a1a',
-                textDisabledColor: '#ccc',
-                arrowColor: '#534AB7',
-                monthTextColor: '#1a1a1a',
+                todayTextColor: colors.primary,
+                dayTextColor: colors.text,
+                textDisabledColor: colors.textPlaceholder,
+                arrowColor: colors.primary,
+                monthTextColor: colors.text,
               }}
             />
             <View style={styles.modalBtns}>
@@ -1320,184 +1543,209 @@ export default function DashboardGlobalScreen() {
 
 function JaugeCout({ label, pct, montant, seuil, colors, fmt, accent, dernier }) {
   const ok = pct <= seuil
-  const couleur = accent ? (ok ? '#3B6D11' : '#A32D2D') : (ok ? '#3B6D11' : '#BA7517')
+  const couleur = ok ? colors.success : accent ? colors.error : colors.warning
   const largeur = Math.min(pct, 100)
   return (
-    <View style={[jaugeStyles.row, dernier && { borderBottomWidth: 0 }]}>
+    <View style={[jaugeStyles.row, { borderBottomColor: colors.borderLight }, dernier && { borderBottomWidth: 0 }]}>
       <View style={jaugeStyles.head}>
         <Text style={[jaugeStyles.label, { color: colors.text }]}>{label}</Text>
-        <Text style={[jaugeStyles.value, { color: couleur }]}>
-          {pct.toFixed(1)}% · {fmt(montant)}
+        <Text style={[jaugeStyles.value, { color: ok ? colors.successDark : accent ? colors.error : colors.warningDark }]}>
+          {pct.toFixed(1)} % · {fmt(montant)}
         </Text>
       </View>
-      <View style={[jaugeStyles.barBg, { backgroundColor: colors.bg }]}>
+      <View style={[jaugeStyles.barBg, { backgroundColor: colors.surfaceAlt }]}>
         <View style={[jaugeStyles.barFill, { width: `${largeur}%`, backgroundColor: couleur }]} />
+        <View style={[jaugeStyles.seuilTrait, { left: `${Math.min(seuil, 100)}%`, backgroundColor: colors.textMuted }]} />
       </View>
-      <Text style={[jaugeStyles.seuil, { color: colors.textMuted }]}>Seuil indicatif : {seuil}%</Text>
+      <Text style={[jaugeStyles.seuil, { color: colors.textMuted }]}>Seuil indicatif : {seuil} %</Text>
     </View>
   )
 }
 
 const jaugeStyles = StyleSheet.create({
-  row: { paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#88888830' },
-  head: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  label: { fontSize: 13, fontWeight: '600' },
-  value: { fontSize: 12, fontWeight: '600' },
-  barBg: { height: 8, borderRadius: 4, overflow: 'hidden' },
-  barFill: { height: 8, borderRadius: 4 },
-  seuil: { fontSize: 10, marginTop: 4 },
+  row: { paddingVertical: 12, borderBottomWidth: 1 },
+  head: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, gap: 8 },
+  label: { fontSize: 14, fontWeight: '700' },
+  value: { fontSize: 13, fontWeight: '800' },
+  barBg: { height: 10, borderRadius: 5, overflow: 'hidden' },
+  barFill: { height: 10, borderRadius: 5 },
+  seuilTrait: { position: 'absolute', top: 0, bottom: 0, width: 2 },
+  seuil: { fontSize: 11, marginTop: 5 },
 })
 
 function makeStyles(colors) { return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: { backgroundColor: colors.headerBg, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  back: { fontSize: 16, color: colors.primaryText, fontWeight: '500' },
-  headerTitre: { fontSize: 16, fontWeight: '600', color: colors.surface, textAlign: 'center' },
-  headerSub: { fontSize: 11, color: colors.primaryText, textAlign: 'center' },
-  periodeBar: { backgroundColor: colors.surface, maxHeight: 46, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
-  periodeBtn: { paddingHorizontal: 16, paddingVertical: 12 },
-  periodeBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
-  periodeTxt: { fontSize: 13, color: colors.textMuted },
-  periodeTxtActive: { color: colors.primary, fontWeight: '600' },
-  periodeBanner: { backgroundColor: colors.primaryLight, padding: 10, paddingHorizontal: 16, borderBottomWidth: 0.5, borderBottomColor: colors.primaryText },
-  periodeBannerTxt: { fontSize: 13, color: colors.primaryDark, fontWeight: '500' },
-  loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
-  loadingTxt: { fontSize: 13, color: colors.textMuted, marginTop: 12 },
-  body: { flex: 1, padding: 14 },
-  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
-  kpiCard: { width: (width - 44) / 2, backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderWidth: 0.5, borderColor: colors.borderLight },
-  kpiLabel: { fontSize: 11, color: colors.textMuted, marginBottom: 6 },
-  kpiValue: { fontSize: 14, fontWeight: '600' },
-  graphCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 0.5, borderColor: colors.borderLight },
-  graphTitre: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 12 },
-  graphNote: { fontSize: 10, color: '#aaa', textAlign: 'center', marginTop: 4 },
-  barRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  barLabel: { fontSize: 11, color: colors.textSecondary, width: 60 },
-  barTrack: { flex: 1, height: 14, backgroundColor: colors.bg, borderRadius: 7, overflow: 'hidden', marginHorizontal: 8, position: 'relative' },
-  barFill: { height: '100%', borderRadius: 7 },
-  barMark: { position: 'absolute', top: 0, bottom: 0, width: 1.5, backgroundColor: '#ccc' },
-  barValeur: { fontSize: 11, fontWeight: '600', color: colors.text, width: 40, textAlign: 'right' },
-  legende: { flexDirection: 'row', gap: 16, justifyContent: 'center', marginTop: 8 },
-  legendeItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendeColor: { width: 12, height: 12, borderRadius: 3 },
-  legendeTxt: { fontSize: 11, color: colors.textMuted },
-  familleGraphRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 14 },
-  famillePuce: { width: 12, height: 12, borderRadius: 6, marginTop: 3 },
-  familleGraphNom: { fontSize: 12, fontWeight: '600', color: colors.text, marginBottom: 4 },
-  familleGraphSub: { fontSize: 10, color: colors.textMuted, marginTop: 4 },
-  section: { marginBottom: 14 },
-  sectionTitre: { fontSize: 13, fontWeight: '600', color: colors.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
-  classementCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: colors.borderLight },
-  classementRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: colors.bg },
-  classementLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  rangBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
-  rangOr: { backgroundColor: '#FFF3CC' },
-  rangArgent: { backgroundColor: colors.borderLight },
-  rangBronze: { backgroundColor: '#FAE8DC' },
-  rangTxt: { fontSize: 14 },
-  classementInfo: { flex: 1 },
-  classementNom: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 3 },
-  classementBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  familleBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 },
-  familleTxt: { fontSize: 9, fontWeight: '500' },
-  classementJours: { fontSize: 10, color: '#bbb' },
-  classementRight: { alignItems: 'flex-end' },
-  classementBenefice: { fontSize: 14, fontWeight: '600' },
-  classementVentes: { fontSize: 10, color: colors.textMuted, marginTop: 2 },
-  classementRenta: { fontSize: 10, marginTop: 1 },
-  familleCompare: { flexDirection: 'row', gap: 10 },
-  familleBox: { flex: 1, backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 1.5, alignItems: 'center' },
-  familleTitre: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 8 },
-  familleValeur: { fontSize: 15, fontWeight: '600', color: '#BA7517' },
-  familleSub: { fontSize: 10, color: colors.textMuted, marginBottom: 6 },
-  familleVenteVal: { fontSize: 13, fontWeight: '500', color: colors.text },
-  recapCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: colors.borderLight },
-  recapRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: colors.bg },
-  recapLabel: { fontSize: 13, color: colors.textMuted },
-  recapValue: { fontSize: 13, fontWeight: '500', color: colors.text },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modal: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 40 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitre: { fontSize: 18, fontWeight: '600', color: colors.text },
-  modalClose: { fontSize: 18, color: colors.textMuted },
-  etapeRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  etapeBadge: { flex: 1, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, backgroundColor: colors.bg, alignItems: 'center' },
-  etapeBadgeActive: { backgroundColor: colors.primary },
-  etapeTxt: { fontSize: 12, color: colors.textMuted, fontWeight: '500' },
-  etapeTxtActive: { color: colors.surface },
-  etapeLine: { width: 20, height: 1, backgroundColor: colors.borderLight, marginHorizontal: 4 },
-  selectedDates: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.bg, borderRadius: 12, padding: 12, marginBottom: 14 },
-  modalBtns: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  modalCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.bg, alignItems: 'center' },
-  modalCancelTxt: { fontSize: 14, color: colors.textMuted },
-  modalConfirm: { flex: 2, padding: 14, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center' },
-  modalConfirmTxt: { fontSize: 14, fontWeight: '600', color: colors.surface },
-
-  pillsBar: { backgroundColor: colors.bg, maxHeight: 44 },
-  pill: {
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, marginRight: 8, marginVertical: 6,
-    backgroundColor: colors.surface, borderWidth: 0.5, borderColor: colors.borderLight
+  header: {
+    backgroundColor: colors.headerBg, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 14, gap: 12,
+    borderBottomLeftRadius: 22, borderBottomRightRadius: 22, zIndex: 2,
+    shadowColor: colors.headerBg, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 14, elevation: 6,
   },
-  pillActive: { backgroundColor: '#534AB7', borderColor: '#534AB7' },
-  pillTxt: { fontSize: 12, fontWeight: '500', color: colors.textMuted },
-  pillTxtActive: { color: '#fff', fontWeight: '700' },
-
-  restoFiltreBar: { backgroundColor: colors.bg, maxHeight: 40, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
-  restoFiltreBtn: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 5,
-    borderRadius: 14, marginRight: 6, marginVertical: 5,
+  headerLigne: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  enteteBtn: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.16)' },
+  headerCentre: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  headerIcone: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.18)' },
+  headerTitre: { fontSize: 18, fontWeight: '800', color: colors.headerText, letterSpacing: -0.3 },
+  headerSub: { fontSize: 12, color: colors.primaryText, fontWeight: '600', marginTop: 1 },
+  periodes: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, padding: 4, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.14)' },
+  periodeBtn: { flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 9, borderRadius: 11 },
+  periodeBtnActive: { backgroundColor: '#FFFFFF' },
+  periodeTxt: { fontSize: 12.5, color: '#FFFFFF', fontWeight: '700' },
+  periodeTxtActive: { color: colors.headerBg, fontWeight: '800' },
+  pillsBar: { maxHeight: 60, marginTop: 12 },
+  pill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999,
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderLight,
   },
-  restoFiltreBtnActive: { backgroundColor: colors.bg, borderWidth: 1.5 },
-  restoDot: { width: 7, height: 7, borderRadius: 4, marginRight: 5 },
-  restoFiltreTxt: { fontSize: 11, fontWeight: '500', color: colors.textMuted },
-  restoFiltreTxtActive: { fontWeight: '700', color: colors.text },
-
-  syntheseCard: {
-    backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 14,
-    borderLeftWidth: 4, borderLeftColor: '#534AB7',
-    borderTopWidth: 0.5, borderRightWidth: 0.5, borderBottomWidth: 0.5, borderColor: colors.borderLight,
+  pillActive: {
+    backgroundColor: colors.primary, borderColor: colors.primary,
+    shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 3,
   },
-  synthesePhrase: { fontSize: 14, fontWeight: '600', color: colors.text, lineHeight: 20, marginBottom: 8 },
-  syntheseLigne: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 3 },
-  syntheseLibelle: { fontSize: 12, color: colors.textSecondary, flex: 1, marginRight: 8 },
-  syntheseEcart: { fontSize: 12, fontWeight: '700', color: colors.textMuted },
-  comparNote: {
-    backgroundColor: colors.primaryLight, borderRadius: 12, padding: 12, marginBottom: 14,
+  pillTxt: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
+  pillTxtActive: { color: '#FFFFFF', fontWeight: '800' },
+  restoFiltreBar: { maxHeight: 48, marginTop: 8 },
+  restoFiltreBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, minHeight: 34,
+    borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderLight,
   },
-  comparNoteTxt: { fontSize: 12, color: colors.primaryDark, lineHeight: 18 },
-  classementRangCompare: { fontSize: 12, fontWeight: '600', color: colors.text },
+  restoFiltreBtnActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary, borderWidth: 1.5 },
+  restoDot: { width: 8, height: 8, borderRadius: 4 },
+  restoFiltreTxt: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
+  restoFiltreTxtActive: { fontWeight: '800', color: colors.text },
+  loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
+  loadingTxt: { fontSize: 13, color: colors.textMuted, marginTop: 12 },
+  body: { flex: 1, paddingHorizontal: 14, paddingTop: 12 },
 
-  emptyBox: { alignItems: 'center', paddingVertical: 60 },
-  emptyIcon: { fontSize: 40, marginBottom: 12 },
-  emptyTxt: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
-
-  resultCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, borderWidth: 0.5, borderColor: colors.borderLight },
-  resultRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 7, borderBottomWidth: 0.5, borderBottomColor: colors.bg
+  hero: {
+    backgroundColor: colors.headerBg, borderRadius: 24, padding: 18, marginBottom: 14, overflow: 'hidden',
+    shadowColor: colors.headerBg, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 18, elevation: 6,
   },
-  resultLabel: { fontSize: 13, color: colors.textMuted },
-  resultValue: { fontSize: 13, fontWeight: '500', color: colors.text },
+  heroRond: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)' },
+  heroIcone: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.18)' },
+  heroLbl: { flex: 1, fontSize: 12, fontWeight: '800', color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase', letterSpacing: 1 },
+  heroValeur: { fontSize: 32, fontWeight: '800', color: '#FFFFFF', letterSpacing: -1, fontVariant: ['tabular-nums'] },
+  heroSous: { fontSize: 12.5, color: 'rgba(255,255,255,0.8)', marginTop: 2, fontWeight: '600' },
+  heroCases: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  heroCase: { flex: 1, backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 9 },
+  heroCaseLbl: { flex: 1, fontSize: 11, color: 'rgba(255,255,255,0.8)', fontWeight: '700' },
+  heroCaseVal: { fontSize: 15, color: '#FFFFFF', fontWeight: '800', marginTop: 3, fontVariant: ['tabular-nums'] },
+  variation: { flexDirection: 'row', alignItems: 'center', gap: 2, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 },
+  variationTxt: { fontSize: 11.5, fontWeight: '800' },
+  noteVariation: { fontSize: 12, color: colors.textSecondary, marginTop: -4, marginBottom: 14, marginHorizontal: 4 },
 
+  tuiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
+  tuile: {
+    flexBasis: '47%', flexGrow: 1, backgroundColor: colors.surface, borderRadius: 18, padding: 14,
+    borderWidth: 1, borderColor: colors.borderLight,
+  },
+  tuileLabel: { fontSize: 11, fontWeight: '800', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 10 },
+  tuileValeur: { fontSize: 20, fontWeight: '800', color: colors.text, marginTop: 2, letterSpacing: -0.4, fontVariant: ['tabular-nums'] },
+  tuileSous: { fontSize: 11.5, color: colors.textMuted, marginTop: 2 },
+
+  titreSection: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6, marginBottom: 10 },
+  titreSectionTxt: { flex: 1, fontSize: 16, fontWeight: '800', color: colors.text, letterSpacing: -0.2 },
+  titreSectionDroite: { fontSize: 12.5, fontWeight: '700', color: colors.textMuted },
+
+  restoCarte: {
+    backgroundColor: colors.surface, borderRadius: 18, padding: 14, marginBottom: 10,
+    borderWidth: 1, borderColor: colors.borderLight, borderLeftWidth: 5,
+  },
+  rang: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceAlt },
+  rangTxt: { fontSize: 13, fontWeight: '800', color: colors.textSecondary },
+  restoNom: { fontSize: 15.5, fontWeight: '800', color: colors.text },
+  restoSous: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
+  rentaPilule: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
+  rentaTxt: { fontSize: 12, fontWeight: '800' },
+  restoChiffres: { flexDirection: 'row', marginTop: 12, backgroundColor: colors.surfaceAlt, borderRadius: 12, paddingVertical: 9 },
+  restoChiffre: { flex: 1, alignItems: 'center' },
+  restoChiffreLbl: { fontSize: 10.5, color: colors.textMuted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
+  restoChiffreVal: { fontSize: 14, fontWeight: '800', color: colors.text, marginTop: 2, fontVariant: ['tabular-nums'] },
+  objectif: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.borderLight },
+  objectifTxt: { flex: 1, fontSize: 12.5, fontWeight: '700', color: colors.textSecondary },
+  objectifPiste: { height: 8, borderRadius: 4, backgroundColor: colors.surfaceAlt, overflow: 'hidden' },
+  objectifRempli: { height: 8, borderRadius: 4 },
+
+  faitsCarte: { backgroundColor: colors.surface, borderRadius: 20, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: colors.borderLight, gap: 10 },
+  fait: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  faitTxt: { flex: 1, fontSize: 13.5, color: colors.text, fontWeight: '600', lineHeight: 19 },
+  noteSource: { fontSize: 11.5, color: colors.textMuted, textAlign: 'center', marginBottom: 10 },
+
+  infoCarte: {
+    backgroundColor: colors.surface, borderRadius: 20, padding: 22, marginBottom: 14, alignItems: 'center', gap: 10,
+    borderWidth: 1, borderColor: colors.borderLight,
+  },
+  infoTitre: { fontSize: 16, fontWeight: '800', color: colors.text, textAlign: 'center' },
+  infoTxt: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', lineHeight: 19 },
+  boutonPlein: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.primary, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 22, marginTop: 4 },
+  boutonPleinTxt: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
+  lienCarte: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.primaryLight,
+    borderRadius: 16, padding: 12, marginBottom: 14,
+  },
+  lienCarteTxt: { flex: 1, fontSize: 13, fontWeight: '700', color: colors.primary },
+
+  carte: { backgroundColor: colors.surface, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 4, marginBottom: 14, borderWidth: 1, borderColor: colors.borderLight },
+  resultRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  resultLabel: { fontSize: 13.5, fontWeight: '700', color: colors.text },
+  resultValue: { fontSize: 13.5, fontWeight: '800', color: colors.text, fontVariant: ['tabular-nums'] },
   chargesEmptyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12 },
   chargesEmptyTxt: { fontSize: 12, color: colors.textMuted, flex: 1, marginRight: 8 },
-  chargesEmptyLink: { fontSize: 12, fontWeight: '600', color: '#534AB7' },
+  chargesEmptyLink: { fontSize: 12, fontWeight: '800', color: colors.primary },
 
-  alerteCard: {
-    flexDirection: 'row', gap: 12, alignItems: 'flex-start',
-    borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 10
-  },
-  alerteIcon: { fontSize: 20 },
-  alerteTitre: { fontSize: 13, fontWeight: '700', marginBottom: 3 },
-  alerteMsg: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
+  alerteCard: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', borderRadius: 16, padding: 14, marginBottom: 10 },
+  alerteTitre: { fontSize: 14, fontWeight: '800', marginBottom: 3 },
+  alerteMsg: { fontSize: 12.5, color: colors.textSecondary, lineHeight: 18 },
 
-  litigesCard: {
-    backgroundColor: colors.surface, borderRadius: 14, padding: 18,
-    borderWidth: 0.5, borderColor: colors.borderLight, alignItems: 'center'
+  emptyBox: { alignItems: 'center', paddingVertical: 60, gap: 12 },
+  emptyTxt: { fontSize: 14, color: colors.textMuted, fontWeight: '600', textAlign: 'center' },
+
+  // ── Comparaison A / B ──
+  section: { marginBottom: 14 },
+  sectionTitre: { fontSize: 12, fontWeight: '800', color: colors.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.8 },
+  classementCard: { backgroundColor: colors.surface, borderRadius: 18, padding: 14, borderWidth: 1, borderColor: colors.borderLight },
+  classementRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  classementLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  rangBadge: { width: 30, height: 30, borderRadius: 10, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
+  rangOr: { backgroundColor: '#F59E0B' },
+  classementInfo: { flex: 1 },
+  classementNom: { fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 2 },
+  classementJours: { fontSize: 11, color: colors.textMuted },
+  classementRight: { alignItems: 'flex-end' },
+  classementBenefice: { fontSize: 14, fontWeight: '800' },
+  classementVentes: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+  classementRenta: { fontSize: 11, marginTop: 1, color: colors.textSecondary },
+  classementRangCompare: { fontSize: 12, fontWeight: '700', color: colors.text },
+  syntheseCard: {
+    backgroundColor: colors.surface, borderRadius: 18, padding: 14, marginBottom: 14,
+    borderWidth: 1, borderColor: colors.borderLight, borderLeftWidth: 5, borderLeftColor: colors.primary,
   },
-  litigesIcon: { fontSize: 32, marginBottom: 10 },
-  litigesTxt: { fontSize: 13, color: colors.textMuted, textAlign: 'center', lineHeight: 20, marginBottom: 14 },
-  litigesBtn: { backgroundColor: '#534AB7', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 24 },
-  litigesBtnTxt: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  synthesePhrase: { fontSize: 14, fontWeight: '700', color: colors.text, lineHeight: 20, marginBottom: 8 },
+  syntheseLigne: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 3 },
+  syntheseLibelle: { fontSize: 12.5, color: colors.textSecondary, flex: 1, marginRight: 8 },
+  syntheseEcart: { fontSize: 12.5, fontWeight: '800', color: colors.textMuted },
+  comparNote: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', backgroundColor: colors.primaryLight, borderRadius: 14, padding: 12, marginBottom: 14 },
+  comparNoteTxt: { flex: 1, fontSize: 12.5, color: colors.primary, lineHeight: 18, fontWeight: '600' },
+
+  // ── Fenêtres ──
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modal: { backgroundColor: colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, paddingBottom: 40 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  modalTitre: { fontSize: 19, fontWeight: '800', color: colors.text, letterSpacing: -0.3 },
+  fermerBtn: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceAlt },
+  input: {
+    backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.inputBorder, borderRadius: 14,
+    padding: 14, fontSize: 18, fontWeight: '700', color: colors.text, textAlign: 'center',
+  },
+  etapeRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  etapeBadge: { flex: 1, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 999, backgroundColor: colors.surfaceAlt, alignItems: 'center' },
+  etapeBadgeActive: { backgroundColor: colors.primary },
+  etapeTxt: { fontSize: 12.5, color: colors.textMuted, fontWeight: '700' },
+  etapeTxtActive: { color: '#FFFFFF' },
+  etapeLine: { width: 20, height: 1, backgroundColor: colors.borderLight, marginHorizontal: 4 },
+  selectedDates: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceAlt, borderRadius: 14, padding: 12, marginBottom: 14 },
+  modalBtns: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  modalCancel: { flex: 1, padding: 14, borderRadius: 14, backgroundColor: colors.surfaceAlt, alignItems: 'center' },
+  modalCancelTxt: { fontSize: 14, color: colors.textSecondary, fontWeight: '700' },
+  modalConfirm: { flex: 2, padding: 14, borderRadius: 14, backgroundColor: colors.primary, alignItems: 'center' },
+  modalConfirmTxt: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
 }) }

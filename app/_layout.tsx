@@ -225,7 +225,6 @@ export default function RootLayout() {
         <Stack.Screen name="dashboard" />
         <Stack.Screen name="dashboard-global" />
         <Stack.Screen name="parametres" />
-        <Stack.Screen name="restaurants" />
         <Stack.Screen name="equipe" />
         <Stack.Screen name="modifier-point" />
         <Stack.Screen name="modifier-inventaire" />
