@@ -100,6 +100,8 @@ export function FeuilleReglageLoyers({ visible, donnees, user, onFermer, apres }
       setRestaurantId(null)
     } catch (e) {
       Alert.alert('Non enregistré', e?.message || 'Réessayez.')
+      // Une partie a pu être enregistrée : repartir de l'état réel.
+      apres().catch(() => {})
     } finally {
       setOccupe(false)
     }
@@ -189,6 +191,8 @@ export function FeuilleEcheance({ categorie, donnees, user, onFermer, apres }) {
       onFermer()
     } catch (e) {
       Alert.alert('Non enregistré', e?.message || 'Réessayez.')
+      // Une partie a pu être enregistrée : repartir de l'état réel.
+      apres().catch(() => {})
     } finally {
       setOccupe(false)
     }
@@ -253,6 +257,8 @@ export function FeuilleMontantsFixes({ categorie, donnees, user, onFermer, apres
       onFermer()
     } catch (e) {
       Alert.alert('Non enregistré', e?.message || 'Réessayez.')
+      // Une partie a pu être enregistrée : repartir de l'état réel.
+      apres().catch(() => {})
     } finally {
       setOccupe(false)
     }
