@@ -315,11 +315,14 @@ export function Barres({
   )
 }
 
-/** Barres horizontales classées. donnees = [{ cle, nom, valeur, couleur, sous?, droite? }] */
-export function BarresHorizontales({ donnees, format = fmtCourt, rangs = false }) {
+/**
+ * Barres horizontales classées. donnees = [{ cle, nom, valeur, couleur, sous?, droite? }]
+ * echelle : valeur d'une barre pleine (ex. 100 pour des pourcentages) ; par défaut la plus grande valeur.
+ */
+export function BarresHorizontales({ donnees, format = fmtCourt, rangs = false, echelle }) {
   const { colors } = useTheme()
   const [actif, setActif] = useState(null)
-  const max = Math.max(1, ...donnees.map(d => Math.abs(d.valeur)))
+  const max = echelle || Math.max(1, ...donnees.map(d => Math.abs(d.valeur)))
   return (
     <View style={{ gap: 6 }}>
       {donnees.map((d, i) => {

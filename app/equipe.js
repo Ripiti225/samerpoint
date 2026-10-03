@@ -1,540 +1,320 @@
-import { router } from 'expo-router'
-import { useEffect, useMemo, useState } from 'react'
+// ──────────────────────────────────────────────────────────────────────────────
+// Équipe globale — fusion de l'ancienne « Équipe globale » et de l'écran
+// « Ressources Humaines » (design RH modernisé).
+// Tous les restaurants ou un seul, période, recherche ; onglets Dashboard,
+// Travailleurs, Présences, Salaires, Archivés ; fiche complète du travailleur.
+// Logique pure : lib/equipe.js — Base : lib/equipeDb.js — Morceaux : components/equipe/
+// ──────────────────────────────────────────────────────────────────────────────
+import { router, useLocalSearchParams } from 'expo-router'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
+import * as XLSX from 'xlsx'
+import FicheTravailleur from '../components/equipe/FicheTravailleur'
+import { ModalArchive, ModalCalendrier, ModalFormTravailleur, ModalTransfert } from '../components/equipe/Modales'
+import OngletArchives from '../components/equipe/OngletArchives'
+import OngletDashboard from '../components/equipe/OngletDashboard'
+import OngletPresences from '../components/equipe/OngletPresences'
+import OngletSalaires from '../components/equipe/OngletSalaires'
+import OngletTravailleurs from '../components/equipe/OngletTravailleurs'
+import { makeStyles } from '../components/equipe/styles'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Linking,
-    Modal,
-    Platform,
-    SafeAreaView, ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
-} from 'react-native'
-import { supabase } from '../lib/supabase'
-import * as Print from 'expo-print'
-import * as Sharing from 'expo-sharing'
-
-const STATUT_COLORS = {
-  'Présent': { bg: '#EAF3DE', text: '#3B6D11' },
-  'Absent': { bg: '#FAECE7', text: '#993C1D' },
-  'Repos': { bg: '#E6F1FB', text: '#185FA5' },
-  'Congé': { bg: '#EEEDFE', text: '#3C3489' },
-  'Malade': { bg: '#FAEEDA', text: '#854F0B' },
-  'Permission': { bg: '#F1EFE8', text: '#444441' },
-}
-
-const TYPE_DOC_ICONS = {
-  'CNI': '🪪',
-  'Passeport': '📕',
-  'Permis de conduire': '🚗',
-  'Contrat': '📄',
-  'Autre': '📎',
-}
+  BLEU, ONGLETS, PERIODES, correspondRecherche, feuillesExcel, lignesPaiesGerant, plageDates, statsGlobales,
+  statsParTravailleur, tauxParRestaurant, titrePeriode,
+} from '../lib/equipe'
+import * as db from '../lib/equipeDb'
+import { enregistrer } from '../lib/exportRapportMensuel'
 
 export default function EquipeScreen() {
   const { colors } = useTheme()
-  const { roleActif } = useApp()
   const styles = useMemo(() => makeStyles(colors), [colors])
-  const [travailleurs, setTravailleurs] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [recherche, setRecherche] = useState('')
-  const [filtreResto, setFiltreResto] = useState('tous')
+  const { roleActif, isManager } = useApp() ?? {}
+  const params = useLocalSearchParams()
+
+  // Lecture seule pour les rôles à qui la tuile a été donnée dans Paramètres.
+  const peutEditer = isManager || ['manager', 'directeur', 'rh'].includes(roleActif)
+  const peutSupprimer = isManager || roleActif === 'directeur'
+
   const [restaurants, setRestaurants] = useState([])
+  const [restoId, setRestoId] = useState(typeof params.restaurant_id === 'string' ? params.restaurant_id : null) // null = Tous
+  const [onglet, setOnglet] = useState('Dashboard')
+  const [periodeKey, setPeriodeKey] = useState('month')
+  const [perso, setPerso] = useState({})
+  const [recherche, setRecherche] = useState('')
 
-  // Modal profil
-  const [profilVisible, setProfilVisible] = useState(false)
-  const [travProfil, setTravProfil] = useState(null)
-  const [docsProfil, setDocsProfil] = useState([])
-  const [loadingDocs, setLoadingDocs] = useState(false)
-  const [zoomVisible, setZoomVisible] = useState(false)
-  const [saving, setSaving] = useState(false)
+  const [travailleurs, setTravailleurs] = useState([])
+  const [presences, setPresences] = useState([])
+  const [paiesGerant, setPaiesGerant] = useState([])
+  const [archives, setArchives] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [loadingArchives, setLoadingArchives] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
-  const peutEditer = roleActif === 'directeur' || roleActif === 'rh' || roleActif === 'manager'
+  const [fiche, setFiche] = useState(null)
+  const [form, setForm] = useState({ visible: false, edition: null })
+  const [aArchiver, setAArchiver] = useState(null)
+  const [aTransferer, setATransferer] = useState(null)
+  const [calendrier, setCalendrier] = useState(false)
 
-  useEffect(() => {
-    chargerEquipe()
-  }, [])
+  const tous = restoId === null
+  const resto = restaurants.find(r => r.id === restoId) || null
+  const restoParId = useMemo(() => Object.fromEntries(restaurants.map(r => [r.id, r])), [restaurants])
+  const nomResto = useCallback(id => restoParId[id]?.nom || '', [restoParId])
+  const plage = useMemo(() => plageDates(periodeKey, perso), [periodeKey, perso])
+  const titre = titrePeriode(periodeKey, perso)
 
-  async function chargerEquipe() {
+  useEffect(() => { db.chargerRestaurants().then(setRestaurants).catch(() => {}) }, [])
+
+  const charger = useCallback(async () => {
+    if (!plage) return
     setLoading(true)
-    const { data: restos } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation').order('nom')
-    setRestaurants(restos || [])
-
-    const { data } = await supabase
-      .from('travailleurs')
-      .select('*, restaurants(nom, couleur)')
-      .order('nom')
-    setTravailleurs(data || [])
-    setLoading(false)
-  }
-
-  async function ouvrirProfil(t) {
-    setTravProfil(t)
-    setDocsProfil([])
-    setProfilVisible(true)
-    setLoadingDocs(true)
-    const { data } = await supabase
-      .from('documents_travailleurs')
-      .select('*')
-      .eq('travailleur_id', t.id)
-      .order('created_at', { ascending: false })
-    setDocsProfil(data || [])
-    setLoadingDocs(false)
-  }
-
-  async function exporterPDF(trav) {
-    if (!trav || saving) return
-    setSaving(true)
     try {
-      const nom = trav.nom || ''
-      const poste = trav.poste || ''
-      const restaurant = trav.restaurants?.nom || ''
-      const tel = trav.contact || '—'
-      const salaire = trav.salaire_journalier
-        ? `${Number(trav.salaire_journalier).toLocaleString('fr-FR')} F / jour`
-        : '—'
-      const statut = trav.statut === 'archive' ? 'Archivé' : trav.actif ? 'Actif' : 'Inactif'
-      const contrat = trav.type_contrat || '—'
-      const initiales = nom.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-      const photoHtml = trav.photo_url
-        ? `<img src="${trav.photo_url}" style="width:100px;height:100px;border-radius:50%;border:4px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,0.2);object-fit:cover;" />`
-        : `<div style="width:100px;height:100px;border-radius:50%;background:#EF9F27;display:flex;align-items:center;justify-content:center;margin:auto;font-size:32px;font-weight:700;color:#fff;">${initiales}</div>`
-
-      const html = `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;padding:30px;background:#f0f2f5;margin:0;">
-        <div style="background:white;border-radius:20px;padding:30px;max-width:400px;margin:auto;box-shadow:0 4px 20px rgba(0,0,0,0.1);">
-          <h2 style="text-align:center;color:#185FA5;margin:0 0 5px;letter-spacing:1.5px;text-transform:uppercase;font-size:13px;">${restaurant}</h2>
-          <hr style="border:none;border-top:1px solid #eee;margin:12px 0;" />
-          <div style="text-align:center;margin:20px 0;">${photoHtml}
-            <h1 style="margin:12px 0 4px;font-size:22px;color:#1a1a1a;">${nom}</h1>
-            <p style="color:#888;margin:0;font-size:14px;">${poste}</p>
-          </div>
-          <hr style="border:none;border-top:1px solid #eee;margin:12px 0;" />
-          <table style="width:100%;font-size:14px;line-height:2.2;border-collapse:collapse;">
-            <tr><td style="color:#888;">📍 Restaurant</td><td style="text-align:right;font-weight:600;color:#1a1a1a;">${restaurant}</td></tr>
-            <tr><td style="color:#888;">📞 Téléphone</td><td style="text-align:right;font-weight:600;color:#1a1a1a;">${tel}</td></tr>
-            <tr><td style="color:#888;">💰 Salaire</td><td style="text-align:right;font-weight:600;color:#1a1a1a;">${salaire}</td></tr>
-            <tr><td style="color:#888;">📋 Contrat</td><td style="text-align:right;font-weight:600;color:#1a1a1a;">${contrat}</td></tr>
-            <tr><td style="color:#888;">🟢 Statut</td><td style="text-align:right;font-weight:600;color:#1a1a1a;">${statut}</td></tr>
-          </table>
-          <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
-          <p style="text-align:center;color:#bbb;font-size:11px;margin:0;">SAMER — Gestion Restauration</p>
-        </div>
-      </body></html>`
-
-      if (Platform.OS === 'web') {
-        await Print.printAsync({ html })
-      } else {
-        const { uri } = await Print.printToFileAsync({ html })
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: `Carte — ${nom}`,
-        })
-      }
+      const [t, p, g] = await Promise.all([
+        db.chargerTravailleurs(restoId),
+        db.chargerPresences(plage, restoId),
+        db.chargerPaiesGerant(plage, restoId),
+      ])
+      setTravailleurs(t); setPresences(p); setPaiesGerant(g)
     } catch {
-      Alert.alert('Erreur', 'Impossible de générer le PDF')
-    } finally {
-      setSaving(false)
+      Alert.alert('Erreur', 'Impossible de charger les données. Vérifiez la connexion.')
     }
+    setLoading(false)
+  }, [restoId, plage])
+
+  const chargerArchives = useCallback(async () => {
+    setLoadingArchives(true)
+    setArchives(await db.chargerArchives(restoId).catch(() => []))
+    setLoadingArchives(false)
+  }, [restoId])
+
+  useEffect(() => { charger() }, [charger])
+  useEffect(() => { if (onglet === 'Archivés') chargerArchives() }, [onglet, chargerArchives])
+
+  // ── Recherche (nom, poste) appliquée à tous les onglets ──
+  const travFiltres = useMemo(
+    () => travailleurs.filter(t => correspondRecherche(recherche, t.nom, t.poste)),
+    [travailleurs, recherche],
+  )
+  const presFiltrees = useMemo(
+    () => (recherche ? presences.filter(p => correspondRecherche(recherche, p.travailleur_nom)) : presences),
+    [presences, recherche],
+  )
+  const paiesFiltrees = useMemo(
+    () => (recherche ? paiesGerant.filter(d => correspondRecherche(recherche, d.libelle)) : paiesGerant),
+    [paiesGerant, recherche],
+  )
+  const archivesFiltrees = useMemo(
+    () => archives.filter(t => correspondRecherche(recherche, t.nom, t.poste)),
+    [archives, recherche],
+  )
+
+  const travParId = useMemo(() => Object.fromEntries(travailleurs.map(t => [t.id, t])), [travailleurs])
+  const stats = useMemo(
+    () => statsParTravailleur(travFiltres, presFiltrees).map(s => ({ ...s, photo_url: travParId[s.id]?.photo_url })),
+    [travFiltres, presFiltrees, travParId],
+  )
+  const statsParId = useMemo(() => Object.fromEntries(stats.map(s => [s.id, s])), [stats])
+  const globales = useMemo(() => statsGlobales(travFiltres, presFiltrees, paiesFiltrees), [travFiltres, presFiltrees, paiesFiltrees])
+  const tauxRestos = useMemo(() => (tous ? tauxParRestaurant(restaurants, presFiltrees) : []), [tous, restaurants, presFiltrees])
+  const lignesGerant = useMemo(() => lignesPaiesGerant(paiesFiltrees, nomResto), [paiesFiltrees, nomResto])
+
+  // ── Actions ──
+  // Depuis une ligne de stats : le travailleur peut être parti (archivé ou
+  // transféré hors du restaurant affiché) ; on ouvre alors une fiche minimale.
+  function ouvrirFiche(id, repli) {
+    setFiche(travParId[id] || { id, nom: repli?.nom, poste: repli?.poste, restaurant_id: repli?.restaurant_id, actif: false })
   }
 
-  const travailleursFiltres = travailleurs.filter(t => {
-    const matchRecherche = t.nom.toLowerCase().includes(recherche.toLowerCase()) ||
-      (t.poste || '').toLowerCase().includes(recherche.toLowerCase())
-    const matchResto = filtreResto === 'tous' || t.restaurant_id === filtreResto
-    return matchRecherche && matchResto
-  })
+  async function archiver(trav, motif) {
+    await db.archiverTravailleur(trav, motif)
+    setAArchiver(null); setFiche(null)
+    charger()
+    Alert.alert('Archivé', `${trav.nom} a été archivé.`)
+  }
 
-  const actifs = travailleursFiltres.filter(t => t.actif)
-  const inactifs = travailleursFiltres.filter(t => !t.actif)
+  async function transferer(trav, cible) {
+    await db.transfererTravailleur(trav, cible)
+    setATransferer(null); setFiche(null)
+    charger()
+    Alert.alert('Transféré', `${trav.nom} a été transféré vers ${cible.nom}.`)
+  }
 
-  function renderCard(t, inactif = false) {
-    return (
-      <TouchableOpacity
-        key={t.id}
-        style={[styles.travCard, inactif && { opacity: 0.5 }]}
-        onPress={() => ouvrirProfil(t)}
-        activeOpacity={0.75}
-      >
-        <View style={styles.travLeft}>
-          {t.photo_url ? (
-            <Image source={{ uri: t.photo_url }} style={styles.avatarPhoto} />
-          ) : (
-            <View style={[styles.avatar, { backgroundColor: inactif ? '#888' : (t.restaurants?.couleur === 'vert' ? '#2D7D46' : '#EF9F27') }]}>
-              <Text style={styles.avatarTxt}>
-                {t.nom.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-              </Text>
-            </View>
-          )}
-          <View style={styles.travInfo}>
-            <Text style={styles.travNom}>{t.nom}</Text>
-            <Text style={styles.travPoste}>{t.poste} — {t.type_contrat}</Text>
-            {t.contact && <Text style={styles.travContact}>{t.contact}</Text>}
-            <View style={styles.travBadgeRow}>
-              <View style={styles.restoBadge}>
-                <Text style={styles.restoTxt}>{t.restaurants?.nom || 'Sans restaurant'}</Text>
-              </View>
-              {t.identifiant && (
-                <View style={styles.idBadge}>
-                  <Text style={styles.idTxt}>{t.identifiant}</Text>
-                </View>
-              )}
-            </View>
-          </View>
-        </View>
-        <View style={{ alignItems: 'flex-end', gap: 4 }}>
-          <View style={[styles.actifBadge, { backgroundColor: inactif ? '#FAECE7' : '#EAF3DE' }]}>
-            <Text style={[styles.actifTxt, { color: inactif ? '#993C1D' : '#3B6D11' }]}>
-              {inactif ? 'Inactif' : 'Actif'}
-            </Text>
-          </View>
-          {t.date_embauche ? (
-            <Text style={styles.travDateDebut}>
-              📅 {new Date(t.date_embauche).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
-            </Text>
-          ) : null}
-        </View>
-      </TouchableOpacity>
+  async function reactiver(trav) {
+    await db.reactiverTravailleur(trav)
+    chargerArchives(); charger()
+    Alert.alert('Réactivé', `${trav.nom} a été réactivé.`)
+  }
+
+  function supprimer(trav) {
+    setAArchiver(null)
+    Alert.alert(
+      '⚠️ Suppression définitive',
+      `Supprimer définitivement ${trav.nom} ? Toutes ses présences, ses documents et ses contrats seront effacés. Cette action est irréversible.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer définitivement', style: 'destructive',
+          onPress: () => Alert.alert('Dernière confirmation', `Confirmer la suppression de ${trav.nom} ?`, [
+            { text: 'Annuler', style: 'cancel' },
+            {
+              text: 'Oui, supprimer', style: 'destructive',
+              onPress: async () => {
+                await db.supprimerTravailleur(trav)
+                setFiche(null)
+                chargerArchives(); charger()
+                Alert.alert('Supprimé', `${trav.nom} a été supprimé définitivement.`)
+              },
+            },
+          ]),
+        },
+      ],
     )
   }
+
+  async function exporterExcel() {
+    setExporting(true)
+    try {
+      const { resume, detail, salaires } = feuillesExcel({
+        travailleurs: travFiltres, presences: presFiltrees, paiesGerant: paiesFiltrees, tous, nomResto,
+      })
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resume), 'Résumé')
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detail), 'Présences')
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(salaires), 'Salaires')
+      const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' })
+      const nom = `Equipe_${tous ? 'Tous' : resto?.nom}_${plage.debut}_${plage.fin}.xlsx`.replace(/\s+/g, '_')
+      await enregistrer(nom, { base64 }, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    } catch (e) {
+      Alert.alert('Erreur', `Impossible d'exporter : ${e.message}`)
+    }
+    setExporting(false)
+  }
+
+  const sousTitre = tous ? 'Tous les restaurants' : resto?.nom || ''
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => {
-          if (router.canGoBack()) router.back()
-          else router.replace('/accueil')
-        }}>
+        <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/accueil'))}>
           <Text style={styles.back}>‹ Retour</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitre}>Équipe globale</Text>
-        <View style={{ width: 60 }} />
+        <View style={{ flex: 1, paddingHorizontal: 8 }}>
+          <Text style={styles.headerTitre}>Équipe globale</Text>
+          <Text style={styles.headerSub} numberOfLines={1}>{sousTitre}</Text>
+        </View>
+        <TouchableOpacity style={styles.logoutBtn} onPress={() => router.replace('/login')}>
+          <Text style={styles.logoutTxt}>⏻ Quitter</Text>
+        </TouchableOpacity>
       </View>
 
-      <View style={styles.searchBar}>
+      <View style={styles.searchWrap}>
         <TextInput
           style={styles.searchInput}
-          placeholder="🔍 Rechercher un travailleur..."
+          placeholder="🔍 Rechercher un travailleur ou un poste…"
           value={recherche}
           onChangeText={setRecherche}
-          placeholderTextColor="#bbb"
+          placeholderTextColor={colors.textPlaceholder}
         />
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.filtreBar, { flexGrow: 0 }]}>
-        <TouchableOpacity
-          style={[styles.filtreBtn, filtreResto === 'tous' && styles.filtreBtnActive]}
-          onPress={() => setFiltreResto('tous')}
-        >
-          <Text style={[styles.filtreTxt, filtreResto === 'tous' && styles.filtreTxtActive]}>Tous</Text>
-        </TouchableOpacity>
-        {restaurants.map(r => (
-          <TouchableOpacity
-            key={r.id}
-            style={[styles.filtreBtn, filtreResto === r.id && styles.filtreBtnActive]}
-            onPress={() => setFiltreResto(r.id)}
-          >
-            <Text style={[styles.filtreTxt, filtreResto === r.id && styles.filtreTxtActive]}>{r.nom}</Text>
-          </TouchableOpacity>
-        ))}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsBar} contentContainerStyle={styles.chipsContent}>
+        {[{ id: null, nom: 'Tous' }, ...restaurants].map(r => {
+          const actif = restoId === r.id
+          return (
+            <TouchableOpacity key={r.id || 'tous'} style={[styles.chip, actif && styles.chipActive]} onPress={() => setRestoId(r.id)}>
+              <Text style={[styles.chipTxt, actif && styles.chipTxtActive]}>{r.nom}</Text>
+            </TouchableOpacity>
+          )
+        })}
       </ScrollView>
 
-      {loading ? (
-        <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color="#534AB7" />
-          <Text style={styles.loadingTxt}>Chargement de l'équipe...</Text>
-        </View>
-      ) : (
-        <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-
-          <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <Text style={styles.statNum}>{travailleurs.length}</Text>
-              <Text style={styles.statLabel}>Total</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={[styles.statNum, { color: '#3B6D11' }]}>{travailleurs.filter(t => t.actif).length}</Text>
-              <Text style={styles.statLabel}>Actifs</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={[styles.statNum, { color: '#888' }]}>{travailleurs.filter(t => !t.actif).length}</Text>
-              <Text style={styles.statLabel}>Inactifs</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={[styles.statNum, { color: '#EF9F27' }]}>{restaurants.length}</Text>
-              <Text style={styles.statLabel}>Restaurants</Text>
-            </View>
+      {onglet !== 'Archivés' && (
+        <>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.chipsBar, { marginTop: 8 }]} contentContainerStyle={styles.chipsContent}>
+            {PERIODES.map(p => {
+              const actif = periodeKey === p.key
+              return (
+                <TouchableOpacity key={p.key} style={[styles.chipPetit, actif && styles.chipPetitActive]}
+                  onPress={() => (p.key === 'custom' ? setCalendrier(true) : setPeriodeKey(p.key))}>
+                  <Text style={[styles.chipPetitTxt, actif && styles.chipPetitTxtActive]}>{p.label}</Text>
+                </TouchableOpacity>
+              )
+            })}
+          </ScrollView>
+          <View style={styles.periodeInfo}>
+            <Text style={styles.periodeInfoTxt}>📅 {titre}</Text>
+            <Text style={styles.periodeInfoSub}>{presFiltrees.length} enregistrement(s)</Text>
           </View>
-
-          {actifs.length > 0 && (
-            <>
-              <Text style={styles.sectionTitre}>Actifs ({actifs.length})</Text>
-              {actifs.map(t => renderCard(t, false))}
-            </>
-          )}
-
-          {inactifs.length > 0 && (
-            <>
-              <Text style={[styles.sectionTitre, { marginTop: 8 }]}>Inactifs ({inactifs.length})</Text>
-              {inactifs.map(t => renderCard(t, true))}
-            </>
-          )}
-
-          {travailleursFiltres.length === 0 && (
-            <View style={styles.emptyBox}>
-              <Text style={styles.emptyTxt}>Aucun travailleur trouvé</Text>
-              <Text style={styles.emptySub}>Modifiez votre recherche ou le filtre restaurant</Text>
-            </View>
-          )}
-
-          <View style={{ height: 30 }} />
-        </ScrollView>
+        </>
       )}
 
-      {/* Modal profil — Carte professionnelle */}
-      <Modal visible={profilVisible} transparent animationType="slide">
-        <View style={styles.profilOverlay}>
-          <View style={styles.profilModal}>
-            <TouchableOpacity style={styles.profilClose} onPress={() => setProfilVisible(false)}>
-              <Text style={styles.profilCloseTxt}>✕</Text>
+      <View style={styles.ongletsWrap}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ongletsContent}>
+          {ONGLETS.map(o => (
+            <TouchableOpacity key={o} style={[styles.onglet, onglet === o && styles.ongletActive]} onPress={() => setOnglet(o)}>
+              <Text style={[styles.ongletTxt, onglet === o && styles.ongletTxtActive]}>{o}</Text>
             </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* ─── Carte professionnelle ─── */}
-              <View style={styles.carteBox}>
-                <View style={styles.carteHeader}>
-                  <Text style={styles.carteRestaurantNom}>
-                    {(travProfil?.restaurants?.nom || 'SAMER').toUpperCase()}
-                  </Text>
-                </View>
-
-                <View style={styles.carteDivider} />
-
-                <View style={styles.cartePhotoRow}>
-                  <TouchableOpacity
-                    onPress={() => travProfil?.photo_url && setZoomVisible(true)}
-                    activeOpacity={travProfil?.photo_url ? 0.8 : 1}
-                  >
-                    {travProfil?.photo_url ? (
-                      <Image source={{ uri: travProfil.photo_url }} style={styles.cartePhoto} />
-                    ) : (
-                      <View style={[styles.cartePhotoVide, {
-                        backgroundColor: travProfil?.restaurants?.couleur === 'vert' ? '#2D7D46' : '#EF9F27'
-                      }]}>
-                        <Text style={styles.cartePhotoVideTxt}>
-                          {(travProfil?.nom || '').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                        </Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                </View>
-
-                <Text style={styles.carteNom}>{travProfil?.nom}</Text>
-                <Text style={styles.cartePoste}>{travProfil?.poste}</Text>
-
-                <View style={styles.carteDivider} />
-
-                <View style={styles.carteInfos}>
-                  <View style={styles.carteRow}>
-                    <Text style={styles.carteRowIcon}>📍</Text>
-                    <Text style={styles.carteRowLabel}>Restaurant</Text>
-                    <Text style={styles.carteRowVal}>{travProfil?.restaurants?.nom || '—'}</Text>
-                  </View>
-                  {travProfil?.contact ? (
-                    <TouchableOpacity style={styles.carteRow} onPress={() => Linking.openURL(`tel:${travProfil.contact}`)}>
-                      <Text style={styles.carteRowIcon}>📞</Text>
-                      <Text style={styles.carteRowLabel}>Téléphone</Text>
-                      <Text style={[styles.carteRowVal, { color: '#185FA5' }]}>{travProfil.contact}</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                  {travProfil?.salaire_journalier ? (
-                    <View style={styles.carteRow}>
-                      <Text style={styles.carteRowIcon}>💰</Text>
-                      <Text style={styles.carteRowLabel}>Salaire</Text>
-                      <Text style={styles.carteRowVal}>{Number(travProfil.salaire_journalier).toLocaleString('fr-FR')} F / jour</Text>
-                    </View>
-                  ) : null}
-                  {travProfil?.type_contrat ? (
-                    <View style={styles.carteRow}>
-                      <Text style={styles.carteRowIcon}>📋</Text>
-                      <Text style={styles.carteRowLabel}>Contrat</Text>
-                      <Text style={styles.carteRowVal}>{travProfil.type_contrat}</Text>
-                    </View>
-                  ) : null}
-                  <View style={styles.carteRow}>
-                    <Text style={styles.carteRowIcon}>
-                      {travProfil?.statut === 'archive' ? '⚫' : travProfil?.actif ? '🟢' : '🔴'}
-                    </Text>
-                    <Text style={styles.carteRowLabel}>Statut</Text>
-                    <Text style={styles.carteRowVal}>
-                      {travProfil?.statut === 'archive' ? 'Archivé' : travProfil?.actif ? 'Actif' : 'Inactif'}
-                    </Text>
-                  </View>
-                  {travProfil?.date_embauche ? (
-                    <View style={styles.carteRow}>
-                      <Text style={styles.carteRowIcon}>📅</Text>
-                      <Text style={styles.carteRowLabel}>{"Date d'embauche"}</Text>
-                      <Text style={styles.carteRowVal}>
-                        {new Date(travProfil.date_embauche).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-
-                <View style={styles.carteDivider} />
-
-                <TouchableOpacity
-                  style={[styles.carteActionBtn, saving && { opacity: 0.6 }]}
-                  onPress={() => exporterPDF(travProfil)}
-                  disabled={saving}
-                >
-                  <Text style={styles.carteActionTxt}>
-                    {saving ? 'Génération...' : '📄 Exporter en PDF'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Section Papiers */}
-              <Text style={styles.profilSection}>Papiers</Text>
-              {loadingDocs ? (
-                <ActivityIndicator size="small" color="#534AB7" style={{ marginVertical: 12 }} />
-              ) : docsProfil.length === 0 ? (
-                <Text style={styles.profilEmpty}>Aucun document enregistré</Text>
-              ) : (
-                docsProfil.map(doc => (
-                  <TouchableOpacity
-                    key={doc.id}
-                    style={styles.docCard}
-                    onPress={() => doc.fichier_url && Linking.openURL(doc.fichier_url)}
-                  >
-                    <Text style={styles.docIcon}>
-                      {TYPE_DOC_ICONS[doc.type_document] || '📎'}
-                    </Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.docType}>{doc.type_document}</Text>
-                      <Text style={styles.docMeta}>
-                        {doc.description === 'pdf' ? 'PDF' : 'Photo'} · {new Date(doc.created_at).toLocaleDateString('fr-FR')}
-                      </Text>
-                    </View>
-                    <Text style={styles.docOuvrir}>Ouvrir →</Text>
-                  </TouchableOpacity>
-                ))
-              )}
-
-              {peutEditer && (
-                <TouchableOpacity
-                  style={styles.profilEditBtn}
-                  onPress={() => { setProfilVisible(false); router.push('/rh') }}
-                >
-                  <Text style={styles.profilEditTxt}>✏️ Modifier dans RH</Text>
-                </TouchableOpacity>
-              )}
-
-              <View style={{ height: 20 }} />
-            </ScrollView>
-          </View>
+      {loading && onglet !== 'Archivés' ? (
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="large" color={BLEU} />
+          <Text style={styles.loadingTxt}>Chargement de l'équipe…</Text>
         </View>
-      </Modal>
-
-      {/* Modal zoom photo plein écran */}
-      <Modal visible={zoomVisible} transparent animationType="fade" statusBarTranslucent>
-        <View style={styles.zoomOverlay}>
-          <TouchableOpacity style={styles.zoomClose} onPress={() => setZoomVisible(false)}>
-            <Text style={styles.zoomCloseTxt}>✕</Text>
-          </TouchableOpacity>
-          {travProfil?.photo_url && (
-            <Image
-              source={{ uri: travProfil.photo_url }}
-              style={styles.zoomImage}
-              resizeMode="contain"
-            />
+      ) : (
+        <View style={styles.body}>
+          {onglet === 'Dashboard' && (
+            <OngletDashboard styles={styles} globales={globales} stats={stats} tauxRestos={tauxRestos} tous={tous}
+              titre={titre} sousTitre={sousTitre} restoParId={restoParId}
+              exporting={exporting} onExporter={exporterExcel} onOuvrir={ouvrirFiche} />
+          )}
+          {onglet === 'Travailleurs' && (
+            <OngletTravailleurs styles={styles} travailleurs={travFiltres} statsParId={statsParId} tous={tous}
+              peutEditer={peutEditer} recherche={recherche}
+              onAjouter={() => setForm({ visible: true, edition: null })}
+              onOuvrir={t => setFiche(t)}
+              onModifier={t => setForm({ visible: true, edition: t })}
+              onMenu={t => setAArchiver(t)} />
+          )}
+          {onglet === 'Présences' && <OngletPresences styles={styles} presences={presFiltrees} tous={tous} restoParId={restoParId} />}
+          {onglet === 'Salaires' && (
+            <OngletSalaires styles={styles} colors={colors} stats={stats} paiesGerant={lignesGerant} tous={tous}
+              titre={titre} restoParId={restoParId} onOuvrir={ouvrirFiche} />
+          )}
+          {onglet === 'Archivés' && (
+            <OngletArchives styles={styles} archives={archivesFiltrees} loading={loadingArchives} tous={tous}
+              peutEditer={peutEditer} peutSupprimer={peutSupprimer}
+              onOuvrir={t => setFiche(t)} onReactiver={reactiver} onSupprimer={supprimer} />
           )}
         </View>
-      </Modal>
+      )}
+
+      <FicheTravailleur
+        visible={!!fiche && !form.visible && !aArchiver && !aTransferer}
+        trav={fiche}
+        resto={fiche ? restoParId[fiche.restaurant_id] : null}
+        styles={styles} colors={colors} perso={perso} peutEditer={peutEditer}
+        onFermer={() => setFiche(null)}
+        onModifier={t => setForm({ visible: true, edition: t })}
+        onTransferer={t => setATransferer(t)}
+        onArchiver={t => setAArchiver(t)}
+      />
+      <ModalFormTravailleur
+        visible={form.visible} edition={form.edition} restaurants={restaurants} restoParDefaut={restoId}
+        styles={styles} colors={colors}
+        onFermer={() => setForm({ visible: false, edition: null })}
+        onEnregistre={() => { setForm({ visible: false, edition: null }); setFiche(null); charger() }}
+      />
+      <ModalArchive trav={aArchiver} styles={styles} peutSupprimer={peutSupprimer}
+        onFermer={() => setAArchiver(null)} onArchiver={archiver} onSupprimer={supprimer} />
+      <ModalTransfert trav={aTransferer} restaurants={restaurants} styles={styles}
+        onFermer={() => setATransferer(null)} onTransferer={transferer} />
+      <ModalCalendrier visible={calendrier} styles={styles} colors={colors}
+        onFermer={() => setCalendrier(false)}
+        onValider={p => { setPerso(p); setPeriodeKey('custom'); setCalendrier(false) }} />
     </SafeAreaView>
   )
 }
-
-function makeStyles(colors) { return StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  header: { backgroundColor: colors.headerBg, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  back: { fontSize: 16, color: colors.primaryText, fontWeight: '500' },
-  headerTitre: { fontSize: 16, fontWeight: '600', color: colors.surface },
-  searchBar: { backgroundColor: colors.surface, padding: 10, borderBottomWidth: 0.5, borderBottomColor: colors.border },
-  searchInput: { backgroundColor: colors.surfaceAlt, borderRadius: 10, padding: 10, fontSize: 14, color: colors.text },
-  filtreBar: { backgroundColor: colors.surface, maxHeight: 46, borderBottomWidth: 0.5, borderBottomColor: colors.border },
-  filtreBtn: { paddingHorizontal: 14, paddingVertical: 12 },
-  filtreBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
-  filtreTxt: { fontSize: 12, color: colors.textMuted },
-  filtreTxtActive: { color: colors.primary, fontWeight: '600' },
-  loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingTxt: { fontSize: 13, color: colors.textMuted, marginTop: 12 },
-  body: { flex: 1, padding: 14 },
-  statsRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  statCard: { flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 0.5, borderColor: colors.border },
-  statNum: { fontSize: 20, fontWeight: '600', color: colors.primary },
-  statLabel: { fontSize: 10, color: colors.textMuted, marginTop: 2 },
-  sectionTitre: { fontSize: 12, fontWeight: '600', color: colors.textMuted, marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  travCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 0.5, borderColor: colors.border },
-  travLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  avatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  avatarPhoto: { width: 44, height: 44, borderRadius: 22 },
-  avatarTxt: { fontSize: 15, fontWeight: '600', color: '#fff' },
-  travInfo: { flex: 1 },
-  travNom: { fontSize: 14, fontWeight: '600', color: colors.text },
-  travPoste: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  travContact: { fontSize: 11, color: colors.primary, marginTop: 2 },
-  travBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 },
-  travDateDebut: { fontSize: 11, color: colors.textMuted, marginTop: 4 },
-  restoBadge: { backgroundColor: colors.surfaceAlt, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, alignSelf: 'flex-start' },
-  restoTxt: { fontSize: 10, color: colors.textSecondary },
-  idBadge: { backgroundColor: colors.primaryLight, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, alignSelf: 'flex-start' },
-  idTxt: { fontSize: 10, color: colors.primary, fontWeight: '600' },
-  actifBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  actifTxt: { fontSize: 11, fontWeight: '500' },
-  emptyBox: { alignItems: 'center', paddingVertical: 40 },
-  emptyTxt: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
-  emptySub: { fontSize: 12, color: colors.textPlaceholder, marginTop: 6 },
-  // Modal profil
-  profilOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  profilModal: { backgroundColor: colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: '90%' },
-  profilClose: { alignSelf: 'flex-end', padding: 8, marginBottom: 4 },
-  profilCloseTxt: { fontSize: 20, color: colors.textMuted },
-  profilSection: { fontSize: 11, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 4 },
-  profilEmpty: { fontSize: 13, color: colors.textPlaceholder, textAlign: 'center', paddingVertical: 12 },
-  docCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surfaceAlt, borderRadius: 12, padding: 12, marginBottom: 8 },
-  docIcon: { fontSize: 24 },
-  docType: { fontSize: 13, fontWeight: '600', color: colors.text },
-  docMeta: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
-  docOuvrir: { fontSize: 12, color: colors.primary, fontWeight: '500' },
-  profilEditBtn: { backgroundColor: colors.surfaceAlt, borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 12 },
-  profilEditTxt: { fontSize: 14, color: colors.primary, fontWeight: '500' },
-  // Carte professionnelle
-  carteBox: { borderRadius: 20, marginBottom: 16, overflow: 'hidden', borderWidth: 0.5, borderColor: colors.border, backgroundColor: colors.surface },
-  carteHeader: { backgroundColor: '#185FA5', paddingVertical: 14, paddingHorizontal: 16, alignItems: 'center' },
-  carteRestaurantNom: { fontSize: 13, fontWeight: '700', color: '#fff', letterSpacing: 1.5, textAlign: 'center' },
-  carteDivider: { height: 0.5, backgroundColor: colors.border },
-  cartePhotoRow: { alignItems: 'center', paddingVertical: 20 },
-  cartePhoto: { width: 100, height: 100, borderRadius: 50, borderWidth: 4, borderColor: '#fff' },
-  cartePhotoVide: { width: 100, height: 100, borderRadius: 50, alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: '#fff' },
-  cartePhotoVideTxt: { fontSize: 30, fontWeight: '700', color: '#fff' },
-  carteNom: { fontSize: 22, fontWeight: '700', color: colors.text, textAlign: 'center', paddingHorizontal: 16, marginBottom: 4 },
-  cartePoste: { fontSize: 14, color: colors.textMuted, textAlign: 'center', paddingHorizontal: 16, marginBottom: 16 },
-  carteInfos: { padding: 16, gap: 14 },
-  carteRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  carteRowIcon: { fontSize: 16, width: 26, textAlign: 'center' },
-  carteRowLabel: { flex: 1, fontSize: 13, color: colors.textMuted },
-  carteRowVal: { fontSize: 13, fontWeight: '600', color: colors.text, maxWidth: '55%', textAlign: 'right' },
-  carteActionBtn: { margin: 16, backgroundColor: '#185FA5', borderRadius: 12, padding: 14, alignItems: 'center' },
-  carteActionTxt: { fontSize: 14, fontWeight: '600', color: '#fff' },
-  // Zoom photo
-  zoomOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
-  zoomClose: { position: 'absolute', top: 50, right: 20, zIndex: 999, padding: 10 },
-  zoomCloseTxt: { color: '#fff', fontSize: 28, fontWeight: '300' },
-  zoomImage: { width: '90%', height: '70%' },
-}) }

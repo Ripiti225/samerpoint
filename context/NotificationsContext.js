@@ -28,7 +28,7 @@ const ROUTE_MAP = {
   explication_machine_refusee: 'recap-point',
   explication_machine_annulee: 'recap-point',
   nouveau_document: 'documents',
-  nouveau_travailleur: 'rh',
+  nouveau_travailleur: 'equipe',
 }
 
 export function NotificationsProvider({ children }) {

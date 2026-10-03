@@ -307,7 +307,7 @@ export default function ParametresScreen() {
               statut: 'actif',
             })
           if (error) throw error
-          // Notifier l'ajout (comme l'écran RH) — manager + directeur.
+          // Notifier l'ajout (comme l'écran Équipe globale) — manager + directeur.
           let restoNom = restaurants.find(r => r.id === form.restaurant_id)?.nom || ''
           if (!restoNom && form.restaurant_id) {
             const { data: r } = await supabase.from('restaurants').select('nom').eq('id', form.restaurant_id).maybeSingle()
@@ -319,7 +319,7 @@ export default function ParametresScreen() {
             message: `${form.nom}${restoNom ? ` ajouté à ${restoNom}` : ' ajouté'}`,
             restaurant_id: form.restaurant_id || null,
             cible_role: ['manager', 'directeur'],
-            screen: 'rh',
+            screen: 'equipe',
           }).catch(() => {})
         }
       }
@@ -523,7 +523,7 @@ export default function ParametresScreen() {
           message: `${formDoc.type_document} ajouté${modal.data?.nom ? ` — ${modal.data.nom}` : ''}`,
           restaurant_id: modal.data?.restaurant_id || null,
           cible_role: ['manager', 'directeur'],
-          screen: 'rh',
+          screen: 'equipe',
         }).catch(() => {})
         setAjoutDocVisible(false)
         setFormDoc({ type_document: 'CNI', description: '' })
