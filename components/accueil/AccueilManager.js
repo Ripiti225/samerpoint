@@ -20,9 +20,10 @@ import Animated, {
 
 import { useTheme } from '../../context/ThemeContext'
 import {
-  ICONES_TUILES, etatPointsDuJour, groupeDeTuile, nbAVerifier, organiserAccueilAdmin,
+  ICONES_TUILES, etatPointsDuJour, groupeDeTuile, messagesTresorerie, nbAVerifier, organiserAccueilAdmin,
 } from '../../lib/groupesAccueil'
 import { supabase } from '../../lib/supabase'
+import { CATEGORIES_SERIE, fmt, niveauTresorerie, peut } from '../../lib/tresorerie'
 
 const CLE_OUVERTS = 'samtrackly_accueil_groupes_ouverts'
 const VERT_HERO = '#047857' // fond de la carte Trésorerie : blanc lisible dessus (≥ 4,5:1)
@@ -37,20 +38,52 @@ function isoLocal(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-// Points des 7 derniers jours, restaurants et demandes en attente.
-// null tant que rien n'est chargé (ou hors ligne) : le bandeau ne s'affiche pas.
-function useEtatDuJour() {
+// Messages Trésorerie (échéances d'aujourd'hui et de demain, passées en dette
+// ce matin, coffre à rembourser), selon le niveau de trésorerie du compte.
+// null si le compte n'y a pas accès, ou si la Trésorerie ne répond pas.
+async function chargerTresorerie({ role, userId, hier, auj, demain }) {
+  const { data: droits, error } = await supabase.from('tresorerie_droits').select('user_id, niveau')
+  if (error) return null
+  const niveau = niveauTresorerie(role, userId, droits || [])
+  if (!peut(niveau, 'voir_a_payer')) return null
+  const d = await supabase.from('tresorerie_dus').select('id, categorie, restaurant_id, echeance, montant_du')
+    .in('categorie', CATEGORIES_SERIE).gte('echeance', hier).lte('echeance', demain).range(0, 999)
+  if (d.error) return null
+  const ids = (d.data || []).map(x => x.id)
+  const p = ids.length
+    ? await supabase.from('tresorerie_paiements').select('du_id, montant').in('du_id', ids).range(0, 4999)
+    : { data: [] }
+  let emprunts = []
+  let receptions = []
+  if (peut(niveau, 'voir_coffre')) {
+    const e = await supabase.from('tresorerie_coffre_emprunts').select('*').is('rembourse_le', null)
+    emprunts = e.error ? [] : e.data || []
+    if (emprunts.length) {
+      const plusAncien = emprunts.reduce((m, x) => (x.created_at < m ? x.created_at : m), emprunts[0].created_at)
+      const r = await supabase.from('tresorerie_partenaire_lignes').select('partenaire, type, created_at')
+        .eq('type', 'recu').gte('created_at', plusAncien).range(0, 999)
+      receptions = r.error ? [] : r.data || []
+    }
+  }
+  return messagesTresorerie({ dus: d.data, paiements: p.data, emprunts, receptions, aujourdhui: auj, demain, hier })
+}
+
+// Points des 7 derniers jours, restaurants, demandes en attente et messages
+// Trésorerie. null tant que rien n'est chargé (ou hors ligne) : pas de bandeau.
+function useEtatDuJour(role, userId) {
   const [etat, setEtat] = useState(null)
   const charger = useCallback(async () => {
     try {
       const auj = new Date()
       const hier = new Date(auj); hier.setDate(auj.getDate() - 1)
+      const demain = new Date(auj); demain.setDate(auj.getDate() + 1)
       const depuis = new Date(auj); depuis.setDate(auj.getDate() - 7)
-      const [p, r, d] = await Promise.all([
+      const [p, r, d, treso] = await Promise.all([
         supabase.from('points').select('restaurant_id, date, valide, verifie')
           .gte('date', isoLocal(depuis)).lte('date', isoLocal(auj)).order('date').range(0, 999),
         supabase.from('restaurants').select('id, nom').order('nom'),
         supabase.from('demandes').select('id', { count: 'exact', head: true }).eq('statut', 'en_attente'),
+        chargerTresorerie({ role, userId, hier: isoLocal(hier), auj: isoLocal(auj), demain: isoLocal(demain) }).catch(() => null),
       ])
       if (p.error || r.error) return
       setEtat({
@@ -58,18 +91,19 @@ function useEtatDuJour() {
         jour: etatPointsDuJour({ points: p.data, restaurants: r.data, date: isoLocal(hier) }),
         aVerifier: nbAVerifier(p.data),
         demandes: d.error ? 0 : d.count || 0,
+        treso,
       })
     } catch (_) { /* hors ligne : pas de bandeau */ }
-  }, [])
+  }, [role, userId])
   useFocusEffect(useCallback(() => { charger() }, [charger]))
   return etat
 }
 
-export default function AccueilManager({ items }) {
+export default function AccueilManager({ items, role, userId }) {
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
   const { favoris, groupes, autres } = useMemo(() => organiserAccueilAdmin(items), [items])
-  const etat = useEtatDuJour()
+  const etat = useEtatDuJour(role, userId)
   const [ouverts, setOuverts] = useState({})
 
   // Bannières ouvertes : gardées d'une visite à l'autre sur ce téléphone.
@@ -163,7 +197,18 @@ export default function AccueilManager({ items }) {
 // ── « Points d'hier » ────────────────────────────────────────────────────────
 
 function BandeauPoints({ etat, styles, colors }) {
-  const { jour, hier, aVerifier, demandes } = etat
+  const { jour, hier, aVerifier, demandes, treso } = etat
+  const lignesTreso = treso ? [
+    treso.aujourdhui.n > 0 && { cle: 'auj', icone: 'calendar-alert', couleur: colors.error,
+      texte: `${treso.aujourdhui.n} échéance${treso.aujourdhui.n > 1 ? 's' : ''} aujourd'hui · ${fmt(treso.aujourdhui.total)} F`, route: '/tresorerie' },
+    treso.demain.n > 0 && { cle: 'dem', icone: 'calendar-clock', couleur: colors.warningDark,
+      texte: `${treso.demain.n} demain · ${fmt(treso.demain.total)} F`, route: '/tresorerie' },
+    treso.detteCeMatin.n > 0 && { cle: 'det', icone: 'alert-octagon', couleur: colors.error,
+      texte: `${treso.detteCeMatin.n} passée${treso.detteCeMatin.n > 1 ? 's' : ''} en dette ce matin · ${fmt(treso.detteCeMatin.total)} F`,
+      route: '/tresorerie-a-payer?onglet=dette_recente' },
+    treso.coffre.n > 0 && { cle: 'cof', icone: 'safe', couleur: colors.primary,
+      texte: `Rembourser ${fmt(treso.coffre.total)} F au coffre`, route: '/tresorerie-coffre' },
+  ].filter(Boolean) : []
   // warningDark : foncé en clair, vif en sombre — lisible dans les deux thèmes.
   const couleurs = { verifie: colors.success, a_verifier: colors.warningDark, en_attente: colors.textMuted }
   const complet = jour.valides === jour.total
@@ -208,6 +253,22 @@ function BandeauPoints({ etat, styles, colors }) {
             </Pressable>
           )}
         </View>
+
+        {treso && (
+          <View style={styles.bandeauTreso}>
+            <Text style={styles.bandeauSousTitre}>Trésorerie</Text>
+            {lignesTreso.length === 0 && (
+              <Indicateur icone="check-circle" couleur={colors.success} texte="Aucune échéance aujourd'hui ni demain" styles={styles} />
+            )}
+            {lignesTreso.map(l => (
+              <Pressable key={l.cle} onPress={() => router.push(l.route)} accessibilityRole="button" hitSlop={6}
+                accessibilityLabel={l.texte} style={({ pressed }) => [styles.lienTreso, pressed && { opacity: 0.6 }]}>
+                <Indicateur icone={l.icone} couleur={l.couleur} texte={l.texte} styles={styles} />
+                <MaterialCommunityIcons name="chevron-right" size={16} color={colors.textMuted} />
+              </Pressable>
+            ))}
+          </View>
+        )}
       </Pressable>
     </Animated.View>
   )
@@ -312,7 +373,10 @@ const makeStyles = (c) => StyleSheet.create({
     flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 12, paddingTop: 12,
     borderTopWidth: 1, borderTopColor: c.borderLight,
   },
-  indicateur: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  indicateur: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 },
+  bandeauTreso: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: c.borderLight, gap: 8 },
+  bandeauSousTitre: { fontSize: 11, fontWeight: '800', color: c.textMuted, letterSpacing: 1, textTransform: 'uppercase' },
+  lienTreso: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 28 },
   indicateurTxt: { fontSize: 13, fontWeight: '700' },
 
   // Accès direct
