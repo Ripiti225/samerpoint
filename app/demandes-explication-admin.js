@@ -1,4 +1,4 @@
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Alert, Linking, Platform, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import { CarteExplication } from '../components/demandes/Cartes'
@@ -14,8 +14,10 @@ import { supabase } from '../lib/supabase'
 export default function DemandesExplicationAdminScreen() {
   const { userId, userNom, roleActif } = useApp()
   const { styles, colors, accent } = useDemandesStyles()
+  // Arrivée depuis une notification « sans réponse » : onglet + étape imposés.
+  const { onglet: ongletParam, etape: etapeParam } = useLocalSearchParams()
 
-  const [onglet, setOnglet] = useState('recues') // 'recues' | 'miennes'
+  const [onglet, setOnglet] = useState(ongletParam === 'miennes' ? 'miennes' : 'recues') // 'recues' | 'miennes'
   const [demandes, setDemandes] = useState([])
   const [restaurants, setRestaurants] = useState([])
   const [restoFilter, setRestoFilter] = useState(null)
@@ -23,7 +25,7 @@ export default function DemandesExplicationAdminScreen() {
   const [saving, setSaving] = useState(false)
 
   // Filtres de la liste (compteurs par étape cliquables + recherche)
-  const [etape, setEtape] = useState(null)
+  const [etape, setEtape] = useState(ETAPES_EXPLICATION.some(e => e.cle && e.cle === etapeParam) ? etapeParam : null)
   const [recherche, setRecherche] = useState('')
   const comptes = useMemo(() => compterExplications(demandes), [demandes])
   const visibles = useMemo(() => filtrerExplications(demandes, { etape, recherche }), [demandes, etape, recherche])

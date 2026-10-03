@@ -1,6 +1,7 @@
 import * as Haptics from 'expo-haptics'
 import { router } from 'expo-router'
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { explicationsSansReponse, seuilRetard } from '../lib/demandes'
 import { supabase } from '../lib/supabase'
 import {
   chargerNotifications, marquerToutLu,
@@ -10,6 +11,7 @@ import { useApp } from './AppContext'
 
 const NotificationsContext = createContext({
   notifications: [],
+  explicationsEnRetard: [],
   nonLues: 0,
   panelVisible: false,
   ouvrirPanel: () => {},
@@ -31,13 +33,22 @@ const ROUTE_MAP = {
   nouveau_travailleur: 'equipe',
 }
 
+// Rôles qui suivent les demandes d'explication restées sans réponse.
+const ROLES_SUIVI_EXPLICATIONS = ['manager', 'rh']
+
 export function NotificationsProvider({ children }) {
   const { userId, roleActif, restaurantId } = useApp() ?? {}
   const [notifications, setNotifications] = useState([])
+  // Demandes d'explication dont le jour de réponse (J+3) est passé. Calculées
+  // à l'affichage et non stockées : elles disparaissent d'elles-mêmes dès que
+  // la réponse est récupérée ou la demande relancée.
+  const [explicationsEnRetard, setExplicationsEnRetard] = useState([])
   const [panelVisible, setPanelVisible] = useState(false)
   const channelRef = useRef(null)
 
-  const nonLues = userId ? notifications.filter(n => !n.lu_par?.includes(userId)).length : 0
+  const nonLues = userId
+    ? notifications.filter(n => !n.lu_par?.includes(userId)).length + explicationsEnRetard.length
+    : 0
 
   useEffect(() => {
     if (!userId || !roleActif) return
@@ -51,6 +62,26 @@ export function NotificationsProvider({ children }) {
   async function charger() {
     const data = await chargerNotifications(userId, roleActif, restaurantId)
     setNotifications(data)
+    chargerExplicationsEnRetard()
+  }
+
+  async function chargerExplicationsEnRetard() {
+    if (!ROLES_SUIVI_EXPLICATIONS.includes(roleActif)) { setExplicationsEnRetard([]); return }
+    try {
+      const [{ data: demandes }, { data: restos }] = await Promise.all([
+        supabase.from('demandes_explication')
+          .select('id, travailleur_nom, travailleur_poste, motif, restaurant_id, envoyee_at, numero, statut, cree_par_id, cree_par_role')
+          .eq('statut', 'envoyee')
+          .lt('envoyee_at', seuilRetard())
+          .order('envoyee_at'),
+        supabase.from('restaurants').select('id, nom'),
+      ])
+      const nomResto = Object.fromEntries((restos || []).map(r => [r.id, r.nom]))
+      setExplicationsEnRetard(explicationsSansReponse(demandes)
+        .map(d => ({ ...d, restaurant_nom: nomResto[d.restaurant_id] || null })))
+    } catch (_) {
+      // Le panneau reste utilisable sans ce bloc.
+    }
   }
 
   function abonner() {
@@ -73,6 +104,7 @@ export function NotificationsProvider({ children }) {
 
   async function ouvrirPanel() {
     setPanelVisible(true)
+    chargerExplicationsEnRetard()
     const ids = notifications.filter(n => !n.lu_par?.includes(userId)).map(n => n.id)
     if (ids.length > 0) {
       await marquerToutLu(ids, userId)
@@ -134,12 +166,19 @@ export function NotificationsProvider({ children }) {
     router.push({ pathname: `/${screen}`, params })
   }
 
+  // Ouvre le suivi sur l'onglet où la demande apparaît, filtré « Attente réponse ».
+  function ouvrirExplicationEnRetard(d) {
+    fermerPanel()
+    const onglet = ['gerant', 'verificateur'].includes(d.cree_par_role) ? 'recues' : 'miennes'
+    router.push({ pathname: '/demandes-explication-admin', params: { onglet, etape: 'attente' } })
+  }
+
   return (
     <NotificationsContext.Provider value={{
-      notifications, nonLues, panelVisible,
+      notifications, explicationsEnRetard, nonLues, panelVisible,
       ouvrirPanel, fermerPanel,
       marquerUneCommeLue, supprimerUne, supprimerTout,
-      naviguerDepuisNotif,
+      naviguerDepuisNotif, ouvrirExplicationEnRetard,
     }}>
       {children}
     </NotificationsContext.Provider>

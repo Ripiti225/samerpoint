@@ -71,9 +71,9 @@ export default function AccueilScreen() {
   const { colors, isDark, toggleTheme } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
   const {
-    notifications, nonLues, panelVisible,
+    notifications, explicationsEnRetard, nonLues, panelVisible,
     ouvrirPanel, fermerPanel,
-    supprimerUne, supprimerTout, naviguerDepuisNotif,
+    supprimerUne, supprimerTout, naviguerDepuisNotif, ouvrirExplicationEnRetard,
   } = useNotifications()
 
   const roleEffectif = role || roleActif
@@ -387,7 +387,7 @@ export default function AccueilScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-            {notifications.length === 0 ? (
+            {notifications.length === 0 && explicationsEnRetard.length === 0 ? (
               <View style={styles.notifEmpty}>
                 <Text style={styles.notifEmptyTxt}>Aucune notification</Text>
               </View>
@@ -396,6 +396,37 @@ export default function AccueilScreen() {
                 data={notifications}
                 keyExtractor={n => n.id}
                 contentContainerStyle={{ padding: 14, paddingBottom: 30 }}
+                ListHeaderComponent={explicationsEnRetard.length > 0 ? (
+                  <View style={{ marginBottom: 6 }}>
+                    <Text style={styles.notifSection}>
+                      ⏰ Explications sans réponse ({explicationsEnRetard.length})
+                    </Text>
+                    {explicationsEnRetard.map(d => (
+                      <TouchableOpacity
+                        key={d.id}
+                        activeOpacity={0.75}
+                        onPress={() => ouvrirExplicationEnRetard(d)}
+                        style={[styles.notifCard, styles.notifCardRetard]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Explication de ${d.travailleur_nom || 'travailleur'} sans réponse depuis ${d.joursDepuisEnvoi} jours`}
+                      >
+                        <Text style={styles.notifCardTitre}>
+                          {d.travailleur_nom || 'Travailleur'}{d.numero > 1 ? ' · relance' : ''}
+                        </Text>
+                        <Text style={styles.notifCardMsg}>
+                          {d.motif}{d.restaurant_nom ? ` — ${d.restaurant_nom}` : ''}
+                        </Text>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                          <Text style={[styles.notifCardDate, styles.notifRetardTxt]}>
+                            Envoyée il y a {d.joursDepuisEnvoi} jours · jour de réponse dépassé
+                          </Text>
+                          <Text style={styles.notifVoir}>Voir ›</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                    {notifications.length > 0 && <Text style={styles.notifSection}>Notifications</Text>}
+                  </View>
+                ) : null}
                 renderItem={({ item: n }) => {
                   const nonLue = !n.lu_par?.includes(userId)
                   const aUneLigne = !!(n.screen || (n.type && ['point_valide','shift_valide','correction_demandee','nouveau_document','nouveau_travailleur'].includes(n.type)))
@@ -559,4 +590,7 @@ function makeStyles(colors) { return StyleSheet.create({
   notifDeleteBtn: { position: 'absolute', top: 10, right: 10, padding: 4 },
   notifDeleteTxt: { fontSize: 12, color: colors.textMuted },
   notifVoir: { fontSize: 11, color: colors.primary, fontWeight: '700' },
+  notifSection: { fontSize: 12, fontWeight: '800', color: colors.textSecondary, marginBottom: 8, marginTop: 2 },
+  notifCardRetard: { backgroundColor: colors.errorLight, borderColor: colors.errorDark, borderLeftWidth: 4 },
+  notifRetardTxt: { color: colors.errorDark, fontWeight: '700', flex: 1, paddingRight: 8 },
 }) }
