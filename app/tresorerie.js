@@ -266,7 +266,6 @@ export default function TresorerieScreen() {
             <Tuile icone="🏦" titre="Banque et espèces" sous={`${fmt(s.banque + s.especes + s.tetes)} F · BACI · SIB · espèces · têtes de fond`} route="/tresorerie-banque" />
             <Tuile icone="🛵" titre="Partenaires" sous={`${fmt(s.partenaires)} F à recevoir`} route="/tresorerie-partenaires" />
             <Tuile icone="📋" titre="À payer" sous="Loyers · salaires · CNPS · impôts…" route="/tresorerie-a-payer" />
-            <Tuile icone="🗂️" titre="Historique par restaurant" sous="Dû et payé, mois par mois" route="/tresorerie-restaurant" />
             {peut(niveau, 'voir_dettes') && (
               <Tuile icone="📒" titre="Dettes" sous={`${fmt(enDette('dette').reduce((x, d) => x + reste(d), 0))} F à rembourser`} route="/tresorerie-a-payer?onglet=dette" />
             )}
@@ -282,6 +281,7 @@ export default function TresorerieScreen() {
               </TouchableOpacity>
             )}
             <Tuile icone="💳" titre="Fournisseurs" sous={`${fmt(fournisseursDus(donnees.fournisseurs))} F dus`} route="/credits-fournisseurs" />
+            <Tuile icone="🗂️" titre="Historique par restaurant" sous="Dû et payé, mois par mois" route="/tresorerie-restaurant" />
           </View>
         </ScrollView>
       )}
