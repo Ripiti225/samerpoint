@@ -1,522 +1,302 @@
+// ──────────────────────────────────────────────────────────────────────────────
+// Contacts — SMS & WhatsApp groupés, et suivi des contacts clients pris.
+//
+// Onglet Clients : période + restaurant, résumé comparé à la période juste
+// avant (même durée, cf. lib/periodeComparee.js), puis les numéros saisis sur
+// la période. Depuis le passage au POS, seuls les NOMBRES de contacts remontent
+// (points_shifts.pos_nb_contacts) : les numéros restent dans le POS, la liste
+// ne contient donc que les numéros saisis dans Samtrackly avant la bascule.
+// Calculs : lib/contactsPeriode.js — Chargement : lib/contactsPeriodeDb.js
+// ──────────────────────────────────────────────────────────────────────────────
 import { router } from 'expo-router'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ActivityIndicator, Alert, Linking, Platform, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
+
+import ChampDate from '../components/ChampDate'
+import ResumeContacts from '../components/contacts/ResumeContacts'
+import { Bouton, EnTete, Feuille, Libelle, Puces, Recherche, Vide, teinte, useEcranModerne } from '../components/ui/EcranModerne'
 import { useApp } from '../context/AppContext'
-import { useTheme } from '../context/ThemeContext'
-import {
-  ActivityIndicator,
-  Alert,
-  Keyboard,
-  KeyboardAvoidingView,
-  Linking,
-  Modal,
-  Platform,
-  SafeAreaView, ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View
-} from 'react-native'
+import { numerosUniques, parJour, parRestaurant, totaux } from '../lib/contactsPeriode'
+import { chargerContactsPeriode, chargerEquipeEtFournisseurs, derniereDateNumero } from '../lib/contactsPeriodeDb'
+import { PERIODES, plageDates, titrePeriode } from '../lib/equipe'
+import { libelleJour, periodePrecedente } from '../lib/periodeComparee'
 import { supabase } from '../lib/supabase'
 
-const ONGLETS = ['Clients', 'Équipe', 'Fournisseurs']
+const PAR_PAGE = 100
 
 export default function ContactsScreen() {
-  const { colors } = useTheme()
   const { roleActif, restaurantId } = useApp()
-  const styles = useMemo(() => makeStyles(colors), [colors])
+  const { styles, colors, accent, principale } = useEcranModerne('beige')
   const isGerant = roleActif === 'gerant'
   const isRH = roleActif === 'rh'
-  const onglets = isRH ? ['Équipe', 'Fournisseurs'] : ONGLETS
+  const onglets = isRH ? ['Équipe', 'Fournisseurs'] : ['Clients', 'Équipe', 'Fournisseurs']
+
   const [restaurants, setRestaurants] = useState([])
-  const [restoSelectionne, setRestoSelectionne] = useState(null)
-  const [ongletActif, setOngletActif] = useState(isRH ? 'Équipe' : 'Clients')
-  const [contacts, setContacts] = useState({ Clients: [], Équipe: [], Fournisseurs: [] })
+  const [restoId, setRestoId] = useState(isGerant ? restaurantId : null) // null = tous
+  const [onglet, setOnglet] = useState(onglets[0])
+  const [periodeKey, setPeriodeKey] = useState('month')
+  const [perso, setPerso] = useState({})
+  const [feuillePeriode, setFeuillePeriode] = useState(false)
+  const [brouillon, setBrouillon] = useState({ debut: '', fin: '' })
+
+  const [donnees, setDonnees] = useState({ lignes: [], commandes: [] })
+  const [equipe, setEquipe] = useState({ travailleurs: [], fournisseurs: [] })
+  const [dernierNumero, setDernierNumero] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  const [recherche, setRecherche] = useState('')
+  const [nbAffiches, setNbAffiches] = useState(PAR_PAGE)
   const [selectionnes, setSelectionnes] = useState({})
-  const [loading, setLoading] = useState(false)
-  const [modalVisible, setModalVisible] = useState(false)
-  const [typeEnvoi, setTypeEnvoi] = useState('sms')
+  const [composeur, setComposeur] = useState(null) // 'sms' | 'whatsapp' | null
   const [message, setMessage] = useState('')
 
-  useEffect(() => { chargerRestaurants() }, [])
-  useEffect(() => { if (restoSelectionne) chargerContacts() }, [restoSelectionne])
-
-  async function chargerRestaurants() {
-    const { data } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation').order('nom')
-    setRestaurants(data || [])
-    if (isGerant && restaurantId) {
-      const monResto = (data || []).find(r => r.id === restaurantId)
-      if (monResto) setRestoSelectionne(monResto)
-    } else if (data && data.length > 0) {
-      setRestoSelectionne(data[0])
-    }
-  }
-
-  async function chargerContacts() {
-    setLoading(true)
-    setSelectionnes({})
-
-    const [
-      { data: commandes },
-      { data: travailleurs },
-      { data: fournisseurs },
-    ] = await Promise.all([
-      supabase.from('commandes')
-        .select('contact_client, partenaire')
-        .eq('point_id', supabase.from('points').select('id').eq('restaurant_id', restoSelectionne.id)),
-      supabase.from('travailleurs')
-        .select('id, nom, poste, contact')
-        .eq('restaurant_id', restoSelectionne.id)
-        .eq('actif', true)
-        .not('contact', 'is', null),
-      supabase.from('fournisseurs')
-        .select('id, nom, type, contact')
-        .eq('restaurant_id', restoSelectionne.id)
-        .eq('actif', true)
-        .not('contact', 'is', null),
-    ])
-
-    // Clients uniques avec contact non vide
-    const clientsMap = {}
-    ;(commandes || []).forEach(c => {
-      const num = (c.contact_client || '').trim()
-      if (num && num.length >= 8 && !clientsMap[num]) {
-        clientsMap[num] = { id: num, nom: num, detail: c.partenaire || 'Client', numero: num }
-      }
-    })
-
-    setContacts({
-      Clients: Object.values(clientsMap),
-      Équipe: (travailleurs || []).filter(t => t.contact).map(t => ({
-        id: t.id, nom: t.nom, detail: t.poste || 'Équipe', numero: t.contact,
-      })),
-      Fournisseurs: (fournisseurs || []).filter(f => f.contact).map(f => ({
-        id: f.id, nom: f.nom, detail: f.type === 'cotisation' ? 'Cotisation' : 'Fournisseur', numero: f.contact,
-      })),
-    })
-    setLoading(false)
-  }
-
-  // Requête clients séparée (join via points)
-  async function chargerClients() {
-    const { data: points } = await supabase
-      .from('points').select('id').eq('restaurant_id', restoSelectionne.id)
-    const pointIds = (points || []).map(p => p.id)
-    if (pointIds.length === 0) return []
-
-    const { data: commandes } = await supabase
-      .from('commandes').select('contact_client, partenaire')
-      .in('point_id', pointIds)
-      .not('contact_client', 'is', null)
-      .neq('contact_client', '')
-
-    const map = {}
-    ;(commandes || []).forEach(c => {
-      const num = (c.contact_client || '').trim()
-      if (num && num.length >= 8 && !map[num]) {
-        map[num] = { id: num, nom: num, detail: c.partenaire || 'Client', numero: num }
-      }
-    })
-    return Object.values(map)
-  }
+  const plageA = useMemo(() => plageDates(periodeKey, perso), [periodeKey, perso])
+  const plageB = useMemo(() => (plageA ? periodePrecedente(plageA.debut, plageA.fin) : null), [plageA])
+  const restoParId = useMemo(() => Object.fromEntries(restaurants.map(r => [r.id, r])), [restaurants])
 
   useEffect(() => {
-    if (!restoSelectionne) return
+    supabase.from('restaurants').select('id, nom').order('nom').then(({ data }) => setRestaurants(data || []))
+    derniereDateNumero().then(setDernierNumero).catch(() => {})
+  }, [])
+
+  // Une seule lecture couvre les deux périodes (B est juste avant A).
+  const charger = useCallback(async () => {
+    if (!plageA || !plageB) return
     setLoading(true)
     setSelectionnes({})
+    try {
+      const [c, e] = await Promise.all([
+        isRH ? { lignes: [], commandes: [] } : chargerContactsPeriode({ debut: plageB.debut, fin: plageA.fin, restoId }),
+        chargerEquipeEtFournisseurs(restoId),
+      ])
+      setDonnees(c); setEquipe(e)
+    } catch {
+      Alert.alert('Erreur', 'Impossible de charger les contacts. Vérifiez la connexion.')
+    }
+    setLoading(false)
+  }, [plageA, plageB, restoId, isRH])
 
-    Promise.all([
-      chargerClients(),
-      supabase.from('travailleurs').select('id, nom, poste, contact')
-        .eq('restaurant_id', restoSelectionne.id).eq('actif', true).not('contact', 'is', null),
-      supabase.from('fournisseurs').select('id, nom, type, contact')
-        .eq('restaurant_id', restoSelectionne.id).eq('actif', true).not('contact', 'is', null),
-    ]).then(([clients, { data: travs }, { data: fours }]) => {
-      setContacts({
-        Clients: clients,
-        Équipe: (travs || []).map(t => ({ id: t.id, nom: t.nom, detail: t.poste || 'Équipe', numero: t.contact })),
-        Fournisseurs: (fours || []).map(f => ({ id: f.id, nom: f.nom, detail: f.type === 'cotisation' ? 'Cotisation' : 'Fournisseur', numero: f.contact })),
-      })
-      setLoading(false)
-    })
-  }, [restoSelectionne])
+  useEffect(() => { charger() }, [charger])
+  useEffect(() => { setNbAffiches(PAR_PAGE); setSelectionnes({}) }, [onglet, recherche, restoId, plageA])
 
-  const listeActive = contacts[ongletActif] || []
+  // ── Résumé ──
+  const dans = (l, p) => !!p && l.date >= p.debut && l.date <= p.fin
+  const lignesA = useMemo(() => donnees.lignes.filter(l => dans(l, plageA)), [donnees, plageA])
+  const lignesB = useMemo(() => donnees.lignes.filter(l => dans(l, plageB)), [donnees, plageB])
+  const totA = useMemo(() => totaux(lignesA), [lignesA])
+  const totB = useMemo(() => totaux(lignesB), [lignesB])
+  const jourA = useMemo(() => (plageA ? parJour(lignesA, plageA.debut, plageA.fin) : []), [lignesA, plageA])
+  const jourB = useMemo(() => (plageB ? parJour(lignesB, plageB.debut, plageB.fin) : []), [lignesB, plageB])
+  const classement = useMemo(() => (restoId ? null : parRestaurant(lignesA, lignesB, restaurants)), [restoId, lignesA, lignesB, restaurants])
 
-  function toggleSelection(id) {
-    setSelectionnes(prev => ({ ...prev, [id]: !prev[id] }))
-  }
+  // ── Listes ──
+  const q = recherche.trim().toLowerCase()
+  const listes = useMemo(() => ({
+    Clients: numerosUniques(donnees.commandes.filter(c => dans(c, plageA))).map(c => ({
+      id: c.id, nom: c.numero, numero: c.numero,
+      detail: `${c.partenaire} · ${c.fois > 1 ? `${c.fois} commandes · ` : ''}dernière le ${libelleJour(c.dernier)}${!restoId && restoParId[c.restaurant_id] ? ` · ${restoParId[c.restaurant_id].nom}` : ''}`,
+    })),
+    'Équipe': equipe.travailleurs.map(t => ({
+      id: t.id, nom: t.nom, numero: t.contact,
+      detail: `${t.poste || 'Équipe'}${!restoId && restoParId[t.restaurant_id] ? ` · ${restoParId[t.restaurant_id].nom}` : ''}`,
+    })),
+    Fournisseurs: equipe.fournisseurs.map(f => ({
+      id: f.id, nom: f.nom, numero: f.contact,
+      detail: `${f.type === 'cotisation' ? 'Cotisation' : 'Fournisseur'}${!restoId && restoParId[f.restaurant_id] ? ` · ${restoParId[f.restaurant_id].nom}` : ''}`,
+    })),
+  }), [donnees, equipe, plageA, restoId, restoParId])
+  const liste = (listes[onglet] || []).filter(c => !q || c.nom.toLowerCase().includes(q) || c.detail.toLowerCase().includes(q) || String(c.numero).includes(q))
+  const affiches = liste.slice(0, nbAffiches)
+
+  const nbSelectionnes = Object.values(selectionnes).filter(Boolean).length
+  const numerosSelectionnes = liste.filter(c => selectionnes[c.id]).map(c => c.numero)
 
   function toutSelectionner() {
     const tous = {}
-    listeActive.forEach(c => { tous[c.id] = true })
+    liste.forEach(c => { tous[c.id] = true })
     setSelectionnes(tous)
   }
 
-  function toutDeselectionner() {
-    setSelectionnes({})
-  }
-
-  const nbSelectionnes = Object.values(selectionnes).filter(Boolean).length
-  const numerosSelectionnes = listeActive
-    .filter(c => selectionnes[c.id])
-    .map(c => c.numero)
-
-  function ouvrirComposeur(type) {
-    if (numerosSelectionnes.length === 0) {
-      Alert.alert('Aucun contact', 'Sélectionnez au moins un contact.')
-      return
-    }
-    setTypeEnvoi(type)
-    setModalVisible(true)
+  function nettoyer(numero) {
+    return String(numero).replace(/\s+/g, '').replace(/[^\d+]/g, '')
   }
 
   function envoyerSMS() {
-    if (!message.trim()) {
-      Alert.alert('Message vide', 'Écrivez votre message avant d\'envoyer.')
-      return
-    }
-    const nums = numerosSelectionnes.join(',')
-    const encodedMsg = encodeURIComponent(message)
+    if (!message.trim()) { Alert.alert('Message vide', "Écrivez votre message avant d'envoyer."); return }
     const sep = Platform.OS === 'ios' ? '&' : '?'
-    const url = `sms:${nums}${sep}body=${encodedMsg}`
-    Linking.openURL(url).catch(() =>
-      Alert.alert('Erreur', 'Impossible d\'ouvrir l\'application SMS.')
-    )
-    setModalVisible(false)
-    setMessage('')
+    Linking.openURL(`sms:${numerosSelectionnes.join(',')}${sep}body=${encodeURIComponent(message)}`)
+      .catch(() => Alert.alert('Erreur', "Impossible d'ouvrir l'application SMS."))
+    setComposeur(null); setMessage('')
   }
 
-  function envoyerWhatsApp(numero) {
-    const num = numero.replace(/\s+/g, '').replace(/[^\d+]/g, '')
-    const encodedMsg = encodeURIComponent(message)
-    const url = `https://wa.me/${num}?text=${encodedMsg}`
-    Linking.openURL(url).catch(() =>
-      Alert.alert('Erreur', 'Impossible d\'ouvrir WhatsApp.')
-    )
-    setModalVisible(false)
-    setMessage('')
+  function envoyerWhatsApp() {
+    if (!message.trim()) { Alert.alert('Message vide', 'Écrivez votre message.'); return }
+    // WhatsApp ne sait pas écrire à plusieurs numéros d'un coup : un par un.
+    Alert.alert('WhatsApp', `WhatsApp sera ouvert ${numerosSelectionnes.length} fois (un par contact). Continuer ?`, [
+      { text: 'Annuler', style: 'cancel' },
+      {
+        text: 'Continuer', onPress: () => {
+          const texte = encodeURIComponent(message)
+          numerosSelectionnes.forEach((num, i) => setTimeout(() => {
+            Linking.openURL(`https://wa.me/${nettoyer(num)}?text=${texte}`).catch(() => Alert.alert('Erreur', "Impossible d'ouvrir WhatsApp."))
+          }, i * 1500))
+          setComposeur(null); setMessage('')
+        },
+      },
+    ])
   }
+
+  const restoNom = restoId ? restoParId[restoId]?.nom || '' : 'Tous les restaurants'
+  const avantPOS = dernierNumero && plageA && plageA.fin > dernierNumero
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => {
-          if (router.canGoBack()) router.back()
-          else router.replace('/accueil')
-        }}>
-          <Text style={styles.back}>‹ Retour</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitre}>Contacts</Text>
-        <View style={{ width: 60 }} />
+      <EnTete titre="Contacts" sous={restoNom} styles={styles}
+        onRetour={() => (router.canGoBack() ? router.back() : router.replace('/accueil'))} />
+
+      {!isGerant && (
+        <Puces ligne styles={styles} actif={restoId} onChoisir={setRestoId}
+          elements={[{ cle: null, label: 'Tous' }, ...restaurants.map(r => ({ cle: r.id, label: r.nom }))]} />
+      )}
+
+      <View style={styles.ongletsWrap}>
+        {onglets.map(o => (
+          <TouchableOpacity key={o} style={[styles.onglet, onglet === o && styles.ongletActive]} onPress={() => setOnglet(o)}>
+            <Text style={[styles.ongletTxt, onglet === o && styles.ongletTxtActive]}>
+              {o}{o !== 'Clients' && listes[o].length ? ` (${listes[o].length})` : ''}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      {/* Filtre restaurant — caché pour le gérant (1 seul restaurant) */}
-      {!isGerant && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.restoBar, { flexGrow: 0 }]}>
-          {restaurants.map(r => (
-            <TouchableOpacity
-              key={r.id}
-              style={[styles.restoBtn, restoSelectionne?.id === r.id && styles.restoBtnActive]}
-              onPress={() => setRestoSelectionne(r)}
-            >
-              <Text style={[styles.restoTxt, restoSelectionne?.id === r.id && styles.restoTxtActive]}>
-                {r.nom}
+      {onglet === 'Clients' && (
+        <Puces ligne petit styles={styles} actif={periodeKey}
+          onChoisir={k => (k === 'custom' ? (setBrouillon({ debut: perso.debut || '', fin: perso.fin || '' }), setFeuillePeriode(true)) : setPeriodeKey(k))}
+          elements={PERIODES.map(p => ({ cle: p.key, label: p.key === 'custom' && periodeKey === 'custom' ? `📅 ${titrePeriode('custom', perso)}` : p.label }))} />
+      )}
+
+      {loading ? (
+        <View style={styles.loadingBox}><ActivityIndicator size="large" color={accent} /></View>
+      ) : (
+        <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+          {onglet === 'Clients' && plageA && plageB && (
+            <ResumeContacts styles={styles} colors={colors} principale={principale} accent={accent}
+              a={totA} b={totB} plageA={plageA} plageB={plageB} jourA={jourA} jourB={jourB} restaurants={classement} />
+          )}
+
+          {onglet === 'Clients' && (
+            <>
+              <Text style={[styles.resultat, { marginTop: 4 }]}>Numéros clients de la période</Text>
+              {avantPOS && (
+                <View style={[styles.carte, { backgroundColor: teinte(principale, '14'), borderColor: teinte(principale, '40') }]}>
+                  <Text style={[styles.infoTxt, { color: colors.text }]}>
+                    ℹ️ Depuis le passage au POS, les numéros restent dans le POS : seul le nombre de contacts remonte ici.
+                    Les numéros disponibles s'arrêtent au {libelleJour(dernierNumero)}.
+                  </Text>
+                </View>
+              )}
+            </>
+          )}
+
+          <View style={{ marginHorizontal: -14 }}>
+            <Recherche value={recherche} onChange={setRecherche} styles={styles} colors={colors}
+              placeholder={onglet === 'Clients' ? '🔍 Rechercher un numéro…' : '🔍 Rechercher un nom, un numéro…'} />
+          </View>
+
+          {liste.length > 0 && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: 10 }}>
+              <Text style={[styles.resultat, { marginBottom: 0 }]}>
+                {liste.length} contact{liste.length > 1 ? 's' : ''}{nbSelectionnes ? ` · ${nbSelectionnes} sélectionné${nbSelectionnes > 1 ? 's' : ''}` : ''}
               </Text>
-            </TouchableOpacity>
-          ))}
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                <Bouton label="Tout" couleur={accent} styles={styles} onPress={toutSelectionner} />
+                <Bouton label="Aucun" variante="contour" couleur={colors.textSecondary} styles={styles} onPress={() => setSelectionnes({})} />
+              </View>
+            </View>
+          )}
+
+          {liste.length === 0 ? (
+            <Vide styles={styles} icone={onglet === 'Clients' ? '🛵' : onglet === 'Équipe' ? '👥' : '🧾'}
+              texte={onglet === 'Clients' ? 'Aucun numéro sur cette période' : 'Aucun contact'}
+              sous={onglet === 'Clients' ? 'Les numéros viennent des livraisons saisies dans Samtrackly.' : 'Ajoutez des numéros dans Paramètres.'} />
+          ) : affiches.map(c => {
+            const sel = !!selectionnes[c.id]
+            return (
+              <TouchableOpacity key={c.id} activeOpacity={0.75}
+                onPress={() => setSelectionnes(p => ({ ...p, [c.id]: !p[c.id] }))}
+                style={[styles.carte, { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, marginBottom: 8 },
+                  sel && { borderColor: principale, backgroundColor: teinte(principale, '12') }]}>
+                <View style={{
+                  width: 24, height: 24, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center',
+                  borderColor: sel ? principale : colors.border, backgroundColor: sel ? principale : 'transparent',
+                }}>
+                  {sel && <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>✓</Text>}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.carteTitre, { fontSize: 14 }]}>{c.nom}</Text>
+                  <Text style={styles.carteSous} numberOfLines={2}>{c.detail}</Text>
+                  {c.nom !== c.numero && <Text style={[styles.carteSous, { color: accent, fontWeight: '700' }]}>{c.numero}</Text>}
+                </View>
+                <TouchableOpacity hitSlop={6} onPress={() => Linking.openURL(`https://wa.me/${nettoyer(c.numero)}`).catch(() => Alert.alert('Erreur', "Impossible d'ouvrir WhatsApp."))}
+                  style={{ backgroundColor: '#25D366', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10 }}>
+                  <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#fff' }}>WA</Text>
+                </TouchableOpacity>
+              </TouchableOpacity>
+            )
+          })}
+          {liste.length > affiches.length && (
+            <Bouton label={`Voir ${Math.min(PAR_PAGE, liste.length - affiches.length)} de plus (${liste.length - affiches.length} restants)`}
+              variante="contour" couleur={accent} styles={styles} onPress={() => setNbAffiches(n => n + PAR_PAGE)} />
+          )}
+          <View style={{ height: 130 }} />
         </ScrollView>
       )}
 
-      {/* Onglets */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.ongletBar, { flexGrow: 0 }]}>
-        {onglets.map(o => {
-          const nb = contacts[o]?.length || 0
-          return (
-            <TouchableOpacity
-              key={o}
-              style={[styles.ongletBtn, ongletActif === o && styles.ongletBtnActive]}
-              onPress={() => { setOngletActif(o); setSelectionnes({}) }}
-            >
-              <Text style={[styles.ongletTxt, ongletActif === o && styles.ongletTxtActive]}>
-                {o} {nb > 0 ? `(${nb})` : ''}
-              </Text>
-            </TouchableOpacity>
-          )
-        })}
-      </ScrollView>
-
-      {loading ? (
-        <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color="#534AB7" />
-          <Text style={styles.loadingTxt}>Chargement...</Text>
+      {/* Barre d'envoi */}
+      {nbSelectionnes > 0 && (
+        <View style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.surface, padding: 16, paddingBottom: 28,
+          flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: colors.borderLight,
+          shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 8,
+        }}>
+          <Text style={{ fontSize: 14, fontWeight: '800', color: accent }}>{nbSelectionnes} contact{nbSelectionnes > 1 ? 's' : ''}</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Bouton label="💬 SMS" variante="plein" couleur={principale} styles={styles} onPress={() => setComposeur('sms')} />
+            <Bouton label="WhatsApp" variante="plein" couleur="#25D366" styles={styles} onPress={() => setComposeur('whatsapp')} />
+          </View>
         </View>
-      ) : (
-        <>
-          {/* Barre tout sélectionner */}
-          {listeActive.length > 0 && (
-            <View style={styles.selectBar}>
-              <Text style={styles.selectInfo}>
-                {nbSelectionnes > 0 ? `${nbSelectionnes} sélectionné${nbSelectionnes > 1 ? 's' : ''}` : 'Aucun sélectionné'}
-              </Text>
-              <View style={styles.selectBtns}>
-                <TouchableOpacity style={styles.selectBtn} onPress={toutSelectionner}>
-                  <Text style={styles.selectBtnTxt}>Tout</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.selectBtn} onPress={toutDeselectionner}>
-                  <Text style={styles.selectBtnTxt}>Aucun</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-            {listeActive.length === 0 ? (
-              <View style={styles.emptyBox}>
-                <Text style={styles.emptyIcon}>
-                  {ongletActif === 'Clients' ? '🛵' : ongletActif === 'Équipe' ? '👥' : '🧾'}
-                </Text>
-                <Text style={styles.emptyTxt}>Aucun contact pour cet onglet</Text>
-                <Text style={styles.emptySub}>
-                  {ongletActif === 'Clients'
-                    ? 'Les contacts clients viennent des livraisons enregistrées'
-                    : 'Ajoutez des numéros dans Paramètres'}
-                </Text>
-              </View>
-            ) : (
-              listeActive.map(c => {
-                const isSelected = !!selectionnes[c.id]
-                return (
-                  <TouchableOpacity
-                    key={c.id}
-                    style={[styles.contactCard, isSelected && styles.contactCardSelected]}
-                    onPress={() => toggleSelection(c.id)}
-                    activeOpacity={0.75}
-                  >
-                    <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
-                      {isSelected && <Text style={styles.checkmark}>✓</Text>}
-                    </View>
-                    <View style={[styles.contactAvatar, isSelected && { backgroundColor: '#534AB7' }]}>
-                      <Text style={styles.contactAvatarTxt}>
-                        {c.nom.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={styles.contactInfo}>
-                      <Text style={styles.contactNom}>{c.nom}</Text>
-                      <Text style={styles.contactDetail}>{c.detail}</Text>
-                      <Text style={styles.contactNum}>{c.numero}</Text>
-                    </View>
-                    {/* WhatsApp rapide individuel */}
-                    <TouchableOpacity
-                      style={styles.waBtn}
-                      onPress={() => {
-                        const num = c.numero.replace(/\s+/g, '').replace(/[^\d+]/g, '')
-                        Linking.openURL(`https://wa.me/${num}`).catch(() =>
-                          Alert.alert('Erreur', 'Impossible d\'ouvrir WhatsApp.')
-                        )
-                      }}
-                    >
-                      <Text style={styles.waBtnTxt}>WA</Text>
-                    </TouchableOpacity>
-                  </TouchableOpacity>
-                )
-              })
-            )}
-            <View style={{ height: 120 }} />
-          </ScrollView>
-
-          {/* Barre d'action fixe en bas */}
-          {nbSelectionnes > 0 && (
-            <View style={styles.actionBar}>
-              <Text style={styles.actionCount}>{nbSelectionnes} contact{nbSelectionnes > 1 ? 's' : ''}</Text>
-              <View style={styles.actionBtns}>
-                <TouchableOpacity style={styles.smsBtn} onPress={() => ouvrirComposeur('sms')}>
-                  <Text style={styles.smsBtnTxt}>💬 SMS</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.waActionBtn} onPress={() => ouvrirComposeur('whatsapp')}>
-                  <Text style={styles.waActionBtnTxt}>WhatsApp</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-        </>
       )}
 
-      {/* Modal composer message */}
-      <Modal visible={modalVisible} transparent animationType="slide">
-        <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
-          <View style={styles.modalOverlay}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-              <View style={styles.modal}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitre}>
-                    {typeEnvoi === 'sms' ? '💬 Envoyer SMS' : 'WhatsApp'}
-                  </Text>
-                  <Text style={styles.modalSub}>
-                    {numerosSelectionnes.length} destinataire{numerosSelectionnes.length > 1 ? 's' : ''} — {restoSelectionne?.nom}
-                  </Text>
-                </View>
+      {/* Période personnalisée */}
+      <Feuille visible={feuillePeriode} titre="Choisir une période" sous="Comparée aux mêmes nombre de jours juste avant"
+        onFermer={() => setFeuillePeriode(false)} styles={styles}>
+        <ChampDate label="Du" valeur={brouillon.debut} couleur={principale} maxDate={new Date().toISOString().slice(0, 10)}
+          onChange={d => setBrouillon(b => ({ ...b, debut: d }))} />
+        <ChampDate label="Au" valeur={brouillon.fin} couleur={principale} minDate={brouillon.debut || undefined}
+          maxDate={new Date().toISOString().slice(0, 10)} onChange={d => setBrouillon(b => ({ ...b, fin: d }))} />
+        <Bouton label="Voir les contacts" variante="plein" couleur={principale} grand styles={styles}
+          disabled={!brouillon.debut || !brouillon.fin || brouillon.fin < brouillon.debut}
+          onPress={() => { setPerso(brouillon); setPeriodeKey('custom'); setFeuillePeriode(false) }} />
+      </Feuille>
 
-                <Text style={styles.modalLabel}>Votre message</Text>
-                <TextInput
-                  style={styles.messageInput}
-                  value={message}
-                  onChangeText={setMessage}
-                  placeholder="Bonjour, nous avons une offre spéciale pour vous..."
-                  placeholderTextColor="#bbb"
-                  multiline
-                  numberOfLines={5}
-                  textAlignVertical="top"
-                  autoFocus
-                />
-                <Text style={styles.charCount}>{message.length} caractère{message.length > 1 ? 's' : ''}</Text>
-
-                {/* Aperçu destinataires */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.destRow, { flexGrow: 0 }]}>
-                  {numerosSelectionnes.slice(0, 8).map((num, i) => (
-                    <View key={i} style={styles.destBadge}>
-                      <Text style={styles.destNum} numberOfLines={1}>{num}</Text>
-                    </View>
-                  ))}
-                  {numerosSelectionnes.length > 8 && (
-                    <View style={styles.destBadge}>
-                      <Text style={styles.destNum}>+{numerosSelectionnes.length - 8}</Text>
-                    </View>
-                  )}
-                </ScrollView>
-
-                <View style={styles.modalBtns}>
-                  <TouchableOpacity
-                    style={styles.modalCancel}
-                    onPress={() => { setModalVisible(false); setMessage('') }}
-                  >
-                    <Text style={styles.modalCancelTxt}>Annuler</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.modalConfirm, typeEnvoi === 'whatsapp' && styles.modalConfirmWA]}
-                    onPress={typeEnvoi === 'sms' ? envoyerSMS : () => {
-                      if (!message.trim()) { Alert.alert('Message vide', 'Écrivez votre message.'); return }
-                      // WhatsApp : ouvre un par un
-                      Alert.alert(
-                        'WhatsApp',
-                        `WhatsApp sera ouvert ${numerosSelectionnes.length} fois (un par contact). Continuer ?`,
-                        [
-                          { text: 'Annuler', style: 'cancel' },
-                          {
-                            text: 'Continuer', onPress: () => {
-                              numerosSelectionnes.forEach((num, i) => {
-                                setTimeout(() => envoyerWhatsApp(num), i * 1500)
-                              })
-                            }
-                          }
-                        ]
-                      )
-                    }}
-                  >
-                    <Text style={styles.modalConfirmTxt}>
-                      {typeEnvoi === 'sms' ? '💬 Envoyer SMS' : '📲 Envoyer WhatsApp'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </KeyboardAvoidingView>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      {/* Composer le message */}
+      <Feuille visible={!!composeur} titre={composeur === 'sms' ? '💬 Envoyer un SMS' : 'WhatsApp'}
+        sous={`${numerosSelectionnes.length} destinataire${numerosSelectionnes.length > 1 ? 's' : ''} — ${restoNom}`}
+        onFermer={() => { setComposeur(null); setMessage('') }} styles={styles}>
+        <Libelle styles={styles}>Votre message</Libelle>
+        <TextInput style={[styles.input, styles.textArea, { minHeight: 120 }]} value={message} onChangeText={setMessage}
+          placeholder="Bonjour, nous avons une offre spéciale pour vous…" placeholderTextColor={colors.textPlaceholder}
+          multiline textAlignVertical="top" autoFocus />
+        <Text style={[styles.infoTxt, { textAlign: 'right', fontSize: 11, marginTop: -10, marginBottom: 12 }]}>{message.length} caractère{message.length > 1 ? 's' : ''}</Text>
+        <Puces petit styles={styles} actif={null} onChoisir={() => {}}
+          elements={[...numerosSelectionnes.slice(0, 8).map(n => ({ cle: n, label: n })),
+            ...(numerosSelectionnes.length > 8 ? [{ cle: 'plus', label: `+${numerosSelectionnes.length - 8}` }] : [])]} />
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <Bouton label="Annuler" variante="contour" couleur={colors.textSecondary} flex grand styles={styles} onPress={() => { setComposeur(null); setMessage('') }} />
+          <Bouton label={composeur === 'sms' ? '💬 Envoyer le SMS' : '📲 Envoyer sur WhatsApp'} variante="plein" flex grand styles={styles}
+            couleur={composeur === 'sms' ? principale : '#25D366'} onPress={composeur === 'sms' ? envoyerSMS : envoyerWhatsApp} />
+        </View>
+      </Feuille>
     </SafeAreaView>
   )
 }
-
-function makeStyles(colors) { return StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    backgroundColor: colors.headerBg, padding: 16,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'
-  },
-  back: { fontSize: 16, color: colors.primaryText, fontWeight: '500' },
-  headerTitre: { fontSize: 16, fontWeight: '600', color: colors.surface },
-  restoBar: { backgroundColor: colors.surface, maxHeight: 44, borderBottomWidth: 0.5, borderBottomColor: colors.border },
-  restoBtn: { paddingHorizontal: 14, paddingVertical: 12 },
-  restoBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
-  restoTxt: { fontSize: 12, color: colors.textMuted },
-  restoTxtActive: { color: colors.primary, fontWeight: '600' },
-  ongletBar: { backgroundColor: colors.surface, maxHeight: 44, borderBottomWidth: 0.5, borderBottomColor: colors.border },
-  ongletBtn: { paddingHorizontal: 18, paddingVertical: 12 },
-  ongletBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
-  ongletTxt: { fontSize: 13, color: colors.textMuted },
-  ongletTxtActive: { color: colors.primary, fontWeight: '600' },
-  loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingTxt: { fontSize: 13, color: colors.textMuted, marginTop: 12 },
-  selectBar: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: colors.primaryLight, paddingHorizontal: 16, paddingVertical: 8,
-    borderBottomWidth: 0.5, borderBottomColor: colors.primaryText
-  },
-  selectInfo: { fontSize: 12, color: colors.primary, fontWeight: '500' },
-  selectBtns: { flexDirection: 'row', gap: 8 },
-  selectBtn: { backgroundColor: colors.primary, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
-  selectBtnTxt: { fontSize: 11, color: colors.surface, fontWeight: '500' },
-  body: { flex: 1, padding: 14 },
-  emptyBox: { alignItems: 'center', paddingVertical: 60 },
-  emptyIcon: { fontSize: 44, marginBottom: 12 },
-  emptyTxt: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
-  emptySub: { fontSize: 12, color: colors.textPlaceholder, marginTop: 6, textAlign: 'center', paddingHorizontal: 20 },
-  contactCard: {
-    backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 8,
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderWidth: 0.5, borderColor: colors.border
-  },
-  contactCardSelected: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
-  checkbox: {
-    width: 22, height: 22, borderRadius: 11, borderWidth: 1.5,
-    borderColor: colors.inputBorder, alignItems: 'center', justifyContent: 'center'
-  },
-  checkboxSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
-  checkmark: { fontSize: 13, color: colors.surface, fontWeight: '700' },
-  contactAvatar: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: '#EF9F27', alignItems: 'center', justifyContent: 'center'
-  },
-  contactAvatarTxt: { fontSize: 13, fontWeight: '600', color: '#fff' },
-  contactInfo: { flex: 1 },
-  contactNom: { fontSize: 13, fontWeight: '600', color: colors.text },
-  contactDetail: { fontSize: 11, color: colors.textMuted, marginTop: 1 },
-  contactNum: { fontSize: 12, color: colors.primary, marginTop: 2 },
-  waBtn: { backgroundColor: '#25D366', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
-  waBtnTxt: { fontSize: 11, fontWeight: '700', color: '#fff' },
-  actionBar: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: colors.surface, padding: 16, paddingBottom: 28,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderTopWidth: 1, borderTopColor: colors.border,
-    shadowColor: '#000', shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08, shadowRadius: 8, elevation: 8,
-  },
-  actionCount: { fontSize: 13, fontWeight: '600', color: colors.primary },
-  actionBtns: { flexDirection: 'row', gap: 8 },
-  smsBtn: { backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
-  smsBtnTxt: { fontSize: 13, fontWeight: '600', color: colors.surface },
-  waActionBtn: { backgroundColor: '#25D366', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
-  waActionBtnTxt: { fontSize: 13, fontWeight: '600', color: '#fff' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modal: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
-  modalHeader: { marginBottom: 20 },
-  modalTitre: { fontSize: 18, fontWeight: '700', color: colors.text },
-  modalSub: { fontSize: 12, color: colors.textMuted, marginTop: 4 },
-  modalLabel: { fontSize: 11, fontWeight: '600', color: colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 8 },
-  messageInput: {
-    backgroundColor: colors.surfaceAlt, borderRadius: 14, padding: 14,
-    fontSize: 14, color: colors.text, minHeight: 110, marginBottom: 6
-  },
-  charCount: { fontSize: 10, color: colors.textPlaceholder, textAlign: 'right', marginBottom: 12 },
-  destRow: { maxHeight: 36, marginBottom: 16 },
-  destBadge: { backgroundColor: colors.primaryLight, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, marginRight: 6 },
-  destNum: { fontSize: 11, color: colors.primary, fontWeight: '500', maxWidth: 100 },
-  modalBtns: { flexDirection: 'row', gap: 10 },
-  modalCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.surfaceAlt, alignItems: 'center' },
-  modalCancelTxt: { fontSize: 14, color: colors.textMuted },
-  modalConfirm: { flex: 2, padding: 14, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center' },
-  modalConfirmWA: { backgroundColor: '#25D366' },
-  modalConfirmTxt: { fontSize: 14, fontWeight: '600', color: colors.surface },
-}) }
