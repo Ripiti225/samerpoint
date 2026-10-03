@@ -32,6 +32,8 @@ const TRANSITION_WEB = Platform.OS === 'web'
   : null
 const VERT_HERO = '#047857' // fond de la carte Trésorerie : blanc lisible dessus (≥ 4,5:1)
 
+const ECART_JAUGES = 6
+
 const STATUTS = {
   verifie: { icone: 'check-circle', label: 'vérifié' },
   a_verifier: { icone: 'magnify-scan', label: 'à vérifier' },
@@ -217,6 +219,12 @@ function BandeauPoints({ etat, styles, colors }) {
   // warningDark : foncé en clair, vif en sombre — lisible dans les deux thèmes.
   const couleurs = { verifie: colors.success, a_verifier: colors.warningDark, en_attente: colors.textMuted }
   const complet = jour.valides === jour.total
+  // Chaque restaurant a sa jauge, son nom juste en dessous. Sur un téléphone,
+  // 8 colonnes ne laissent pas la place aux noms : deux rangées de 4.
+  const [largeurJauges, setLargeurJauges] = useState(0)
+  const nbRestos = jour.lignes.length || 1
+  const parRangee = largeurJauges / nbRestos >= 70 ? nbRestos : Math.ceil(nbRestos / 2)
+  const largeurJauge = largeurJauges ? (largeurJauges - ECART_JAUGES * (parRangee - 1)) / parRangee : 0
   return (
     <Animated.View entering={FadeIn.duration(300)}>
       <Survol
@@ -237,15 +245,16 @@ function BandeauPoints({ etat, styles, colors }) {
             color={complet ? colors.success : colors.warningDark} />
         </View>
 
-        {/* Une barre par restaurant, dans l'ordre des noms ci-dessous */}
-        <View style={styles.barre}>
-          {jour.lignes.map(l => <View key={l.id} style={[styles.segment, { backgroundColor: couleurs[l.statut] }]} />)}
-        </View>
-        <View style={styles.restos}>
-          {jour.lignes.map(l => (
-            <View key={l.id} style={styles.resto}>
-              <MaterialCommunityIcons name={STATUTS[l.statut].icone} size={13} color={couleurs[l.statut]} />
-              <Text style={styles.restoNom}>{l.nom}</Text>
+        {/* Une jauge par restaurant, son nom juste en dessous */}
+        <View style={styles.jauges} onLayout={e => setLargeurJauges(Math.floor(e.nativeEvent.layout.width))}>
+          {largeurJauges > 0 && jour.lignes.map(l => (
+            <View key={l.id} style={[styles.jauge, { width: largeurJauge }]}
+              accessibilityLabel={`${l.nom} : ${STATUTS[l.statut].label}`}>
+              <View style={[styles.segment, { backgroundColor: couleurs[l.statut] }]} />
+              <View style={styles.resto}>
+                <MaterialCommunityIcons name={STATUTS[l.statut].icone} size={13} color={couleurs[l.statut]} />
+                <Text style={[styles.restoNom, l.statut === 'en_attente' && { color: colors.textMuted }]} numberOfLines={1}>{l.nom}</Text>
+              </View>
             </View>
           ))}
         </View>
@@ -378,11 +387,11 @@ const makeStyles = (c) => StyleSheet.create({
   bandeauLabel: { fontSize: 12, fontWeight: '700', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6 },
   bandeauGrand: { fontSize: 34, fontWeight: '800', letterSpacing: -1, fontVariant: ['tabular-nums'] },
   bandeauUnite: { fontSize: 14, fontWeight: '600', color: c.textSecondary },
-  barre: { flexDirection: 'row', gap: 4, marginTop: 12, height: 8 },
-  segment: { flex: 1, borderRadius: 4 },
-  restos: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 6, marginTop: 10 },
-  resto: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  restoNom: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
+  jauges: { flexDirection: 'row', flexWrap: 'wrap', columnGap: ECART_JAUGES, rowGap: 12, marginTop: 14, minHeight: 30 },
+  jauge: { gap: 6 },
+  segment: { height: 8, borderRadius: 4 },
+  resto: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  restoNom: { flexShrink: 1, fontSize: 12, color: c.textSecondary, fontWeight: '700' },
   bandeauBas: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 12, paddingTop: 12,
     borderTopWidth: 1, borderTopColor: c.borderLight,
