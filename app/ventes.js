@@ -32,8 +32,9 @@ export default function VentesScreen() {
 
   const { prendrePhoto, choisirPhoto } = usePhoto()
   const { colors } = useTheme()
-  // « FC reçu » prérempli avec le fond donné par la Trésorerie (modifiable).
+  // « FC reçu » rempli par la Trésorerie (fond donné), non modifiable.
   useFondTresorerie({ pointId, restaurantId, dateJour, pointValide, setVentesJour })
+  const fcRecuAuto = ventesJour.fc_recu_auto != null
   const styles = useMemo(() => makeStyles(colors), [colors])
 
   const [etape, setEtape] = useState(1)
@@ -676,13 +677,16 @@ export default function VentesScreen() {
               <View style={[styles.fcRow, { alignItems: 'flex-start', paddingTop: 14 }]}>
                 <View style={styles.fcRowLeft}>
                   <Text style={[styles.fcLabel, { fontWeight: '600', color: colors.text }]}>FC reçu</Text>
-                  <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 2 }}>
-                    Ajustement admin (+ complément / − déduction)
-                  </Text>
+                  {fcRecuAuto ? (
+                    <View style={[styles.autoBadge, { alignSelf: 'flex-start', marginTop: 2 }]}><Text style={styles.autoBadgeTxt}>Trésorerie</Text></View>
+                  ) : (
+                    <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 2 }}>
+                      Ajustement admin (+ complément / − déduction)
+                    </Text>
+                  )}
                   {(ventesJour.fc_recu_detail || []).length > 0 && (
                     <Text style={{ fontSize: 10, color: colors.primary, marginTop: 4, fontWeight: '600' }}>
                       Trésorerie : {ventesJour.fc_recu_detail.map(l => `${l.montant >= 0 ? '+' : '−'} ${fmt(Math.abs(l.montant))} (${l.type === 'fond' ? 'fond donné' : 'repris'} le ${l.date.slice(8, 10)}/${l.date.slice(5, 7)})`).join(' · ')}
-                      {String(ventesJour.fc_recu ?? '') !== String(ventesJour.fc_recu_auto ?? '') ? ' — montant corrigé à la main' : ''}
                     </Text>
                   )}
                 </View>
@@ -693,7 +697,7 @@ export default function VentesScreen() {
                   keyboardType="numbers-and-punctuation"
                   placeholder="0"
                   placeholderTextColor="#bbb"
-                  editable={!bloque || isManager}
+                  editable={!fcRecuAuto && (!bloque || isManager)}
                 />
               </View>
 

@@ -315,9 +315,16 @@ Migration : `supabase_tresorerie_tetes_de_fond.sql`.
   (Banque et espèces) s'en déduit.
 - Point visé : celui de la même date ; s'il est déjà validé, le prochain point
   ouvert du restaurant.
-- La case du gérant (Ventes, étape 2, et Récapitulatif) est **préremplie et
-  reste modifiable** ; le détail « Trésorerie : + … (fond donné le …) » s'affiche
-  dessous. Une case corrigée à la main n'est plus écrasée.
+- La case du gérant (Ventes, étape 2, et Récapitulatif) est **remplie
+  automatiquement et bloquée** (corrigé le 03/10) ; le détail « Trésorerie : + …
+  (fond donné le …) » s'affiche dessous. Hors ligne ou sans migration, elle
+  reste en saisie manuelle.
+- En donnant un fond, le propriétaire choisit **comment** :
+  - **en espèces · passe par le point** (`fond`) : remplit le FC reçu ; jamais
+    déduit du résultat (ce que le restaurant achète avec est déjà dans les
+    dépenses de son point) ;
+  - **en nature · marchandise** (`fond_nature`) : ne remplit pas le FC reçu ;
+    déduit du résultat du restaurant comme une charge, au mois du fond.
 - À la validation du point, les lignes comptées y sont rattachées (`point_id`)
   et ne comptent plus jamais ailleurs.
 

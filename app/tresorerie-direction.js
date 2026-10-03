@@ -125,8 +125,10 @@ export default function TresorerieDirectionScreen() {
                   </Text>
                   <Text style={[styles.petit, { color: compteDansResultat(dep) ? colors.warningDark : colors.textMuted }]}>
                     {dep.categorie === 'fond' && dep.restaurant_id
-                      ? (dep.point_id ? 'compté dans le FC reçu d\'un point validé' : 'ira dans le FC reçu du prochain point')
-                      : compteDansResultat(dep) ? 'compte dans le résultat du restaurant' : 'hors résultat des restaurants'}
+                      ? (dep.point_id ? 'fond en espèces · compté dans le FC reçu d\'un point validé' : 'fond en espèces · ira dans le FC reçu du prochain point')
+                      : dep.categorie === 'fond_nature'
+                        ? 'fond en nature · déduit du résultat du restaurant'
+                        : compteDansResultat(dep) ? 'compte dans le résultat du restaurant' : 'hors résultat des restaurants'}
                   </Text>
                 </View>
                 <Text style={[styles.ligneValeur, { color: colors.error }]}>− {fmt(dep.montant)}</Text>
@@ -184,6 +186,8 @@ function FeuilleDepense({ visible, donnees, user, onFermer, apres }) {
 
   if (!visible) return null
   const cat = categorieDirection(categorie)
+  const estFond = categorie === 'fond' || categorie === 'fond_nature'
+  const nomResto = restaurantId ? donnees.restaurants.find(r => r.id === restaurantId)?.nom || 'ce restaurant' : null
 
   function fermer() {
     setCategorie(null); setRestaurantId(undefined); setSource(null); setMontant(''); setDate(aujourdhuiISO()); setNote(''); setPhoto(null)
@@ -201,6 +205,7 @@ function FeuilleDepense({ visible, donnees, user, onFermer, apres }) {
     const v = montant === '' ? 0 : parseInt(montant, 10)
     if (!categorie) { Alert.alert('Catégorie manquante', 'Choisissez la catégorie.'); return }
     if (restaurantId === undefined) { Alert.alert('Restaurant manquant', 'Choisissez un restaurant ou « Groupe ».'); return }
+    if (estFond && !restaurantId) { Alert.alert('Restaurant manquant', 'Un fond se donne à un restaurant : choisissez lequel.'); return }
     if (!source) { Alert.alert('Source manquante', 'D\'où part l\'argent ?'); return }
     if (!v) { Alert.alert('Montant manquant', 'Saisissez le montant.'); return }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Écrivez la date au format AAAA-MM-JJ.'); return }
@@ -225,8 +230,19 @@ function FeuilleDepense({ visible, donnees, user, onFermer, apres }) {
   return (
     <Feuille visible onFermer={fermer} titre="Nouvelle dépense direction">
       <Text style={styles.label}>Catégorie</Text>
-      <Puces options={CATEGORIES_DIRECTION.map(c => ({ valeur: c.id, label: c.label }))} valeur={categorie} onChange={setCategorie} />
-      {cat?.aide && <Text style={[styles.petit, { marginTop: -6, marginBottom: 10 }]}>{cat.aide}</Text>}
+      {/* « Fond en nature » se choisit sous « Fond » (comment est donné le fond). */}
+      <Puces options={CATEGORIES_DIRECTION.filter(c => c.id !== 'fond_nature').map(c => ({ valeur: c.id, label: c.label }))}
+        valeur={estFond ? 'fond' : categorie} onChange={setCategorie} />
+      {estFond && (
+        <>
+          <Text style={styles.label}>Comment est donné ce fond ?</Text>
+          <Puces options={[
+            { valeur: 'fond', label: 'En espèces · passe par le point' },
+            { valeur: 'fond_nature', label: 'En nature · marchandise' },
+          ]} valeur={categorie} onChange={setCategorie} />
+        </>
+      )}
+      {cat?.aide && !estFond && <Text style={[styles.petit, { marginTop: -6, marginBottom: 10 }]}>{cat.aide}</Text>}
       <Text style={styles.label}>Restaurant</Text>
       <Puces options={[{ valeur: null, label: 'Groupe' }, ...donnees.restaurants.map(r => ({ valeur: r.id, label: r.nom }))]}
         valeur={restaurantId} onChange={setRestaurantId} />
@@ -244,12 +260,13 @@ function FeuilleDepense({ visible, donnees, user, onFermer, apres }) {
       {cat && restaurantId !== undefined && (
         <View style={styles.avert}>
           <Text style={styles.avertTxt}>
-            {compteDansResultat({ categorie, restaurant_id: restaurantId })
-              ? 'Cette dépense réduira le résultat net du restaurant.'
-              : 'Cette dépense ne touche pas le résultat des restaurants.'}
-            {categorie === 'fond' && restaurantId
-              ? ` Le fond remplira tout seul le « FC reçu » du point du ${formatDateFR(date)} de ${donnees.restaurants.find(r => r.id === restaurantId)?.nom || 'ce restaurant'} (ou du prochain point, s'il est déjà validé).`
-              : ''}
+            {categorie === 'fond' && nomResto
+              ? `Le fond remplira tout seul le « FC reçu » du point du ${formatDateFR(date)} de ${nomResto} (ou du prochain point, s'il est déjà validé). Ce que le restaurant achète avec est déjà dans ses dépenses : le fond n'est pas déduit de son résultat.`
+              : categorie === 'fond_nature' && nomResto
+                ? `La marchandise ne passe pas par le point de ${nomResto} : elle sera déduite de son résultat de ${/^\d{4}-\d{2}/.test(date) ? libelleMois(`${date.slice(0, 7)}-01`).toLowerCase() : 'ce mois'} comme une charge.`
+                : compteDansResultat({ categorie, restaurant_id: restaurantId })
+                  ? 'Cette dépense réduira le résultat net du restaurant.'
+                  : 'Cette dépense ne touche pas le résultat des restaurants.'}
           </Text>
         </View>
       )}
