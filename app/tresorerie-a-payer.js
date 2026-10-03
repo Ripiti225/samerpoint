@@ -9,7 +9,7 @@
 // Loyers : au paiement, le mois retenu par le propriétaire se choisit à la main.
 // Spéc : docs/superpowers/specs/2026-10-02-nouvelle-tresorerie-design.md
 // ──────────────────────────────────────────────────────────────────────────────
-import { useLocalSearchParams } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, SafeAreaView, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native'
 
@@ -17,6 +17,7 @@ import {
   Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Puces, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import { Badge, FeuilleDetail, FeuillePaiement, FeuillePrevision, couleursStatut, titreDu } from '../components/tresorerie/du'
+import { HistoriqueDettesRemboursees, HistoriqueLoyersPayes } from '../components/tresorerie/historique'
 import { FeuilleEcheance, FeuilleMontantsFixes, FeuilleReglageLoyers } from '../components/tresorerie/reglagesCharges'
 import { FeuilleSaisieBaux, FeuilleSaisieMois } from '../components/tresorerie/saisieGroupee'
 import {
@@ -103,6 +104,7 @@ export default function TresorerieAPayerScreen() {
                 onOuvrir={setDetail}
               />
             )}
+            {onglet === 'loyer' && <HistoriqueLoyersPayes donnees={donnees} nomResto={nomResto} onOuvrir={setDetail} />}
             {CATEGORIES_SERIE.includes(onglet) && onglet !== 'loyer' && (
               <ListeDus
                 categorie={onglet} dus={dusOnglet} parDu={parDu} classement={classement} aujourdhui={aujourdhui}
@@ -113,6 +115,10 @@ export default function TresorerieAPayerScreen() {
               <ListeDettes
                 onglet={onglet} dus={dusOnglet} parDu={parDu} aujourdhui={aujourdhui} nomResto={nomResto} onOuvrir={setDetail}
               />
+            )}
+            {EN_RETARD.includes(onglet) && (
+              <HistoriqueDettesRemboursees donnees={donnees} nomResto={nomResto}
+                avecCreanciers={peut(niveau, 'voir_dettes')} onOuvrir={setDetail} />
             )}
 
             {CATEGORIES_SERIE.includes(onglet) && onglet !== 'loyer' && (
@@ -222,7 +228,10 @@ function ListeLoyers({ dus, loyers, paiements, parDu, classement, aujourdhui, no
         return (
           <View key={id} style={styles.carte}>
             <View style={styles.ligne}>
-              <Text style={[styles.itemTitre, { flex: 1 }]}>{nomResto(id)}</Text>
+              <TouchableOpacity style={{ flex: 1 }} onPress={() => router.push(`/tresorerie-restaurant?id=${id}`)}>
+                <Text style={styles.itemTitre}>{nomResto(id)}</Text>
+                <Text style={[styles.petit, { color: colors.primary, fontWeight: '700' }]}>Historique du restaurant ›</Text>
+              </TouchableOpacity>
               <Text style={[styles.ligneValeur, { color: r.reste ? colors.error : colors.success }]}>
                 {r.reste ? `doit ${fmt(r.reste)} F` : 'à jour'}
               </Text>
