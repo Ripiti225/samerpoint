@@ -13,7 +13,9 @@ import {
   CATEGORIES_MONTANT_FIXE, LIBELLES_CATEGORIE, aujourdhuiISO, fmt, jourCommun, libelleMois, moisEntre,
   paiementsParDu, planSaisieBaux, planSaisieGroupee, premierDuMois,
 } from '../../lib/tresorerie'
-import { appliquerPlanDus, enregistrerChargeFixe } from '../../lib/tresorerieDb'
+import { cotisationPourCategorie, cotiseParDu } from '../../lib/cotisations'
+import { supabase } from '../../lib/supabase'
+import { appliquerPlanDus, enregistrerChargeFixe, recevoirCotisation } from '../../lib/tresorerieDb'
 import { Bouton, Feuille, Puces, useStylesTreso } from './commun'
 
 const TITRES = {
@@ -69,10 +71,14 @@ export function FeuilleSaisieMois({ categorie, donnees, user, onFermer, apres })
   const courant = premierDuMois(aujourdhuiISO())
   const [mois, setMois] = useState(null)
   const [valeurs, setValeurs] = useState({})
+  // « dont cotisé » : ce que chaque restaurant remet au RH aujourd'hui (lib/cotisations.js).
+  const [cotises, setCotises] = useState({})
   const [occupe, setOccupe] = useState(false)
 
   const parDu = useMemo(() => paiementsParDu(donnees.paiements), [donnees])
+  const dejaCotise = useMemo(() => cotiseParDu(donnees.cotisations || []), [donnees])
   const ligneDe = restaurantId => donnees.dus.find(d => d.categorie === categorie && d.restaurant_id === restaurantId && d.mois === mois)
+  const cotisationsActives = Array.isArray(donnees.cotisations)
 
   // Post-payé : on saisit d'habitude le mois écoulé (l'état de septembre en octobre).
   useEffect(() => {
@@ -90,6 +96,7 @@ export function FeuilleSaisieMois({ categorie, donnees, user, onFermer, apres })
       const v = d ? d.montant_du : CATEGORIES_MONTANT_FIXE.includes(categorie) ? fixes[r.id] : null
       return [r.id, v != null ? String(v) : '']
     })))
+    setCotises({})
   }, [categorie, mois])
 
   if (!categorie) return null
@@ -109,12 +116,29 @@ export function FeuilleSaisieMois({ categorie, donnees, user, onFermer, apres })
       categorie, mois, montants, jour: jourCommun(donnees.echeances, categorie),
       dus: donnees.dus, paiements: donnees.paiements,
     })
-    if (!plan.aCreer.length && !plan.aModifier.length && !plan.aSupprimer.length) {
+    const aCotiser = donnees.restaurants.map(r => ({ r, montant: lireMontant(cotises[r.id]) || 0 })).filter(x => x.montant > 0)
+    const rienAuPlan = !plan.aCreer.length && !plan.aModifier.length && !plan.aSupprimer.length
+    if (rienAuPlan && !aCotiser.length) {
       Alert.alert('Rien à enregistrer', 'Aucun montant n\'a changé.'); return
     }
     setOccupe(true)
     try {
-      await appliquerPlanDus(plan, user, { categorie, mois })
+      if (!rienAuPlan) await appliquerPlanDus(plan, user, { categorie, mois })
+      if (aCotiser.length) {
+        // Les lignes du mois, à jour (celles qu'on vient de créer comprises).
+        const { data: lignes, error } = await supabase.from('tresorerie_dus').select('*')
+          .eq('categorie', categorie).eq('mois', mois)
+        if (error) throw error
+        const especes = (donnees.comptes || []).find(c => c.nom === 'Espèces')
+        for (const { r, montant } of aCotiser) {
+          const du = (lignes || []).find(d => d.restaurant_id === r.id)
+          if (!du) throw new Error(`${r.nom} : saisissez d'abord le montant du mois avant la part cotisée.`)
+          await recevoirCotisation({
+            du, montant, date: aujourdhuiISO(), compteEspecesId: especes?.id, nomResto: r.nom,
+            fournisseur: cotisationPourCategorie(categorie, donnees.fournisseurs, r.id),
+          }, user)
+        }
+      }
       await apres()
       onFermer()
     } catch (e) {
@@ -138,16 +162,48 @@ export function FeuilleSaisieMois({ categorie, donnees, user, onFermer, apres })
             : 'Champ vide = pas de ligne pour ce restaurant ce mois-ci.'}
         </Text>
       )}
+      {mois && cotisationsActives && (
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginBottom: 4 }}>
+          <Text style={[styles.label, { width: 130, textAlign: 'right', marginBottom: 0 }]}>Montant du mois</Text>
+          <Text style={[styles.label, { width: 110, textAlign: 'right', marginBottom: 0 }]}>Dont cotisé</Text>
+        </View>
+      )}
       {mois && donnees.restaurants.map(r => {
         const d = entamee(r)
-        if (d) return <LigneEntamee key={r.id} nom={r.nom} montant={d.montant_du} />
+        const ligne = ligneDe(r.id)
+        const deja = ligne ? dejaCotise[ligne.id] || 0 : 0
+        const champCotise = cotisationsActives ? (
+          <Saisie montant largeur={110} valeur={cotises[r.id] ?? ''} placeholder="0"
+            onChange={v => setCotises(x => ({ ...x, [r.id]: v }))} />
+        ) : null
         return (
-          <Rangee key={r.id} nom={r.nom}>
-            <Saisie montant largeur={150} valeur={valeurs[r.id] ?? ''} placeholder="0"
-              onChange={v => setValeurs(x => ({ ...x, [r.id]: v }))} />
-          </Rangee>
+          <View key={r.id}>
+            {d ? (
+              <Rangee nom={r.nom}>
+                <Text style={[styles.petit, { width: 130, textAlign: 'right' }]}>{fmt(d.montant_du)} F · déjà payé en partie</Text>
+                {champCotise}
+              </Rangee>
+            ) : (
+              <Rangee nom={r.nom}>
+                <Saisie montant largeur={cotisationsActives ? 130 : 150} valeur={valeurs[r.id] ?? ''} placeholder="0"
+                  onChange={v => setValeurs(x => ({ ...x, [r.id]: v }))} />
+                {champCotise}
+              </Rangee>
+            )}
+            {deja > 0 && (
+              <Text style={[styles.petit, { textAlign: 'right', marginTop: -4, marginBottom: 8, color: colors.successDark }]}>
+                déjà {fmt(deja)} F cotisés reçus pour ce mois
+              </Text>
+            )}
+          </View>
         )
       })}
+      {mois && cotisationsActives && (
+        <Text style={[styles.petit, { marginBottom: 6 }]}>
+          « Dont cotisé » : l'argent que le restaurant vous remet aujourd'hui. Il entre dans les espèces, le solde de sa
+          cotisation baisse, et son résultat ne déduit plus que le reste.
+        </Text>
+      )}
       <View style={[styles.ligne, { marginVertical: 10 }]}>
         <Text style={styles.ligneLabel}>Total {mois ? libelleMois(mois) : ''}</Text>
         <Text style={[styles.ligneValeur, { color: colors.text }]}>{fmt(total)} F</Text>
