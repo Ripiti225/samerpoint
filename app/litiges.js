@@ -5,6 +5,7 @@ import {
   ScrollView, StyleSheet, Text, TextInput,
   TouchableOpacity, View,
 } from 'react-native'
+import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Calendar } from 'react-native-calendars'
 import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
@@ -36,7 +37,7 @@ const PERIODES = [
   { key: 'semaine', label: '7 jours' },
   { key: 'mois', label: 'Ce mois' },
   { key: 'mois_prec', label: 'Mois préc.' },
-  { key: 'perso', label: '🗓 Perso' },
+  { key: 'perso', label: 'Perso' },
 ]
 
 const ONGLETS = [
@@ -50,20 +51,20 @@ const ONGLETS = [
 ]
 
 const TYPES_AVIS = [
-  { key: 'mauvais', label: '👎 Mauvais avis', court: '👎 Mauvais', montant: 1000, couleur: '#C62828' },
-  { key: 'bon', label: '👍 Bon avis', court: '👍 Bon', montant: -500, couleur: '#2E7D32' },
+  { key: 'mauvais', label: 'Mauvais avis', court: 'Mauvais', montant: 1000, couleur: '#C62828' },
+  { key: 'bon', label: 'Bon avis', court: 'Bon', montant: -500, couleur: '#2E7D32' },
   // Neutre : on garde la trace de l'avis sans impact financier (ni sanction,
   // ni récompense). Le montant reste 0 dans tous les totaux.
-  { key: 'neutre', label: '😐 Avis neutre', court: '😐 Neutre', montant: 0, couleur: '#78716C' },
+  { key: 'neutre', label: 'Avis neutre', court: 'Neutre', montant: 0, couleur: '#78716C' },
 ]
 function typeAvis(key) { return TYPES_AVIS.find(t => t.key === key) }
 // Rouge = à la charge du resto, vert = en sa faveur, gris = sans impact
 function couleurMontant(m, colors) {
-  return m > 0 ? '#C62828' : m < 0 ? '#2E7D32' : (colors?.textMuted || '#78716C')
+  return m > 0 ? (colors?.error || '#C62828') : m < 0 ? (colors?.successDark || '#2E7D32') : (colors?.textMuted || '#78716C')
 }
 // Canal du client à l'origine de l'avis
 const CANAUX_AVIS = [
-  { key: 'sur_place', label: '🍽️ Sur place', court: 'Sur place', couleur: '#185FA5' },
+  { key: 'sur_place', label: 'Sur place', court: 'Sur place', couleur: '#185FA5' },
   { key: 'yango', label: 'Yango', court: 'Yango', couleur: '#EF9F27' },
   { key: 'glovo', label: 'Glovo', court: 'Glovo', couleur: '#2E7D32' },
 ]
@@ -86,11 +87,11 @@ CATEGORIES_INVENTAIRE.forEach(cat => {
 })
 
 const SHIFT_LABELS = {
-  matin: '🌅 Matin',
-  soir: '🌆 Soir',
-  nuit: '🌙 Nuit',
-  double: '🔄 Double',
-  personnalise: '✏️ Perso',
+  matin: 'Matin',
+  soir: 'Soir',
+  nuit: 'Nuit',
+  double: 'Double',
+  personnalise: 'Perso',
 }
 
 function getPlage(periodeKey, dateUnique, dateDebut, dateFin) {
@@ -256,7 +257,7 @@ export default function LitigesScreen() {
   async function chargerDatesAvec(restoId) {
     const { data } = await supabase.from('points').select('date').eq('restaurant_id', restoId)
     const marked = {}
-    ;(data || []).forEach(p => { marked[p.date] = { marked: true, dotColor: '#185FA5' } })
+    ;(data || []).forEach(p => { marked[p.date] = { marked: true, dotColor: colors.primary } })
     setDatesAvec(marked)
   }
 
@@ -1119,20 +1120,65 @@ export default function LitigesScreen() {
     }
   }
 
+  // ── Petits éléments d'affichage ──────────────────────────────
+  // Ligne d'information précédée d'une icône (responsable, date, commande…)
+  function info(icone, contenu, style = styles.ligneSous) {
+    const couleur = StyleSheet.flatten(style)?.color || colors.textMuted
+    return (
+      <View style={styles.infoLigne}>
+        <MaterialCommunityIcons name={icone} size={13} color={couleur} />
+        <Text style={[style, { flexShrink: 1 }]}>{contenu}</Text>
+      </View>
+    )
+  }
+  // Titre de bloc avec pastille d'icône
+  function titreIcone(icone, texte, style = styles.explicGerantTitre) {
+    return (
+      <View style={styles.titreIconeLigne}>
+        <View style={styles.titreIconePastille}>
+          <MaterialCommunityIcons name={icone} size={15} color={colors.primary} />
+        </View>
+        <Text style={[style, { marginBottom: 0, flexShrink: 1 }]}>{texte}</Text>
+      </View>
+    )
+  }
+  // Volet d'un restaurant en vue « tous les restaurants »
+  function volet(icone, texte, couleur = colors.primary) {
+    return (
+      <View style={styles.voletTitre}>
+        <MaterialCommunityIcons name={icone} size={15} color={couleur} />
+        <Text style={[styles.globalVoletLabel, { color: couleur === colors.primary ? colors.text : couleur }]}>{texte}</Text>
+      </View>
+    )
+  }
+  // Boutons Modifier / Supprimer d'une ligne
+  function actions(onModifier, onSupprimer) {
+    return (
+      <View style={styles.actionsLigne}>
+        <TouchableOpacity style={styles.actionBtn} onPress={onModifier} accessibilityRole="button" accessibilityLabel="Modifier">
+          <MaterialCommunityIcons name="pencil-outline" size={17} color={colors.primary} />
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.actionBtn, styles.actionBtnSuppr]} onPress={onSupprimer} accessibilityRole="button" accessibilityLabel="Supprimer">
+          <MaterialCommunityIcons name="trash-can-outline" size={17} color={colors.error} />
+        </TouchableOpacity>
+      </View>
+    )
+  }
+
   // ── Render mode global ───────────────────────────────────────
   function renderModeGlobal() {
     if (!donneesGlobales.length) return (
       <View style={styles.emptyBox}><Text style={styles.emptyTxt}>Aucune donnée pour cette période</Text></View>
     )
     const grandTotal = donneesGlobales.reduce((s, d) => s + d.total, 0)
-    const gtc = grandTotal > 0 ? '#C62828' : grandTotal < 0 ? '#2E7D32' : colors.textMuted
+    const gtc = grandTotal > 0 ? colors.error : grandTotal < 0 ? colors.successDark : colors.textMuted
 
     return (
       <View style={styles.section}>
         {/* Grand total + bouton PDF */}
         <View style={[styles.totalBanner, {
-          backgroundColor: grandTotal > 0 ? '#FFF0F0' : grandTotal < 0 ? '#F0FFF4' : colors.surface,
-          borderColor: grandTotal > 0 ? '#FFCDD2' : grandTotal < 0 ? '#C8E6C9' : colors.borderLight,
+          backgroundColor: grandTotal > 0 ? colors.errorLight : grandTotal < 0 ? colors.successLight : colors.surface,
+          borderColor: grandTotal > 0 ? colors.error + '55' : grandTotal < 0 ? colors.success + '55' : colors.borderLight,
         }]}>
           <View>
             <Text style={styles.totalBannerLabel}>Total global — {plageLabel()}</Text>
@@ -1148,33 +1194,44 @@ export default function LitigesScreen() {
           onPress={genererEtPartagePDF}
           disabled={generatingPdf}
         >
-          <Text style={styles.btnPdfTxt}>{generatingPdf ? '⏳ Génération PDF...' : '📄 Télécharger & partager PDF'}</Text>
+          {generatingPdf
+            ? <ActivityIndicator color="#FFFFFF" size="small" />
+            : <MaterialCommunityIcons name="file-pdf-box" size={20} color="#FFFFFF" />}
+          <Text style={styles.btnPdfTxt}>{generatingPdf ? 'Génération du PDF…' : 'Télécharger et partager le PDF'}</Text>
         </TouchableOpacity>
 
         {/* Un card par restaurant */}
         {donneesGlobales.map(d => {
-          const tc = d.total > 0 ? '#C62828' : d.total < 0 ? '#2E7D32' : colors.textMuted
+          const tc = d.total > 0 ? colors.error : d.total < 0 ? colors.successDark : colors.textMuted
           const vide = restoSansLitige(d)
           return (
             <View key={d.restaurant.id} style={styles.restoGlobalCard}>
               {/* Header restaurant */}
               <View style={styles.restoGlobalHeader}>
-                <Text style={styles.restoGlobalNom}>{d.restaurant.nom}</Text>
-                <Text style={[styles.restoGlobalTotal, { color: tc }]}>
-                  {d.total > 0 ? '+' : ''}{fmt(d.total)}
-                </Text>
+                <View style={styles.restoGlobalIcone}>
+                  <MaterialCommunityIcons name="storefront-outline" size={17} color={colors.primary} />
+                </View>
+                <Text style={styles.restoGlobalNom} numberOfLines={1}>{d.restaurant.nom}</Text>
+                <View style={[styles.restoGlobalTotalPill, { backgroundColor: tc + '1A' }]}>
+                  <Text style={[styles.restoGlobalTotal, { color: tc }]}>
+                    {d.total > 0 ? '+' : ''}{fmt(d.total)}
+                  </Text>
+                </View>
               </View>
 
               {vide ? (
-                <Text style={[styles.ligneSous, { padding: 10, fontStyle: 'italic' }]}>✅ Aucun litige</Text>
+                <View style={styles.aucunLitige}>
+                  <MaterialCommunityIcons name="check-circle-outline" size={16} color={colors.successDark} />
+                  <Text style={[styles.ligneSous, { color: colors.successDark, fontWeight: '700' }]}>Aucun litige</Text>
+                </View>
               ) : (
                 <View style={styles.restoGlobalBody}>
                   {/* Écart */}
                   {(d.ecartTotal !== 0 || d.responsables.length > 0) && (
                     <>
                       <View style={styles.globalVoletRow}>
-                        <Text style={styles.globalVoletLabel}>📊 Écart point</Text>
-                        <Text style={[styles.globalVoletVal, { color: d.ecartTotal > 0 ? '#C62828' : '#2E7D32' }]}>
+                        {volet('chart-bar', 'Écart point')}
+                        <Text style={[styles.globalVoletVal, { color: d.ecartTotal > 0 ? colors.error : colors.successDark }]}>
                           {d.ecartTotal > 0 ? '+' : ''}{fmtShort(d.ecartTotal)}
                         </Text>
                       </View>
@@ -1182,13 +1239,13 @@ export default function LitigesScreen() {
                         <View key={'resp' + ri} style={styles.globalItem}>
                           <View style={{ flex: 1 }}>
                             <Text style={styles.globalItemTxt} numberOfLines={2}>
-                              📅 {r.date}{r.type ? ` — ${r.type}` : ''}
+                              {r.date}{r.type ? ` — ${r.type}` : ''}
                             </Text>
                             <Text style={styles.globalItemResp}>
-                              👤 {r.responsable_nom || 'Non attribué'}{r.role ? ` · ${r.role}` : ''}
+                              {r.responsable_nom || 'Non attribué'}{r.role ? ` · ${r.role}` : ''}
                             </Text>
                           </View>
-                          <Text style={[styles.globalItemMontant, { color: r.montant > 0 ? '#C62828' : '#2E7D32' }]}>
+                          <Text style={[styles.globalItemMontant, { color: r.montant > 0 ? colors.error : colors.successDark }]}>
                             {r.montant > 0 ? '+' : ''}{fmtShort(r.montant)}
                           </Text>
                         </View>
@@ -1199,8 +1256,8 @@ export default function LitigesScreen() {
                   {d.invTotal > 0 && (
                     <>
                       <View style={styles.globalVoletRow}>
-                        <Text style={styles.globalVoletLabel}>📦 Inventaire</Text>
-                        <Text style={[styles.globalVoletVal, { color: '#C62828' }]}>−{fmtShort(d.invTotal)}</Text>
+                        {volet('package-variant-closed', 'Inventaire')}
+                        <Text style={[styles.globalVoletVal, { color: colors.error }]}>−{fmtShort(d.invTotal)}</Text>
                       </View>
                       {/* On rattache chaque ligne à son shift : un flatMap nu
                           perdait le caissier, donc le responsable de la déduction. */}
@@ -1210,16 +1267,16 @@ export default function LitigesScreen() {
                         <View key={'inv' + li} style={styles.globalItem}>
                           <View style={{ flex: 1 }}>
                             <Text style={styles.globalItemTxt} numberOfLines={2}>
-                              📦 {l.produit_nom}
+                              {l.produit_nom}
                               {l.explication ? <Text style={styles.globalItemCmd}> — {l.explication}</Text> : null}
                             </Text>
                             {l.caissier_nom ? (
                               <Text style={styles.globalItemResp}>
-                                👤 {l.caissier_nom}{l.type_shift ? ` · ${l.type_shift}` : ''}
+                                {l.caissier_nom}{l.type_shift ? ` · ${l.type_shift}` : ''}
                               </Text>
                             ) : null}
                           </View>
-                          <Text style={[styles.globalItemMontant, { color: '#C62828' }]}>−{fmtShort(l.montant_deduit)}</Text>
+                          <Text style={[styles.globalItemMontant, { color: colors.error }]}>−{fmtShort(l.montant_deduit)}</Text>
                         </View>
                       ))}
                     </>
@@ -1232,12 +1289,12 @@ export default function LitigesScreen() {
                         <View style={{ flex: 1 }}>
                           <Text style={styles.globalItemTxt} numberOfLines={2}>
                             {type?.label || a.type}
-                            {a.canal ? <Text style={{ color: canalAvis(a.canal)?.couleur }}> · 📍{canalAvis(a.canal)?.court || a.canal}</Text> : null}
+                            {a.canal ? <Text style={{ color: canalAvis(a.canal)?.couleur }}> · {canalAvis(a.canal)?.court || a.canal}</Text> : null}
                             {a.numero_commande ? <Text style={styles.globalItemCmd}> #{a.numero_commande}</Text> : null}
                             {a.notes ? ` — ${a.notes}` : ''}
                           </Text>
                           {a.responsable_nom ? (
-                            <Text style={styles.globalItemResp}>👤 {a.responsable_nom}</Text>
+                            <Text style={styles.globalItemResp}>{a.responsable_nom}</Text>
                           ) : null}
                         </View>
                         <Text style={[styles.globalItemMontant, { color: couleurMontant(a.montant, colors) }]}>
@@ -1253,15 +1310,15 @@ export default function LitigesScreen() {
                       <View key={y.id} style={styles.globalItem}>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.globalItemTxt} numberOfLines={2}>
-                            🛵 {type?.label || y.type}
+                            {type?.label || y.type}
                             {y.numero_commande ? <Text style={styles.globalItemCmd}> #{y.numero_commande}</Text> : null}
                             {y.notes ? ` — ${y.notes}` : ''}
                           </Text>
                           {y.responsable_nom ? (
-                            <Text style={styles.globalItemResp}>👤 {y.responsable_nom}</Text>
+                            <Text style={styles.globalItemResp}>{y.responsable_nom}</Text>
                           ) : null}
                         </View>
-                        <Text style={[styles.globalItemMontant, { color: y.montant > 0 ? '#C62828' : '#2E7D32' }]}>
+                        <Text style={[styles.globalItemMontant, { color: y.montant > 0 ? colors.error : colors.successDark }]}>
                           {y.montant > 0 ? '+' : ''}{fmtShort(y.montant)}
                         </Text>
                       </View>
@@ -1274,15 +1331,15 @@ export default function LitigesScreen() {
                       <View key={g.id} style={styles.globalItem}>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.globalItemTxt} numberOfLines={2}>
-                            🟡 {type?.label || g.type}
+                            {type?.label || g.type}
                             {g.numero_commande ? <Text style={styles.globalItemCmd}> #{g.numero_commande}</Text> : null}
                             {g.notes ? ` — ${g.notes}` : ''}
                           </Text>
                           {g.responsable_nom ? (
-                            <Text style={styles.globalItemResp}>👤 {g.responsable_nom}</Text>
+                            <Text style={styles.globalItemResp}>{g.responsable_nom}</Text>
                           ) : null}
                         </View>
-                        <Text style={[styles.globalItemMontant, { color: g.montant > 0 ? '#C62828' : '#2E7D32' }]}>
+                        <Text style={[styles.globalItemMontant, { color: g.montant > 0 ? colors.error : colors.successDark }]}>
                           {g.montant > 0 ? '+' : ''}{fmtShort(g.montant)}
                         </Text>
                       </View>
@@ -1292,13 +1349,13 @@ export default function LitigesScreen() {
                   {d.verifRetenu > 0 && (
                     <>
                       <View style={styles.globalVoletRow}>
-                        <Text style={styles.globalVoletLabel}>🔍 Comptage vérificateur</Text>
-                        <Text style={[styles.globalVoletVal, { color: '#C62828' }]}>+{fmtShort(d.verifRetenu)}</Text>
+                        {volet('magnify', 'Comptage vérificateur')}
+                        <Text style={[styles.globalVoletVal, { color: colors.error }]}>+{fmtShort(d.verifRetenu)}</Text>
                       </View>
                       {d.verifReel > d.verifRetenu && (
                         <View style={styles.plafondBox}>
                           <Text style={styles.plafondTxt}>
-                            ⚖️ Écart réel {fmt(d.verifReel)} — plafond de {fmt(PLAFOND_COMPTAGE)} par
+                            Écart réel {fmt(d.verifReel)} — plafond de {fmt(PLAFOND_COMPTAGE)} par
                             comptage appliqué, {fmt(d.verifRetenu)} retenus.
                           </Text>
                         </View>
@@ -1307,14 +1364,14 @@ export default function LitigesScreen() {
                         <View key={l.id} style={styles.globalItem}>
                           <View style={{ flex: 1 }}>
                             <Text style={styles.globalItemTxt} numberOfLines={2}>
-                              📅 {l.date} — {l.produit_nom}
+                              {l.date} — {l.produit_nom}
                               <Text style={styles.globalItemCmd}> (déclaré {l.stock_declare} · compté {l.stock_compte})</Text>
                             </Text>
                             <Text style={styles.globalItemResp}>
-                              👤 {l.caissier_nom}{l.shift_libelle ? ` · ${l.shift_libelle}` : ''}
+                              {l.caissier_nom}{l.shift_libelle ? ` · ${l.shift_libelle}` : ''}
                             </Text>
                           </View>
-                          <Text style={[styles.globalItemMontant, { color: '#C62828' }]}>{fmtShort(l.montant)}</Text>
+                          <Text style={[styles.globalItemMontant, { color: colors.error }]}>{fmtShort(l.montant)}</Text>
                         </View>
                       ))}
                     </>
@@ -1324,18 +1381,18 @@ export default function LitigesScreen() {
                   {d.contactTotal > 0 && (
                     <>
                       <View style={styles.globalVoletRow}>
-                        <Text style={styles.globalVoletLabel}>📞 Contacts manquants</Text>
-                        <Text style={[styles.globalVoletVal, { color: '#C62828' }]}>−{fmtShort(d.contactTotal)}</Text>
+                        {volet('phone-outline', 'Contacts manquants')}
+                        <Text style={[styles.globalVoletVal, { color: colors.error }]}>−{fmtShort(d.contactTotal)}</Text>
                       </View>
                       {d.contacts.map((c, ci) => (
                         <View key={'ct' + ci} style={styles.globalItem}>
                           <View style={{ flex: 1 }}>
                             <Text style={styles.globalItemTxt} numberOfLines={2}>
-                              📅 {c.date} — {c.ecart} manquant{c.ecart > 1 ? 's' : ''}
+                              {c.date} — {c.ecart} manquant{c.ecart > 1 ? 's' : ''}
                               <Text style={styles.globalItemCmd}> ({c.nbContacts}/{c.nbCommandes} · {c.taux}%)</Text>
                             </Text>
                           </View>
-                          <Text style={[styles.globalItemMontant, { color: '#C62828' }]}>−{fmtShort(c.litige)}</Text>
+                          <Text style={[styles.globalItemMontant, { color: colors.error }]}>−{fmtShort(c.litige)}</Text>
                         </View>
                       ))}
                     </>
@@ -1343,17 +1400,15 @@ export default function LitigesScreen() {
                   {/* Comptage POS pas encore arrivé : signalé, jamais facturé */}
                   {d.contactsEnAttente > 0 && (
                     <View style={styles.globalVoletRow}>
-                      <Text style={[styles.globalVoletLabel, { color: '#B06E00' }]}>
-                        ⏳ Contacts POS en attente ({d.contactsEnAttente} j)
-                      </Text>
-                      <Text style={[styles.globalVoletVal, { color: '#B06E00' }]}>calcul suspendu</Text>
+                      {volet('timer-sand', `Contacts POS en attente (${d.contactsEnAttente} j)`, colors.warningDark)}
+                      <Text style={[styles.globalVoletVal, { color: colors.warningDark }]}>calcul suspendu</Text>
                     </View>
                   )}
                   {/* Point pas fait */}
                   {d.pasFaitTotal > 0 && (
                     <View style={styles.globalVoletRow}>
-                      <Text style={styles.globalVoletLabel}>🚫 Point pas fait</Text>
-                      <Text style={[styles.globalVoletVal, { color: '#C62828' }]}>−{fmtShort(d.pasFaitTotal)}</Text>
+                      {volet('cancel', 'Point pas fait')}
+                      <Text style={[styles.globalVoletVal, { color: colors.error }]}>−{fmtShort(d.pasFaitTotal)}</Text>
                     </View>
                   )}
                 </View>
@@ -1605,30 +1660,28 @@ export default function LitigesScreen() {
         {litigesPointPasFait.length > 0 && (
           <View style={styles.totalBanner}>
             <Text style={styles.totalBannerLabel}>Total point pas fait</Text>
-            <Text style={[styles.totalBannerValue, { color: '#C62828' }]}>{fmt(totalPointPasFait)}</Text>
+            <Text style={[styles.totalBannerValue, { color: colors.error }]}>{fmt(totalPointPasFait)}</Text>
           </View>
         )}
         {litigesPointPasFait.map(p => (
-          <View key={p.id} style={[styles.ligneCard, { borderColor: '#C6282844', borderWidth: 1 }]}>
+          <View key={p.id} style={[styles.ligneCard, { borderColor: colors.error + '44' }]}>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.ligneNom, { color: '#C62828' }]}>⚠️ Point pas fait</Text>
-              {p.responsable_nom ? <Text style={styles.ligneSous}>👤 {p.responsable_nom}</Text> : null}
-              {multiJour && p.date ? <Text style={styles.ligneSous}>📅 {p.date}</Text> : null}
+              <Text style={[styles.ligneNom, { color: colors.error }]}>Point pas fait</Text>
+              {p.responsable_nom ? info('account-outline', p.responsable_nom, styles.ligneSous) : null}
+              {multiJour && p.date ? info('calendar-blank-outline', p.date, styles.ligneSous) : null}
               {p.notes ? <Text style={styles.ligneSous}>{p.notes}</Text> : null}
               {p.created_by ? <Text style={styles.ligneCreer}>par {p.created_by}</Text> : null}
             </View>
             <View style={{ alignItems: 'flex-end', gap: 6 }}>
-              <Text style={[styles.montantTxt, { color: '#C62828' }]}>{fmtShort(p.montant)}</Text>
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <TouchableOpacity onPress={() => ouvrirEditPPF(p)}><Text style={styles.btnAction}>✏️</Text></TouchableOpacity>
-                <TouchableOpacity onPress={() => setConfirmSuppr({ table: 'litiges_point_pas_fait', id: p.id })}><Text style={styles.btnAction}>🗑️</Text></TouchableOpacity>
-              </View>
+              <Text style={[styles.montantTxt, { color: colors.error }]}>{fmtShort(p.montant)}</Text>
+              {actions(() => ouvrirEditPPF(p), () => setConfirmSuppr({ table: 'litiges_point_pas_fait', id: p.id }))}
             </View>
           </View>
         ))}
         {!litigesPointPasFait.length && <View style={styles.emptyBox}><Text style={styles.emptyTxt}>Aucun point pas fait enregistré</Text></View>}
         <TouchableOpacity style={styles.btnAjout} onPress={ouvrirAddPPF}>
-          <Text style={styles.btnAjoutTxt}>+ Ajouter un point pas fait</Text>
+          <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
+          <Text style={styles.btnAjoutTxt}>Ajouter un point pas fait</Text>
         </TouchableOpacity>
       </View>
     )
@@ -1648,7 +1701,7 @@ export default function LitigesScreen() {
         {montrerPOS && (
           <View style={styles.explicGerantCard}>
             <View style={styles.respNomRow}>
-              <Text style={styles.explicGerantTitre}>👤 Écart mesuré au POS</Text>
+              {titreIcone('account-cash-outline', 'Écart mesuré au POS')}
               <View style={styles.sourcePOSBadge}>
                 <Text style={styles.sourcePOSBadgeTxt}>Mesuré au POS</Text>
               </View>
@@ -1665,7 +1718,7 @@ export default function LitigesScreen() {
                       {r.responsable_nom}{r.type === 'surplus' ? ' · surplus' : ''}
                     </Text>
                     <Text style={[styles.explicRespMontant, {
-                      color: r.type === 'manquant' ? '#C62828' : '#185FA5',
+                      color: r.type === 'manquant' ? colors.error : colors.primary,
                     }]}>{fmt(r.montant)}</Text>
                   </View>
                   {r.explication ? (
@@ -1680,7 +1733,7 @@ export default function LitigesScreen() {
         {/* Explication du gérant (saisie côté Ventes) — aide à décider l'annulation */}
         {item.ecartBrut !== 0 && (item.explication || item.responsablesEcart.length > 0 || item.photosEcart.length > 0) && (
           <View style={styles.explicGerantCard}>
-            <Text style={styles.explicGerantTitre}>📝 Explication du gérant</Text>
+            {titreIcone('note-text-outline', 'Explication du gérant')}
             {item.explication ? (
               <Text style={styles.explicGerantTxt}>"{item.explication}"</Text>
             ) : (
@@ -1688,7 +1741,7 @@ export default function LitigesScreen() {
             )}
             {item.responsablesEcart.length > 0 && (
               <View style={{ marginTop: 8 }}>
-                <Text style={styles.explicGerantSousTitre}>👤 Responsables désignés</Text>
+                <Text style={styles.explicGerantSousTitre}>Responsables désignés</Text>
                 {item.responsablesEcart.map((r, i) => (
                   <View key={i} style={styles.explicRespRow}>
                     <Text style={styles.explicRespNom}>{r.nom}</Text>
@@ -1699,7 +1752,7 @@ export default function LitigesScreen() {
             )}
             {item.photosEcart.length > 0 && (
               <View style={{ marginTop: 8 }}>
-                <Text style={styles.explicGerantSousTitre}>📷 Photos justificatives</Text>
+                <Text style={styles.explicGerantSousTitre}>Photos justificatives</Text>
                 <View style={styles.regulPhotosRow}>
                   {item.photosEcart.map((uri, i) => (
                     <PhotoJustificatif key={i} uri={uri} style={styles.regulPhotoThumb} compact />
@@ -1717,11 +1770,11 @@ export default function LitigesScreen() {
               <View key={i} style={styles.regulCard}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Text style={styles.regulCardTitre}>
-                    {r.sens === 'manquant' ? '📉 Manquant justifié' : '📈 Surplus justifié'} · {fmt(r.montant)}
+                    {r.sens === 'manquant' ? 'Manquant justifié' : 'Surplus justifié'} · {fmt(r.montant)}
                   </Text>
                   {peutRegulariser && (
                     <TouchableOpacity onPress={() => supprimerRegularisation(item, i)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Text style={styles.regulDelTxt}>✕</Text>
+                      <MaterialCommunityIcons name="close" size={18} color={colors.error} />
                     </TouchableOpacity>
                   )}
                 </View>
@@ -1749,7 +1802,8 @@ export default function LitigesScreen() {
         {/* Bouton régulariser (manager/directeur, écart non nul) */}
         {peutRegulariser && item.ecart !== 0 && (
           <TouchableOpacity style={styles.regulBtn} onPress={() => ouvrirRegularisation(item)}>
-            <Text style={styles.regulBtnTxt}>🛠️ Annuler / Réduire l'écart</Text>
+            <MaterialCommunityIcons name="tools" size={18} color="#FFFFFF" />
+            <Text style={styles.regulBtnTxt}>Annuler / réduire l'écart</Text>
           </TouchableOpacity>
         )}
       </>
@@ -1770,7 +1824,7 @@ export default function LitigesScreen() {
     // Vue 1 jour : grande carte
     if (!multiJour && ecartsListe.length === 1) {
       const item = ecartsListe[0]
-      const c = item.ecart > 0 ? '#C62828' : item.ecart < 0 ? '#F57F17' : '#2E7D32'
+      const c = item.ecart > 0 ? colors.error : item.ecart < 0 ? colors.warningDark : colors.successDark
       return (
         <View style={styles.section}>
           <View style={styles.kpiRow}>
@@ -1784,22 +1838,22 @@ export default function LitigesScreen() {
             </View>
           </View>
           <View style={[styles.ecartCard, {
-            backgroundColor: item.ecart !== 0 ? (item.ecart > 0 ? '#FFF0F0' : '#FFF8E1') : '#F0FFF4',
+            backgroundColor: item.ecart !== 0 ? (item.ecart > 0 ? colors.errorLight : colors.warningLight) : colors.successLight,
             borderColor: c + '44',
           }]}>
             <Text style={styles.ecartLabel}>
-              {item.annule ? (item.justifie ? '✔️ Écart justifié' : '🚫 Écart annulé')
+              {item.annule ? (item.justifie ? 'Écart justifié' : 'Écart annulé')
                 : item.totalRegul > 0 ? 'Écart restant' : 'Écart constaté'}
             </Text>
             <Text style={[styles.ecartValeur, { color: c }]}>{item.ecart > 0 ? '+' : ''}{fmt(item.ecart)}</Text>
             <Text style={[styles.ecartSous, { color: c }]}>
               {item.annule
                 ? (item.justifie
-                    ? '✔️ Justifié dans Vérification — fond non modifié'
-                    : '🚫 Annulé dans Vérification — non pris en compte')
+                    ? 'Justifié dans Vérification — fond non modifié'
+                    : 'Annulé dans Vérification — non pris en compte')
                 : item.ecart > 0 ? 'Machine supérieure aux shifts déclarés'
                 : item.ecart < 0 ? 'Shifts supérieurs à la machine'
-                : (item.totalRegul > 0 ? '✅ Écart entièrement régularisé' : '✅ Aucun écart — tout est aligné')}
+                : (item.totalRegul > 0 ? 'Écart entièrement régularisé' : 'Aucun écart — tout est aligné')}
             </Text>
             {item.annule && item.ecartBrut !== 0 ? (
               <Text style={styles.ecartRegulHint}>Écart initial {item.ecartBrut > 0 ? '+' : ''}{fmt(item.ecartBrut)} · {item.justifie ? 'justifié' : 'annulé'}</Text>
@@ -1816,7 +1870,7 @@ export default function LitigesScreen() {
     }
 
     // Vue multi-jour : liste
-    const c = totalEcart > 0 ? '#C62828' : totalEcart < 0 ? '#F57F17' : '#2E7D32'
+    const c = totalEcart > 0 ? colors.error : totalEcart < 0 ? colors.warningDark : colors.successDark
     return (
       <View style={styles.section}>
         <View style={styles.totalBanner}>
@@ -1824,7 +1878,7 @@ export default function LitigesScreen() {
           <Text style={[styles.totalBannerValue, { color: c }]}>{totalEcart > 0 ? '+' : ''}{fmt(totalEcart)}</Text>
         </View>
         {ecartsListe.map(j => {
-          const cj = j.ecart > 0 ? '#C62828' : j.ecart < 0 ? '#F57F17' : '#2E7D32'
+          const cj = j.ecart > 0 ? colors.error : j.ecart < 0 ? colors.warningDark : colors.successDark
           const ouvert = expandedEcart === j.date
           // Indices qu'il y a quelque chose à consulter / traiter sur ce jour
           // Les mesures du POS ouvrent le détail même quand l'écart du JOUR
@@ -1839,9 +1893,9 @@ export default function LitigesScreen() {
                 onPress={() => aDetails && setExpandedEcart(ouvert ? null : j.date)}
                 activeOpacity={aDetails ? 0.6 : 1}
               >
-                {aDetails && <Text style={styles.ligneChevron}>{ouvert ? '▾' : '▸'}</Text>}
+                {aDetails && <MaterialCommunityIcons name={ouvert ? 'chevron-down' : 'chevron-right'} size={20} color={colors.primary} style={{ marginRight: 6 }} />}
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.ligneNom}>{j.date}{j.annule ? (j.justifie ? '  ·  ✔️ justifié' : '  ·  🚫 annulé') : ''}</Text>
+                  <Text style={styles.ligneNom}>{j.date}{j.annule ? (j.justifie ? '  ·  justifié' : '  ·  annulé') : ''}</Text>
                   <Text style={styles.ligneSous}>Machine {fmtShort(j.venteMachine)} — Shifts {fmtShort(j.cumulShifts)} ({j.nbShifts})</Text>
                 </View>
                 <Text style={[styles.montantTxt, { color: cj }]}>{j.ecart > 0 ? '+' : ''}{fmtShort(j.ecart)}</Text>
@@ -1877,7 +1931,7 @@ export default function LitigesScreen() {
     const totalFiltre = rows.reduce((s, r) => s + (parseFloat(r.montant) || 0), 0)
     return (
       <View style={[styles.section, { marginTop: 8 }]}>
-        <Text style={styles.respSectionTitre}>👤 Responsables des écarts</Text>
+        {titreIcone('account-group-outline', 'Responsables des écarts', styles.respSectionTitre)}
 
         {/* Filtre type */}
         <View style={styles.filtreRow}>
@@ -1903,7 +1957,7 @@ export default function LitigesScreen() {
         {/* Total filtré */}
         <View style={styles.totalBanner}>
           <Text style={styles.totalBannerLabel}>Total imputé ({rows.length})</Text>
-          <Text style={[styles.totalBannerValue, { color: '#534AB7' }]}>{fmt(totalFiltre)}</Text>
+          <Text style={[styles.totalBannerValue, { color: colors.primary }]}>{fmt(totalFiltre)}</Text>
         </View>
 
         {/* Lignes */}
@@ -1921,14 +1975,14 @@ export default function LitigesScreen() {
                 )}
               </View>
               <Text style={styles.ligneSous}>
-                {r.type === 'manquant' ? '📉 Manquant' : '📈 Surplus'} · 📅 {r.date}
+                {r.type === 'manquant' ? 'Manquant' : 'Surplus'} · {r.date}
                 {r.role ? ` · ${r.role === 'gerant' ? 'Gérant' : 'Caissier'}` : ''}
               </Text>
               {r.explication ? (
                 <Text style={styles.ligneSous}>« {r.explication} »</Text>
               ) : null}
             </View>
-            <Text style={[styles.montantTxt, { color: r.type === 'manquant' ? '#C62828' : '#185FA5' }]}>{fmtShort(r.montant)}</Text>
+            <Text style={[styles.montantTxt, { color: r.type === 'manquant' ? colors.error : colors.primary }]}>{fmtShort(r.montant)}</Text>
           </View>
         ))}
       </View>
@@ -1949,20 +2003,20 @@ export default function LitigesScreen() {
       <View style={styles.section}>
         <View style={styles.totalBanner}>
           <Text style={styles.totalBannerLabel}>Total déductions inventaire</Text>
-          <Text style={[styles.totalBannerValue, { color: '#C62828' }]}>{fmt(totalInventaire)}</Text>
+          <Text style={[styles.totalBannerValue, { color: colors.error }]}>{fmt(totalInventaire)}</Text>
         </View>
 
         {/* Comptages du vérificateur : montants plafonnés, en attente ou répartis */}
         {deducVerifResto.length > 0 && (
           <>
             <View style={[styles.totalBanner, { marginTop: 10 }]}>
-              <Text style={styles.totalBannerLabel}>🔍 Comptage vérificateur</Text>
-              <Text style={[styles.totalBannerValue, { color: '#C62828' }]}>{fmt(totalVerif)}</Text>
+              <Text style={styles.totalBannerLabel}>Comptage vérificateur</Text>
+              <Text style={[styles.totalBannerValue, { color: colors.error }]}>{fmt(totalVerif)}</Text>
             </View>
             {totalVerifReel > totalVerif && (
               <View style={styles.plafondBox}>
                 <Text style={styles.plafondTxt}>
-                  ⚖️ Écart réellement constaté {fmt(totalVerifReel)} — plafond de {fmt(PLAFOND_COMPTAGE)}
+                  Écart réellement constaté {fmt(totalVerifReel)} — plafond de {fmt(PLAFOND_COMPTAGE)}
                   {' '}par comptage appliqué, {fmt(totalVerif)} retenus.
                 </Text>
               </View>
@@ -1971,14 +2025,14 @@ export default function LitigesScreen() {
               <View key={d.id} style={styles.globalItem}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.globalItemTxt} numberOfLines={2}>
-                    📅 {d.date} — {d.produits_resume || `${d.nb_produits || 0} produit(s) en écart`}
+                    {d.date} — {d.produits_resume || `${d.nb_produits || 0} produit(s) en écart`}
                   </Text>
                   <Text style={styles.globalItemResp}>
-                    👤 {d.caissier_nom}{d.shift_libelle ? ` · ${d.shift_libelle}` : ''}
-                    {d.statut === 'en_attente' ? ' · ⏳ à répartir' : ' · ✓ réparti'}
+                    {d.caissier_nom}{d.shift_libelle ? ` · ${d.shift_libelle}` : ''}
+                    {d.statut === 'en_attente' ? ' · à répartir' : ' · réparti'}
                   </Text>
                 </View>
-                <Text style={[styles.globalItemMontant, { color: '#C62828' }]}>{fmtShort(d.montant)}</Text>
+                <Text style={[styles.globalItemMontant, { color: colors.error }]}>{fmtShort(d.montant)}</Text>
               </View>
             ))}
           </>
@@ -1999,9 +2053,9 @@ export default function LitigesScreen() {
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <View>
                   <Text style={styles.ligneNom}>{inv.caissier_nom} — {shiftLabel}</Text>
-                  {multiJour && inv.date ? <Text style={styles.ligneSous}>📅 {inv.date}</Text> : null}
+                  {multiJour && inv.date ? info('calendar-blank-outline', inv.date, styles.ligneSous) : null}
                 </View>
-                <Text style={[styles.montantTxt, { color: '#C62828' }]}>−{fmtShort(inv.montant_a_deduire)}</Text>
+                <Text style={[styles.montantTxt, { color: colors.error }]}>−{fmtShort(inv.montant_a_deduire)}</Text>
               </View>
               {/* Détail : par produit (manager → bouton Annuler) ou par catégorie (lecture seule) */}
               {peutRegulariser ? (
@@ -2011,7 +2065,7 @@ export default function LitigesScreen() {
                       <View key={l.id} style={styles.prodLigne}>
                         <View style={{ flex: 1, paddingRight: 8 }}>
                           <Text style={styles.catNom}>{l.produit_nom}</Text>
-                          <Text style={[styles.catMontant, { color: '#C62828' }]}>−{fmtShort(l.montant_deduit)} FCFA</Text>
+                          <Text style={[styles.catMontant, { color: colors.error }]}>−{fmtShort(l.montant_deduit)} FCFA</Text>
                         </View>
                         <TouchableOpacity
                           style={[styles.annulDeducBtnSm, annulDeducSaving === l.id && { opacity: 0.6 }]}
@@ -2019,8 +2073,8 @@ export default function LitigesScreen() {
                           disabled={!!annulDeducSaving}
                         >
                           {annulDeducSaving === l.id
-                            ? <ActivityIndicator color="#A32D2D" size="small" />
-                            : <Text style={styles.annulDeducBtnSmTxt}>🚫 Annuler</Text>}
+                            ? <ActivityIndicator color={colors.error} size="small" />
+                            : <Text style={styles.annulDeducBtnSmTxt}>Annuler</Text>}
                         </TouchableOpacity>
                       </View>
                     ))}
@@ -2051,7 +2105,7 @@ export default function LitigesScreen() {
         {avisClients.length > 0 && (
           <View style={styles.totalBanner}>
             <Text style={styles.totalBannerLabel}>Impact total avis</Text>
-            <Text style={[styles.totalBannerValue, { color: totalAvis > 0 ? '#C62828' : '#2E7D32' }]}>
+            <Text style={[styles.totalBannerValue, { color: totalAvis > 0 ? colors.error : colors.successDark }]}>
               {totalAvis > 0 ? '+' : ''}{fmt(totalAvis)}
             </Text>
           </View>
@@ -2062,10 +2116,10 @@ export default function LitigesScreen() {
             <View key={a.id} style={styles.ligneCard}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.ligneNom, { color: type?.couleur || colors.text }]}>{type?.label || a.type}</Text>
-                {a.canal ? <Text style={[styles.ligneSous, { color: canalAvis(a.canal)?.couleur || colors.textMuted, fontWeight: '600' }]}>📍 {canalAvis(a.canal)?.court || a.canal}</Text> : null}
-                {a.responsable_nom ? <Text style={styles.ligneSous}>👤 {a.responsable_nom}</Text> : null}
-                {a.numero_commande ? <Text style={styles.ligneCmd}>🔖 Cmd #{a.numero_commande}</Text> : null}
-                {multiJour && a.date ? <Text style={styles.ligneSous}>📅 {a.date}</Text> : null}
+                {a.canal ? info('map-marker-outline', canalAvis(a.canal)?.court || a.canal, [styles.ligneSous, { color: canalAvis(a.canal)?.couleur || colors.textMuted, fontWeight: '700' }]) : null}
+                {a.responsable_nom ? info('account-outline', a.responsable_nom, styles.ligneSous) : null}
+                {a.numero_commande ? info('receipt-text-outline', <>Commande #{a.numero_commande}</>, styles.ligneCmd) : null}
+                {multiJour && a.date ? info('calendar-blank-outline', a.date, styles.ligneSous) : null}
                 {a.notes ? <Text style={styles.ligneSous}>{a.notes}</Text> : null}
                 {a.created_by ? <Text style={styles.ligneCreer}>par {a.created_by}</Text> : null}
               </View>
@@ -2073,17 +2127,15 @@ export default function LitigesScreen() {
                 <Text style={[styles.montantTxt, { color: couleurMontant(a.montant, colors) }]}>
                   {a.montant > 0 ? '+' : ''}{fmtShort(a.montant)}
                 </Text>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity onPress={() => ouvrirEditAvis(a)}><Text style={styles.btnAction}>✏️</Text></TouchableOpacity>
-                  <TouchableOpacity onPress={() => setConfirmSuppr({ table: 'litiges_avis_clients', id: a.id })}><Text style={styles.btnAction}>🗑️</Text></TouchableOpacity>
-                </View>
+                {actions(() => ouvrirEditAvis(a), () => setConfirmSuppr({ table: 'litiges_avis_clients', id: a.id }))}
               </View>
             </View>
           )
         })}
         {!avisClients.length && <View style={styles.emptyBox}><Text style={styles.emptyTxt}>Aucun avis enregistré</Text></View>}
         <TouchableOpacity style={styles.btnAjout} onPress={ouvrirAddAvis}>
-          <Text style={styles.btnAjoutTxt}>+ Ajouter un avis client</Text>
+          <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
+          <Text style={styles.btnAjoutTxt}>Ajouter un avis client</Text>
         </TouchableOpacity>
       </View>
     )
@@ -2095,7 +2147,7 @@ export default function LitigesScreen() {
         {litigesYango.length > 0 && (
           <View style={styles.totalBanner}>
             <Text style={styles.totalBannerLabel}>Impact total Yango</Text>
-            <Text style={[styles.totalBannerValue, { color: totalYango > 0 ? '#C62828' : '#2E7D32' }]}>
+            <Text style={[styles.totalBannerValue, { color: totalYango > 0 ? colors.error : colors.successDark }]}>
               {totalYango > 0 ? '+' : ''}{fmt(totalYango)}
             </Text>
           </View>
@@ -2106,27 +2158,25 @@ export default function LitigesScreen() {
             <View key={y.id} style={styles.ligneCard}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.ligneNom, { color: type?.couleur || colors.text }]}>{type?.label || y.type}</Text>
-                {y.responsable_nom ? <Text style={styles.ligneSous}>👤 {y.responsable_nom}</Text> : null}
-                {y.numero_commande ? <Text style={styles.ligneCmd}>🔖 Cmd #{y.numero_commande}</Text> : null}
-                {multiJour && y.date ? <Text style={styles.ligneSous}>📅 {y.date}</Text> : null}
+                {y.responsable_nom ? info('account-outline', y.responsable_nom, styles.ligneSous) : null}
+                {y.numero_commande ? info('receipt-text-outline', <>Commande #{y.numero_commande}</>, styles.ligneCmd) : null}
+                {multiJour && y.date ? info('calendar-blank-outline', y.date, styles.ligneSous) : null}
                 {y.notes ? <Text style={styles.ligneSous}>{y.notes}</Text> : null}
                 {y.created_by ? <Text style={styles.ligneCreer}>par {y.created_by}</Text> : null}
               </View>
               <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                <Text style={[styles.montantTxt, { color: y.montant > 0 ? '#C62828' : '#2E7D32' }]}>
+                <Text style={[styles.montantTxt, { color: y.montant > 0 ? colors.error : colors.successDark }]}>
                   {y.montant > 0 ? '+' : ''}{fmtShort(y.montant)}
                 </Text>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity onPress={() => ouvrirEditYango(y)}><Text style={styles.btnAction}>✏️</Text></TouchableOpacity>
-                  <TouchableOpacity onPress={() => setConfirmSuppr({ table: 'litiges_yango', id: y.id })}><Text style={styles.btnAction}>🗑️</Text></TouchableOpacity>
-                </View>
+                {actions(() => ouvrirEditYango(y), () => setConfirmSuppr({ table: 'litiges_yango', id: y.id }))}
               </View>
             </View>
           )
         })}
         {!litigesYango.length && <View style={styles.emptyBox}><Text style={styles.emptyTxt}>Aucun litige Yango enregistré</Text></View>}
         <TouchableOpacity style={styles.btnAjout} onPress={ouvrirAddYango}>
-          <Text style={styles.btnAjoutTxt}>+ Ajouter un litige Yango</Text>
+          <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
+          <Text style={styles.btnAjoutTxt}>Ajouter un litige Yango</Text>
         </TouchableOpacity>
       </View>
     )
@@ -2138,7 +2188,7 @@ export default function LitigesScreen() {
         {litigesGlovo.length > 0 && (
           <View style={styles.totalBanner}>
             <Text style={styles.totalBannerLabel}>Impact total Glovo</Text>
-            <Text style={[styles.totalBannerValue, { color: totalGlovo > 0 ? '#C62828' : '#2E7D32' }]}>
+            <Text style={[styles.totalBannerValue, { color: totalGlovo > 0 ? colors.error : colors.successDark }]}>
               {totalGlovo > 0 ? '+' : ''}{fmt(totalGlovo)}
             </Text>
           </View>
@@ -2149,27 +2199,25 @@ export default function LitigesScreen() {
             <View key={g.id} style={styles.ligneCard}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.ligneNom, { color: type?.couleur || colors.text }]}>{type?.label || g.type}</Text>
-                {g.responsable_nom ? <Text style={styles.ligneSous}>👤 {g.responsable_nom}</Text> : null}
-                {g.numero_commande ? <Text style={styles.ligneCmd}>🔖 Cmd #{g.numero_commande}</Text> : null}
-                {multiJour && g.date ? <Text style={styles.ligneSous}>📅 {g.date}</Text> : null}
+                {g.responsable_nom ? info('account-outline', g.responsable_nom, styles.ligneSous) : null}
+                {g.numero_commande ? info('receipt-text-outline', <>Commande #{g.numero_commande}</>, styles.ligneCmd) : null}
+                {multiJour && g.date ? info('calendar-blank-outline', g.date, styles.ligneSous) : null}
                 {g.notes ? <Text style={styles.ligneSous}>{g.notes}</Text> : null}
                 {g.created_by ? <Text style={styles.ligneCreer}>par {g.created_by}</Text> : null}
               </View>
               <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                <Text style={[styles.montantTxt, { color: g.montant > 0 ? '#C62828' : '#2E7D32' }]}>
+                <Text style={[styles.montantTxt, { color: g.montant > 0 ? colors.error : colors.successDark }]}>
                   {g.montant > 0 ? '+' : ''}{fmtShort(g.montant)}
                 </Text>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity onPress={() => ouvrirEditGlovo(g)}><Text style={styles.btnAction}>✏️</Text></TouchableOpacity>
-                  <TouchableOpacity onPress={() => setConfirmSuppr({ table: 'litiges_glovo', id: g.id })}><Text style={styles.btnAction}>🗑️</Text></TouchableOpacity>
-                </View>
+                {actions(() => ouvrirEditGlovo(g), () => setConfirmSuppr({ table: 'litiges_glovo', id: g.id }))}
               </View>
             </View>
           )
         })}
         {!litigesGlovo.length && <View style={styles.emptyBox}><Text style={styles.emptyTxt}>Aucun litige Glovo enregistré</Text></View>}
         <TouchableOpacity style={styles.btnAjout} onPress={ouvrirAddGlovo}>
-          <Text style={styles.btnAjoutTxt}>+ Ajouter un litige Glovo</Text>
+          <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
+          <Text style={styles.btnAjoutTxt}>Ajouter un litige Glovo</Text>
         </TouchableOpacity>
       </View>
     )
@@ -2243,7 +2291,7 @@ export default function LitigesScreen() {
         {totalContact > 0 && (
           <View style={styles.totalBanner}>
             <Text style={styles.totalBannerLabel}>Total litige contacts</Text>
-            <Text style={[styles.totalBannerValue, { color: '#C62828' }]}>{fmt(totalContact)}</Text>
+            <Text style={[styles.totalBannerValue, { color: colors.error }]}>{fmt(totalContact)}</Text>
           </View>
         )}
         {ecartContacts.length === 0 ? (
@@ -2257,11 +2305,11 @@ export default function LitigesScreen() {
             const surplus = item.ecart < 0
             const aLitige = item.litige > 0
             return (
-              <View key={idx} style={[styles.ligneCard, { flexDirection: 'column', alignItems: 'stretch' }, aLitige && { borderColor: '#C62828', borderWidth: 1 }]}>
+              <View key={idx} style={[styles.ligneCard, { flexDirection: 'column', alignItems: 'stretch' }, aLitige && { borderColor: colors.error + '66' }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
                   <View style={{ flex: 1, gap: 4 }}>
-                    <Text style={[styles.ligneNom, { color: colors.text }]}>📅 {item.date}</Text>
-                    {item.caissiers ? <Text style={styles.ligneSous}>👤 {item.caissiers}</Text> : null}
+                    <Text style={[styles.ligneNom, { color: colors.text }]}>{item.date}</Text>
+                    {item.caissiers ? info('account-outline', item.caissiers, styles.ligneSous) : null}
                     <Text style={styles.ligneSous}>
                       Cmds : {item.nbCommandes} (Y {item.nbYango} · G {item.nbGlovo})  ·  Contacts :{' '}
                       {item.contactsDisponibles ? item.nbContacts : 'en attente du POS'}
@@ -2269,17 +2317,17 @@ export default function LitigesScreen() {
                       {item.contactsSource === 'POS' ? '  ·  Source : POS' : ''}
                     </Text>
                     {item.contactsIncomplets && (
-                      <Text style={[styles.ligneSous, { color: '#B06E00' }]}>
-                        ⚠️ Comptage incomplet : {item.shiftsSansContact} shift
+                      <Text style={[styles.ligneSous, { color: colors.warningDark }]}>
+                        Comptage incomplet : {item.shiftsSansContact} shift
                         {item.shiftsSansContact > 1 ? 's' : ''} sans données contacts POS
                       </Text>
                     )}
                     {item.calculSuspendu && item.nbCommandes > 0 && (
-                      <Text style={[styles.ligneSous, { color: '#B06E00' }]}>⏳ {item.motifSuspension}</Text>
+                      <Text style={[styles.ligneSous, { color: colors.warningDark }]}>{item.motifSuspension}</Text>
                     )}
                     {item.nbCorrige && (
                       <Text style={styles.corrBadge}>
-                        ✏️ Nb corrigé (avant : Y {item.nbYangoOriginal ?? '—'} · G {item.nbGlovoOriginal ?? '—'})
+                        Nombre corrigé (avant : Y {item.nbYangoOriginal ?? '—'} · G {item.nbGlovoOriginal ?? '—'})
                         {item.nbCorrigePar ? ` — ${item.nbCorrigePar}` : ''}
                         {item.nbCorrigeMotif ? ` · ${item.nbCorrigeMotif}` : ''}
                       </Text>
@@ -2287,35 +2335,35 @@ export default function LitigesScreen() {
                     {item.contactsParCaissier?.length > 0 && (
                       <View style={{ marginTop: 4, gap: 2 }}>
                         {item.contactsParCaissier.map((c, ci) => (
-                          <Text key={ci} style={[styles.ligneSous, { color: '#185FA5' }]}>
-                            📞 {c.nom} : {c.contacts == null
+                          <Text key={ci} style={[styles.ligneSous, { color: colors.primary }]}>
+                            {c.nom} : {c.contacts == null
                               ? 'non transmis'
                               : `${c.contacts} / ${c.commandes == null ? '—' : c.commandes}`}
                           </Text>
                         ))}
                       </View>
                     )}
-                    {parfait && !item.forceParManager && <Text style={{ fontSize: 12, color: '#2E7D32', fontWeight: '600' }}>✅ Parfait</Text>}
-                    {tolere && !item.forceParManager && <Text style={{ fontSize: 12, color: '#F57F17', fontWeight: '600' }}>✅ Toléré</Text>}
+                    {parfait && !item.forceParManager && <Text style={[styles.statutContact, { color: colors.successDark, backgroundColor: colors.successLight }]}>Parfait</Text>}
+                    {tolere && !item.forceParManager && <Text style={[styles.statutContact, { color: colors.warningDark, backgroundColor: colors.warningLight }]}>Toléré</Text>}
                     {surplus && !item.forceParManager && (
-                      <Text style={{ fontSize: 12, color: '#F57F17', fontWeight: '600' }}>
-                        ↩️ Surplus de {Math.abs(item.ecart)} contact{Math.abs(item.ecart) > 1 ? 's' : ''} — pas de litige
+                      <Text style={{ fontSize: 12, color: colors.warningDark, fontWeight: '600' }}>
+                        Surplus de {Math.abs(item.ecart)} contact{Math.abs(item.ecart) > 1 ? 's' : ''} — pas de litige
                       </Text>
                     )}
                     {item.litigeCalcule > 0 && !item.forceParManager && (
-                      <Text style={{ fontSize: 12, color: '#C62828', fontWeight: '600' }}>
-                        ⚠️ {item.ecart} × 500 = {fmtShort(item.litigeCalcule)}
+                      <Text style={{ fontSize: 12, color: colors.error, fontWeight: '700' }}>
+                        {item.ecart} × 500 = {fmtShort(item.litigeCalcule)}
                       </Text>
                     )}
                     {item.forceParManager && (
                       <Text style={styles.corrBadge}>
-                        ✏️ Montant forcé (calculé : {fmtShort(item.litigeCalcule)})
+                        Montant forcé (calculé : {fmtShort(item.litigeCalcule)})
                         {item.forcePar ? ` — ${item.forcePar}` : ''}
                         {item.motif ? ` · ${item.motif}` : ''}
                       </Text>
                     )}
                   </View>
-                  <Text style={[styles.montantTxt, { color: item.litige > 0 ? '#C62828' : '#2E7D32' }]}>
+                  <Text style={[styles.montantTxt, { color: item.litige > 0 ? colors.error : colors.successDark }]}>
                     {fmtShort(item.litige)}
                   </Text>
                 </View>
@@ -2323,10 +2371,12 @@ export default function LitigesScreen() {
                 {peutRegulariser && item.point && (
                   <View style={styles.corrBtnRow}>
                     <TouchableOpacity style={styles.corrBtn} onPress={() => ouvrirCorrNbCommandes(item)}>
-                      <Text style={styles.corrBtnTxt}>✏️ Nb commandes</Text>
+                      <MaterialCommunityIcons name="pencil-outline" size={15} color={colors.primary} />
+                      <Text style={styles.corrBtnTxt}>Nb commandes</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.corrBtn} onPress={() => ouvrirCorrLitige(item)}>
-                      <Text style={styles.corrBtnTxt}>✏️ Montant du litige</Text>
+                      <MaterialCommunityIcons name="pencil-outline" size={15} color={colors.primary} />
+                      <Text style={styles.corrBtnTxt}>Montant du litige</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -2337,8 +2387,8 @@ export default function LitigesScreen() {
         {ecartContacts.length > 0 && (
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.borderLight }}>
             <Text style={{ fontSize: 13, color: colors.textMuted, fontWeight: '600' }}>Total litige contacts</Text>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: totalContact > 0 ? '#C62828' : '#2E7D32' }}>
-              {totalContact > 0 ? fmtShort(totalContact) : '0 FCFA ✅'}
+            <Text style={{ fontSize: 14, fontWeight: '700', color: totalContact > 0 ? colors.error : colors.successDark }}>
+              {totalContact > 0 ? fmtShort(totalContact) : '0 FCFA'}
             </Text>
           </View>
         )}
@@ -2352,118 +2402,158 @@ export default function LitigesScreen() {
     return `${plage.debut} → ${plage.fin}`
   }
 
+  // Montant de chaque onglet, affiché sous son nom
+  const montantsOnglets = {
+    ecarts: totalEcart, inventaire: totalInventaire + totalVerif, avis: totalAvis,
+    yango: totalYango, glovo: totalGlovo, contact: totalContact, point_pas_fait: totalPointPasFait,
+  }
+  const avecOnglets = !modeGlobal && !!restoSelectionne
+  const tonGlobal = totalGlobal > 0 ? 'rouge' : totalGlobal < 0 ? 'vert' : 'gris'
+  const couleurTon = { rouge: colors.error, vert: colors.successDark, gris: colors.textMuted }[tonGlobal]
+  const fondTon = { rouge: colors.errorLight, vert: colors.successLight, gris: colors.surfaceAlt }[tonGlobal]
+
   return (
     <SafeAreaView style={styles.container}>
 
-      {/* Header */}
+      {/* En-tête : titre + restaurant */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => retour()} style={styles.backBtn}>
-          <Text style={styles.backTxt}>‹</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitre}>⚖️ Litiges</Text>
-        <View style={{ width: 36 }} />
-      </View>
-
-      {/* Restaurant */}
-      <View style={styles.restoRow}>
-        {isGerant ? (
-          <View style={styles.restoBtn}>
-            <Text style={styles.restoTxt} numberOfLines={1}>
-              🏪 {restoSelectionne?.nom || '...'}
-            </Text>
-          </View>
-        ) : (
-          <TouchableOpacity style={styles.restoBtn} onPress={() => setShowRestoPicker(true)}>
-            <Text style={styles.restoTxt} numberOfLines={1}>
-              {modeGlobal ? '🌐 Tous les restaurants' : '🏪 ' + (restoSelectionne?.nom || 'Restaurant...')}
-            </Text>
-            <Text style={styles.restoArrow}>▾</Text>
+        <View style={styles.headerLigne}>
+          <TouchableOpacity onPress={() => retour()} style={styles.enteteBtn} accessibilityRole="button" accessibilityLabel="Retour">
+            <MaterialCommunityIcons name="chevron-left" size={24} color="#FFFFFF" />
           </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Sélecteur de période */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.periodeScroll, { flexGrow: 0 }]} contentContainerStyle={styles.periodeContent}>
-        {PERIODES.map(p => (
-          <TouchableOpacity
-            key={p.key}
-            style={[styles.periodePill, periodeKey === p.key && styles.periodePillActive]}
-            onPress={() => setPeriodeKey(p.key)}
-          >
-            <Text style={[styles.periodePillTxt, periodeKey === p.key && styles.periodePillTxtActive]}>{p.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Date(s) sélectionnée(s) */}
-      <View style={styles.dateRow}>
-        {periodeKey === '1jour' ? (
-          <TouchableOpacity style={styles.datePill} onPress={() => setShowCalUnique(true)}>
-            <Text style={styles.datePillTxt}>📅 {dateUnique}</Text>
-          </TouchableOpacity>
-        ) : periodeKey === 'perso' ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <TouchableOpacity style={styles.datePill} onPress={() => setShowCalDebut(true)}>
-              <Text style={styles.datePillTxt}>Du {dateDebut}</Text>
-            </TouchableOpacity>
-            <Text style={{ color: colors.textMuted, fontSize: 14 }}>→</Text>
-            <TouchableOpacity style={styles.datePill} onPress={() => setShowCalFin(true)}>
-              <Text style={styles.datePillTxt}>Au {dateFin}</Text>
-            </TouchableOpacity>
+          <View style={styles.headerCentre}>
+            <View style={styles.headerIcone}>
+              <MaterialCommunityIcons name="scale-balance" size={18} color="#FFFFFF" />
+            </View>
+            <Text style={styles.headerTitre}>Litiges</Text>
           </View>
-        ) : (
-          <View style={styles.datePill}>
-            <Text style={styles.datePillTxt}>📅 {plage.debut} → {plage.fin}</Text>
-          </View>
-        )}
-      </View>
-
-      {/* KPI global — masqué en mode tous restaurants */}
-      {!modeGlobal && restoSelectionne && (
-        <View style={[styles.kpiGlobal, {
-          backgroundColor: totalGlobal > 0 ? '#FFF0F0' : totalGlobal < 0 ? '#F0FFF4' : colors.surface,
-          borderColor: totalGlobal > 0 ? '#FFCDD2' : totalGlobal < 0 ? '#C8E6C9' : colors.borderLight,
-        }]}>
-          <Text style={styles.kpiGlobalLabel}>Impact total — {plageLabel()}</Text>
-          <Text style={[styles.kpiGlobalValue, {
-            color: totalGlobal > 0 ? '#C62828' : totalGlobal < 0 ? '#2E7D32' : colors.textMuted,
-          }]}>
-            {totalGlobal > 0 ? '+' : ''}{fmt(totalGlobal)}
-          </Text>
+          <View style={{ width: 40 }} />
         </View>
-      )}
+        <TouchableOpacity
+          style={styles.restoBtn}
+          onPress={() => setShowRestoPicker(true)}
+          disabled={isGerant}
+          accessibilityRole="button"
+          accessibilityLabel="Choisir le restaurant"
+        >
+          <MaterialCommunityIcons name={modeGlobal ? 'earth' : 'storefront-outline'} size={17} color="#FFFFFF" />
+          <Text style={styles.restoTxt} numberOfLines={1}>
+            {modeGlobal ? 'Tous les restaurants' : (restoSelectionne?.nom || 'Choisir un restaurant')}
+          </Text>
+          {!isGerant && <MaterialCommunityIcons name="chevron-down" size={18} color="#FFFFFF" />}
+        </TouchableOpacity>
+      </View>
 
-      {/* Onglets — masqués en mode tous restaurants */}
-      {!modeGlobal && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tabsScroll, { flexGrow: 0 }]} contentContainerStyle={styles.tabsContent}>
-          {ONGLETS.map(o => (
-            <TouchableOpacity key={o.key} style={[styles.tab, onglet === o.key && styles.tabActive]} onPress={() => setOnglet(o.key)}>
-              <Text style={[styles.tabTxt, onglet === o.key && styles.tabTxtActive]}>{o.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={styles.bodyContenu}
+        showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={avecOnglets ? [2] : undefined}
+      >
+        {/* 0 — Période */}
+        <View style={styles.filtreCarte}>
+          <View style={styles.periodeRangee}>
+            {PERIODES.map(p => (
+              <TouchableOpacity
+                key={p.key}
+                style={[styles.periodePill, periodeKey === p.key && styles.periodePillActive]}
+                onPress={() => setPeriodeKey(p.key)}
+              >
+                <Text style={[styles.periodePillTxt, periodeKey === p.key && styles.periodePillTxtActive]}>{p.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={styles.dateRow}>
+            {periodeKey === '1jour' ? (
+              <TouchableOpacity style={styles.datePill} onPress={() => setShowCalUnique(true)}>
+                <MaterialCommunityIcons name="calendar-month-outline" size={16} color={colors.primary} />
+                <Text style={styles.datePillTxt}>{dateUnique}</Text>
+                <MaterialCommunityIcons name="chevron-down" size={16} color={colors.primary} />
+              </TouchableOpacity>
+            ) : periodeKey === 'perso' ? (
+              <>
+                <TouchableOpacity style={styles.datePill} onPress={() => setShowCalDebut(true)}>
+                  <MaterialCommunityIcons name="calendar-month-outline" size={16} color={colors.primary} />
+                  <Text style={styles.datePillTxt}>Du {dateDebut}</Text>
+                </TouchableOpacity>
+                <MaterialCommunityIcons name="arrow-right" size={16} color={colors.textMuted} />
+                <TouchableOpacity style={styles.datePill} onPress={() => setShowCalFin(true)}>
+                  <Text style={styles.datePillTxt}>Au {dateFin}</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <View style={[styles.datePill, styles.datePillFixe]}>
+                <MaterialCommunityIcons name="calendar-range" size={16} color={colors.textSecondary} />
+                <Text style={[styles.datePillTxt, { color: colors.textSecondary }]}>{plage.debut} → {plage.fin}</Text>
+              </View>
+            )}
+          </View>
+        </View>
 
-      {/* Contenu */}
-      {loading ? (
-        <ActivityIndicator style={{ marginTop: 40 }} color='#185FA5' />
-      ) : modeGlobal ? (
-        <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 50 }} showsVerticalScrollIndicator={false}>
-          {renderModeGlobal()}
-        </ScrollView>
-      ) : !restoSelectionne ? (
-        <View style={styles.emptyBox}><Text style={styles.emptyTxt}>Sélectionnez un restaurant</Text></View>
-      ) : (
-        <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 50 }} showsVerticalScrollIndicator={false}>
-          {onglet === 'ecarts' && (<>{renderEcarts()}{renderResponsablesEcarts()}</>)}
-          {onglet === 'inventaire' && renderInventaire()}
-          {onglet === 'avis' && renderAvis()}
-          {onglet === 'yango' && renderYango()}
-          {onglet === 'glovo' && renderGlovo()}
-          {onglet === 'contact' && renderEcartContacts()}
-          {onglet === 'point_pas_fait' && renderPointPasFait()}
-        </ScrollView>
-      )}
+        {/* 1 — Impact total du restaurant */}
+        <View>
+          {avecOnglets && (
+            <View style={[styles.impactCarte, { borderColor: couleurTon + '40' }]}>
+              <View style={[styles.impactIcone, { backgroundColor: fondTon }]}>
+                <MaterialCommunityIcons name="scale-balance" size={22} color={couleurTon} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.impactLabel}>Impact total</Text>
+                <Text style={styles.impactSous} numberOfLines={1}>
+                  {totalGlobal > 0 ? 'À la charge du restaurant' : totalGlobal < 0 ? 'En faveur du restaurant' : 'Aucun litige sur la période'}
+                </Text>
+              </View>
+              <Text style={[styles.impactValeur, { color: couleurTon }]}>
+                {totalGlobal > 0 ? '+' : ''}{fmt(totalGlobal)}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* 2 — Onglets (restent en haut au défilement) */}
+        <View style={avecOnglets ? styles.ongletsFond : null}>
+          {avecOnglets && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsContent}>
+              {ONGLETS.map(o => {
+                const actif = onglet === o.key
+                const m = montantsOnglets[o.key] || 0
+                return (
+                  <TouchableOpacity key={o.key} style={[styles.tab, actif && styles.tabActive]} onPress={() => setOnglet(o.key)}>
+                    <Text style={[styles.tabTxt, actif && styles.tabTxtActive]}>{o.label}</Text>
+                    <Text style={[styles.tabMontant, { color: actif ? 'rgba(255,255,255,0.85)' : m > 0 ? colors.error : m < 0 ? colors.successDark : colors.textMuted }]}>
+                      {m === 0 ? '—' : `${m > 0 ? '+' : ''}${fmtShort(m)}`}
+                    </Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </ScrollView>
+          )}
+        </View>
+
+        {/* 3 — Contenu */}
+        <View>
+          {loading ? (
+            <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />
+          ) : modeGlobal ? (
+            renderModeGlobal()
+          ) : !restoSelectionne ? (
+            <View style={styles.emptyBox}>
+              <MaterialCommunityIcons name="storefront-outline" size={34} color={colors.textMuted} />
+              <Text style={styles.emptyTxt}>Choisissez un restaurant</Text>
+            </View>
+          ) : (
+            <>
+              {onglet === 'ecarts' && (<>{renderEcarts()}{renderResponsablesEcarts()}</>)}
+              {onglet === 'inventaire' && renderInventaire()}
+              {onglet === 'avis' && renderAvis()}
+              {onglet === 'yango' && renderYango()}
+              {onglet === 'glovo' && renderGlovo()}
+              {onglet === 'contact' && renderEcartContacts()}
+              {onglet === 'point_pas_fait' && renderPointPasFait()}
+            </>
+          )}
+        </View>
+      </ScrollView>
 
       {/* ── Modal Restaurant ── */}
       <Modal visible={showRestoPicker} transparent animationType="fade">
@@ -2474,10 +2564,10 @@ export default function LitigesScreen() {
               {/* Option "Tous les restaurants" — masquée pour le gérant */}
               {!isGerant && (
                 <TouchableOpacity
-                  style={[styles.pickerLigne, modeGlobal && styles.pickerLigneActive, { borderBottomWidth: 1, borderBottomColor: '#e0e0e0' }]}
+                  style={[styles.pickerLigne, modeGlobal && styles.pickerLigneActive, { borderBottomWidth: 1, borderBottomColor: colors.border }]}
                   onPress={() => { setModeGlobal(true); setRestoSelectionne(null); setShowRestoPicker(false) }}
                 >
-                  <Text style={[styles.pickerLigneTxt, modeGlobal && { color: '#534AB7', fontWeight: '700' }]}>🌐 Tous les restaurants</Text>
+                  <Text style={[styles.pickerLigneTxt, modeGlobal && { color: colors.primary, fontWeight: '700' }]}>Tous les restaurants</Text>
                 </TouchableOpacity>
               )}
               {restaurants.map(r => (
@@ -2485,7 +2575,7 @@ export default function LitigesScreen() {
                   style={[styles.pickerLigne, !modeGlobal && restoSelectionne?.id === r.id && styles.pickerLigneActive]}
                   onPress={() => { setModeGlobal(false); setRestoSelectionne(r); chargerDatesAvec(r.id); chargerUtilisateurs(r.id); setShowRestoPicker(false) }}
                 >
-                  <Text style={[styles.pickerLigneTxt, !modeGlobal && restoSelectionne?.id === r.id && { color: '#185FA5', fontWeight: '600' }]}>{r.nom}</Text>
+                  <Text style={[styles.pickerLigneTxt, !modeGlobal && restoSelectionne?.id === r.id && { color: colors.primary, fontWeight: '600' }]}>{r.nom}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -2500,8 +2590,8 @@ export default function LitigesScreen() {
             <Calendar
               current={dateUnique}
               onDayPress={day => { setDateUnique(day.dateString); setShowCalUnique(false) }}
-              markedDates={{ ...datesAvec, [dateUnique]: { selected: true, selectedColor: '#185FA5' } }}
-              theme={{ selectedDayBackgroundColor: '#185FA5', todayTextColor: '#185FA5', arrowColor: '#185FA5' }}
+              markedDates={{ ...datesAvec, [dateUnique]: { selected: true, selectedColor: colors.primary } }}
+              theme={{ selectedDayBackgroundColor: colors.primary, todayTextColor: colors.primary, arrowColor: colors.primary }}
             />
           </TouchableOpacity>
         </TouchableOpacity>
@@ -2514,8 +2604,8 @@ export default function LitigesScreen() {
             <Calendar
               current={dateDebut}
               onDayPress={day => { setDateDebut(day.dateString); setShowCalDebut(false) }}
-              markedDates={{ [dateDebut]: { selected: true, selectedColor: '#185FA5' } }}
-              theme={{ selectedDayBackgroundColor: '#185FA5', todayTextColor: '#185FA5', arrowColor: '#185FA5' }}
+              markedDates={{ [dateDebut]: { selected: true, selectedColor: colors.primary } }}
+              theme={{ selectedDayBackgroundColor: colors.primary, todayTextColor: colors.primary, arrowColor: colors.primary }}
             />
           </TouchableOpacity>
         </TouchableOpacity>
@@ -2528,8 +2618,8 @@ export default function LitigesScreen() {
             <Calendar
               current={dateFin}
               onDayPress={day => { setDateFin(day.dateString); setShowCalFin(false) }}
-              markedDates={{ [dateFin]: { selected: true, selectedColor: '#185FA5' } }}
-              theme={{ selectedDayBackgroundColor: '#185FA5', todayTextColor: '#185FA5', arrowColor: '#185FA5' }}
+              markedDates={{ [dateFin]: { selected: true, selectedColor: colors.primary } }}
+              theme={{ selectedDayBackgroundColor: colors.primary, todayTextColor: colors.primary, arrowColor: colors.primary }}
             />
           </TouchableOpacity>
         </TouchableOpacity>
@@ -2588,7 +2678,7 @@ export default function LitigesScreen() {
               onChangeText={v => setFormAvis(p => ({ ...p, notes: v }))}
               placeholder="Détails du litige..." placeholderTextColor="#bbb" multiline />
 
-            {saveError && <Text style={{ color: '#C62828', fontSize: 12, marginBottom: 8, textAlign: 'center' }}>⚠️ {saveError}</Text>}
+            {saveError && <Text style={{ color: colors.error, fontSize: 12, marginBottom: 8, textAlign: 'center' }}>{saveError}</Text>}
             <View style={styles.formBtns}>
               <TouchableOpacity style={styles.btnAnnuler} onPress={() => { setShowFormAvis(false); setSaveError(null) }}>
                 <Text style={styles.btnAnnulerTxt}>Annuler</Text>
@@ -2641,7 +2731,7 @@ export default function LitigesScreen() {
               onChangeText={v => setFormYango(p => ({ ...p, notes: v }))}
               placeholder="Détails..." placeholderTextColor="#bbb" />
 
-            {saveError && <Text style={{ color: '#C62828', fontSize: 12, marginBottom: 8, textAlign: 'center' }}>⚠️ {saveError}</Text>}
+            {saveError && <Text style={{ color: colors.error, fontSize: 12, marginBottom: 8, textAlign: 'center' }}>{saveError}</Text>}
             <View style={styles.formBtns}>
               <TouchableOpacity style={styles.btnAnnuler} onPress={() => { setShowFormYango(false); setSaveError(null) }}>
                 <Text style={styles.btnAnnulerTxt}>Annuler</Text>
@@ -2696,7 +2786,7 @@ export default function LitigesScreen() {
               onChangeText={v => setFormGlovo(p => ({ ...p, notes: v }))}
               placeholder="Détails..." placeholderTextColor="#bbb" />
 
-            {saveError && <Text style={{ color: '#C62828', fontSize: 12, marginBottom: 8, textAlign: 'center' }}>⚠️ {saveError}</Text>}
+            {saveError && <Text style={{ color: colors.error, fontSize: 12, marginBottom: 8, textAlign: 'center' }}>{saveError}</Text>}
             <View style={styles.formBtns}>
               <TouchableOpacity style={styles.btnAnnuler} onPress={() => { setShowFormGlovo(false); setSaveError(null) }}>
                 <Text style={styles.btnAnnulerTxt}>Annuler</Text>
@@ -2736,7 +2826,7 @@ export default function LitigesScreen() {
               <TouchableOpacity style={styles.btnAnnuler} onPress={() => setShowFormPPF(false)}>
                 <Text style={styles.btnAnnulerTxt}>Annuler</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.btnValider, { backgroundColor: '#C62828' }]} onPress={sauvegarderPointPasFait} disabled={saving}>
+              <TouchableOpacity style={[styles.btnValider, { backgroundColor: colors.error }]} onPress={sauvegarderPointPasFait} disabled={saving}>
                 <Text style={styles.btnValiderTxt}>{saving ? '...' : 'Enregistrer'}</Text>
               </TouchableOpacity>
             </View>
@@ -2748,11 +2838,11 @@ export default function LitigesScreen() {
       <Modal visible={!!corrCmd} transparent animationType="slide" onRequestClose={() => setCorrCmd(null)}>
         <ScrollView contentContainerStyle={styles.overlay} keyboardShouldPersistTaps="handled">
           <View style={styles.formModal}>
-            <Text style={styles.formTitre}>✏️ Corriger le nombre de commandes</Text>
+            <Text style={styles.formTitre}>Corriger le nombre de commandes</Text>
             {corrCmd && (
               <>
                 <View style={styles.regulInfo}>
-                  <Text style={styles.regulInfoTxt}>📅 {corrCmd.date}</Text>
+                  <Text style={styles.regulInfoTxt}>{corrCmd.date}</Text>
                   <Text style={styles.regulInfoSub}>
                     Saisi par le gérant : Yango {corrCmd.nbYango} · Glovo {corrCmd.nbGlovo}.
                     {'\n'}Contacts réellement pris : {corrCmd.nbContacts}.
@@ -2786,7 +2876,7 @@ export default function LitigesScreen() {
                   multiline
                 />
 
-                {corrError ? <Text style={styles.corrErrorTxt}>⚠️ {corrError}</Text> : null}
+                {corrError ? <Text style={styles.corrErrorTxt}>{corrError}</Text> : null}
                 <View style={styles.formBtns}>
                   <TouchableOpacity style={styles.btnAnnuler} onPress={() => setCorrCmd(null)} disabled={corrSaving}>
                     <Text style={styles.btnAnnulerTxt}>Annuler</Text>
@@ -2808,11 +2898,11 @@ export default function LitigesScreen() {
       <Modal visible={!!corrLitige} transparent animationType="slide" onRequestClose={() => setCorrLitige(null)}>
         <ScrollView contentContainerStyle={styles.overlay} keyboardShouldPersistTaps="handled">
           <View style={styles.formModal}>
-            <Text style={styles.formTitre}>✏️ Corriger le montant du litige</Text>
+            <Text style={styles.formTitre}>Corriger le montant du litige</Text>
             {corrLitige && (
               <>
                 <View style={styles.regulInfo}>
-                  <Text style={styles.regulInfoTxt}>📅 {corrLitige.date}</Text>
+                  <Text style={styles.regulInfoTxt}>{corrLitige.date}</Text>
                   <Text style={styles.regulInfoSub}>
                     Montant calculé : {fmt(corrLitige.litigeCalcule)} ({corrLitige.ecart} contact
                     {corrLitige.ecart > 1 ? 's' : ''} manquant{corrLitige.ecart > 1 ? 's' : ''} × 500).
@@ -2838,7 +2928,7 @@ export default function LitigesScreen() {
                   multiline
                 />
 
-                {corrError ? <Text style={styles.corrErrorTxt}>⚠️ {corrError}</Text> : null}
+                {corrError ? <Text style={styles.corrErrorTxt}>{corrError}</Text> : null}
 
                 {corrLitige.forceParManager && (
                   <TouchableOpacity
@@ -2846,7 +2936,7 @@ export default function LitigesScreen() {
                     onPress={() => sauvegarderCorrLitige(true)}
                     disabled={corrSaving}
                   >
-                    <Text style={styles.corrResetBtnTxt}>↩️ Revenir au montant calculé</Text>
+                    <Text style={styles.corrResetBtnTxt}>Revenir au montant calculé</Text>
                   </TouchableOpacity>
                 )}
 
@@ -2871,13 +2961,13 @@ export default function LitigesScreen() {
       <Modal visible={!!confirmSuppr} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={[styles.formModal, { alignItems: 'center', gap: 16 }]}>
-            <Text style={[styles.formTitre, { color: '#C62828' }]}>Supprimer cet élément ?</Text>
+            <Text style={[styles.formTitre, { color: colors.error }]}>Supprimer cet élément ?</Text>
             <Text style={{ fontSize: 13, color: '#666', textAlign: 'center' }}>Cette action est irréversible.</Text>
             <View style={styles.formBtns}>
               <TouchableOpacity style={styles.btnAnnuler} onPress={() => setConfirmSuppr(null)}>
                 <Text style={styles.btnAnnulerTxt}>Annuler</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.btnValider, { backgroundColor: '#C62828' }]} onPress={supprimerItem} disabled={saving}>
+              <TouchableOpacity style={[styles.btnValider, { backgroundColor: colors.error }]} onPress={supprimerItem} disabled={saving}>
                 <Text style={styles.btnValiderTxt}>{saving ? '...' : 'Supprimer'}</Text>
               </TouchableOpacity>
             </View>
@@ -2896,7 +2986,7 @@ export default function LitigesScreen() {
                 return (
                   <>
                     <Text style={styles.formTitre}>
-                      {sens === 'manquant' ? '📉 Régulariser un manquant' : '📈 Régulariser un surplus'}
+                      {sens === 'manquant' ? 'Régulariser un manquant' : 'Régulariser un surplus'}
                     </Text>
                     <View style={styles.regulInfo}>
                       <Text style={styles.regulInfoTxt}>
@@ -2935,7 +3025,7 @@ export default function LitigesScreen() {
                         <View key={i} style={styles.regulPhotoWrap}>
                           <PhotoJustificatif uri={uri} style={styles.regulPhotoThumb} compact />
                           <TouchableOpacity style={styles.regulPhotoDel} onPress={() => setRegulPhotos(prev => prev.filter((_, j) => j !== i))}>
-                            <Text style={styles.regulPhotoDelTxt}>✕</Text>
+                            <MaterialCommunityIcons name="close" size={14} color="#FFFFFF" />
                           </TouchableOpacity>
                         </View>
                       ))}
@@ -2967,88 +3057,123 @@ export default function LitigesScreen() {
 function makeStyles(colors) { return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 14, backgroundColor: '#534AB7',
+    backgroundColor: colors.headerBg, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 14, gap: 12,
+    borderBottomLeftRadius: 22, borderBottomRightRadius: 22, zIndex: 2,
+    shadowColor: colors.headerBg, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 14, elevation: 6,
   },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  backTxt: { fontSize: 28, color: '#fff', lineHeight: 32 },
-  headerTitre: { fontSize: 17, fontWeight: '700', color: '#fff' },
+  headerLigne: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  enteteBtn: {
+    width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  headerCentre: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  headerIcone: {
+    width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  headerTitre: { fontSize: 18, fontWeight: '800', color: colors.headerText, letterSpacing: -0.3 },
 
-  restoRow: {
-    padding: 10, paddingBottom: 6,
-    backgroundColor: colors.surface, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight,
-  },
   restoBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: colors.bg, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9,
-    borderWidth: 0.5, borderColor: colors.border,
+    flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44,
+    backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
   },
-  restoTxt: { fontSize: 14, color: colors.text, fontWeight: '500', flex: 1 },
-  restoArrow: { fontSize: 12, color: colors.textMuted, marginLeft: 6 },
+  restoTxt: { fontSize: 15, color: '#FFFFFF', fontWeight: '700', flex: 1 },
 
-  periodeScroll: { maxHeight: 44, backgroundColor: colors.surface },
-  periodeContent: { paddingHorizontal: 10, paddingVertical: 7, gap: 6, alignItems: 'center' },
+  body: { flex: 1 },
+  bodyContenu: { padding: 14, paddingBottom: 60 },
+
+  filtreCarte: {
+    backgroundColor: colors.surface, borderRadius: 18, padding: 12, gap: 10,
+    borderWidth: 1, borderColor: colors.borderLight,
+  },
+  periodeRangee: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 4, padding: 4, borderRadius: 14,
+    backgroundColor: colors.surfaceAlt,
+  },
   periodePill: {
-    paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20,
-    backgroundColor: colors.bg, borderWidth: 0.5, borderColor: colors.border,
+    flexGrow: 1, alignItems: 'center', paddingHorizontal: 10, paddingVertical: 9, borderRadius: 11,
   },
-  periodePillActive: { backgroundColor: '#534AB7', borderColor: '#534AB7' },
-  periodePillTxt: { fontSize: 13, color: colors.textMuted, fontWeight: '500' },
-  periodePillTxtActive: { color: '#fff', fontWeight: '600' },
+  periodePillActive: {
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 6, elevation: 2,
+  },
+  periodePillTxt: { fontSize: 13, color: colors.textSecondary, fontWeight: '600' },
+  periodePillTxtActive: { color: '#FFFFFF', fontWeight: '800' },
 
-  dateRow: {
-    paddingHorizontal: 10, paddingVertical: 6,
-    backgroundColor: colors.surface, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight,
-    flexDirection: 'row',
-  },
+  dateRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   datePill: {
-    backgroundColor: '#EBF3FF', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5,
-    borderWidth: 0.5, borderColor: '#B8D4F5',
+    flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 38,
+    backgroundColor: colors.primaryLight, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8,
   },
-  datePillTxt: { fontSize: 12, color: '#185FA5', fontWeight: '600' },
+  datePillFixe: { backgroundColor: colors.surfaceAlt },
+  datePillTxt: { fontSize: 13, color: colors.primary, fontWeight: '700' },
 
-  kpiGlobal: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginHorizontal: 10, marginTop: 8, borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 9, borderWidth: 0.5,
+  impactCarte: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12,
+    backgroundColor: colors.surface, borderRadius: 18, padding: 14, borderWidth: 1,
   },
-  kpiGlobalLabel: { fontSize: 11, color: '#666', fontWeight: '500' },
-  kpiGlobalValue: { fontSize: 17, fontWeight: '800' },
+  impactIcone: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  impactLabel: { fontSize: 11, fontWeight: '800', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8 },
+  impactSous: { fontSize: 12, color: colors.textSecondary, marginTop: 2, fontWeight: '600' },
+  impactValeur: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
 
-  tabsScroll: { maxHeight: 44, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
-  tabsContent: { paddingHorizontal: 10, paddingVertical: 6, gap: 6, alignItems: 'center' },
+  ongletsFond: { backgroundColor: colors.bg, paddingTop: 12, paddingBottom: 10 },
+  tabsContent: { gap: 8, alignItems: 'center', paddingRight: 4 },
   tab: {
-    paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20,
-    backgroundColor: colors.surface, borderWidth: 0.5, borderColor: colors.border,
+    minHeight: 48, minWidth: 84, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 14,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderLight,
+    alignItems: 'center', justifyContent: 'center',
   },
-  tabActive: { backgroundColor: '#185FA5', borderColor: '#185FA5' },
-  tabTxt: { fontSize: 13, color: colors.textMuted, fontWeight: '500' },
-  tabTxtActive: { color: '#fff', fontWeight: '600' },
+  tabActive: {
+    backgroundColor: colors.primary, borderColor: colors.primary,
+    shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 3,
+  },
+  tabTxt: { fontSize: 13, color: colors.text, fontWeight: '700' },
+  tabTxtActive: { color: '#FFFFFF', fontWeight: '800' },
+  tabMontant: { fontSize: 11, fontWeight: '700', marginTop: 1 },
 
-  body: { flex: 1, padding: 10 },
+  infoLigne: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  titreIconeLigne: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  titreIconePastille: {
+    width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.primaryLight,
+  },
+  voletTitre: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
+  actionsLigne: { flexDirection: 'row', gap: 6 },
+  actionBtn: {
+    width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.primaryLight,
+  },
+  actionBtnSuppr: { backgroundColor: colors.errorLight },
+  aucunLitige: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 12 },
+  statutContact: {
+    alignSelf: 'flex-start', fontSize: 11, fontWeight: '800', overflow: 'hidden',
+    paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, marginTop: 2,
+  },
+
   section: { gap: 10 },
 
   kpiRow: { flexDirection: 'row', gap: 10 },
   kpiBox: {
-    backgroundColor: colors.surface, borderRadius: 12, padding: 14,
-    borderWidth: 0.5, borderColor: colors.borderLight,
+    backgroundColor: colors.surface, borderRadius: 16, padding: 14,
+    borderWidth: 1, borderColor: colors.borderLight,
   },
-  kpiLabel: { fontSize: 11, color: colors.textMuted, marginBottom: 4, fontWeight: '500' },
+  kpiLabel: { fontSize: 11, color: colors.textMuted, marginBottom: 4, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6 },
   kpiValue: { fontSize: 16, fontWeight: '700' },
 
-  ecartCard: { borderRadius: 14, padding: 18, alignItems: 'center', gap: 6, borderWidth: 1 },
-  ecartLabel: { fontSize: 12, color: '#666', fontWeight: '500' },
-  ecartValeur: { fontSize: 28, fontWeight: '800' },
+  ecartCard: { borderRadius: 18, padding: 20, alignItems: 'center', gap: 6, borderWidth: 1 },
+  ecartLabel: { fontSize: 11, color: colors.textSecondary, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8 },
+  ecartValeur: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
   ecartSous: { fontSize: 12, fontWeight: '500', textAlign: 'center' },
   ecartRegulHint: { fontSize: 11, color: colors.textMuted, textAlign: 'center', marginTop: 6 },
 
   // ── Régularisation ──
   regulCard: {
-    backgroundColor: colors.surface, borderRadius: 12, padding: 12,
-    borderWidth: 0.5, borderColor: colors.border,
+    backgroundColor: colors.surface, borderRadius: 14, padding: 12,
+    borderWidth: 1, borderColor: colors.borderLight,
   },
   regulCardTitre: { fontSize: 13, fontWeight: '700', color: colors.text, flex: 1 },
-  regulDelTxt: { fontSize: 16, color: '#C62828', fontWeight: '700', paddingLeft: 8 },
   regulSansFondBadge: { alignSelf: 'flex-start', marginTop: 6, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 8, backgroundColor: colors.surfaceAlt || '#EFEFEF' },
   regulSansFondTxt: { fontSize: 11, fontWeight: '600', color: colors.textMuted },
   regulMotif: { fontSize: 13, color: colors.textSecondary, marginTop: 6, lineHeight: 18 },
@@ -3058,148 +3183,144 @@ function makeStyles(colors) { return StyleSheet.create({
   regulPhotoThumb: { width: 60, height: 60, borderRadius: 8 },
   regulPhotoDel: {
     position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: 11,
-    backgroundColor: '#C62828', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.error, alignItems: 'center', justifyContent: 'center',
   },
-  regulPhotoDelTxt: { color: '#fff', fontSize: 12, fontWeight: '700' },
   regulPhotoAdd: {
-    width: 60, height: 60, borderRadius: 8, borderWidth: 1.5, borderColor: '#534AB7',
+    width: 60, height: 60, borderRadius: 8, borderWidth: 1.5, borderColor: colors.primary,
     borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface,
   },
-  regulPhotoAddTxt: { fontSize: 26, color: '#534AB7', fontWeight: '300' },
+  regulPhotoAddTxt: { fontSize: 26, color: colors.primary, fontWeight: '300' },
   regulBtn: {
-    marginTop: 14, backgroundColor: '#534AB7', borderRadius: 12,
-    paddingVertical: 14, alignItems: 'center',
+    marginTop: 14, backgroundColor: colors.primary, borderRadius: 14, minHeight: 48,
+    paddingVertical: 13, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8,
   },
   regulBtnTxt: { fontSize: 14, fontWeight: '700', color: '#fff' },
-  regulInfo: { backgroundColor: colors.bg, borderRadius: 10, padding: 12, marginBottom: 14 },
+  regulInfo: { backgroundColor: colors.surfaceAlt, borderRadius: 12, padding: 12, marginBottom: 14 },
   regulInfoTxt: { fontSize: 14, color: colors.text },
   regulInfoSub: { fontSize: 12, color: colors.textMuted, marginTop: 4, lineHeight: 17 },
 
   // ── Explication gérant (affichée dans l'écart) ──
   explicGerantCard: {
-    marginTop: 12, backgroundColor: colors.surface, borderRadius: 12, padding: 14,
-    borderWidth: 0.5, borderColor: colors.border, borderLeftWidth: 3, borderLeftColor: '#534AB7',
+    marginTop: 12, backgroundColor: colors.surface, borderRadius: 16, padding: 14,
+    borderWidth: 1, borderColor: colors.borderLight,
   },
   explicGerantTitre: { fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: 6 },
   explicGerantTxt: { fontSize: 13, color: colors.textSecondary, fontStyle: 'italic', lineHeight: 19 },
   explicGerantVide: { fontSize: 12, color: colors.textMuted, fontStyle: 'italic' },
-  explicGerantSousTitre: { fontSize: 12, fontWeight: '600', color: colors.textMuted, marginBottom: 4 },
+  explicGerantSousTitre: { fontSize: 11, fontWeight: '800', color: colors.textMuted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.6 },
   explicRespRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingVertical: 4, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight,
   },
   explicRespNom: { fontSize: 13, color: colors.text },
-  explicRespMontant: { fontSize: 13, fontWeight: '700', color: '#534AB7' },
+  explicRespMontant: { fontSize: 13, fontWeight: '700', color: colors.primary },
 
   // ── Provenance de l'imputation : mesurée par la caisse, ou saisie à la main ──
   respNomRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 2 },
   sourcePOSBadge: {
-    backgroundColor: '#E6F1FB', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
-    borderWidth: 0.5, borderColor: '#185FA555',
+    backgroundColor: colors.primaryLight, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2,
   },
-  sourcePOSBadgeTxt: { fontSize: 10, fontWeight: '700', color: '#185FA5' },
+  sourcePOSBadgeTxt: { fontSize: 10, fontWeight: '700', color: colors.primary },
 
   // ── Filtres responsables ──
-  respSectionTitre: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 10 },
+  respSectionTitre: { fontSize: 16, fontWeight: '800', color: colors.text, marginBottom: 10 },
   filtreRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
   filtreChip: {
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, marginRight: 8,
-    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, marginRight: 8, minHeight: 36, justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.borderLight, backgroundColor: colors.surface,
   },
-  filtreChipActif: { backgroundColor: '#534AB7', borderColor: '#534AB7' },
+  filtreChipActif: { backgroundColor: colors.primary, borderColor: colors.primary },
   filtreChipTxt: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
   filtreChipTxtActif: { color: '#fff' },
 
   totalBanner: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: colors.surface, borderRadius: 12, padding: 14,
-    borderWidth: 0.5, borderColor: colors.borderLight,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10,
+    backgroundColor: colors.surface, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14,
+    borderWidth: 1, borderColor: colors.borderLight,
   },
-  totalBannerLabel: { fontSize: 13, color: colors.textMuted, fontWeight: '500' },
-  totalBannerValue: { fontSize: 17, fontWeight: '700' },
+  totalBannerLabel: { fontSize: 11, color: colors.textMuted, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6, flexShrink: 1 },
+  totalBannerValue: { fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
 
   ligneCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.surface, borderRadius: 12, padding: 14,
-    borderWidth: 0.5, borderColor: colors.borderLight,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: colors.surface, borderRadius: 16, padding: 14,
+    borderWidth: 1, borderColor: colors.borderLight,
   },
-  ligneCardActive: { borderColor: '#534AB7', borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
-  ligneChevron: { fontSize: 13, color: '#534AB7', marginRight: 8, fontWeight: '700' },
+  ligneCardActive: { borderColor: colors.primary, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
   ligneDetails: {
-    backgroundColor: colors.surface, borderColor: '#534AB7', borderWidth: 0.5, borderTopWidth: 0,
-    borderBottomLeftRadius: 12, borderBottomRightRadius: 12, padding: 14, marginBottom: 2,
+    backgroundColor: colors.surface, borderColor: colors.primary, borderWidth: 1, borderTopWidth: 0,
+    borderBottomLeftRadius: 16, borderBottomRightRadius: 16, padding: 14, paddingTop: 2, marginBottom: 2,
   },
-  ligneNom: { fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: 2 },
-  ligneCmd: { fontSize: 12, color: '#185FA5', fontWeight: '500', marginBottom: 2 },
+  ligneNom: { fontSize: 15, fontWeight: '700', color: colors.text, marginBottom: 2 },
+  ligneCmd: { fontSize: 12, color: colors.primary, fontWeight: '700' },
   ligneSous: { fontSize: 12, color: colors.textMuted },
   ligneCreer: { fontSize: 11, color: colors.textMuted, marginTop: 1 },
-  montantTxt: { fontSize: 15, fontWeight: '700' },
-  btnAction: { fontSize: 17 },
+  montantTxt: { fontSize: 16, fontWeight: '800' },
 
   catDetail: {
-    backgroundColor: colors.bg, borderRadius: 8, padding: 10,
-    borderWidth: 0.5, borderColor: colors.borderLight, gap: 4,
+    backgroundColor: colors.surfaceAlt, borderRadius: 12, padding: 10, gap: 4,
   },
   catLigne: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   catNom: { fontSize: 12, color: colors.textSecondary, flex: 1 },
-  catMontant: { fontSize: 12, fontWeight: '700', color: '#C62828' },
+  catMontant: { fontSize: 12, fontWeight: '700', color: colors.error },
   prodLigne: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
-  annulDeducBtnSm: { backgroundColor: '#FCEBEB', borderWidth: 1, borderColor: '#F09595', borderRadius: 7, paddingVertical: 6, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', minWidth: 78, minHeight: 32 },
-  annulDeducBtnSmTxt: { color: '#A32D2D', fontWeight: '700', fontSize: 12 },
+  annulDeducBtnSm: { backgroundColor: colors.errorLight, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', minWidth: 78, minHeight: 34 },
+  annulDeducBtnSmTxt: { color: colors.error, fontWeight: '800', fontSize: 12 },
 
   // Corrections manager du volet Contacts
-  corrBadge: { fontSize: 11, color: '#854F0B', fontWeight: '600', marginTop: 2, lineHeight: 15 },
+  corrBadge: { fontSize: 11, color: colors.warningDark, fontWeight: '600', marginTop: 2, lineHeight: 15 },
   corrBtnRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
   corrBtn: {
-    flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center',
-    backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.borderLight,
+    flex: 1, minHeight: 40, paddingVertical: 8, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    flexDirection: 'row', gap: 6, backgroundColor: colors.primaryLight,
   },
-  corrBtnTxt: { fontSize: 12, fontWeight: '600', color: '#534AB7' },
-  corrErrorTxt: { color: '#C62828', fontSize: 12, marginBottom: 8, textAlign: 'center' },
+  corrBtnTxt: { fontSize: 12, fontWeight: '800', color: colors.primary },
+  corrErrorTxt: { color: colors.error, fontSize: 12, marginBottom: 8, textAlign: 'center' },
   corrResetBtn: {
     paddingVertical: 10, borderRadius: 8, alignItems: 'center', marginBottom: 10,
-    backgroundColor: '#F1EFE8', borderWidth: 1, borderColor: '#854F0B',
+    backgroundColor: colors.warningLight, borderWidth: 1, borderColor: colors.warningDark + '55',
   },
-  corrResetBtnTxt: { fontSize: 13, fontWeight: '700', color: '#854F0B' },
+  corrResetBtnTxt: { fontSize: 13, fontWeight: '700', color: colors.warningDark },
 
-  emptyBox: { paddingVertical: 40, alignItems: 'center', gap: 8 },
+  emptyBox: { paddingVertical: 36, alignItems: 'center', gap: 8 },
   emptyTxt: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
   emptySubTxt: { fontSize: 12, color: colors.textMuted, textAlign: 'center' },
 
   btnAjout: {
-    backgroundColor: '#185FA5', borderRadius: 12, padding: 14,
-    alignItems: 'center', marginTop: 4,
+    backgroundColor: colors.primary, borderRadius: 14, minHeight: 50, paddingVertical: 13,
+    alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, marginTop: 4,
+    shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 3,
   },
-  btnAjoutTxt: { fontSize: 14, color: '#fff', fontWeight: '600' },
+  btnAjoutTxt: { fontSize: 15, color: '#FFFFFF', fontWeight: '800' },
 
   overlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.4)',
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center', padding: 18,
   },
-  pickerBox: { backgroundColor: colors.surface, borderRadius: 16, overflow: 'hidden', maxHeight: 420 },
+  pickerBox: { backgroundColor: colors.surface, borderRadius: 20, overflow: 'hidden', maxHeight: 460 },
   pickerTitre: {
-    fontSize: 14, fontWeight: '700', color: colors.textMuted,
-    padding: 16, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight,
+    fontSize: 16, fontWeight: '800', color: colors.text,
+    padding: 18, borderBottomWidth: 1, borderBottomColor: colors.borderLight,
   },
   pickerLigne: { padding: 16, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
-  pickerLigneActive: { backgroundColor: '#EBF3FF' },
+  pickerLigneActive: { backgroundColor: colors.primaryLight },
   pickerLigneTxt: { fontSize: 15, color: colors.text },
 
   formModal: { backgroundColor: colors.surface, borderRadius: 20, padding: 20 },
-  formTitre: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 14 },
+  formTitre: { fontSize: 18, fontWeight: '800', color: colors.text, marginBottom: 16 },
   formLabel: {
     fontSize: 11, fontWeight: '600', color: colors.textMuted,
     letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 6,
   },
   formInput: {
-    backgroundColor: colors.bg, borderRadius: 10, padding: 12,
+    backgroundColor: colors.bg, borderRadius: 12, padding: 12,
     fontSize: 15, color: colors.text, marginBottom: 12,
     borderWidth: 0.5, borderColor: colors.border,
   },
   formBtns: { flexDirection: 'row', gap: 8, marginTop: 4 },
 
   typeBtn: {
-    paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10,
+    paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12,
     borderWidth: 1, borderColor: colors.border,
     backgroundColor: colors.bg, alignItems: 'center',
   },
@@ -3207,58 +3328,62 @@ function makeStyles(colors) { return StyleSheet.create({
   typeBtnMontant: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
 
   btnAnnuler: {
-    flex: 1, padding: 13, borderRadius: 10,
+    flex: 1, padding: 13, borderRadius: 12,
     backgroundColor: colors.bg, alignItems: 'center',
     borderWidth: 0.5, borderColor: colors.border,
   },
   btnAnnulerTxt: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
-  btnValider: { flex: 1, padding: 13, borderRadius: 10, backgroundColor: '#185FA5', alignItems: 'center' },
-  btnValiderTxt: { fontSize: 14, color: '#fff', fontWeight: '600' },
+  btnValider: { flex: 1, padding: 13, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center' },
+  btnValiderTxt: { fontSize: 14, color: '#FFFFFF', fontWeight: '800' },
 
   responsableChip: {
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999,
     backgroundColor: colors.bg, borderWidth: 0.5, borderColor: colors.border,
   },
-  responsableChipActive: { backgroundColor: '#534AB7', borderColor: '#534AB7' },
+  responsableChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   responsableChipTxt: { fontSize: 13, color: colors.textMuted, fontWeight: '500' },
   responsableChipTxtActive: { color: '#fff', fontWeight: '600' },
 
   btnPdf: {
-    backgroundColor: '#534AB7', borderRadius: 12, padding: 14,
+    backgroundColor: colors.primary, borderRadius: 14, padding: 14, minHeight: 50,
     alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8,
   },
   btnPdfTxt: { fontSize: 14, color: '#fff', fontWeight: '700' },
 
   restoGlobalCard: {
-    backgroundColor: colors.surface, borderRadius: 14,
-    borderWidth: 0.5, borderColor: colors.borderLight, overflow: 'hidden',
+    backgroundColor: colors.surface, borderRadius: 18,
+    borderWidth: 1, borderColor: colors.borderLight, overflow: 'hidden',
   },
   restoGlobalHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#534AB7', paddingHorizontal: 14, paddingVertical: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.borderLight,
   },
-  restoGlobalNom: { fontSize: 14, fontWeight: '700', color: '#fff', flex: 1 },
-  restoGlobalTotal: { fontSize: 14, fontWeight: '800', color: '#fff' },
-  restoGlobalBody: { padding: 10, gap: 6 },
+  restoGlobalIcone: {
+    width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.primaryLight,
+  },
+  restoGlobalNom: { fontSize: 15, fontWeight: '800', color: colors.text, flex: 1 },
+  restoGlobalTotalPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  restoGlobalTotal: { fontSize: 13, fontWeight: '800' },
+  restoGlobalBody: { padding: 12, gap: 6 },
 
   globalVoletRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 5, paddingHorizontal: 4,
-    borderBottomWidth: 0.5, borderBottomColor: colors.borderLight,
+    paddingVertical: 6, paddingHorizontal: 4, marginTop: 4,
   },
-  globalVoletLabel: { fontSize: 13, fontWeight: '600', color: colors.text },
+  globalVoletLabel: { fontSize: 13, fontWeight: '800', color: colors.text },
   globalVoletVal: { fontSize: 13, fontWeight: '700' },
 
   globalItem: {
     flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 4, paddingLeft: 10,
-    borderLeftWidth: 2, borderLeftColor: colors.borderLight,
-    marginLeft: 4,
+    paddingVertical: 5, paddingLeft: 10,
+    borderLeftWidth: 2, borderLeftColor: colors.primary + '40',
+    marginLeft: 11,
   },
   globalItemTxt: { fontSize: 12, color: colors.textSecondary, flex: 1 },
-  globalItemCmd: { fontSize: 12, color: '#185FA5', fontWeight: '600' },
+  globalItemCmd: { fontSize: 12, color: colors.primary, fontWeight: '600' },
   globalItemResp: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
-  plafondBox: { backgroundColor: '#FFF4E0', borderRadius: 8, padding: 9, marginVertical: 5, borderWidth: 1, borderColor: '#E8C98A' },
-  plafondTxt: { fontSize: 11, color: '#7A4800', lineHeight: 16 },
+  plafondBox: { backgroundColor: colors.warningLight, borderRadius: 12, padding: 10, marginVertical: 5 },
+  plafondTxt: { fontSize: 11, color: colors.warningDark, lineHeight: 16, fontWeight: '600' },
   globalItemMontant: { fontSize: 12, fontWeight: '700', marginLeft: 8 },
 }) }
