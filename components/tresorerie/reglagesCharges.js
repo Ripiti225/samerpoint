@@ -24,14 +24,16 @@ function lireJour(texte) {
 
 // ── Loyers ───────────────────────────────────────────────────────────────────
 
-// Le loyer mensuel, le jour limite, et les mois passés que l'on doit encore
-// (cochés). Le mois en cours et les suivants se créent tout seuls.
+// Le loyer mensuel, le jour limite, et l'état des mois passés : dû, ou déjà
+// payé avant la trésorerie (il compte alors dans le résultat net, sans dette ni
+// banque). Le mois en cours et les suivants se créent tout seuls.
 export function FeuilleReglageLoyers({ visible, donnees, user, onFermer, apres }) {
   const { styles, colors } = useStylesTreso()
   const [restaurantId, setRestaurantId] = useState(null)
   const [montant, setMontant] = useState('')
   const [jour, setJour] = useState('5')
   const [moisCoches, setMoisCoches] = useState([])
+  const [moisPayes, setMoisPayes] = useState([])
   const [occupe, setOccupe] = useState(false)
 
   const courant = premierDuMois(aujourdhuiISO())
@@ -39,7 +41,9 @@ export function FeuilleReglageLoyers({ visible, donnees, user, onFermer, apres }
   const moisProposes = moisEntre('2000-01-01', courant).slice(-13, -1)
   const parDu = useMemo(() => paiementsParDu(donnees.paiements), [donnees])
   const dusResto = donnees.dus.filter(d => d.categorie === 'loyer' && d.restaurant_id === restaurantId)
-  const entame = m => dusResto.some(d => d.mois === m && parDu[d.id]?.length)
+  // Entamé = un vrai paiement (pas « avant ») : ce mois-là ne se change plus d'ici.
+  const entame = m => dusResto.some(d => d.mois === m && (parDu[d.id] || []).some(p => p.source !== 'avant'))
+  const payeAvant = d => (parDu[d.id] || []).length > 0 && (parDu[d.id] || []).every(p => p.source === 'avant')
   const resume = useMemo(() => resumeLoyersParRestaurant(donnees.dus, donnees.paiements, courant), [donnees, courant])
 
   useEffect(() => {
@@ -47,7 +51,9 @@ export function FeuilleReglageLoyers({ visible, donnees, user, onFermer, apres }
     const l = donnees.loyers.find(x => x.restaurant_id === restaurantId)
     setMontant(l ? String(l.montant) : '')
     setJour(l ? String(l.jour_echeance) : '5')
-    setMoisCoches(dusResto.filter(d => moisProposes.includes(d.mois)).map(d => d.mois))
+    const proposes = dusResto.filter(d => moisProposes.includes(d.mois))
+    setMoisPayes(proposes.filter(payeAvant).map(d => d.mois))
+    setMoisCoches(proposes.filter(d => !payeAvant(d)).map(d => d.mois))
   }, [restaurantId])
 
   if (!visible) return null
@@ -57,7 +63,15 @@ export function FeuilleReglageLoyers({ visible, donnees, user, onFermer, apres }
       Alert.alert('Mois déjà entamé', `Un paiement existe pour ${libelleMois(m)}. Annulez-le d'abord depuis le détail du mois.`)
       return
     }
-    setMoisCoches(l => (l.includes(m) ? l.filter(x => x !== m) : [...l, m]))
+    // Vide → dû → déjà payé → vide.
+    if (moisCoches.includes(m)) {
+      setMoisCoches(l => l.filter(x => x !== m))
+      setMoisPayes(l => [...l, m])
+    } else if (moisPayes.includes(m)) {
+      setMoisPayes(l => l.filter(x => x !== m))
+    } else {
+      setMoisCoches(l => [...l, m])
+    }
   }
 
   async function enregistrer() {
@@ -68,7 +82,7 @@ export function FeuilleReglageLoyers({ visible, donnees, user, onFermer, apres }
     if (!j) { Alert.alert('Jour invalide', 'Le jour limite va de 1 à 31.'); return }
     const l = donnees.loyers.find(x => x.restaurant_id === restaurantId)
     const plan = planReglageLoyer({
-      restaurantId, montant: v, jourEcheance: j, moisCoches, moisProposes,
+      restaurantId, montant: v, jourEcheance: j, moisCoches, moisPayes, moisProposes,
       dusExistants: donnees.dus, paiements: donnees.paiements,
     })
     // Le mois en cours suit aussi un nouveau montant ou un nouveau jour, s'il n'est pas entamé.
@@ -93,7 +107,8 @@ export function FeuilleReglageLoyers({ visible, donnees, user, onFermer, apres }
 
   const totalCoche = moisCoches.reduce((s, m) => {
     const d = dusResto.find(x => x.mois === m)
-    return s + (d && parDu[d.id]?.length ? resteDu(d, parDu[d.id]) : (parseInt(montant, 10) || 0))
+    // Un mois entamé garde son reste ; un mois neuf ou repassé de « payé » à « dû » vaut le loyer.
+    return s + (d && entame(m) ? resteDu(d, parDu[d.id]) : (parseInt(montant, 10) || 0))
   }, 0)
 
   return (
@@ -117,17 +132,24 @@ export function FeuilleReglageLoyers({ visible, donnees, user, onFermer, apres }
           <Text style={[styles.itemTitre, { marginBottom: 10 }]}>{donnees.restaurants.find(r => r.id === restaurantId)?.nom}</Text>
           <ChampMontant label="Loyer mensuel" valeur={montant} onChange={setMontant} />
           <Champ label="Jour limite dans le mois suivant (1 à 31)" value={jour} onChangeText={t => setJour(t.replace(/[^\d]/g, ''))} keyboardType="number-pad" />
-          <Text style={styles.label}>Mois passés que l'on doit encore</Text>
+          <Text style={styles.label}>Mois passés (appuyez : dû → déjà payé → rien)</Text>
           <View style={styles.puces}>
             {[...moisProposes].reverse().map(m => {
-              const actif = moisCoches.includes(m)
+              const du = moisCoches.includes(m)
+              const paye = moisPayes.includes(m)
               return (
-                <TouchableOpacity key={m} style={[styles.puce, actif && styles.puceActive]} onPress={() => basculer(m)}>
-                  <Text style={[styles.puceTxt, actif && styles.puceTxtActive]}>{libelleMois(m)}{entame(m) ? ' · entamé' : ''}</Text>
+                <TouchableOpacity key={m} onPress={() => basculer(m)}
+                  style={[styles.puce, du && styles.puceActive, paye && { backgroundColor: colors.successLight, borderColor: colors.success }]}>
+                  <Text style={[styles.puceTxt, du && styles.puceTxtActive, paye && { color: colors.successDark }]}>
+                    {libelleMois(m)}{du ? ' · dû' : paye ? ' · payé' : ''}{entame(m) ? ' · entamé' : ''}
+                  </Text>
                 </TouchableOpacity>
               )
             })}
           </View>
+          <Text style={[styles.petit, { marginBottom: 6 }]}>
+            « Payé » = déjà payé avant la trésorerie : compte dans le résultat net, sans dette ni mouvement en banque.
+          </Text>
           <View style={[styles.ligne, { marginBottom: 10 }]}>
             <Text style={styles.ligneLabel}>Total dû pour ces mois</Text>
             <Text style={[styles.ligneValeur, { color: totalCoche ? colors.error : colors.success }]}>{fmt(totalCoche)} F</Text>

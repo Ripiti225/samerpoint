@@ -12,7 +12,7 @@ import {
   libelleMois, libelleMoisCourt, moisEntre, peut, premierDuMois, repartirPaiement, resteDu, totalPaye,
 } from '../../lib/tresorerie'
 import {
-  ajouterPrevision, annulerPaiement, basculerDette, chargerDusLoyer, enregistrerDu, payer, supprimerDu, supprimerPrevision,
+  ajouterPrevision, annulerPaiement, basculerDette, chargerDusLoyer, enregistrerDu, payer, payerAvant, supprimerDu, supprimerPrevision,
 } from '../../lib/tresorerieDb'
 import { Bouton, Champ, ChampMontant, Feuille, Ligne, Puces, useStylesTreso } from './commun'
 
@@ -93,6 +93,24 @@ export function FeuilleDetail({
           text: 'Supprimer', style: 'destructive', onPress: async () => {
             try { await supprimerDu(du, user); await apres(); onFermer() }
             catch (e) { Alert.alert('Suppression impossible', e?.message || 'Réessayez.') }
+          },
+        },
+      ],
+    )
+  }
+
+  // Charge déjà payée avant la mise en place de la trésorerie (ex. loyer d'août
+  // payé en septembre) : elle compte dans le résultat, sans dette ni banque.
+  function dejaPaye() {
+    Alert.alert(
+      'Déjà payé avant la trésorerie ?',
+      `Le reste (${fmt(reste)} F) sera noté comme payé avant la trésorerie : la charge compte dans le résultat net, sans dette et sans mouvement en banque.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Oui, déjà payé', onPress: async () => {
+            try { await payerAvant(du, user); await apres(); onFermer() }
+            catch (e) { Alert.alert('Non enregistré', e?.message || 'Réessayez.') }
           },
         },
       ],
@@ -180,7 +198,7 @@ export function FeuilleDetail({
             <View style={{ flex: 1 }}>
               <Text style={styles.itemTitre}>{fmt(p.montant)} F</Text>
               <Text style={styles.petit}>
-                {formatDateFR(p.date)} · {p.source === 'compte' ? nomCompte(p.compte_id) : 'Espèces'}
+                {formatDateFR(p.date)} · {p.source === 'compte' ? nomCompte(p.compte_id) : p.source === 'avant' ? 'payé avant la trésorerie' : 'Espèces'}
                 {p.photo_url ? ' · 📷' : ''}{p.cree_par_nom ? ` · ${p.cree_par_nom}` : ''}
               </Text>
             </View>
@@ -193,6 +211,9 @@ export function FeuilleDetail({
 
       <View style={{ gap: 8 }}>
         {reste > 0 && peut(niveau, 'payer') && <Bouton titre="Payer" onPress={() => onPayer(du)} />}
+        {reste > 0 && CATEGORIES_SERIE.includes(du.categorie) && peut(niveau, 'payer') && (
+          <Bouton secondaire titre="Déjà payé avant la trésorerie" onPress={dejaPaye} />
+        )}
         {peutBasculer && (
           <Bouton secondaire titre={du.en_dette_depuis ? 'Remettre à payer' : 'Passer en Dette'} onPress={basculer} />
         )}
