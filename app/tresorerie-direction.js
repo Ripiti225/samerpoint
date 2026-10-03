@@ -58,7 +58,9 @@ export default function TresorerieDirectionScreen() {
   }, [d])
 
   function supprimer(dep) {
-    Alert.alert('Supprimer cette dépense ?', `${categorieDirection(dep.categorie)?.label} · ${fmt(dep.montant)} F. La sortie liée (banque ou coffre) est retirée aussi.`, [
+    const dejaCompte = dep.categorie === 'fond' && dep.point_id
+      ? ' Ce fond est déjà compté dans un point validé : corrigez aussi ce point (Modifier le point).' : ''
+    Alert.alert('Supprimer cette dépense ?', `${categorieDirection(dep.categorie)?.label} · ${fmt(dep.montant)} F. La sortie liée (banque ou coffre) est retirée aussi.${dejaCompte}`, [
       { text: 'Garder', style: 'cancel' },
       {
         text: 'Supprimer', style: 'destructive', onPress: async () => {
@@ -122,7 +124,9 @@ export default function TresorerieDirectionScreen() {
                     {dep.note ? ` · ${dep.note}` : ''}{dep.photo_url ? ' · 📷' : ''}
                   </Text>
                   <Text style={[styles.petit, { color: compteDansResultat(dep) ? colors.warningDark : colors.textMuted }]}>
-                    {compteDansResultat(dep) ? 'compte dans le résultat du restaurant' : 'hors résultat des restaurants'}
+                    {dep.categorie === 'fond' && dep.restaurant_id
+                      ? (dep.point_id ? 'compté dans le FC reçu d\'un point validé' : 'ira dans le FC reçu du prochain point')
+                      : compteDansResultat(dep) ? 'compte dans le résultat du restaurant' : 'hors résultat des restaurants'}
                   </Text>
                 </View>
                 <Text style={[styles.ligneValeur, { color: colors.error }]}>− {fmt(dep.montant)}</Text>
@@ -243,6 +247,9 @@ function FeuilleDepense({ visible, donnees, user, onFermer, apres }) {
             {compteDansResultat({ categorie, restaurant_id: restaurantId })
               ? 'Cette dépense réduira le résultat net du restaurant.'
               : 'Cette dépense ne touche pas le résultat des restaurants.'}
+            {categorie === 'fond' && restaurantId
+              ? ` Le fond remplira tout seul le « FC reçu » du point du ${formatDateFR(date)} de ${donnees.restaurants.find(r => r.id === restaurantId)?.nom || 'ce restaurant'} (ou du prochain point, s'il est déjà validé).`
+              : ''}
           </Text>
         </View>
       )}

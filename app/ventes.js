@@ -18,6 +18,7 @@ import { useTheme } from '../context/ThemeContext'
 import { cloturesPOS, resumerEcartsGlobaux } from '../lib/cloturesCaisse'
 import { COEFFICIENTS } from '../lib/constants'
 import { estRempliParLePOS, peutSaisirVenteMachineManuellement, venteMachineEstRecue, venteMachineVientDuPOS } from '../lib/sourcePoint'
+import { useFondTresorerie } from '../lib/useFondTresorerie'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
 
@@ -31,6 +32,8 @@ export default function VentesScreen() {
 
   const { prendrePhoto, choisirPhoto } = usePhoto()
   const { colors } = useTheme()
+  // « FC reçu » prérempli avec le fond donné par la Trésorerie (modifiable).
+  useFondTresorerie({ pointId, restaurantId, dateJour, pointValide, setVentesJour })
   const styles = useMemo(() => makeStyles(colors), [colors])
 
   const [etape, setEtape] = useState(1)
@@ -676,6 +679,12 @@ export default function VentesScreen() {
                   <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 2 }}>
                     Ajustement admin (+ complément / − déduction)
                   </Text>
+                  {(ventesJour.fc_recu_detail || []).length > 0 && (
+                    <Text style={{ fontSize: 10, color: colors.primary, marginTop: 4, fontWeight: '600' }}>
+                      Trésorerie : {ventesJour.fc_recu_detail.map(l => `${l.montant >= 0 ? '+' : '−'} ${fmt(Math.abs(l.montant))} (${l.type === 'fond' ? 'fond donné' : 'repris'} le ${l.date.slice(8, 10)}/${l.date.slice(5, 7)})`).join(' · ')}
+                      {String(ventesJour.fc_recu ?? '') !== String(ventesJour.fc_recu_auto ?? '') ? ' — montant corrigé à la main' : ''}
+                    </Text>
+                  )}
                 </View>
                 <TextInput
                   style={styles.fcInput}

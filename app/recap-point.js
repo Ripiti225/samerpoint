@@ -18,7 +18,10 @@ import { COEFFICIENTS } from '../lib/constants'
 import { facturesGerantSansPhoto } from '../lib/creditsFournisseurs'
 import { cloturesPOS, resumerEcartsGlobaux } from '../lib/cloturesCaisse'
 import { venteMachineVientDuPOS } from '../lib/sourcePoint'
+import { rattacherFondAuPoint } from '../lib/fondTresorerieDb'
+import { journaliser } from '../lib/journal'
 import { supabase } from '../lib/supabase'
+import { useFondTresorerie } from '../lib/useFondTresorerie'
 
 const STATUT_COLORS = {
   'Présent': { bg: '#EAF3DE', text: '#3B6D11' },
@@ -49,7 +52,7 @@ function calcVariation(today, ref) {
 export default function RecapPointScreen() {
   const {
     pointId, dateJour,
-    totalVentes, ventesJour,
+    totalVentes, ventesJour, setVentesJour, pointValide,
     setPointValide, roleActif,
     depensesGerantCaisse, fournisseursGerantCaisse, paiesGerantCaisse,
     totalDepensesGerantCaisse,
@@ -97,6 +100,8 @@ export default function RecapPointScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors])
 
   useEffect(() => { chargerDonnees() }, [pointId])
+  // Fond donné par la Trésorerie depuis l'ouverture de Ventes : à jour avant validation.
+  useFondTresorerie({ pointId, restaurantId, dateJour, pointValide, setVentesJour })
 
   async function chargerDonnees() {
     setLoading(true)
@@ -470,6 +475,12 @@ export default function RecapPointScreen() {
           await supabase.from('points').update(extended).eq('id', pointId)
         }
       } catch (_) { /* colonnes pas encore ajoutées — ignoré */ }
+    }
+    // ── 3. Fonds de la Trésorerie comptés ici : rattachés à ce point ─
+    // (sinon ils compteraient encore dans le point suivant).
+    if (ok) {
+      try { await rattacherFondAuPoint({ restaurantId, datePoint: dateJour, pointId }) }
+      catch (e) { journaliser('fond_tresorerie_rattachement_echec', { erreur: e?.message }, { restaurantId, pointId }).catch(() => {}) }
     }
     setValidating(false)
     if (ok) {

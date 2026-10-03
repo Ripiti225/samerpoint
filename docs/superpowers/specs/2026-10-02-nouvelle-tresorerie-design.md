@@ -305,3 +305,20 @@ Tests : `lib/rappelsTresorerie.test.mjs`.
 - Annuler une réception l'annule en entier (tous ses restaurants).
 
 Migration : `supabase_tresorerie_tetes_de_fond.sql`.
+
+---
+
+## Fond donné → « FC reçu » du point (03/10/2026)
+
+- Un fond donné à un restaurant (Dépenses direction, catégorie « Fond ») s'ajoute
+  au « FC reçu » de son point ; une entrée d'espèces venant du restaurant
+  (Banque et espèces) s'en déduit.
+- Point visé : celui de la même date ; s'il est déjà validé, le prochain point
+  ouvert du restaurant.
+- La case du gérant (Ventes, étape 2, et Récapitulatif) est **préremplie et
+  reste modifiable** ; le détail « Trésorerie : + … (fond donné le …) » s'affiche
+  dessous. Une case corrigée à la main n'est plus écrasée.
+- À la validation du point, les lignes comptées y sont rattachées (`point_id`)
+  et ne comptent plus jamais ailleurs.
+
+Migration : `supabase_tresorerie_fond_points.sql`. Tests : `lib/fondTresorerie.test.mjs`.

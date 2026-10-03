@@ -338,6 +338,9 @@ function FeuilleEntreeEspeces({ compte, donnees, user, onFermer, apres }) {
         <>
           <Text style={styles.label}>Restaurant</Text>
           <Puces options={donnees.restaurants.map(r => ({ valeur: r.id, label: r.nom }))} valeur={restaurantId} onChange={setRestaurantId} />
+          <View style={styles.avert}>
+            <Text style={styles.avertTxt}>Ce montant sera déduit tout seul du « FC reçu » du point du restaurant à cette date (ou du prochain point, s'il est déjà validé).</Text>
+          </View>
         </>
       )}
       {origine === 'pret' && (
