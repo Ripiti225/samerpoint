@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Text, View } from '
 import { CarteDemande } from '../components/demandes/Cartes'
 import {
   Bouton, ChampDates, Champ, Compteurs, EnTete, Feuille, Libelle, Puces, Recherche, Vide, useDemandesStyles,
-} from '../components/demandes/ui'
+} from '../components/ui/EcranModerne'
 import { useApp } from '../context/AppContext'
 import { journaliser } from '../lib/journal'
 import { TYPES_DEMANDE } from '../lib/constants'

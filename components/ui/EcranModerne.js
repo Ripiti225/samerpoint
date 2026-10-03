@@ -1,5 +1,7 @@
-// Composants visuels partagés des écrans Demandes et Demandes d'explication
-// (gérant et direction/RH). Même modernisation qu'Équipe globale, en violet.
+// Composants visuels des écrans modernisés (Demandes, Demandes d'explication,
+// Contrats…) : même modernisation qu'Équipe globale, dans la couleur de l'écran.
+// Une couleur = un thème : `principale` pour l'en-tête et les fonds pleins,
+// `accent` pour les textes colorés (plus clair en mode sombre, pour rester lisible).
 import { useMemo } from 'react'
 import {
   Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity,
@@ -11,13 +13,22 @@ import { VIOLET, fmtDate } from '../../lib/demandes'
 
 export const teinte = (couleur, alpha = '1F') => `${couleur}${alpha}`
 
-/** Styles + couleur d'accent lisible (violet plus clair en mode sombre). */
-export function useDemandesStyles() {
-  const { colors, isDark } = useTheme()
-  const accent = isDark ? '#A49DF5' : VIOLET
-  const styles = useMemo(() => makeStyles(colors, accent), [colors, accent])
-  return { styles, colors, accent }
+export const THEMES = {
+  violet: { principale: VIOLET, accentClair: VIOLET, accentSombre: '#A49DF5' },
+  orange: { principale: '#E07B00', accentClair: '#B45309', accentSombre: '#F5A54A' },
 }
+
+/** Styles + couleurs d'un écran. theme : une clé de THEMES. */
+export function useEcranModerne(theme = 'violet') {
+  const { colors, isDark } = useTheme()
+  const t = THEMES[theme] || THEMES.violet
+  const accent = isDark ? t.accentSombre : t.accentClair
+  const styles = useMemo(() => makeStyles(colors, accent, t.principale), [colors, accent, t.principale])
+  return { styles, colors, accent, principale: t.principale }
+}
+
+/** Écrans Demandes et Demandes d'explication (violet). */
+export const useDemandesStyles = () => useEcranModerne('violet')
 
 export function EnTete({ titre, sous, onRetour, styles }) {
   return (
@@ -162,7 +173,7 @@ export function Champ({ styles, colors, multiline, ...props }) {
 }
 
 /** Deux boutons Début / Fin et un calendrier qui s'ouvre sous le champ choisi. */
-export function ChampDates({ debut, fin, setDebut, setFin, champ, setChamp, styles, colors, accent }) {
+export function ChampDates({ debut, fin, setDebut, setFin, champ, setChamp, styles, colors, accent, couleur = VIOLET }) {
   return (
     <>
       <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10, alignItems: 'center' }}>
@@ -182,12 +193,12 @@ export function ChampDates({ debut, fin, setDebut, setFin, champ, setChamp, styl
           key={colors.bg}
           onDayPress={day => { if (champ === 'debut') setDebut(day.dateString); else setFin(day.dateString); setChamp(null) }}
           markedDates={{
-            ...(debut ? { [debut]: { selected: true, selectedColor: VIOLET } } : {}),
+            ...(debut ? { [debut]: { selected: true, selectedColor: couleur } } : {}),
             ...(fin ? { [fin]: { selected: true, selectedColor: '#3B8D2F' } } : {}),
           }}
           theme={{
             calendarBackground: colors.surface,
-            selectedDayBackgroundColor: champ === 'debut' ? VIOLET : '#3B8D2F',
+            selectedDayBackgroundColor: champ === 'debut' ? couleur : '#3B8D2F',
             todayTextColor: accent, arrowColor: accent,
             monthTextColor: colors.text, dayTextColor: colors.text, textDisabledColor: colors.textPlaceholder,
           }}
@@ -198,7 +209,7 @@ export function ChampDates({ debut, fin, setDebut, setFin, champ, setChamp, styl
   )
 }
 
-function makeStyles(colors, accent) {
+function makeStyles(colors, accent, principale) {
   const carte = {
     backgroundColor: colors.surface, borderRadius: 18, borderWidth: 1, borderColor: colors.borderLight,
     shadowColor: colors.cardShadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 1,
@@ -206,12 +217,12 @@ function makeStyles(colors, accent) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bg },
     header: {
-      backgroundColor: VIOLET, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16,
+      backgroundColor: principale, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16,
       flexDirection: 'row', alignItems: 'center', borderBottomLeftRadius: 22, borderBottomRightRadius: 22,
     },
-    back: { fontSize: 16, color: '#DDD9FB', fontWeight: '600', width: 60 },
+    back: { fontSize: 16, color: 'rgba(255,255,255,0.85)', fontWeight: '600', width: 60 },
     headerTitre: { fontSize: 17, fontWeight: '800', color: '#fff', textAlign: 'center', letterSpacing: -0.2 },
-    headerSub: { fontSize: 12, color: '#DDD9FB', marginTop: 2, textAlign: 'center' },
+    headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 2, textAlign: 'center' },
 
     compteurs: { paddingHorizontal: 14, paddingTop: 12, gap: 8 },
     compteur: { ...carte, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 14, minWidth: 92, borderWidth: 1.5 },
@@ -228,7 +239,7 @@ function makeStyles(colors, accent) {
     pucesWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
     puce: { paddingHorizontal: 13, paddingVertical: 8, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderLight },
     pucePetite: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderLight },
-    puceActive: { backgroundColor: VIOLET, borderColor: VIOLET },
+    puceActive: { backgroundColor: principale, borderColor: principale },
     puceTxt: { fontSize: 13, color: colors.textSecondary, fontWeight: '600' },
     puceTxtActive: { color: '#fff' },
 

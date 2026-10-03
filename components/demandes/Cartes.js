@@ -3,7 +3,7 @@
 import { Text, TouchableOpacity, View } from 'react-native'
 import { TYPES_DEMANDE } from '../../lib/constants'
 import { STATUTS_DEMANDE, STATUTS_EXPLICATION, enRetard, fmtDate, fmtMontant } from '../../lib/demandes'
-import { Info, Pastille, teinte } from './ui'
+import { Info, Pastille, teinte } from '../ui/EcranModerne'
 
 export function CarteDemande({ d, restoNom, styles, children }) {
   const cfg = STATUTS_DEMANDE[d.statut] || STATUTS_DEMANDE.en_attente

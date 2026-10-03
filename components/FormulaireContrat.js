@@ -6,11 +6,15 @@
 // mais elle reste modifiable pour le contrat qui ne tombe pas sur un nombre
 // entier de mois (« jusqu'au 30 juin »). La corriger à la main met duree_mois à
 // null : on n'enregistre pas une durée qui ne correspond plus aux dates.
+// Les dates se choisissent au calendrier (ChampDate), jamais au clavier.
 // ──────────────────────────────────────────────────────────────────────────────
 import * as DocumentPicker from 'expo-document-picker'
 import * as ImagePicker from 'expo-image-picker'
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, Alert, Text, View } from 'react-native'
+
+import ChampDate from './ChampDate'
+import { Bouton, Champ, Feuille, Libelle, Puces, teinte, useEcranModerne } from './ui/EcranModerne'
 
 import {
   TYPES_CONTRAT, DUREES_MOIS, calculerDateFin, validerFormulaireContrat,
@@ -32,8 +36,9 @@ function debutParDefaut(travailleur, contratsExistants) {
 }
 
 export default function FormulaireContrat({
-  visible, travailleur, contratsExistants, contratEdite, colors, onFermer, onEnregistrer,
+  visible, travailleur, contratsExistants, contratEdite, onFermer, onEnregistrer,
 }) {
+  const { styles, colors, accent, principale } = useEcranModerne('orange')
   const enCorrection = !!contratEdite
 
   const [type, setType] = useState('CDD')
@@ -151,163 +156,79 @@ export default function FormulaireContrat({
     setEnreg(false)
   }
 
-  const label = { fontSize: 11, fontWeight: '600', color: colors.textMuted, letterSpacing: 0.5, marginBottom: 6, textTransform: 'uppercase' }
-  const input = { backgroundColor: colors.bg, borderRadius: 12, padding: 14, fontSize: 15, color: colors.text, marginBottom: 14 }
-  const puce = { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.bg, alignItems: 'center', borderWidth: 0.5, borderColor: colors.border }
-  const puceActive = { backgroundColor: '#185FA5', borderColor: '#185FA5' }
-  const txtPuce = actif => ({ fontSize: 13, color: actif ? '#fff' : colors.textMuted, fontWeight: actif ? '600' : '400' })
+  const vert = '#3B8D2F'
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
-      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-        <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '90%' }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 0.5, borderBottomColor: colors.border }}>
-            <Text style={{ fontSize: 17, fontWeight: '700', color: colors.text }}>
-              {enCorrection ? 'Corriger le contrat' : 'Nouveau contrat'}
-            </Text>
-            <TouchableOpacity onPress={onFermer} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-              <Text style={{ fontSize: 22, color: colors.textMuted }}>✕</Text>
-            </TouchableOpacity>
-          </View>
+    <Feuille visible={visible} titre={enCorrection ? 'Corriger le contrat' : 'Nouveau contrat'} sous={travailleur?.nom}
+      onFermer={onFermer} styles={styles}>
+      <Libelle styles={styles}>Type de contrat *</Libelle>
+      <Puces styles={styles} actif={type} onChoisir={setType} elements={TYPES_CONTRAT.map(t => ({ cle: t, label: t }))} />
 
-          <ScrollView style={{ padding: 20 }} keyboardShouldPersistTaps="handled">
-            <Text style={{ fontSize: 14, color: colors.textMuted, marginBottom: 18 }}>
-              {travailleur?.nom}
-            </Text>
+      <ChampDate label="Date de début *" valeur={dateDebut} onChange={setDateDebut} couleur={principale} />
 
-            <Text style={label}>Type de contrat *</Text>
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-              {TYPES_CONTRAT.map(t => (
-                <TouchableOpacity key={t} style={[puce, { flex: 1 }, type === t && puceActive]} onPress={() => setType(t)}>
-                  <Text style={txtPuce(type === t)}>{t}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+      {!estCDI && (
+        <>
+          <Libelle styles={styles}>Durée *</Libelle>
+          <Puces styles={styles} actif={finManuelle ? null : duree} onChoisir={choisirDuree}
+            elements={[...DUREES_MOIS.map(d => ({ cle: d, label: LIBELLE_DUREE[d] })), { cle: 'autre', label: 'Autre' }]} />
 
-            <Text style={label}>Date de début *</Text>
-            <TextInput
-              style={input}
-              placeholder="AAAA-MM-JJ"
-              value={dateDebut}
-              onChangeText={setDateDebut}
-              placeholderTextColor="#bbb"
-            />
+          {dureeLibreChoisie && (
+            <Champ styles={styles} colors={colors} placeholder="Nombre de mois (ex : 4)" keyboardType="number-pad"
+              value={dureeLibre} onChangeText={t => { setDureeLibre(t); setFinManuelle(false) }} />
+          )}
 
-            {!estCDI && (
-              <>
-                <Text style={label}>Durée *</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
-                  {DUREES_MOIS.map(d => (
-                    <TouchableOpacity
-                      key={d}
-                      style={[puce, duree === d && !finManuelle && puceActive]}
-                      onPress={() => choisirDuree(d)}
-                    >
-                      <Text style={txtPuce(duree === d && !finManuelle)}>{LIBELLE_DUREE[d]}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  <TouchableOpacity
-                    style={[puce, dureeLibreChoisie && !finManuelle && puceActive]}
-                    onPress={() => choisirDuree('autre')}
-                  >
-                    <Text style={txtPuce(dureeLibreChoisie && !finManuelle)}>Autre</Text>
-                  </TouchableOpacity>
-                </View>
+          <ChampDate label="Date de fin *" valeur={dateFin} couleur={principale} minDate={dateDebut || undefined}
+            onChange={d => { setDateFin(d); setFinManuelle(true) }} />
+          <Text style={[styles.infoTxt, { fontSize: 12, marginTop: -4, marginBottom: 16 }]}>
+            {finManuelle
+              ? 'Date choisie à la main — la durée ne sera pas enregistrée.'
+              : dateFin
+                ? `Calculée : se termine le ${formatFR(dateFin)}.`
+                : 'Choisis la date de début et la durée.'}
+          </Text>
+        </>
+      )}
 
-                {dureeLibreChoisie && (
-                  <TextInput
-                    style={input}
-                    placeholder="Nombre de mois (ex : 4)"
-                    value={dureeLibre}
-                    onChangeText={t => { setDureeLibre(t); setFinManuelle(false) }}
-                    keyboardType="number-pad"
-                    placeholderTextColor="#bbb"
-                  />
-                )}
-
-                <Text style={label}>Date de fin *</Text>
-                <TextInput
-                  style={input}
-                  placeholder="AAAA-MM-JJ"
-                  value={dateFin}
-                  onChangeText={t => { setDateFin(t); setFinManuelle(true) }}
-                  placeholderTextColor="#bbb"
-                />
-                <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: -8, marginBottom: 14 }}>
-                  {finManuelle
-                    ? 'Date saisie à la main — la durée ne sera pas enregistrée.'
-                    : dateFin
-                      ? `Calculée : se termine le ${formatFR(dateFin)}.`
-                      : 'Renseigne la date de début et la durée.'}
-                </Text>
-              </>
-            )}
-
-            {estCDI && (
-              <View style={{ backgroundColor: colors.bg, borderRadius: 12, padding: 14, marginBottom: 14 }}>
-                <Text style={{ fontSize: 14, color: colors.textMuted }}>
-                  Un CDI n'a pas de date de fin : aucune alerte, aucune désactivation automatique.
-                </Text>
-              </View>
-            )}
-
-            <Text style={label}>Contrat signé * (photo ou PDF)</Text>
-            {/* Deux boutons distincts, jamais un menu : sur le web, Alert.alert
-                passe par window.confirm, qui ne peut offrir que deux issues —
-                le troisième choix serait inatteignable. */}
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
-              <TouchableOpacity
-                style={[puce, { flex: 1, paddingVertical: 14 }, upload && { opacity: 0.5 }]}
-                onPress={prendrePhoto}
-                disabled={upload}
-              >
-                <Text style={{ fontSize: 14, color: colors.text }}>📷 Photo</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[puce, { flex: 1, paddingVertical: 14 }, upload && { opacity: 0.5 }]}
-                onPress={prendrePDF}
-                disabled={upload}
-              >
-                <Text style={{ fontSize: 14, color: colors.text }}>📄 PDF</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              {upload && <ActivityIndicator size="small" />}
-              <Text style={{ fontSize: 13, color: photoUrl ? '#3B6D11' : colors.textMuted }}>
-                {upload
-                  ? 'Envoi en cours…'
-                  : photo
-                    ? `✓ ${photo.type === 'pdf' ? 'PDF' : 'Photo'} ajouté`
-                    : contratEdite?.photo_url
-                      ? `✓ ${contratEdite.photo_type === 'pdf' ? 'PDF' : 'Photo'} déjà enregistré — choisis un fichier pour le remplacer`
-                      : 'Aucun fichier choisi'}
-              </Text>
-            </View>
-
-            {!validation.ok && (
-              <Text style={{ fontSize: 13, color: '#993C1D', marginBottom: 14 }}>{validation.erreur}</Text>
-            )}
-
-            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 30 }}>
-              <TouchableOpacity
-                style={{ flex: 1, padding: 16, borderRadius: 12, backgroundColor: colors.bg, alignItems: 'center' }}
-                onPress={onFermer}
-              >
-                <Text style={{ color: colors.textMuted, fontWeight: '600' }}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ flex: 1, padding: 16, borderRadius: 12, backgroundColor: validation.ok ? '#185FA5' : colors.border, alignItems: 'center' }}
-                onPress={enregistrer}
-                disabled={!validation.ok || enreg}
-              >
-                <Text style={{ color: '#fff', fontWeight: '700' }}>
-                  {enreg ? 'Enregistrement…' : 'Enregistrer'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
+      {estCDI && (
+        <View style={{ backgroundColor: teinte(principale, '14'), borderRadius: 14, padding: 14, marginBottom: 16 }}>
+          <Text style={[styles.infoTxt, { color: colors.text }]}>
+            Un CDI n'a pas de date de fin : aucune alerte, aucune désactivation automatique.
+          </Text>
         </View>
+      )}
+
+      <Libelle styles={styles}>Contrat signé * (photo ou PDF)</Libelle>
+      {/* Deux boutons distincts, jamais un menu : sur le web, Alert.alert
+          passe par window.confirm, qui ne peut offrir que deux issues —
+          le troisième choix serait inatteignable. */}
+      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+        <Bouton label="📷 Photo" couleur={accent} flex grand styles={styles} onPress={prendrePhoto} disabled={upload} />
+        <Bouton label="📄 PDF" couleur={accent} flex grand styles={styles} onPress={prendrePDF} disabled={upload} />
       </View>
-    </Modal>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        {upload && <ActivityIndicator size="small" color={accent} />}
+        <Text style={[styles.infoTxt, photoUrl && !upload && { color: vert, fontWeight: '700' }]}>
+          {upload
+            ? 'Envoi en cours…'
+            : photo
+              ? `✓ ${photo.type === 'pdf' ? 'PDF' : 'Photo'} ajouté`
+              : contratEdite?.photo_url
+                ? `✓ ${contratEdite.photo_type === 'pdf' ? 'PDF' : 'Photo'} déjà enregistré — choisis un fichier pour le remplacer`
+                : 'Aucun fichier choisi'}
+        </Text>
+      </View>
+
+      {!validation.ok && (
+        <View style={[styles.refus, { marginBottom: 14, marginTop: 0 }]}>
+          <Text style={styles.refusTxt}>{validation.erreur}</Text>
+        </View>
+      )}
+
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <Bouton label="Annuler" variante="contour" couleur={colors.textSecondary} flex grand styles={styles} onPress={onFermer} />
+        <Bouton label={enreg ? 'Enregistrement…' : 'Enregistrer'} variante="plein" couleur={principale} flex grand styles={styles}
+          onPress={enregistrer} disabled={!validation.ok || enreg} />
+      </View>
+    </Feuille>
   )
 }

@@ -10,31 +10,30 @@
 // ──────────────────────────────────────────────────────────────────────────────
 import { router } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
-import {
-  ActivityIndicator, Alert, SafeAreaView, ScrollView, StyleSheet,
-  Text, TextInput, TouchableOpacity, View,
-} from 'react-native'
+import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 
-import FicheContrat from '../components/FicheContrat'
+import FicheContrat, { STATUTS_CONTRAT } from '../components/FicheContrat'
 import FormulaireContrat from '../components/FormulaireContrat'
 import SelecteurTravailleur from '../components/SelecteurTravailleur'
+import Avatar from '../components/equipe/Avatar'
+import { Compteurs, EnTete, Puces, Recherche, Vide, teinte, useEcranModerne } from '../components/ui/EcranModerne'
 import { useApp } from '../context/AppContext'
-import { useTheme } from '../context/ThemeContext'
 import {
-  aujourdhuiISO, contratAffiche, formatFR, joursRestants, ordinalFR,
-  rangParType, statutContrat,
+  FILTRES_CONTRAT, aujourdhuiISO, compterContrats, contratAffiche, correspondFiltreContrat, expireBientot,
+  formatFR, ordinalFR, progressionContrat, rangParType, statutContrat,
 } from '../lib/contrats'
 import { journaliser } from '../lib/journal'
 import { creerNotification } from '../lib/notificationsInterne'
 import { supabase } from '../lib/supabase'
 
-const FILTRES = ['Travailleurs', 'Expire bientôt', 'En cours', 'Expirés', 'Sans contrat']
-const SEUIL_BADGE_JOURS = 30
+// Couleur de chaque compteur.
+const COULEURS_FILTRES = {
+  bientot: '#C27C1A', en_cours: STATUTS_CONTRAT.en_cours.couleur, expires: STATUTS_CONTRAT.expire.couleur, sans: '#C2462B',
+}
 
 export default function ContratsScreen() {
-  const { colors } = useTheme()
   const { userId, userNom } = useApp() ?? {}
-  const styles = useMemo(() => makeStyles(colors), [colors])
+  const { styles, colors, accent, principale } = useEcranModerne('orange')
 
   const [restaurants, setRestaurants] = useState([])
   const [travailleurs, setTravailleurs] = useState([])
@@ -43,7 +42,7 @@ export default function ContratsScreen() {
 
   const [recherche, setRecherche] = useState('')
   const [filtreResto, setFiltreResto] = useState('tous')
-  const [filtreEtat, setFiltreEtat] = useState('Travailleurs')
+  const [filtreEtat, setFiltreEtat] = useState('tous')
 
   const [ficheVisible, setFicheVisible] = useState(false)
   const [travSelectionne, setTravSelectionne] = useState(null)
@@ -60,14 +59,14 @@ export default function ContratsScreen() {
   async function charger() {
     setLoading(true)
     const { data: restos } = await supabase
-      .from('restaurants').select('id, nom').order('nom')
+      .from('restaurants').select('id, nom, couleur').order('nom')
     setRestaurants(restos || [])
 
     // .range explicite : sans lui, PostgREST tronque silencieusement à 1000
     // lignes. Le piège a déjà coûté cher sur d'autres écrans.
     const { data: travs } = await supabase
       .from('travailleurs')
-      .select('*, restaurants(nom)')
+      .select('*, restaurants(nom, couleur)')
       .neq('statut', 'archive')
       .order('nom')
       .range(0, 4999)
@@ -100,41 +99,13 @@ export default function ContratsScreen() {
       })
   }, [travailleurs, contrats, filtreResto, recherche, jour])
 
-  function badge(contrat) {
-    if (!contrat || contrat.cloture_le || !contrat.date_fin) return null
-    if (statutContrat(contrat, jour) !== 'en_cours') return null
-    const restants = joursRestants(contrat, jour)
-    if (restants === null || restants < 0 || restants > SEUIL_BADGE_JOURS) return null
-    if (restants === 0) return { texte: 'Dernier jour', couleur: '#993C1D' }
-    return { texte: `Expire dans ${restants} j`, couleur: restants <= 7 ? '#993C1D' : '#854F0B' }
-  }
+  const comptes = useMemo(() => compterContrats(lignes, jour), [lignes, jour])
 
-  const compteurs = useMemo(() => {
-    let expire = 0, enCours = 0, sans = 0
-    for (const l of lignes) {
-      if (!l.contrat) { sans++; continue }
-      const s = statutContrat(l.contrat, jour)
-      if (s === 'en_cours' || s === 'a_venir') enCours++
-      if (badge(l.contrat)) expire++
-    }
-    return { expire, enCours, sans }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lignes, jour])
-
-  const affichees = lignes.filter(l => {
-    // L'onglet « Travailleurs » montre tout l'effectif du restaurant choisi,
-    // avec ou sans contrat : c'est la vue d'entrée, celle où l'on cherche
-    // quelqu'un par son nom plutôt que par l'état de son contrat.
-    if (filtreEtat === 'Travailleurs') return true
-    // Aucune exception de type : un journalier sans contrat est un travailleur
-    // sans contrat, tant qu'on ne lui en a pas enregistré un.
-    if (filtreEtat === 'Sans contrat') return !l.contrat
-    if (!l.contrat) return false
-    const s = statutContrat(l.contrat, jour)
-    if (filtreEtat === 'En cours') return s === 'en_cours' || s === 'a_venir'
-    if (filtreEtat === 'Expirés') return s === 'expire' || s === 'rompu'
-    return badge(l.contrat) !== null   // Expire bientôt
-  })
+  // L'onglet « Travailleurs » montre tout l'effectif du restaurant choisi, avec
+  // ou sans contrat : c'est la vue d'entrée, celle où l'on cherche quelqu'un par
+  // son nom. Aucune exception de type : un journalier sans contrat est un
+  // travailleur sans contrat, tant qu'on ne lui en a pas enregistré un.
+  const affichees = lignes.filter(l => correspondFiltreContrat(filtreEtat, l.contrat, jour))
 
   // Une carte « Sans contrat » ouvre la fiche du travailleur, d'où le bouton
   // « + Enregistrer un contrat » mène droit au formulaire : le sélecteur de
@@ -285,157 +256,134 @@ export default function ContratsScreen() {
   // contrat valable aujourd'hui ? Un contrat terminé n'en est pas un.
   function pied(l) {
     const c = l.contrat
-    if (!c) return { txt: '⚠ Aucun contrat', couleur: '#993C1D' }
+    if (!c) return { txt: '⚠ Aucun contrat', couleur: '#C2462B' }
     const s = statutContrat(c, jour)
-    if (s === 'en_cours') return { txt: '✓ Sous contrat', couleur: '#3B6D11' }
-    if (s === 'a_venir') return { txt: '✓ Contrat à venir', couleur: '#185FA5' }
-    return { txt: '⚠ Contrat terminé — à renouveler', couleur: '#993C1D' }
+    if (s === 'en_cours') return { txt: '✓ Sous contrat', couleur: STATUTS_CONTRAT.en_cours.couleur }
+    if (s === 'a_venir') return { txt: '✓ Contrat à venir', couleur: STATUTS_CONTRAT.a_venir.couleur }
+    return { txt: '⚠ Contrat terminé — à renouveler', couleur: '#C2462B' }
   }
 
   function renderLigne(l) {
     const c = l.contrat
-    const b = badge(c)
+    const restants = expireBientot(c, jour)
     const pd = pied(l)
     const rang = c ? rangParType(contratsDe(l.travailleur.id), c) : 0
     const statut = c ? statutContrat(c, jour) : null
+    const pct = c ? progressionContrat(c, jour) : null
+    const couleurBarre = restants !== null ? (restants <= 7 ? '#C2462B' : '#C27C1A') : principale
+    const suivant = (statut === 'expire' || statut === 'rompu')
+      ? contratsDe(l.travailleur.id)
+        .filter(x => statutContrat(x, jour) === 'a_venir')
+        .sort((a, b2) => (a.date_debut < b2.date_debut ? -1 : 1))[0]
+      : null
 
     return (
-      <TouchableOpacity key={l.travailleur.id} style={styles.card} onPress={() => ouvrirFiche(l.travailleur)}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.nom}>{l.travailleur.nom}</Text>
-          <Text style={styles.sous}>
-            {l.travailleur.restaurants?.nom || 'Sans restaurant'} · {l.travailleur.poste || 'Sans poste'}
-          </Text>
-
-          {c ? (
-            <>
-              <Text style={styles.contratLigne}>
-                {c.type}{rang > 0 ? ` · ${ordinalFR(rang)} contrat` : ''}
-                {c.date_fin
-                  ? ` · ${formatFR(c.date_debut)} → ${formatFR(c.date_fin)}`
-                  : ` · depuis le ${formatFR(c.date_debut)}`}
-              </Text>
-              {statut === 'a_venir' && (
-                <Text style={styles.mention}>Débute le {formatFR(c.date_debut)}</Text>
-              )}
-              {(statut === 'expire' || statut === 'rompu') && (() => {
-                const suivant = contratsDe(l.travailleur.id)
-                  .filter(x => statutContrat(x, jour) === 'a_venir')
-                  .sort((a, b2) => (a.date_debut < b2.date_debut ? -1 : 1))[0]
-                return suivant
-                  ? <Text style={styles.mention}>Suite prévue le {formatFR(suivant.date_debut)}</Text>
-                  : <Text style={styles.mentionAlerte}>À renouveler</Text>
-              })()}
-              {l.total > 1 && (
-                <Text style={styles.historique}>{l.total} contrats ›</Text>
-              )}
-            </>
-          ) : (
-            <Text style={styles.mention}>Aucun contrat enregistré</Text>
+      <TouchableOpacity key={l.travailleur.id} style={styles.carte} onPress={() => ouvrirFiche(l.travailleur)} activeOpacity={0.8}>
+        <View style={styles.carteTop}>
+          <Avatar nom={l.travailleur.nom} photo={l.travailleur.photo_url} resto={l.travailleur.restaurants} taille={44} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.carteTitre}>{l.travailleur.nom}</Text>
+            <Text style={styles.carteSous}>
+              {l.travailleur.restaurants?.nom || 'Sans restaurant'} · {l.travailleur.poste || 'Sans poste'}
+            </Text>
+          </View>
+          {restants !== null && (
+            <View style={[styles.pastille, { marginTop: 0, backgroundColor: restants <= 7 ? '#C2462B' : '#C27C1A' }]}>
+              <Text style={[styles.pastilleTxt, { color: '#fff' }]}>{restants === 0 ? 'Dernier jour' : `J-${restants}`}</Text>
+            </View>
           )}
-
-          <Text style={[styles.pied, { color: pd.couleur }]}>{pd.txt}</Text>
         </View>
 
-        {b && (
-          <View style={[styles.badge, { backgroundColor: b.couleur }]}>
-            <Text style={styles.badgeTxt}>{b.texte}</Text>
+        <View style={styles.carteCorps}>
+          {c ? (
+            <>
+              <Text style={[styles.infoTxt, { color: colors.text, fontWeight: '700' }]}>
+                {c.type}{rang > 0 ? ` · ${ordinalFR(rang)} contrat` : ''}
+                <Text style={{ fontWeight: '400', color: colors.textSecondary }}>
+                  {c.date_fin ? `  ${formatFR(c.date_debut)} → ${formatFR(c.date_fin)}` : `  depuis le ${formatFR(c.date_debut)}`}
+                </Text>
+              </Text>
+              {pct !== null && statut !== 'expire' && statut !== 'rompu' && (
+                <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.surfaceAlt, overflow: 'hidden', marginTop: 4 }}>
+                  <View style={{ height: '100%', width: `${Math.max(2, pct)}%`, borderRadius: 3, backgroundColor: couleurBarre }} />
+                </View>
+              )}
+              {statut === 'a_venir' && <Text style={styles.infoTxt}>Débute le {formatFR(c.date_debut)}</Text>}
+              {suivant ? <Text style={styles.infoTxt}>Suite prévue le {formatFR(suivant.date_debut)}</Text> : null}
+            </>
+          ) : (
+            <Text style={styles.infoTxt}>Aucun contrat enregistré</Text>
+          )}
+        </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+          <View style={[styles.pastille, { marginTop: 0, backgroundColor: teinte(pd.couleur, '1F') }]}>
+            <Text style={[styles.pastilleTxt, { color: pd.couleur }]}>{pd.txt}</Text>
           </View>
-        )}
+          {l.total > 1 && <Text style={[styles.infoTxt, { flex: 0, color: accent, fontWeight: '700' }]}>{l.total} contrats ›</Text>}
+        </View>
       </TouchableOpacity>
     )
   }
 
+  const compteurs = FILTRES_CONTRAT.map(f => ({
+    cle: f.cle, label: f.label, valeur: comptes[f.cle], couleur: COULEURS_FILTRES[f.cle] || accent,
+  }))
+  const restoChoisi = restaurants.find(r => r.id === filtreResto)
+
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => {
-          if (router.canGoBack()) router.back()
-          else router.replace('/accueil')
-        }}>
-          <Text style={styles.back}>‹ Retour</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitre}>Contrats</Text>
-        <View style={{ width: 60 }} />
-      </View>
+      <EnTete titre="Contrats" sous={restoChoisi?.nom || 'Tous les restaurants'} styles={styles}
+        onRetour={() => (router.canGoBack() ? router.back() : router.replace('/accueil'))} />
 
-      <View style={styles.searchBar}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="🔍 Rechercher un travailleur…"
-          value={recherche}
-          onChangeText={setRecherche}
-          placeholderTextColor="#bbb"
-        />
-      </View>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.filtreBar, { flexGrow: 0 }]}>
-        <TouchableOpacity
-          style={[styles.filtreBtn, filtreResto === 'tous' && styles.filtreBtnActive]}
-          onPress={() => setFiltreResto('tous')}
-        >
-          <Text style={[styles.filtreTxt, filtreResto === 'tous' && styles.filtreTxtActive]}>Tous</Text>
-        </TouchableOpacity>
-        {restaurants.map(r => (
-          <TouchableOpacity
-            key={r.id}
-            style={[styles.filtreBtn, filtreResto === r.id && styles.filtreBtnActive]}
-            onPress={() => setFiltreResto(r.id)}
-          >
-            <Text style={[styles.filtreTxt, filtreResto === r.id && styles.filtreTxtActive]}>{r.nom}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      <Recherche value={recherche} onChange={setRecherche} placeholder="🔍 Rechercher un travailleur…" styles={styles} colors={colors} />
+      <Puces ligne styles={styles} actif={filtreResto} onChoisir={setFiltreResto}
+        elements={[{ cle: 'tous', label: 'Tous' }, ...restaurants.map(r => ({ cle: r.id, label: r.nom }))]} />
 
       {loading ? (
         <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color="#185FA5" />
-          <Text style={styles.loadingTxt}>Chargement des contrats…</Text>
+          <ActivityIndicator size="large" color={accent} />
+          <Text style={[styles.infoTxt, { flex: 0, marginTop: 12 }]}>Chargement des contrats…</Text>
         </View>
       ) : (
-        <ScrollView style={styles.body}>
-          <Text style={styles.resume}>
-            {lignes.length} travailleur{lignes.length > 1 ? 's' : ''} · {compteurs.expire} expirent bientôt · {compteurs.sans} sans contrat
-          </Text>
-
-          <View style={styles.etatBar}>
-            {FILTRES.map(f => (
-              <TouchableOpacity
-                key={f}
-                style={[styles.etatBtn, filtreEtat === f && styles.etatBtnActive]}
-                onPress={() => setFiltreEtat(f)}
-              >
-                <Text style={[styles.etatTxt, filtreEtat === f && styles.etatTxtActive]}>{f}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {affichees.length === 0 && (
-            <Text style={styles.vide}>
-              {filtreEtat === 'Travailleurs'
-                ? 'Aucun travailleur ne correspond.'
-                : filtreEtat === 'Expire bientôt'
-                  ? "Aucun contrat n'arrive à échéance dans les 30 jours."
-                  : filtreEtat === 'Sans contrat'
-                    ? 'Tous les travailleurs ont un contrat.'
-                    : 'Rien à afficher.'}
-            </Text>
-          )}
-
-          {affichees.map(renderLigne)}
-          <View style={{ height: 90 }} />
-        </ScrollView>
+        <>
+          <Compteurs elements={compteurs} actif={filtreEtat} styles={styles}
+            onChoisir={cle => setFiltreEtat(cle ?? 'tous')} />
+          <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+            {affichees.length > 0 && (
+              <Text style={styles.resultat}>
+                {affichees.length} travailleur{affichees.length > 1 ? 's' : ''}
+                {filtreEtat !== 'tous' ? ` · ${FILTRES_CONTRAT.find(f => f.cle === filtreEtat).label.toLowerCase()}` : ''}
+              </Text>
+            )}
+            {affichees.length === 0 && (
+              <Vide icone="📝" styles={styles}
+                texte={filtreEtat === 'tous'
+                  ? 'Aucun travailleur ne correspond.'
+                  : filtreEtat === 'bientot'
+                    ? "Aucun contrat n'arrive à échéance dans les 30 jours."
+                    : filtreEtat === 'sans'
+                      ? 'Tous les travailleurs ont un contrat.'
+                      : 'Rien à afficher.'} />
+            )}
+            {affichees.map(renderLigne)}
+            <View style={{ height: 100 }} />
+          </ScrollView>
+        </>
       )}
 
-      <TouchableOpacity style={styles.fab} onPress={() => setSelecteurVisible(true)}>
-        <Text style={styles.fabTxt}>+ Nouveau contrat</Text>
+      <TouchableOpacity style={{
+        position: 'absolute', bottom: 24, alignSelf: 'center', backgroundColor: principale, borderRadius: 26,
+        paddingHorizontal: 24, paddingVertical: 15, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 }, elevation: 4,
+      }} onPress={() => setSelecteurVisible(true)}>
+        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>+ Nouveau contrat</Text>
       </TouchableOpacity>
 
       <SelecteurTravailleur
         visible={selecteurVisible}
         travailleurs={travailleurs}
         restaurants={restaurants}
-        colors={colors}
         onFermer={() => setSelecteurVisible(false)}
         onChoisir={nouveauContratPour}
       />
@@ -444,7 +392,6 @@ export default function ContratsScreen() {
         visible={ficheVisible}
         travailleur={travSelectionne}
         contrats={travSelectionne ? contratsDe(travSelectionne.id) : []}
-        colors={colors}
         onFermer={() => setFicheVisible(false)}
         onRenouveler={() => { setContratEdite(null); setFormVisible(true) }}
         onCorriger={c => { setContratEdite(c); setFormVisible(true) }}
@@ -457,46 +404,9 @@ export default function ContratsScreen() {
         travailleur={travSelectionne}
         contratsExistants={travSelectionne ? contratsDe(travSelectionne.id) : []}
         contratEdite={contratEdite}
-        colors={colors}
         onFermer={() => { setFormVisible(false); setContratEdite(null) }}
         onEnregistrer={enregistrerContrat}
       />
     </SafeAreaView>
   )
 }
-
-function makeStyles(colors) { return StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  header: { backgroundColor: colors.headerBg, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  back: { fontSize: 16, color: colors.primaryText, fontWeight: '500' },
-  headerTitre: { fontSize: 16, fontWeight: '600', color: colors.surface },
-  searchBar: { backgroundColor: colors.surface, padding: 10, borderBottomWidth: 0.5, borderBottomColor: colors.border },
-  searchInput: { backgroundColor: colors.surfaceAlt, borderRadius: 10, padding: 10, fontSize: 14, color: colors.text },
-  filtreBar: { backgroundColor: colors.surface, maxHeight: 46, borderBottomWidth: 0.5, borderBottomColor: colors.border },
-  filtreBtn: { paddingHorizontal: 14, paddingVertical: 12 },
-  filtreBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
-  filtreTxt: { fontSize: 12, color: colors.textMuted },
-  filtreTxtActive: { color: colors.primary, fontWeight: '600' },
-  loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingTxt: { fontSize: 13, color: colors.textMuted, marginTop: 12 },
-  body: { flex: 1, padding: 14 },
-  resume: { fontSize: 13, color: colors.textMuted, marginBottom: 12, textAlign: 'center' },
-  etatBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
-  etatBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 0.5, borderColor: colors.border },
-  etatBtnActive: { backgroundColor: '#185FA5', borderColor: '#185FA5' },
-  etatTxt: { fontSize: 12, color: colors.textMuted },
-  etatTxtActive: { color: '#fff', fontWeight: '600' },
-  card: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 0.5, borderColor: colors.border },
-  nom: { fontSize: 14, fontWeight: '600', color: colors.text },
-  sous: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
-  contratLigne: { fontSize: 13, color: colors.text, marginTop: 6 },
-  mention: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  mentionAlerte: { fontSize: 12, color: '#993C1D', marginTop: 4, fontWeight: '600' },
-  historique: { fontSize: 12, color: '#185FA5', marginTop: 4 },
-  pied: { fontSize: 12, fontWeight: '600', marginTop: 8 },
-  badge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
-  badgeTxt: { fontSize: 11, color: '#fff', fontWeight: '600' },
-  vide: { fontSize: 14, color: colors.textMuted, textAlign: 'center', paddingVertical: 40 },
-  fab: { position: 'absolute', bottom: 24, alignSelf: 'center', backgroundColor: '#185FA5', borderRadius: 24, paddingHorizontal: 22, paddingVertical: 14 },
-  fabTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
-}) }

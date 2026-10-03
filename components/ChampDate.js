@@ -31,9 +31,11 @@ export function dateEnClair(iso) {
  * valeur : 'AAAA-MM-JJ' ou vide · onChange(iso | '')
  * effacable : affiche « Effacer » (date facultative)
  * minDate / maxDate : bornes facultatives (ISO)
+ * couleur : couleur du calendrier et du bouton (par défaut, celle du thème)
  */
-export default function ChampDate({ label, valeur, onChange, effacable = false, minDate, maxDate, placeholder = 'Choisir une date' }) {
+export default function ChampDate({ label, valeur, onChange, effacable = false, minDate, maxDate, placeholder = 'Choisir une date', couleur }) {
   const { colors } = useTheme()
+  const c = couleur || colors.primary
   const [ouvert, setOuvert] = useState(false)
   const enClair = dateEnClair(valeur)
 
@@ -44,14 +46,14 @@ export default function ChampDate({ label, valeur, onChange, effacable = false, 
         onPress={() => setOuvert(o => !o)}
         style={{
           flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-          backgroundColor: colors.inputBg, borderWidth: 1, borderColor: ouvert ? colors.primary : colors.inputBorder,
+          backgroundColor: colors.inputBg, borderWidth: 1, borderColor: ouvert ? c : colors.inputBorder,
           borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11,
         }}
       >
         <Text style={{ fontSize: 15, color: enClair ? colors.text : colors.textPlaceholder }}>
           📅 {enClair ? enClair.charAt(0).toUpperCase() + enClair.slice(1) : placeholder}
         </Text>
-        <Text style={{ fontSize: 13, color: colors.primary, fontWeight: '600' }}>{ouvert ? 'Fermer' : 'Changer'}</Text>
+        <Text style={{ fontSize: 13, color: c, fontWeight: '600' }}>{ouvert ? 'Fermer' : 'Changer'}</Text>
       </TouchableOpacity>
 
       {ouvert && (
@@ -66,12 +68,12 @@ export default function ChampDate({ label, valeur, onChange, effacable = false, 
             markedDates={valeur ? { [valeur]: { selected: true } } : {}}
             theme={{
               calendarBackground: colors.surface,
-              selectedDayBackgroundColor: colors.primary,
+              selectedDayBackgroundColor: c,
               selectedDayTextColor: '#fff',
-              todayTextColor: colors.primary,
+              todayTextColor: c,
               dayTextColor: colors.text,
               textDisabledColor: colors.textPlaceholder,
-              arrowColor: colors.primary,
+              arrowColor: c,
               monthTextColor: colors.text,
               textSectionTitleColor: colors.textMuted,
             }}
