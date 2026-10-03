@@ -14,7 +14,7 @@ import {
 import {
   ajouterPrevision, annulerPaiement, basculerDette, chargerDusLoyer, enregistrerDu, payer, payerAvant, supprimerDu, supprimerPrevision,
 } from '../../lib/tresorerieDb'
-import { Bouton, Champ, ChampMontant, Feuille, Ligne, Puces, useStylesTreso } from './commun'
+import { Bouton, Champ, ChampMontant, Feuille, ItemIcone, Ligne, Pastille, Progression, Puces, TitreSection, styleCategorie, useStylesTreso } from './commun'
 
 // paye (vert) · a_payer (orange) · dette_recente (rouge) · dette (rouge foncé)
 export function couleursStatut(colors) {
@@ -29,7 +29,8 @@ export function couleursStatut(colors) {
 export function Badge({ c }) {
   const { styles } = useStylesTreso()
   return (
-    <View style={[styles.badge, { backgroundColor: c.fond }]}>
+    <View style={[styles.badge, styles.badgeLigne, { backgroundColor: c.fond }]}>
+      <View style={[styles.badgePoint, { backgroundColor: c.trait }]} />
       <Text style={[styles.badgeTxt, { color: c.texte }]}>{c.label}</Text>
     </View>
   )
@@ -142,13 +143,21 @@ export function FeuilleDetail({
     <Feuille visible onFermer={onFermer}
       titre={`${LIBELLES_CATEGORIE[du.categorie]} · ${titreDu(du, nomResto)}${du.mois ? ` · ${libelleMoisCourt(du.mois)}` : ''}`}>
       <View style={styles.carte}>
-        <Ligne label="Dû" valeur={du.montant_du} />
-        <Ligne label="Déjà payé" valeur={totalPaye(paiements)} />
-        <View style={styles.sep} />
-        <Ligne label="Reste" valeur={reste} fort couleur={reste ? colors.error : colors.success} />
-        {classement && cs[classement] && <View style={{ alignSelf: 'flex-start', marginVertical: 4 }}><Badge c={cs[classement]} /></View>}
+        <View style={styles.carteEntete}>
+          <Pastille icone={styleCategorie(du.categorie).icone} couleur={styleCategorie(du.categorie).couleur} taille={46} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.label}>Reste à payer</Text>
+            <Text style={[styles.grand, { marginTop: 0, fontSize: 28, color: reste ? colors.error : colors.success }]}>{fmt(reste)} F</Text>
+          </View>
+          {classement && cs[classement] && <Badge c={cs[classement]} />}
+        </View>
+        <Progression pct={du.montant_du ? Math.round((totalPaye(paiements) / du.montant_du) * 100) : 0} couleur={colors.success} hauteur={8} />
+        <View style={{ marginTop: 8 }}>
+          <Ligne label="Dû" valeur={du.montant_du} />
+          <Ligne label="Déjà payé" valeur={totalPaye(paiements)} couleur={colors.successDark} />
+        </View>
         {!!du.echeance && (
-          <Text style={styles.petit}>
+          <Text style={[styles.petit, retard ? { color: colors.error, fontWeight: '700' } : null]}>
             Date limite : {formatDateFR(du.echeance)}{retard ? ` · ${retard} j de retard` : ''}
           </Text>
         )}
@@ -159,7 +168,7 @@ export function FeuilleDetail({
 
       {(previsions.length > 0 || (reste > 0 && onPrevoir && peut(niveau, 'payer'))) && (
         <>
-          <Text style={[styles.lbl, { marginBottom: 6 }]}>Prévisions</Text>
+          <TitreSection icone="calendar-clock" couleur="#D97706" titre="Prévisions" droite={previsions.length ? `${previsions.length}` : null} />
           <View style={styles.carte}>
             {previsions.length === 0 && <Text style={styles.vide}>Aucune prévision.</Text>}
             {previsions.map(({ prevision: x, etat }) => {
@@ -184,41 +193,40 @@ export function FeuilleDetail({
               )
             })}
             {reste > 0 && onPrevoir && peut(niveau, 'payer') && (
-              <Bouton secondaire titre="Prévoir un paiement" style={{ marginTop: 8 }} onPress={() => onPrevoir(du)} />
+              <Bouton secondaire icone="calendar-plus" titre="Prévoir un paiement" style={{ marginTop: 8 }} onPress={() => onPrevoir(du)} />
             )}
           </View>
         </>
       )}
 
-      <Text style={[styles.lbl, { marginBottom: 6 }]}>Paiements</Text>
-      <View style={styles.carte}>
-        {paiements.length === 0 && <Text style={styles.vide}>Aucun paiement.</Text>}
-        {paiements.map(p => (
-          <View key={p.id} style={styles.item}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.itemTitre}>{fmt(p.montant)} F</Text>
-              <Text style={styles.petit}>
-                {formatDateFR(p.date)} · {p.source === 'compte' ? nomCompte(p.compte_id) : p.source === 'avant' ? 'payé avant la trésorerie' : 'Espèces'}
-                {p.photo_url ? ' · 📷' : ''}{p.cree_par_nom ? ` · ${p.cree_par_nom}` : ''}
-              </Text>
-            </View>
-            {peut(niveau, 'payer') && (
-              <TouchableOpacity onPress={() => annuler(p)}><Text style={{ color: colors.error, fontSize: 13 }}>Annuler</Text></TouchableOpacity>
-            )}
-          </View>
-        ))}
-      </View>
+      <TitreSection icone="cash-check" couleur={colors.success} titre="Paiements" droite={paiements.length ? `${paiements.length}` : null} />
+      {paiements.length === 0 && <Text style={styles.vide}>Aucun paiement.</Text>}
+      {paiements.map(p => (
+        <ItemIcone key={p.id} icone={p.source === 'avant' ? 'history' : p.source === 'compte' ? 'bank-transfer-out' : 'cash'} couleur={colors.success}
+          titre={`${fmt(p.montant)} F`}
+          sous={`${formatDateFR(p.date)} · ${p.source === 'compte' ? nomCompte(p.compte_id) : p.source === 'avant' ? 'payé avant la trésorerie' : 'Espèces'}${p.photo_url ? ' · photo' : ''}${p.cree_par_nom ? ` · ${p.cree_par_nom}` : ''}`}
+          sousDroite={peut(niveau, 'payer') ? (
+            <TouchableOpacity onPress={() => annuler(p)} style={styles.lienDanger}>
+              <Text style={styles.lienDangerTxt}>Annuler</Text>
+            </TouchableOpacity>
+          ) : null}
+        />
+      ))}
 
-      <View style={{ gap: 8 }}>
-        {reste > 0 && peut(niveau, 'payer') && <Bouton titre="Payer" onPress={() => onPayer(du)} />}
+      <View style={{ gap: 8, marginTop: 6 }}>
+        {reste > 0 && peut(niveau, 'payer') && <Bouton icone="cash-fast" titre="Payer" onPress={() => onPayer(du)} />}
         {reste > 0 && CATEGORIES_SERIE.includes(du.categorie) && peut(niveau, 'payer') && (
-          <Bouton secondaire titre="Déjà payé avant la trésorerie" onPress={dejaPaye} />
+          <Bouton secondaire icone="history" titre="Déjà payé avant la trésorerie" onPress={dejaPaye} />
         )}
         {peutBasculer && (
-          <Bouton secondaire titre={du.en_dette_depuis ? 'Remettre à payer' : 'Passer en Dette'} onPress={basculer} />
+          <Bouton secondaire icone={du.en_dette_depuis ? 'undo-variant' : 'notebook-outline'} titre={du.en_dette_depuis ? 'Remettre à payer' : 'Passer en Dette'} onPress={basculer} />
         )}
-        {peutModifier && <Bouton secondaire titre="Modifier" onPress={() => onModifier(du)} />}
-        {peutModifier && <Bouton danger titre="Supprimer" onPress={supprimer} />}
+        {peutModifier && (
+          <View style={styles.rangee}>
+            <Bouton style={{ flex: 1 }} secondaire icone="pencil-outline" titre="Modifier" onPress={() => onModifier(du)} />
+            <Bouton style={{ flex: 1 }} danger icone="trash-can-outline" titre="Supprimer" onPress={supprimer} />
+          </View>
+        )}
       </View>
     </Feuille>
   )

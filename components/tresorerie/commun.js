@@ -98,7 +98,7 @@ export function EtatEcran({ loading, erreur, niveau, donnees, recharger, autoris
   if (loading && !donnees) {
     return (
       <View style={styles.centre}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.primary} size="large" />
         <Text style={styles.muted}>Chargement de la trésorerie…</Text>
       </View>
     )
@@ -106,16 +106,16 @@ export function EtatEcran({ loading, erreur, niveau, donnees, recharger, autoris
   if (erreur) {
     return (
       <View style={styles.centre}>
-        <Text style={styles.erreur}>{erreur}</Text>
-        <TouchableOpacity style={[styles.btn, { marginTop: 14 }]} onPress={recharger}>
-          <Text style={styles.btnTxt}>Réessayer</Text>
-        </TouchableOpacity>
+        <Pastille icone="wifi-off" couleur={colors.error} taille={56} />
+        <Text style={[styles.erreur, { marginTop: 14 }]}>{erreur}</Text>
+        <Bouton titre="Réessayer" icone="refresh" style={{ marginTop: 14 }} onPress={recharger} />
       </View>
     )
   }
   if (!niveau || !autorise) {
     return (
       <View style={styles.centre}>
+        <Pastille icone="lock-outline" couleur={colors.textMuted} taille={56} />
         <Text style={styles.muted}>Cette partie de la trésorerie n'est pas ouverte à votre compte.</Text>
       </View>
     )
@@ -162,16 +162,18 @@ export function ChampMontant({ label, valeur, onChange, placeholder = '0' }) {
 }
 
 export function Feuille({ visible, titre, onFermer, children }) {
-  const { styles } = useStylesTreso()
+  const { styles, colors } = useStylesTreso()
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onFermer}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.overlay}>
         <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onFermer} />
         <View style={styles.feuille}>
+          <View style={styles.poignee} />
           <View style={styles.feuilleEntete}>
             <Text style={styles.feuilleTitre}>{titre}</Text>
-            <TouchableOpacity onPress={onFermer} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={styles.fermer}>✕</Text>
+            <TouchableOpacity onPress={onFermer} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={styles.fermerBtn} accessibilityRole="button" accessibilityLabel="Fermer">
+              <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 30 }}>
@@ -194,8 +196,9 @@ export function Ligne({ label, valeur, signe, fort, couleur }) {
   )
 }
 
-export function Bouton({ titre, onPress, secondaire, danger, desactive, occupe, style }) {
+export function Bouton({ titre, onPress, secondaire, danger, desactive, occupe, style, icone }) {
   const { styles, colors } = useStylesTreso()
+  const couleurTxt = secondaire ? colors.primary : '#FFFFFF'
   return (
     <TouchableOpacity
       style={[styles.btn, secondaire && styles.btnSecondaire, danger && styles.btnDanger, (desactive || occupe) && { opacity: 0.5 }, style]}
@@ -203,8 +206,150 @@ export function Bouton({ titre, onPress, secondaire, danger, desactive, occupe, 
       disabled={desactive || occupe}
     >
       {occupe
-        ? <ActivityIndicator color={secondaire ? colors.primary : '#fff'} />
-        : <Text style={[styles.btnTxt, secondaire && styles.btnTxtSecondaire]}>{titre}</Text>}
+        ? <ActivityIndicator color={couleurTxt} />
+        : (
+          <View style={styles.btnContenu}>
+            {icone ? <MaterialCommunityIcons name={icone} size={18} color={couleurTxt} /> : null}
+            <Text style={[styles.btnTxt, secondaire && styles.btnTxtSecondaire]}>{titre}</Text>
+          </View>
+        )}
+    </TouchableOpacity>
+  )
+}
+
+// ── Habillage commun : icônes et couleurs par charge, cartes colorées ───────
+
+// Chaque charge a son icône et sa couleur, les mêmes sur tous les écrans.
+export const STYLE_CATEGORIE = {
+  loyer: { icone: 'home-city-outline', couleur: '#2563EB' },
+  salaire: { icone: 'account-cash-outline', couleur: '#7C3AED' },
+  cnps: { icone: 'shield-account-outline', couleur: '#0891B2' },
+  impot: { icone: 'bank-outline', couleur: '#D97706' },
+  its: { icone: 'percent-outline', couleur: '#DB2777' },
+  tee: { icone: 'file-percent-outline', couleur: '#0D9488' },
+  bail: { icone: 'file-sign', couleur: '#4F46E5' },
+  autre: { icone: 'dots-horizontal-circle-outline', couleur: '#64748B' },
+  admin: { icone: 'briefcase-outline', couleur: '#475569' },
+  dette: { icone: 'hand-coin-outline', couleur: '#DC2626' },
+  dette_recente: { icone: 'alert-circle-outline', couleur: '#EA580C' },
+}
+export const styleCategorie = cat => STYLE_CATEGORIE[cat] || STYLE_CATEGORIE.autre
+
+// Partenaires de livraison et de paiement.
+export const STYLE_PARTENAIRE = {
+  yango: { icone: 'moped', couleur: '#E11D48' },
+  glovo: { icone: 'bike-fast', couleur: '#D97706' },
+  wave: { icone: 'waves', couleur: '#0284C7' },
+  om: { icone: 'cellphone', couleur: '#EA580C' },
+  djamo: { icone: 'credit-card-outline', couleur: '#6366F1' },
+}
+
+// Carré arrondi teinté avec une icône.
+export function Pastille({ icone, couleur, taille = 38, fond }) {
+  return (
+    <View style={{
+      width: taille, height: taille, borderRadius: Math.round(taille * 0.32),
+      alignItems: 'center', justifyContent: 'center', backgroundColor: fond || `${couleur}1F`,
+    }}>
+      <MaterialCommunityIcons name={icone} size={Math.round(taille * 0.52)} color={couleur} />
+    </View>
+  )
+}
+
+// Titre de section : pastille + titre (+ montant ou action à droite).
+export function TitreSection({ icone, couleur, titre, droite, style }) {
+  const { styles, colors } = useStylesTreso()
+  return (
+    <View style={[styles.titreSection, style]}>
+      {icone ? <Pastille icone={icone} couleur={couleur || colors.primary} taille={28} /> : null}
+      <Text style={styles.titreSectionTxt} numberOfLines={1}>{titre}</Text>
+      {typeof droite === 'string' ? <Text style={styles.titreSectionDroite}>{droite}</Text> : droite}
+    </View>
+  )
+}
+
+// Grande carte aux couleurs du groupe : le chiffre principal de l'écran.
+export function Hero({ icone, titre, valeur, sous, couleurValeur, children, onPress }) {
+  const { styles } = useStylesTreso()
+  const Conteneur = onPress ? TouchableOpacity : View
+  return (
+    <Conteneur style={styles.hero} onPress={onPress} activeOpacity={0.85}>
+      <View style={[styles.heroRond, { top: -60, right: -40, width: 170, height: 170 }]} />
+      <View style={[styles.heroRond, { bottom: -70, left: -30, width: 140, height: 140, opacity: 0.5 }]} />
+      <View style={styles.heroHaut}>
+        {icone ? (
+          <View style={styles.heroIcone}>
+            <MaterialCommunityIcons name={icone} size={18} color="#FFFFFF" />
+          </View>
+        ) : null}
+        <Text style={styles.heroLbl} numberOfLines={1}>{titre}</Text>
+      </View>
+      <Text style={[styles.heroValeur, couleurValeur && { color: couleurValeur }]} numberOfLines={1} adjustsFontSizeToFit>{valeur}</Text>
+      {sous ? <Text style={styles.heroSous}>{sous}</Text> : null}
+      {children}
+    </Conteneur>
+  )
+}
+
+// Petite case translucide dans la carte Hero (« Banque 12 000 000 »).
+export function HeroCase({ label, valeur, couleur }) {
+  const { styles } = useStylesTreso()
+  return (
+    <View style={styles.heroCase}>
+      <View style={styles.heroCaseHaut}>
+        {couleur ? <View style={[styles.heroPoint, { backgroundColor: couleur }]} /> : null}
+        <Text style={styles.heroCaseLbl} numberOfLines={1}>{label}</Text>
+      </View>
+      <Text style={styles.heroCaseVal} numberOfLines={1} adjustsFontSizeToFit>{valeur}</Text>
+    </View>
+  )
+}
+
+// Barre empilée (répartition) ; segments = [{ valeur, couleur }].
+export function BarreRepartition({ segments, hauteur = 8, fond = 'rgba(255,255,255,0.18)' }) {
+  const total = segments.reduce((s, x) => s + Math.max(0, x.valeur || 0), 0)
+  return (
+    <View style={{ flexDirection: 'row', height: hauteur, borderRadius: hauteur, overflow: 'hidden', backgroundColor: fond, gap: total ? 2 : 0 }}>
+      {total > 0 && segments.filter(x => x.valeur > 0).map((x, i) => (
+        <View key={i} style={{ flex: x.valeur / total, backgroundColor: x.couleur }} />
+      ))}
+    </View>
+  )
+}
+
+// Barre de progression (pourcentage 0–100).
+export function Progression({ pct, couleur, fond, hauteur = 10 }) {
+  const { colors } = useStylesTreso()
+  return (
+    <View style={{ height: hauteur, backgroundColor: fond || colors.surfaceAlt, borderRadius: hauteur, overflow: 'hidden' }}>
+      <View style={{ height: '100%', width: `${Math.max(0, Math.min(100, pct || 0))}%`, backgroundColor: couleur || colors.success, borderRadius: hauteur }} />
+    </View>
+  )
+}
+
+// Ligne de liste avec pastille d'icône, titre, détail et montant à droite.
+export function ItemIcone({ icone, couleur, titre, sous, droite, couleurDroite, sousDroite, onPress, onLongPress, surligne, estompe }) {
+  const { styles, colors } = useStylesTreso()
+  const actif = !!(onPress || onLongPress)
+  return (
+    <TouchableOpacity
+      style={[styles.itemIcone, surligne && { backgroundColor: surligne, borderColor: 'transparent' }, estompe && { opacity: 0.6 }]}
+      onPress={onPress} onLongPress={onLongPress} delayLongPress={500} activeOpacity={actif ? 0.7 : 1} disabled={!actif}
+    >
+      <Pastille icone={icone} couleur={couleur || colors.primary} taille={38} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.itemTitre} numberOfLines={2}>{titre}</Text>
+        {sous ? (typeof sous === 'string' ? <Text style={styles.petit}>{sous}</Text> : sous) : null}
+      </View>
+      {(droite != null || sousDroite) ? (
+        <View style={{ alignItems: 'flex-end', gap: 4, maxWidth: '42%' }}>
+          {droite != null ? (typeof droite === 'string'
+            ? <Text style={[styles.itemMontant, couleurDroite && { color: couleurDroite }]}>{droite}</Text>
+            : droite) : null}
+          {sousDroite || null}
+        </View>
+      ) : null}
+      {onPress ? <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textMuted} /> : null}
     </TouchableOpacity>
   )
 }
@@ -233,7 +378,7 @@ export function makeStyles(colors) { return StyleSheet.create({
   body: { flex: 1 },
   bodyContenu: { padding: 16, paddingTop: 18, paddingBottom: 60 },
   centre: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  muted: { fontSize: 13, color: colors.textMuted, marginTop: 10, textAlign: 'center' },
+  muted: { fontSize: 14, color: colors.textMuted, marginTop: 12, textAlign: 'center', lineHeight: 20 },
   erreur: { fontSize: 14, color: colors.error, textAlign: 'center', lineHeight: 20 },
   carte: {
     backgroundColor: colors.surface, borderRadius: 18, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.borderLight,
@@ -249,47 +394,116 @@ export function makeStyles(colors) { return StyleSheet.create({
   petit: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
   tuiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tuile: {
-    flexBasis: '47%', flexGrow: 1, backgroundColor: colors.surface, borderRadius: 18, padding: 14,
-    borderWidth: 1, borderColor: colors.borderLight, minHeight: 92,
+    flexBasis: '47%', flexGrow: 1, backgroundColor: colors.surface, borderRadius: 20, padding: 14, paddingTop: 16,
+    borderWidth: 1, borderColor: colors.borderLight, minHeight: 120, overflow: 'hidden',
     shadowColor: colors.cardShadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 2,
   },
+  tuileBande: { position: 'absolute', top: 0, left: 0, right: 0, height: 4 },
+  tuileMontant: { fontSize: 15, fontWeight: '800', marginTop: 2, fontVariant: ['tabular-nums'] },
+  bloc: { paddingLeft: 18, overflow: 'hidden' },
+  blocTrait: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 5 },
+  blocHaut: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  blocTitre: { fontSize: 16, fontWeight: '800', color: colors.text, letterSpacing: -0.2, flexShrink: 1 },
+  blocNombre: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 1, minWidth: 22, alignItems: 'center' },
+  blocNombreTxt: { fontSize: 12, fontWeight: '800' },
+  blocValeur: { fontSize: 16, fontWeight: '800', color: colors.text, fontVariant: ['tabular-nums'] },
+  blocContenu: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.borderLight },
+  comptesGrille: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 },
+  compteCarte: { flexBasis: '47%', flexGrow: 1, marginBottom: 0, padding: 14, paddingTop: 16, overflow: 'hidden' },
+  compteTrait: { position: 'absolute', top: 0, left: 0, right: 0, height: 4 },
+  compteSolde: { fontSize: 22, fontWeight: '800', color: colors.text, marginTop: 12, letterSpacing: -0.5, fontVariant: ['tabular-nums'] },
+  histoBouton: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, paddingHorizontal: 14, borderRadius: 14,
+    backgroundColor: colors.primaryLight,
+  },
+  histoBoutonTxt: { flex: 1, fontSize: 14, fontWeight: '800', color: colors.primary },
+  lienDanger: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: colors.errorLight },
+  lienDangerTxt: { fontSize: 12, fontWeight: '800', color: colors.error },
+  carteEntete: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
+  etatPilule: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  etatPiluleTxt: { fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  lienHistorique: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 10, paddingVertical: 6 },
+  lienHistoriqueTxt: { fontSize: 13, fontWeight: '800', color: colors.primary },
+  heroLigneBas: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 12,
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.18)',
+  },
+  heroBasLbl: { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: '700' },
+  heroBasVal: { fontSize: 15, color: '#FFFFFF', fontWeight: '800', fontVariant: ['tabular-nums'] },
   tuileIcone: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 8, backgroundColor: colors.primaryLight },
   tuileTitre: { fontSize: 14, fontWeight: '800', color: colors.text },
-  tuileSous: { fontSize: 11, color: colors.textSecondary, marginTop: 3, lineHeight: 15 },
+  tuileSous: { fontSize: 12, color: colors.textSecondary, marginTop: 3, lineHeight: 16 },
   btn: { backgroundColor: colors.primary, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', minHeight: 46 },
   btnSecondaire: { backgroundColor: colors.primaryLight },
   btnDanger: { backgroundColor: colors.error },
-  btnTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  btnTxt: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  btnContenu: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   btnTxtSecondaire: { color: colors.primary },
   btnPetit: { paddingVertical: 7, paddingHorizontal: 12, minHeight: 34 },
   rangee: { flexDirection: 'row', gap: 8 },
   puces: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
-  puce: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  puceActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
-  puceTxt: { fontSize: 13, color: colors.textSecondary },
-  puceTxtActive: { color: colors.primary, fontWeight: '700' },
-  label: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 6 },
+  puce: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderLight, minHeight: 38, justifyContent: 'center' },
+  puceActive: {
+    backgroundColor: colors.primary, borderColor: colors.primary,
+    shadowColor: colors.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 6, elevation: 2,
+  },
+  puceTxt: { fontSize: 13, color: colors.textSecondary, fontWeight: '600' },
+  puceTxtActive: { color: '#FFFFFF', fontWeight: '800' },
+  label: { fontSize: 11, fontWeight: '800', color: colors.textMuted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.6 },
   input: { backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.inputBorder, borderRadius: 12, padding: 12, fontSize: 15, color: colors.text },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
-  feuille: { backgroundColor: colors.bg, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 18, maxHeight: '88%', borderTopWidth: 4, borderTopColor: colors.primary },
-  feuilleEntete: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-  feuilleTitre: { fontSize: 18, fontWeight: '800', color: colors.text, flex: 1, letterSpacing: -0.2 },
-  fermer: { fontSize: 18, color: colors.textMuted, paddingLeft: 12 },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  feuille: { backgroundColor: colors.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 18, paddingTop: 10, maxHeight: '88%' },
+  poignee: { alignSelf: 'center', width: 44, height: 5, borderRadius: 3, backgroundColor: colors.border, marginBottom: 12 },
+  feuilleEntete: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 10 },
+  feuilleTitre: { fontSize: 19, fontWeight: '800', color: colors.text, flex: 1, letterSpacing: -0.3 },
+  fermerBtn: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceAlt },
   // Le fond est sur la barre (toute la largeur), pas sur son contenu.
   ongletsBarre: { flexGrow: 0, backgroundColor: colors.bg },
   onglets: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
-  onglet: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  onglet: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: colors.borderLight, backgroundColor: colors.surface,
+  },
   ongletActif: {
     backgroundColor: colors.primary, borderColor: colors.primary,
     shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 3,
   },
-  ongletTxt: { fontSize: 13, color: colors.textSecondary, fontWeight: '600' },
-  ongletTxtActif: { color: '#fff', fontWeight: '700' },
+  ongletTxt: { fontSize: 13, color: colors.textSecondary, fontWeight: '700' },
+  ongletTxtActif: { color: '#fff', fontWeight: '800' },
   item: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 6, marginHorizontal: -6, borderRadius: 12, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
-  itemTitre: { fontSize: 14, fontWeight: '600', color: colors.text },
+  itemTitre: { fontSize: 14, fontWeight: '700', color: colors.text },
+  itemMontant: { fontSize: 15, fontWeight: '800', color: colors.text, fontVariant: ['tabular-nums'] },
+  itemIcone: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, marginBottom: 8,
+    backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.borderLight,
+  },
   badge: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, alignSelf: 'flex-start' },
   badgeTxt: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 },
+  badgeLigne: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  badgePoint: { width: 6, height: 6, borderRadius: 3 },
   vide: { fontSize: 13, color: colors.textMuted, textAlign: 'center', paddingVertical: 24 },
-  avert: { backgroundColor: colors.warningLight, borderRadius: 14, padding: 12, marginBottom: 10, borderLeftWidth: 4, borderLeftColor: colors.warning },
+  avert: { backgroundColor: colors.warningLight, borderRadius: 14, padding: 12, marginBottom: 10 },
   avertTxt: { fontSize: 13, color: colors.warningDark, lineHeight: 18 },
+  titreSection: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, marginBottom: 10 },
+  titreSectionTxt: { flex: 1, fontSize: 16, fontWeight: '800', color: colors.text, letterSpacing: -0.2 },
+  titreSectionDroite: { fontSize: 14, fontWeight: '800', color: colors.textSecondary, fontVariant: ['tabular-nums'] },
+  hero: {
+    backgroundColor: colors.headerBg, borderRadius: 24, padding: 18, marginBottom: 14, overflow: 'hidden',
+    shadowColor: colors.headerBg, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 18, elevation: 6,
+  },
+  heroRond: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)' },
+  heroHaut: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  heroIcone: {
+    width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  heroLbl: { flex: 1, fontSize: 12, fontWeight: '800', color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase', letterSpacing: 1 },
+  heroValeur: { fontSize: 34, fontWeight: '800', color: '#FFFFFF', marginTop: 12, letterSpacing: -1, fontVariant: ['tabular-nums'] },
+  heroSous: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 4, fontWeight: '600', lineHeight: 18 },
+  heroCases: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+  heroCase: { flexGrow: 1, flexBasis: '30%', backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 9 },
+  heroCaseHaut: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  heroPoint: { width: 8, height: 8, borderRadius: 4 },
+  heroCaseLbl: { flex: 1, fontSize: 11, color: 'rgba(255,255,255,0.8)', fontWeight: '700' },
+  heroCaseVal: { fontSize: 15, color: '#FFFFFF', fontWeight: '800', marginTop: 3, fontVariant: ['tabular-nums'] },
 }) }

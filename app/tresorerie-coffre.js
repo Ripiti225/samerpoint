@@ -7,12 +7,14 @@
 // Le moment venu, l'emprunt passe « à rembourser » : simple rappel.
 // Objectif fixé mois par mois ; un mois sans objectif reprend le précédent.
 // ──────────────────────────────────────────────────────────────────────────────
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { useLocalSearchParams } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 
 import {
-  Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Puces, useStylesTreso, useTresorerie,
+  Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Hero, ItemIcone, Progression, Puces, TitreSection,
+  useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import { objectifDuMois, progression, resteARembourser, soldeCoffre, statutEmprunt } from '../lib/direction'
 import { aujourdhuiISO, fmt, formatDateFR, libelleMois, peut, premierDuMois } from '../lib/tresorerie'
@@ -21,6 +23,7 @@ import {
 } from '../lib/tresorerieDb'
 
 const LIBELLES = { depot: 'Épargne', retrait: 'Sortie', depense: 'Dépense direction' }
+const ICONES = { depot: 'piggy-bank-outline', retrait: 'cash-minus', depense: 'briefcase-outline' }
 
 const PARTENAIRES = [
   { valeur: 'glovo', label: 'Glovo' }, { valeur: 'yango', label: 'Yango' }, { valeur: 'wave', label: 'Wave' },
@@ -90,70 +93,62 @@ export default function TresorerieCoffreScreen() {
   } else {
     contenu = (
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContenu}>
-        <View style={styles.carte}>
-          <Text style={styles.lbl}>Solde du coffre</Text>
-          <Text style={styles.grand}>{fmt(solde)} F</Text>
-          <View style={{ height: 10, backgroundColor: colors.surfaceAlt, borderRadius: 6, overflow: 'hidden', marginTop: 10 }}>
-            <View style={{ height: '100%', width: `${Math.min(100, pct || 0)}%`, backgroundColor: colors.success }} />
+        <Hero icone="safe" titre="Solde du coffre" valeur={`${fmt(solde)} F`}
+          sous={pct === null ? 'Pas d\'objectif ce mois-ci' : `${pct} % de l'objectif de ${libelleMois(mois).split(' ')[0].toLowerCase()}`}>
+          <View style={{ marginTop: 14 }}>
+            <Progression pct={pct} couleur="#FFFFFF" fond="rgba(255,255,255,0.2)" hauteur={10} />
           </View>
-          <View style={[styles.ligne, { paddingVertical: 4 }]}>
-            <Text style={styles.petit}>{pct === null ? 'Pas d\'objectif' : `${pct} %`}</Text>
-            <TouchableOpacity onPress={() => setObjectifVisible(true)}>
-              <Text style={[styles.petit, { color: colors.primary, fontWeight: '700' }]}>
-                Objectif {libelleMois(mois).split(' ')[0].toLowerCase()} : {objectif ? `${fmt(objectif)} F` : 'à fixer'} ✏️
-              </Text>
-            </TouchableOpacity>
-          </View>
-          <View style={[styles.rangee, { marginTop: 8 }]}>
-            <Bouton style={[styles.btnPetit, { flex: 1 }]} secondaire titre="Emprunter" onPress={() => setOperation('emprunt')} />
-            <Bouton style={[styles.btnPetit, { flex: 1 }]} titre="+ Épargner" onPress={() => setOperation('depot')} />
-          </View>
+          <TouchableOpacity onPress={() => setObjectifVisible(true)} style={styles.heroLigneBas} accessibilityRole="button">
+            <Text style={styles.heroBasLbl}>Objectif {libelleMois(mois).split(' ')[0].toLowerCase()}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.heroBasVal}>{objectif ? `${fmt(objectif)} F` : 'à fixer'}</Text>
+              <MaterialCommunityIcons name="pencil-outline" size={16} color="#FFFFFF" />
+            </View>
+          </TouchableOpacity>
+        </Hero>
+        <View style={[styles.rangee, { marginBottom: 6 }]}>
+          <Bouton style={{ flex: 1 }} icone="piggy-bank-outline" titre="Épargner" onPress={() => setOperation('depot')} />
+          <Bouton style={{ flex: 1 }} secondaire icone="hand-coin-outline" titre="Emprunter" onPress={() => setOperation('emprunt')} />
         </View>
 
         {emprunts.length > 0 && (
-          <View style={styles.carte}>
-            <View style={styles.ligne}>
-              <Text style={styles.lbl}>À rembourser au coffre</Text>
-              <Text style={[styles.ligneValeur, { color: colors.warningDark }]}>{fmt(aRendre)} F</Text>
-            </View>
+          <>
+            <TitreSection icone="hand-coin-outline" couleur={colors.warningDark} titre="À rembourser au coffre" droite={`${fmt(aRendre)} F`} />
             {emprunts.map(e => {
               const st = statutEmprunt(e, d.receptions, aujourdhui)
               const quand = e.rembourser_le ? `le ${formatDateFR(e.rembourser_le)}` : `à la prochaine réception ${nomPartenaire(e.rembourser_partenaire)}`
+              const maintenant = st === 'a_rembourser'
               return (
-                <TouchableOpacity key={e.id} onLongPress={() => annulerUnEmprunt(e)} delayLongPress={500}
-                  style={[styles.item, st === 'a_rembourser' && { backgroundColor: colors.warningLight, borderRadius: 10, paddingHorizontal: 8 }]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.itemTitre}>{fmt(e.montant)} F · {nomCompte(e.compte_id)}</Text>
-                    <Text style={[styles.petit, st === 'a_rembourser' && { color: colors.warningDark, fontWeight: '700' }]}>
-                      {st === 'a_rembourser' ? `C'est le moment de rembourser (prévu ${quand})` : `Emprunté le ${formatDateFR(e.date)} · rembourser ${quand}`}
-                      {e.note ? ` · ${e.note}` : ''}
-                    </Text>
-                  </View>
-                  <Bouton titre="Rembourser" style={styles.btnPetit} onPress={() => setRemboursement(e)} />
-                </TouchableOpacity>
+                <ItemIcone key={e.id} onLongPress={() => annulerUnEmprunt(e)}
+                  icone={maintenant ? 'bell-ring-outline' : 'hand-coin-outline'} couleur={colors.warningDark}
+                  surligne={maintenant ? colors.warningLight : null}
+                  titre={`${fmt(e.montant)} F · ${nomCompte(e.compte_id)}`}
+                  sous={<Text style={[styles.petit, maintenant && { color: colors.warningDark, fontWeight: '700' }]}>
+                    {maintenant ? `C'est le moment de rembourser (prévu ${quand})` : `Emprunté le ${formatDateFR(e.date)} · rembourser ${quand}`}
+                    {e.note ? ` · ${e.note}` : ''}
+                  </Text>}
+                  sousDroite={<Bouton titre="Rembourser" style={styles.btnPetit} onPress={() => setRemboursement(e)} />}
+                />
               )
             })}
-            <Text style={styles.petit}>Appui long sur un emprunt pour l'annuler.</Text>
-          </View>
+            <Text style={[styles.petit, { marginBottom: 6 }]}>Appui long sur un emprunt pour l'annuler.</Text>
+          </>
         )}
 
-        <View style={styles.carte}>
-          {d.coffre.length === 0 && <Text style={styles.vide}>Aucun mouvement.</Text>}
-          {d.coffre.map(m => (
-            <TouchableOpacity key={m.id} style={styles.item} onLongPress={() => annuler(m)} delayLongPress={500}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.itemTitre}>{m.libelle || LIBELLES[m.type]}</Text>
-                <Text style={styles.petit}>
-                  {formatDateFR(m.date)} · {LIBELLES[m.type]}
-                  {m.source === 'compte' ? ` · ${m.type === 'depot' ? 'depuis' : 'vers'} ${nomCompte(m.compte_id)}` : m.source === 'especes' ? ' · espèces' : ''}
-                </Text>
-              </View>
-              <Text style={[styles.ligneValeur, { color: m.montant >= 0 ? colors.success : colors.error }]}>
-                {m.montant >= 0 ? '+ ' : '− '}{fmt(Math.abs(m.montant))}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <TitreSection icone="swap-vertical" titre="Mouvements" droite={`${d.coffre.length}`} />
+        {d.coffre.length === 0 && <Text style={styles.vide}>Aucun mouvement.</Text>}
+        {d.coffre.map(m => {
+          const entree = m.montant >= 0
+          return (
+            <ItemIcone key={m.id} onLongPress={() => annuler(m)}
+              icone={ICONES[m.type] || 'swap-horizontal'} couleur={entree ? colors.success : colors.error}
+              titre={m.libelle || LIBELLES[m.type]}
+              sous={`${formatDateFR(m.date)} · ${LIBELLES[m.type]}${m.source === 'compte' ? ` · ${m.type === 'depot' ? 'depuis' : 'vers'} ${nomCompte(m.compte_id)}` : m.source === 'especes' ? ' · espèces' : ''}`}
+              droite={`${entree ? '+ ' : '− '}${fmt(Math.abs(m.montant))}`}
+              couleurDroite={entree ? colors.successDark : colors.error}
+            />
+          )
+        })}
         <Text style={styles.petit}>Appui long sur un mouvement pour l'annuler. Le coffre ne compte pas dans la trésorerie nette.</Text>
       </ScrollView>
     )

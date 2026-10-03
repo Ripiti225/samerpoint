@@ -15,7 +15,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 
 import {
-  Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Ligne, Puces, useStylesTreso, useTresorerie,
+  BarreRepartition, Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Hero, HeroCase, ItemIcone, Ligne, Pastille,
+  Progression, Puces, TitreSection, styleCategorie, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import { Badge, FeuilleDetail, FeuillePaiement, FeuillePrevision, couleursStatut, titreDu } from '../components/tresorerie/du'
 import { etatPrevision, totalPrevu, trierPrevisions } from '../lib/previsions'
@@ -129,24 +130,29 @@ export default function TresorerieScreen() {
         repli="/accueil"
         sous={niveau ? NIVEAUX[niveau] : null}
         droite={peut(niveau, 'gerer_droits') ? (
-          <TouchableOpacity onPress={() => setDroitsVisible(true)}>
-            <Text style={styles.back}>Droits</Text>
+          <TouchableOpacity onPress={() => setDroitsVisible(true)} style={styles.retourBtn}
+            accessibilityRole="button" accessibilityLabel="Droits de la trésorerie">
+            <MaterialCommunityIcons name="account-key-outline" size={21} color="#FFFFFF" />
           </TouchableOpacity>
         ) : null}
       />
       {bloque ? etat : (
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContenu}>
-          {(alertes || []).slice(0, toutesAlertes ? undefined : 3).map(a => (
-            <View key={a.cle} style={{
-              borderRadius: 12, padding: 10, marginBottom: 8, borderWidth: 1,
-              backgroundColor: a.niveau === 'rouge' ? colors.errorLight : colors.warningLight,
-              borderColor: a.niveau === 'rouge' ? colors.error : colors.warning,
-            }}>
-              <Text style={{ fontSize: 13, lineHeight: 18, color: a.niveau === 'rouge' ? colors.errorDark : colors.warningDark }}>
-                {a.niveau === 'rouge' ? '🔴' : '🟠'} {a.message}
-              </Text>
-            </View>
-          ))}
+          {(alertes || []).slice(0, toutesAlertes ? undefined : 3).map(a => {
+            const rouge = a.niveau === 'rouge'
+            return (
+              <View key={a.cle} style={{
+                flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, padding: 12, marginBottom: 8,
+                backgroundColor: rouge ? colors.errorLight : colors.warningLight,
+              }}>
+                <MaterialCommunityIcons name={rouge ? 'alert-octagon-outline' : 'alert-outline'} size={22}
+                  color={rouge ? colors.errorDark : colors.warningDark} />
+                <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, fontWeight: '600', color: rouge ? colors.errorDark : colors.warningDark }}>
+                  {a.message}
+                </Text>
+              </View>
+            )
+          })}
           {(alertes || []).length > 3 && (
             <TouchableOpacity onPress={() => setToutesAlertes(v => !v)} style={{ marginBottom: 8 }}>
               <Text style={[styles.petit, { color: colors.primary, fontWeight: '700' }]}>
@@ -156,13 +162,30 @@ export default function TresorerieScreen() {
           )}
 
           {/* Chaque bloc se déroule sur place (montants) ; les écrans s'ouvrent par les raccourcis du bas. */}
-          <Bloc titre="Trésorerie nette réelle" grand valeur={s.nette} ouvert={ouvert.nette} onBasculer={() => basculer('nette')}
-            couleur={s.nette >= 0 ? colors.success : colors.error}>
-            <Ligne label="Banque, espèces et têtes de fond" valeur={s.banque + s.especes + s.tetes} />
-            <Ligne label="− Prévisions" valeur={s.prevu} signe="-" couleur={colors.error} />
-          </Bloc>
+          <Hero icone="scale-balance" titre="Trésorerie nette réelle"
+            valeur={`${s.nette < 0 ? '− ' : ''}${fmt(Math.abs(s.nette))} F`}
+            couleurValeur={s.nette < 0 ? '#FECACA' : undefined}
+            sous="Banque + espèces + têtes de fond − prévisions">
+            <View style={{ marginTop: 14 }}>
+              <BarreRepartition segments={[
+                { valeur: s.banque, couleur: '#A7F3D0' },
+                { valeur: s.especes, couleur: '#FDE68A' },
+                { valeur: s.tetes, couleur: '#BAE6FD' },
+              ]} />
+            </View>
+            <View style={styles.heroCases}>
+              <HeroCase label="Banque" valeur={fmt(s.banque)} couleur="#A7F3D0" />
+              <HeroCase label="Espèces" valeur={fmt(s.especes)} couleur="#FDE68A" />
+              <HeroCase label="Têtes de fond" valeur={fmt(s.tetes)} couleur="#BAE6FD" />
+            </View>
+            <View style={styles.heroLigneBas}>
+              <Text style={styles.heroBasLbl}>Prévisions à sortir</Text>
+              <Text style={styles.heroBasVal}>− {fmt(s.prevu)} F</Text>
+            </View>
+          </Hero>
 
-          <Bloc titre="Trésorerie" valeur={s.tresorerie} ouvert={ouvert.tresorerie} onBasculer={() => basculer('tresorerie')}>
+          <Bloc icone="bank" teinte={colors.primary} titre="Trésorerie" sous="avec les partenaires à recevoir" valeur={s.tresorerie}
+            ouvert={ouvert.tresorerie} onBasculer={() => basculer('tresorerie')}>
             <Ligne label="Banque (BACI, SIB)" valeur={s.banque} />
             <Ligne label={aEspeces ? 'Espèces' : 'Espèces (migration à passer)'} valeur={s.especes} />
             <Ligne label="Têtes de fond (OM, Wave, Djamo)" valeur={s.tetes} />
@@ -173,49 +196,46 @@ export default function TresorerieScreen() {
             </Text>
           </Bloc>
 
-          <Bloc titre={`Prévisions · ${prev.ouvertes.length}${nbOrange ? ` · ${nbOrange} à payer` : ''}`} valeur={s.prevu}
+          <Bloc icone="calendar-clock" teinte="#D97706" titre="Prévisions" nombre={prev.ouvertes.length}
+            sous={nbOrange ? `${nbOrange} à payer maintenant` : 'paiements prévus'} alerte={nbOrange > 0} valeur={s.prevu}
             couleur={nbOrange ? colors.warningDark : undefined} ouvert={ouvert.prevision} onBasculer={() => basculer('prevision')}>
             {prev.ouvertes.length === 0 && <Text style={styles.petit}>Aucune prévision.</Text>}
             {prev.ouvertes.map(({ prevision: p, du, etat }) => {
               const orange = etat.statut === 'a_payer'
               return (
-                <TouchableOpacity key={p.id} onPress={() => setDetail(du)}
-                  style={[styles.item, orange && { backgroundColor: colors.warningLight, borderRadius: 10, paddingHorizontal: 8 }]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.itemTitre}>
-                      {LIBELLES_CATEGORIE[du.categorie]} · {titreDu(du, nomResto)}{du.mois ? ` · ${libelleMoisCourt(du.mois)}` : ''}
-                    </Text>
-                    <Text style={[styles.petit, orange && { color: colors.warningDark, fontWeight: '700' }]}>
-                      <Text style={{ fontWeight: '800', color: colors.text }}>{fmt(etat.reste)} F</Text> · {etat.message}
-                    </Text>
-                  </View>
-                  {orange && peut(niveau, 'payer') && (
+                <ItemIcone key={p.id} onPress={() => setDetail(du)}
+                  icone={styleCategorie(du.categorie).icone} couleur={styleCategorie(du.categorie).couleur}
+                  surligne={orange ? colors.warningLight : null}
+                  titre={`${LIBELLES_CATEGORIE[du.categorie]} · ${titreDu(du, nomResto)}${du.mois ? ` · ${libelleMoisCourt(du.mois)}` : ''}`}
+                  sous={<Text style={[styles.petit, orange && { color: colors.warningDark, fontWeight: '700' }]}>{etat.message}</Text>}
+                  droite={`${fmt(etat.reste)} F`}
+                  sousDroite={orange && peut(niveau, 'payer') ? (
                     <Bouton titre="Payer" style={styles.btnPetit} onPress={() => setPaiement({ du, prevision: p })} />
-                  )}
-                </TouchableOpacity>
+                  ) : null}
+                />
               )
             })}
             {peut(niveau, 'payer') && (
-              <Bouton secondaire titre="+ Prévoir un paiement" style={{ marginTop: 8 }} onPress={() => setChoix(true)} />
+              <Bouton secondaire icone="calendar-plus" titre="Prévoir un paiement" style={{ marginTop: 4 }} onPress={() => setChoix(true)} />
             )}
             {prev.realisees.length > 0 && (
               <TouchableOpacity onPress={() => setHistorique(h => !h)} style={{ marginTop: 10 }}>
-                <Text style={[styles.petit, { fontWeight: '700' }]}>Prévisions réalisées · {prev.realisees.length} {historique ? '▴' : '▾'}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <MaterialCommunityIcons name="history" size={15} color={colors.textSecondary} />
+                  <Text style={[styles.petit, { fontWeight: '800', color: colors.textSecondary, marginTop: 0 }]}>Prévisions réalisées · {prev.realisees.length}</Text>
+                  <MaterialCommunityIcons name={historique ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textSecondary} />
+                </View>
               </TouchableOpacity>
             )}
             {historique && prev.realisees.map(({ prevision: p, du, etat }) => (
-              <View key={p.id} style={styles.item}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.itemTitre, { color: colors.textMuted }]}>
-                    {LIBELLES_CATEGORIE[du.categorie]} · {titreDu(du, nomResto)}{du.mois ? ` · ${libelleMoisCourt(du.mois)}` : ''}
-                  </Text>
-                  <Text style={styles.petit}>prévu {fmt(p.montant)} F · payé {fmt(etat.realise)} F · {etat.message.toLowerCase()}</Text>
-                </View>
-              </View>
+              <ItemIcone key={p.id} estompe icone="check-circle-outline" couleur={colors.success}
+                titre={`${LIBELLES_CATEGORIE[du.categorie]} · ${titreDu(du, nomResto)}${du.mois ? ` · ${libelleMoisCourt(du.mois)}` : ''}`}
+                sous={`prévu ${fmt(p.montant)} F · payé ${fmt(etat.realise)} F · ${etat.message.toLowerCase()}`} />
             ))}
           </Bloc>
 
-          <Bloc titre={`Dépenses du mois · ${depenses.length}`} valeur={depenses.reduce((x, d) => x + reste(d), 0)}
+          <Bloc icone="receipt-text-clock-outline" teinte="#EA580C" titre="Dépenses du mois" nombre={depenses.length}
+            sous="à payer d'ici les prochaines dates limites" valeur={depenses.reduce((x, d) => x + reste(d), 0)}
             couleur={colors.warningDark} ouvert={ouvert.depenses} onBasculer={() => basculer('depenses')}>
             {depenses.length === 0 && <Text style={styles.petit}>Rien à payer d'ici les prochaines dates limites.</Text>}
             {depenses.map(d => (
@@ -228,8 +248,10 @@ export default function TresorerieScreen() {
             const lignes = enDette(cle)
             const total = lignes.reduce((x, d) => x + reste(d), 0)
             return (
-              <Bloc key={cle} titre={`${cle === 'dette' ? 'Dette' : 'Dette récente'} · ${lignes.length}`} valeur={total}
-                couleur={total ? colors.error : colors.success} ouvert={ouvert[cle]} onBasculer={() => basculer(cle)}>
+              <Bloc key={cle} icone={styleCategorie(cle).icone} teinte={styleCategorie(cle).couleur}
+                titre={cle === 'dette' ? 'Dette' : 'Dette récente'} nombre={lignes.length}
+                sous={cle === 'dette' ? 'créanciers et retards anciens' : 'date limite passée'} alerte={total > 0}
+                valeur={total} couleur={total ? colors.error : colors.success} ouvert={ouvert[cle]} onBasculer={() => basculer(cle)}>
                 {lignes.length === 0 && <Text style={styles.petit}>Rien ici.</Text>}
                 {lignes.map(d => {
                   const j = d.echeance ? joursDeRetard(d.echeance, aujourdhui) : 0
@@ -240,7 +262,7 @@ export default function TresorerieScreen() {
                   )
                 })}
                 {cle === 'dette' && peut(niveau, 'saisir_dus') && (
-                  <Bouton secondaire titre="+ Ajouter une dette" style={{ marginTop: 8 }} onPress={() => setNouvelleDette(true)} />
+                  <Bouton secondaire icone="plus" titre="Ajouter une dette" style={{ marginTop: 4 }} onPress={() => setNouvelleDette(true)} />
                 )}
               </Bloc>
             )
@@ -252,10 +274,9 @@ export default function TresorerieScreen() {
             const pct = progression(solde, objectif)
             const aRendre = resteARembourser(donnees.direction.emprunts)
             return (
-              <Bloc titre="Coffre (épargne)" valeur={solde} ouvert={ouvert.coffre} onBasculer={() => basculer('coffre')}>
-                <View style={{ height: 10, backgroundColor: colors.surfaceAlt, borderRadius: 6, overflow: 'hidden', marginVertical: 6 }}>
-                  <View style={{ height: '100%', width: `${Math.min(100, pct || 0)}%`, backgroundColor: colors.success }} />
-                </View>
+              <Bloc icone="safe" teinte="#7C3AED" titre="Coffre" sous={pct === null ? 'épargne · pas d\'objectif' : `épargne · ${pct} % de l'objectif`}
+                valeur={solde} ouvert={ouvert.coffre} onBasculer={() => basculer('coffre')}
+                pied={<View style={{ marginTop: 12 }}><Progression pct={pct} couleur="#7C3AED" hauteur={8} /></View>}>
                 <Ligne label="Objectif du mois" valeur={objectif} />
                 <Ligne label="Atteint" valeur={solde} />
                 {aRendre > 0 && <Ligne label="À rembourser au coffre" valeur={aRendre} couleur={colors.warningDark} />}
@@ -263,23 +284,24 @@ export default function TresorerieScreen() {
             )
           })()}
 
+          <TitreSection icone="apps" titre="Tous les écrans" style={{ marginTop: 18 }} />
           <View style={styles.tuiles}>
-            <Tuile icone="🏦" titre="Banque et espèces" sous={`${fmt(s.banque + s.especes + s.tetes)} F · BACI · SIB · espèces · têtes de fond`} route="/tresorerie-banque" />
-            <Tuile icone="🛵" titre="Partenaires" sous={`${fmt(s.partenaires)} F à recevoir`} route="/tresorerie-partenaires" />
-            <Tuile icone="📋" titre="À payer" sous="Loyers · salaires · CNPS · impôts…" route="/tresorerie-a-payer" />
+            <Tuile icone="bank" couleur="#0E9F6E" titre="Banque et espèces" sous={`${fmt(s.banque + s.especes + s.tetes)} F`} detail="BACI · SIB · espèces · têtes de fond" route="/tresorerie-banque" />
+            <Tuile icone="moped" couleur="#E11D48" titre="Partenaires" sous={`${fmt(s.partenaires)} F`} detail="à recevoir" route="/tresorerie-partenaires" />
+            <Tuile icone="clipboard-list" couleur="#2563EB" titre="À payer" detail="Loyers · salaires · CNPS · impôts…" route="/tresorerie-a-payer" />
             {peut(niveau, 'voir_dettes') && (
-              <Tuile icone="📒" titre="Dettes" sous={`${fmt(enDette('dette').reduce((x, d) => x + reste(d), 0))} F à rembourser`} route="/tresorerie-a-payer?onglet=dette" />
+              <Tuile icone="notebook" couleur="#DC2626" titre="Dettes" sous={`${fmt(enDette('dette').reduce((x, d) => x + reste(d), 0))} F`} detail="à rembourser" route="/tresorerie-a-payer?onglet=dette" />
             )}
             {peut(niveau, 'voir_resultats') && (
-              <Tuile icone="📊" titre="Résultats" sous="Net par restaurant / mois" route="/tresorerie-resultats" />
+              <Tuile icone="chart-box" couleur="#6C63E0" titre="Résultats" detail="Net par restaurant et par mois" route="/tresorerie-resultats" />
             )}
-            {peut(niveau, 'voir_coffre') && <Tuile icone="🔒" titre="Coffre" sous="Épargner · emprunter · objectif" route="/tresorerie-coffre" />}
-            {peut(niveau, 'voir_direction') && <Tuile icone="💼" titre="Dépenses direction" sous="Autres charges, réparations…" route="/tresorerie-direction" />}
+            {peut(niveau, 'voir_coffre') && <Tuile icone="safe" couleur="#7C3AED" titre="Coffre" detail="Épargner · emprunter · objectif" route="/tresorerie-coffre" />}
+            {peut(niveau, 'voir_direction') && <Tuile icone="briefcase" couleur="#475569" titre="Dépenses direction" detail="Autres charges, réparations…" route="/tresorerie-direction" />}
             {peut(niveau, 'gerer_droits') && (
-              <Tuile icone="🚨" titre="Plafonds de fond" sous="Alerte « fond bas » par restaurant" onPress={() => setPlafondsVisible(true)} />
+              <Tuile icone="alarm-light" couleur="#EA580C" titre="Plafonds de fond" detail="Alerte « fond bas » par restaurant" onPress={() => setPlafondsVisible(true)} />
             )}
-            <Tuile icone="💳" titre="Fournisseurs" sous={`${fmt(fournisseursDus(donnees.fournisseurs))} F dus`} route="/credits-fournisseurs" />
-            <Tuile icone="🗂️" titre="Historique par restaurant" sous="Dû et payé, mois par mois" route="/tresorerie-restaurant" />
+            <Tuile icone="credit-card-clock" couleur="#D97706" titre="Fournisseurs" sous={`${fmt(fournisseursDus(donnees.fournisseurs))} F`} detail="dus par les restaurants" route="/credits-fournisseurs" />
+            <Tuile icone="folder-table" couleur="#0891B2" titre="Historique par restaurant" detail="Dû et payé, mois par mois" route="/tresorerie-restaurant" />
           </View>
         </ScrollView>
       )}
@@ -321,21 +343,35 @@ export default function TresorerieScreen() {
   )
 }
 
-// Un bloc de l'accueil : titre et montant ; un appui le déroule sur place.
-function Bloc({ titre, valeur, couleur, grand, ouvert, onBasculer, children }) {
-  const { styles } = useStylesTreso()
+// Un bloc de l'accueil : pastille, titre, montant ; un appui le déroule sur place.
+function Bloc({ icone, teinte, titre, sous, nombre, alerte, valeur, couleur, ouvert, onBasculer, pied, children }) {
+  const { styles, colors } = useStylesTreso()
+  const t = teinte || colors.primary
   return (
-    <View style={styles.carte}>
-      <TouchableOpacity onPress={onBasculer}>
-        <View style={styles.ligne}>
-          <Text style={styles.lbl}>{titre} {ouvert ? '▴' : '▾'}</Text>
-          {!grand && <Text style={[styles.ligneValeur, couleur && { color: couleur }]}>{fmt(valeur)} F</Text>}
+    <View style={[styles.carte, styles.bloc, ouvert && { borderColor: t + '55' }]}>
+      <View style={[styles.blocTrait, { backgroundColor: alerte ? colors.warning : t }]} />
+      <TouchableOpacity onPress={onBasculer} activeOpacity={0.7} accessibilityRole="button" accessibilityState={{ expanded: !!ouvert }}>
+        <View style={styles.blocHaut}>
+          <Pastille icone={icone} couleur={t} taille={42} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.blocTitre} numberOfLines={1}>{titre}</Text>
+              {nombre ? (
+                <View style={[styles.blocNombre, { backgroundColor: t + '1F' }]}>
+                  <Text style={[styles.blocNombreTxt, { color: t }]}>{nombre}</Text>
+                </View>
+              ) : null}
+            </View>
+            {sous ? <Text style={[styles.petit, alerte && { color: colors.warningDark, fontWeight: '700' }]} numberOfLines={1}>{sous}</Text> : null}
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={[styles.blocValeur, couleur && { color: couleur }]}>{fmt(valeur)} F</Text>
+            <MaterialCommunityIcons name={ouvert ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textMuted} />
+          </View>
         </View>
-        {grand && (
-          <Text style={[styles.grand, couleur && { color: couleur }]}>{valeur < 0 ? '− ' : ''}{fmt(Math.abs(valeur))} F</Text>
-        )}
+        {pied}
       </TouchableOpacity>
-      {ouvert && <View style={{ marginTop: 6 }}>{children}</View>}
+      {ouvert && <View style={styles.blocContenu}>{children}</View>}
     </View>
   )
 }
@@ -407,41 +443,33 @@ function FeuilleNouvelleDette({ visible, donnees, user, onFermer, apres }) {
 
 // Une charge ou une dette : « Loyer · Lavage · sept. », reste, info, état.
 function LigneDu({ du, reste, paye, nomResto, info, badge, onPress }) {
-  const { styles, colors } = useStylesTreso()
+  const { colors } = useStylesTreso()
   const cs = couleursStatut(colors)
+  const st = styleCategorie(du.categorie)
   return (
-    <TouchableOpacity style={styles.item} onPress={onPress}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.itemTitre}>
-          {LIBELLES_CATEGORIE[du.categorie]} · {titreDu(du, nomResto)}{du.mois ? ` · ${libelleMoisCourt(du.mois)}` : ''}
-        </Text>
-        <Text style={styles.petit}>
-          {paye > 0 ? `payé ${fmt(paye)} · ` : ''}
-          <Text style={{ fontWeight: '800', color: colors.text }}>reste {fmt(reste)}</Text>
-          {info ? ` · ${info}` : ''}
-        </Text>
-      </View>
-      {badge && cs[badge] && <Badge c={cs[badge]} />}
-    </TouchableOpacity>
+    <ItemIcone
+      icone={st.icone} couleur={st.couleur} onPress={onPress}
+      titre={`${LIBELLES_CATEGORIE[du.categorie]} · ${titreDu(du, nomResto)}${du.mois ? ` · ${libelleMoisCourt(du.mois)}` : ''}`}
+      sous={[paye > 0 ? `payé ${fmt(paye)}` : '', info].filter(Boolean).join(' · ') || null}
+      droite={`${fmt(reste)} F`}
+      sousDroite={badge && cs[badge] ? <Badge c={cs[badge]} /> : null}
+    />
   )
 }
 
-// Icône vectorielle de chaque raccourci (à la place des emojis).
-const ICONES_RACCOURCIS = {
-  '🏦': 'bank', '🛵': 'moped', '📋': 'clipboard-list', '📒': 'notebook', '📊': 'chart-box',
-  '🔒': 'safe', '💼': 'briefcase', '💳': 'credit-card-clock', '🗂️': 'folder-table', '🚨': 'alarm-light',
-}
-
-function Tuile({ icone, titre, sous, route, onPress }) {
+function Tuile({ icone, couleur, titre, sous, detail, route, onPress }) {
   const { styles, colors } = useStylesTreso()
   return (
     <TouchableOpacity style={styles.tuile} onPress={onPress || (() => router.push(route))}
-      accessibilityRole="button" accessibilityLabel={`${titre}, ${sous}`}>
-      <View style={styles.tuileIcone}>
-        <MaterialCommunityIcons name={ICONES_RACCOURCIS[icone] || 'apps'} size={20} color={colors.primary} />
+      accessibilityRole="button" accessibilityLabel={[titre, sous, detail].filter(Boolean).join(', ')}>
+      <View style={[styles.tuileBande, { backgroundColor: couleur }]} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Pastille icone={icone} couleur={couleur} taille={40} />
+        <MaterialCommunityIcons name="arrow-top-right" size={18} color={colors.textMuted} />
       </View>
-      <Text style={styles.tuileTitre}>{titre}</Text>
-      <Text style={styles.tuileSous}>{sous}</Text>
+      <Text style={[styles.tuileTitre, { marginTop: 10 }]}>{titre}</Text>
+      {sous ? <Text style={[styles.tuileMontant, { color: couleur }]}>{sous}</Text> : null}
+      {detail ? <Text style={styles.tuileSous}>{detail}</Text> : null}
     </TouchableOpacity>
   )
 }

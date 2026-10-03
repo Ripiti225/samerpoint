@@ -3,12 +3,13 @@
 // déroule, et listes « loyers payés » / « dettes remboursées ».
 // Logique : lib/historique.js
 // ──────────────────────────────────────────────────────────────────────────────
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { useMemo, useState } from 'react'
 import { Text, TouchableOpacity, View } from 'react-native'
 
 import { anneesDisponibles, dettesRemboursees, loyersPayes } from '../../lib/historique'
 import { LIBELLES_CATEGORIE, aujourdhuiISO, fmt, formatDateFR, libelleMois, libelleMoisCourt } from '../../lib/tresorerie'
-import { Bouton, Puces, useStylesTreso } from './commun'
+import { ItemIcone, Puces, TitreSection, styleCategorie, useStylesTreso } from './commun'
 import { titreDu } from './du'
 
 const MOIS_COURTS = ['Janv.', 'Févr.', 'Mars', 'Avr.', 'Mai', 'Juin', 'Juil.', 'Août', 'Sept.', 'Oct.', 'Nov.', 'Déc.']
@@ -39,12 +40,16 @@ export function ChoixPeriode({ dates = [], valeur, onChange }) {
 
 // « Historique » qui se déroule sous la liste du jour.
 export function BlocHistorique({ titre, children }) {
-  const { styles } = useStylesTreso()
+  const { styles, colors } = useStylesTreso()
   const [ouvert, setOuvert] = useState(false)
   return (
     <View style={{ marginTop: 12 }}>
-      <Bouton secondaire titre={`${ouvert ? '▴' : '▾'} ${titre}`} onPress={() => setOuvert(o => !o)} />
-      {ouvert && <View style={[styles.carte, { marginTop: 8 }]}>{children}</View>}
+      <TouchableOpacity style={styles.histoBouton} onPress={() => setOuvert(o => !o)} accessibilityRole="button" accessibilityState={{ expanded: ouvert }}>
+        <MaterialCommunityIcons name="history" size={18} color={colors.primary} />
+        <Text style={styles.histoBoutonTxt}>{titre}</Text>
+        <MaterialCommunityIcons name={ouvert ? 'chevron-up' : 'chevron-down'} size={20} color={colors.primary} />
+      </TouchableOpacity>
+      {ouvert && <View style={{ marginTop: 10 }}>{children}</View>}
     </View>
   )
 }
@@ -65,22 +70,14 @@ export function HistoriqueLoyersPayes({ donnees, nomResto, onOuvrir }) {
   return (
     <BlocHistorique titre="Historique des loyers payés">
       <ChoixPeriode dates={loyers.map(d => d.mois)} valeur={periode} onChange={setPeriode} />
-      <View style={styles.ligne}>
-        <Text style={styles.lbl}>{lignes.length} loyer{lignes.length > 1 ? 's' : ''} payé{lignes.length > 1 ? 's' : ''}</Text>
-        <Text style={[styles.ligneValeur, { color: colors.success }]}>{fmt(total)} F</Text>
-      </View>
+      <TitreSection icone="check-circle-outline" couleur={colors.success}
+        titre={`${lignes.length} loyer${lignes.length > 1 ? 's' : ''} payé${lignes.length > 1 ? 's' : ''}`} droite={`${fmt(total)} F`} />
       {lignes.length === 0 && <Text style={styles.vide}>Aucun loyer payé sur cette période.</Text>}
       {lignes.map(({ du, paiements, soldeLe }) => (
-        <TouchableOpacity key={du.id} style={styles.item} onPress={() => onOuvrir(du)}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.itemTitre}>{nomResto(du.restaurant_id)} · {libelleMois(du.mois)}</Text>
-            <Text style={styles.petit}>
-              payé le {formatDateFR(soldeLe)} · {comptesDe(paiements, donnees.comptes)}
-              {paiements.length > 1 ? ` · en ${paiements.length} fois` : ''}
-            </Text>
-          </View>
-          <Text style={styles.ligneValeur}>{fmt(du.montant_du)}</Text>
-        </TouchableOpacity>
+        <ItemIcone key={du.id} onPress={() => onOuvrir(du)} icone={styleCategorie('loyer').icone} couleur={colors.success}
+          titre={`${nomResto(du.restaurant_id)} · ${libelleMois(du.mois)}`}
+          sous={`payé le ${formatDateFR(soldeLe)} · ${comptesDe(paiements, donnees.comptes)}${paiements.length > 1 ? ` · en ${paiements.length} fois` : ''}`}
+          droite={fmt(du.montant_du)} />
       ))}
       <Text style={styles.petit}>Mois du loyer (consommé). Un appui ouvre le détail des versements.</Text>
     </BlocHistorique>
@@ -97,24 +94,15 @@ export function HistoriqueDettesRemboursees({ donnees, nomResto, avecCreanciers,
   return (
     <BlocHistorique titre="Historique des dettes remboursées">
       <ChoixPeriode dates={(donnees.paiements || []).map(p => p.date)} valeur={periode} onChange={setPeriode} />
-      <View style={styles.ligne}>
-        <Text style={styles.lbl}>{lignes.length} remboursée{lignes.length > 1 ? 's' : ''}</Text>
-        <Text style={[styles.ligneValeur, { color: colors.success }]}>{fmt(total)} F</Text>
-      </View>
+      <TitreSection icone="check-circle-outline" couleur={colors.success}
+        titre={`${lignes.length} remboursée${lignes.length > 1 ? 's' : ''}`} droite={`${fmt(total)} F`} />
       {lignes.length === 0 && <Text style={styles.vide}>Aucune dette remboursée sur cette période.</Text>}
       {lignes.map(({ du, paiements, soldeLe, retard }) => (
-        <TouchableOpacity key={du.id} style={styles.item} onPress={() => onOuvrir(du)}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.itemTitre}>
-              {LIBELLES_CATEGORIE[du.categorie]} · {titreDu(du, nomResto)}{du.mois ? ` · ${libelleMoisCourt(du.mois)}` : ''}
-            </Text>
-            <Text style={styles.petit}>
-              remboursée le {formatDateFR(soldeLe)} · {comptesDe(paiements, donnees.comptes)}
-              {retard ? ` · ${retard} j après la date limite` : ''}{du.est_pret ? ' · prêt' : ''}
-            </Text>
-          </View>
-          <Text style={styles.ligneValeur}>{fmt(du.montant_du)}</Text>
-        </TouchableOpacity>
+        <ItemIcone key={du.id} onPress={() => onOuvrir(du)}
+          icone={styleCategorie(du.categorie).icone} couleur={styleCategorie(du.categorie).couleur}
+          titre={`${LIBELLES_CATEGORIE[du.categorie]} · ${titreDu(du, nomResto)}${du.mois ? ` · ${libelleMoisCourt(du.mois)}` : ''}`}
+          sous={`remboursée le ${formatDateFR(soldeLe)} · ${comptesDe(paiements, donnees.comptes)}${retard ? ` · ${retard} j après la date limite` : ''}${du.est_pret ? ' · prêt' : ''}`}
+          droite={fmt(du.montant_du)} />
       ))}
       <Text style={styles.petit}>Créanciers et prêts soldés, charges payées après leur date limite. Période = date du remboursement.</Text>
     </BlocHistorique>

@@ -10,10 +10,11 @@
 // ──────────────────────────────────────────────────────────────────────────────
 import { router } from 'expo-router'
 import { useMemo, useState } from 'react'
-import { Alert, Image, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { Alert, Image, SafeAreaView, ScrollView, Text, View } from 'react-native'
 
 import {
-  Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Puces, useStylesTreso, useTresorerie,
+  BarreRepartition, Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Hero, ItemIcone, Pastille, Puces,
+  TitreSection, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import { usePhoto } from '../lib/usePhoto'
 import {
@@ -44,6 +45,25 @@ const LIES = {
 
 const estEspeces = c => c?.nom === 'Espèces'
 const estTete = c => String(c?.nom || '').startsWith('Tête de fond')
+
+// Icône de chaque type de mouvement.
+const ICONES_TYPE = {
+  recalage: 'scale-balance', recu_banque: 'bank-transfer-in', paiement: 'cash-minus', partenaire: 'moped',
+  coffre: 'safe', direction: 'briefcase-outline', especes: 'cash-plus', virement: 'swap-horizontal',
+  pret: 'hand-coin-outline', autre: 'dots-horizontal',
+}
+
+// Icône et couleur d'un compte : banque, espèces ou tête de fond (OM, Wave, Djamo).
+function styleCompte(c) {
+  const nom = String(c?.nom || '')
+  if (estEspeces(c)) return { icone: 'cash-multiple', couleur: '#D97706' }
+  if (estTete(c)) {
+    if (/wave/i.test(nom)) return { icone: 'waves', couleur: '#0284C7' }
+    if (/djamo/i.test(nom)) return { icone: 'credit-card-outline', couleur: '#6366F1' }
+    return { icone: 'cellphone', couleur: '#EA580C' }
+  }
+  return { icone: 'bank', couleur: '#0E9F6E' }
+}
 
 export default function TresorerieBanqueScreen() {
   const { styles, colors } = useStylesTreso()
@@ -97,33 +117,46 @@ export default function TresorerieBanqueScreen() {
       <Entete titre="Banque et espèces" sous={donnees ? `Total ${fmt(total)} F` : null} />
       {bloque ? <EtatEcran {...t} autorise={peut(niveau, 'voir_banque')} /> : (
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContenu}>
-          {comptes.map(c => {
-            const dernierRecalage = c.mouvements.find(m => m.type === 'recalage')
-            return (
-              <View key={c.id} style={styles.carte}>
-                <View style={styles.ligne}>
-                  <Text style={styles.lbl}>{c.nom}</Text>
-                  <Text style={styles.petit}>
-                    {dernierRecalage ? `recalé le ${formatDateFR(dernierRecalage.date)}` : 'jamais recalé'}
-                  </Text>
-                </View>
-                <Text style={styles.grand}>{fmt(soldeCompte(c.mouvements))} F</Text>
-                {peutSaisir && (
-                  <View style={[styles.rangee, { marginTop: 10 }]}>
-                    <Bouton style={[styles.btnPetit, { flex: 1 }]} secondaire
-                      titre={!dernierRecalage ? 'Saisir le solde de départ' : estEspeces(c) ? 'Recaler sur la caisse' : estTete(c) ? 'Recaler sur le solde' : 'Recaler sur relevé'}
-                      onPress={() => setSaisie({ mode: 'recalage', compte: c })} />
-                    {estEspeces(c) ? (
-                      <Bouton style={[styles.btnPetit, { flex: 1 }]} titre="+ Entrée d'espèces" onPress={() => setEspeces(c)} />
-                    ) : (
-                      <Bouton style={[styles.btnPetit, { flex: 1 }]} titre={estTete(c) ? '+ Entrée' : '+ Reçu banque'}
-                        onPress={() => setSaisie({ mode: 'recu_banque', compte: c })} />
-                    )}
+          <Hero icone="bank" titre="Banque et espèces" valeur={`${fmt(total)} F`} sous={`${comptes.length} comptes · le solde est la somme des mouvements`}>
+            <View style={{ marginTop: 14 }}>
+              <BarreRepartition segments={comptes.map(c => ({ valeur: soldeCompte(c.mouvements), couleur: styleCompte(c).couleur }))} />
+            </View>
+          </Hero>
+
+          <View style={styles.comptesGrille}>
+            {comptes.map(c => {
+              const dernierRecalage = c.mouvements.find(m => m.type === 'recalage')
+              const sc = styleCompte(c)
+              return (
+                <View key={c.id} style={[styles.carte, styles.compteCarte]}>
+                  <View style={[styles.compteTrait, { backgroundColor: sc.couleur }]} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Pastille icone={sc.icone} couleur={sc.couleur} taille={36} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.itemTitre} numberOfLines={1}>{c.nom}</Text>
+                      <Text style={[styles.petit, { marginTop: 0 }]} numberOfLines={1}>
+                        {dernierRecalage ? `recalé le ${formatDateFR(dernierRecalage.date)}` : 'jamais recalé'}
+                      </Text>
+                    </View>
                   </View>
-                )}
-              </View>
-            )
-          })}
+                  <Text style={styles.compteSolde} numberOfLines={1} adjustsFontSizeToFit>{fmt(soldeCompte(c.mouvements))} F</Text>
+                  {peutSaisir && (
+                    <View style={{ gap: 6, marginTop: 10 }}>
+                      {estEspeces(c) ? (
+                        <Bouton style={styles.btnPetit} icone="plus" titre="Entrée d'espèces" onPress={() => setEspeces(c)} />
+                      ) : (
+                        <Bouton style={styles.btnPetit} icone="plus" titre={estTete(c) ? 'Entrée' : 'Reçu banque'}
+                          onPress={() => setSaisie({ mode: 'recu_banque', compte: c })} />
+                      )}
+                      <Bouton style={styles.btnPetit} secondaire icone="tune-variant"
+                        titre={!dernierRecalage ? 'Solde de départ' : 'Recaler'}
+                        onPress={() => setSaisie({ mode: 'recalage', compte: c })} />
+                    </View>
+                  )}
+                </View>
+              )
+            })}
+          </View>
 
           {!comptes.some(estEspeces) && (
             <Text style={[styles.petit, { marginBottom: 10 }]}>
@@ -132,14 +165,15 @@ export default function TresorerieBanqueScreen() {
           )}
           {peutSaisir && (
             <View style={[styles.rangee, { marginBottom: 12 }]}>
-              <Bouton style={[styles.btnPetit, { flex: 1 }]} secondaire titre="Virement entre comptes" onPress={() => setVirementVisible(true)} />
+              <Bouton style={{ flex: 1 }} icone="swap-horizontal" titre="Virement" onPress={() => setVirementVisible(true)} />
               {peut(niveau, 'voir_coffre') && (
-                <Bouton style={[styles.btnPetit, { flex: 1 }]} secondaire titre="Épargner (coffre)"
+                <Bouton style={{ flex: 1 }} secondaire icone="safe" titre="Épargner au coffre"
                   onPress={() => router.push('/tresorerie-coffre?op=epargner')} />
               )}
             </View>
           )}
 
+          <TitreSection icone="swap-vertical" titre="Mouvements" droite={`${mouvements.length}`} />
           <Puces
             valeur={filtre}
             onChange={setFiltre}
@@ -151,25 +185,22 @@ export default function TresorerieBanqueScreen() {
             ]}
           />
 
-          <View style={styles.carte}>
-            {mouvements.length === 0 && <Text style={styles.vide}>Aucun mouvement.</Text>}
-            {mouvements.slice(0, 300).map(m => (
-              <TouchableOpacity key={m.id} style={styles.item} onLongPress={peutSaisir ? () => confirmerSuppression(m) : undefined}
-                delayLongPress={500} activeOpacity={peutSaisir ? 0.7 : 1}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.itemTitre}>{m.libelle || LIBELLES_TYPE[m.type]}</Text>
-                  <Text style={styles.petit}>
-                    {formatDateFR(m.date)} · {nomCompte(m.compte_id)} · {LIBELLES_TYPE[m.type] || 'Mouvement'}{m.photo_url ? ' · 📷' : ''}
-                    {m.cree_par_nom ? ` · ${m.cree_par_nom}` : ''}
-                  </Text>
-                </View>
-                <Text style={[styles.ligneValeur, { color: m.montant >= 0 ? colors.success : colors.error }]}>
-                  {m.montant >= 0 ? '+ ' : '− '}{fmt(Math.abs(m.montant))}
-                </Text>
-              </TouchableOpacity>
-            ))}
-            {mouvements.length > 300 && <Text style={styles.petit}>300 derniers mouvements affichés sur {mouvements.length}.</Text>}
-          </View>
+          {mouvements.length === 0 && <Text style={styles.vide}>Aucun mouvement.</Text>}
+          {mouvements.slice(0, 300).map(m => {
+            const entree = m.montant >= 0
+            return (
+              <ItemIcone key={m.id}
+                onLongPress={peutSaisir ? () => confirmerSuppression(m) : undefined}
+                icone={ICONES_TYPE[m.type] || 'swap-horizontal'} couleur={entree ? colors.success : colors.error}
+                titre={m.libelle || LIBELLES_TYPE[m.type]}
+                sous={[formatDateFR(m.date), nomCompte(m.compte_id), LIBELLES_TYPE[m.type] || 'Mouvement', m.photo_url ? 'photo' : '', m.cree_par_nom || '']
+                  .filter(Boolean).join(' · ')}
+                droite={`${entree ? '+ ' : '− '}${fmt(Math.abs(m.montant))}`}
+                couleurDroite={entree ? colors.successDark : colors.error}
+              />
+            )
+          })}
+          {mouvements.length > 300 && <Text style={styles.petit}>300 derniers mouvements affichés sur {mouvements.length}.</Text>}
           {peutSaisir && <Text style={styles.petit}>Appui long sur un mouvement pour le supprimer.</Text>}
         </ScrollView>
       )}
@@ -271,7 +302,7 @@ function FeuilleMouvement({ saisie, onFermer, user, apres }) {
       {photo
         ? <Image source={{ uri: photo }} style={{ width: '100%', height: 160, borderRadius: 10, marginBottom: 12 }} resizeMode="cover" />
         : null}
-      <Bouton secondaire titre={photo ? 'Changer la photo' : '📷 Ajouter une photo'} onPress={ajouterPhoto} occupe={photoEnCours} style={{ marginBottom: 14 }} />
+      <Bouton secondaire icone="camera-outline" titre={photo ? 'Changer la photo' : 'Ajouter une photo'} onPress={ajouterPhoto} occupe={photoEnCours} style={{ marginBottom: 14 }} />
       <Bouton titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
       <Text style={[styles.petit, { marginTop: 10, color: colors.textMuted }]}>
         {estRecalage ? 'Le recalage corrige le solde sans effacer l\'historique.' : 'Le montant s\'ajoute au solde du compte.'}

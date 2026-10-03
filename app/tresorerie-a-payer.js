@@ -9,12 +9,14 @@
 // Loyers : au paiement, le mois retenu par le propriétaire se choisit à la main.
 // Spéc : docs/superpowers/specs/2026-10-02-nouvelle-tresorerie-design.md
 // ──────────────────────────────────────────────────────────────────────────────
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, SafeAreaView, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native'
 
 import {
-  Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Puces, useStylesTreso, useTresorerie,
+  Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Hero, HeroCase, ItemIcone, Pastille, Puces, TitreSection,
+  styleCategorie, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import { Badge, FeuilleDetail, FeuillePaiement, FeuillePrevision, couleursStatut, titreDu } from '../components/tresorerie/du'
 import { HistoriqueDettesRemboursees, HistoriqueLoyersPayes } from '../components/tresorerie/historique'
@@ -83,18 +85,43 @@ export default function TresorerieAPayerScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Entete titre="À payer" sous={onglet ? `${LIBELLES_ONGLET[onglet]} · reste ${fmt(resteOnglet)} F` : null} />
+      <Entete titre="À payer" sous={onglet ? LIBELLES_ONGLET[onglet] : null} />
       {bloque ? <EtatEcran {...t} autorise={onglets.length > 0} /> : (
         <>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.ongletsBarre} contentContainerStyle={styles.onglets}>
-            {onglets.map(c => (
-              <TouchableOpacity key={c} style={[styles.onglet, onglet === c && styles.ongletActif]} onPress={() => setOnglet(c)}>
-                <Text style={[styles.ongletTxt, onglet === c && styles.ongletTxtActif]}>{LIBELLES_ONGLET[c]}</Text>
-              </TouchableOpacity>
-            ))}
+            {onglets.map(c => {
+              const actif = onglet === c
+              const sc = styleCategorie(c)
+              return (
+                <TouchableOpacity key={c} style={[styles.onglet, actif && styles.ongletActif]} onPress={() => setOnglet(c)}>
+                  <MaterialCommunityIcons name={sc.icone} size={16} color={actif ? '#FFFFFF' : sc.couleur} />
+                  <Text style={[styles.ongletTxt, actif && styles.ongletTxtActif]}>{LIBELLES_ONGLET[c]}</Text>
+                </TouchableOpacity>
+              )
+            })}
           </ScrollView>
 
           <ScrollView style={styles.body} contentContainerStyle={styles.bodyContenu}>
+            {onglet && (
+              <Hero icone={styleCategorie(onglet).icone} titre={`${LIBELLES_ONGLET[onglet]} · reste à payer`}
+                valeur={`${fmt(resteOnglet)} F`}
+                sous={EN_RETARD.includes(onglet)
+                  ? `${dusOnglet.length} ligne${dusOnglet.length > 1 ? 's' : ''} en retard`
+                  : CATEGORIES_JOUR_COMMUN.includes(onglet)
+                    ? `Date limite : le ${jourCommun(donnees.echeances, onglet)} du mois suivant`
+                    : onglet === 'bail'
+                      ? 'Un contrat par restaurant, à sa date limite'
+                      : 'Mois terminés seulement : le mois en cours n\'est pas encore dû'}>
+                {!EN_RETARD.includes(onglet) && (
+                  <View style={styles.heroCases}>
+                    <HeroCase label="Dette récente" couleur="#FDBA74"
+                      valeur={fmt(dusOnglet.filter(d => classement[d.id] === 'dette_recente').reduce((x, d) => x + resteDu(d, parDu[d.id]), 0))} />
+                    <HeroCase label="Dette" couleur="#FCA5A5"
+                      valeur={fmt(dusOnglet.filter(d => classement[d.id] === 'dette').reduce((x, d) => x + resteDu(d, parDu[d.id]), 0))} />
+                  </View>
+                )}
+              </Hero>
+            )}
             {onglet === 'loyer' && (
               <ListeLoyers
                 dus={dusOnglet} loyers={donnees.loyers} paiements={donnees.paiements} parDu={parDu}
@@ -129,30 +156,24 @@ export default function TresorerieAPayerScreen() {
               </View>
             )}
 
-            {CATEGORIES_JOUR_COMMUN.includes(onglet) && (
-              <Text style={[styles.petit, { marginTop: 8 }]}>
-                Date limite : le {jourCommun(donnees.echeances, onglet)} du mois suivant, pour tous les restaurants.
-              </Text>
-            )}
-
             <View style={{ gap: 8, marginTop: 10 }}>
               {onglet === 'loyer' && peut(niveau, 'saisir_charges') && (
-                <Bouton secondaire titre="Régler les loyers des restaurants" onPress={() => setReglage('loyer')} />
+                <Bouton secondaire icone="cog-outline" titre="Régler les loyers des restaurants" onPress={() => setReglage('loyer')} />
               )}
               {CATEGORIES_MONTANT_FIXE.includes(onglet) && peut(niveau, 'saisir_charges') && (
-                <Bouton secondaire titre="Régler les montants par restaurant" onPress={() => setReglage('montants')} />
+                <Bouton secondaire icone="cog-outline" titre="Régler les montants par restaurant" onPress={() => setReglage('montants')} />
               )}
               {onglet === 'bail' && peut(niveau, 'saisir_charges') && (
-                <Bouton titre="Saisir les baux d'une année" onPress={() => setReglage('bail')} />
+                <Bouton icone="file-sign" titre="Saisir les baux d'une année" onPress={() => setReglage('bail')} />
               )}
               {CATEGORIES_JOUR_COMMUN.includes(onglet) && peut(niveau, 'saisir_charges') && (
-                <Bouton secondaire titre="Changer la date limite" onPress={() => setReglage('echeance')} />
+                <Bouton secondaire icone="calendar-edit" titre="Changer la date limite" onPress={() => setReglage('echeance')} />
               )}
               {TITRES_SAISIE[onglet] && peut(niveau, 'saisir_charges') && (
-                <Bouton titre={TITRES_SAISIE[onglet]} onPress={() => setReglage('mois')} />
+                <Bouton icone="table-edit" titre={TITRES_SAISIE[onglet]} onPress={() => setReglage('mois')} />
               )}
               {onglet === 'dette' && peut(niveau, 'saisir_dus') && (
-                <Bouton titre="+ Dette" onPress={() => setEdition({ categorie: 'dette' })} />
+                <Bouton icone="plus" titre="Ajouter une dette" onPress={() => setEdition({ categorie: 'dette' })} />
               )}
             </View>
           </ScrollView>
@@ -227,38 +248,45 @@ function ListeLoyers({ dus, loyers, paiements, parDu, classement, aujourdhui, no
         const r = resume[id] || { reste: 0, ouverts: [] }
         return (
           <View key={id} style={styles.carte}>
-            <View style={styles.ligne}>
-              <TouchableOpacity style={{ flex: 1 }} onPress={() => router.push(`/tresorerie-restaurant?id=${id}`)}>
-                <Text style={styles.itemTitre}>{nomResto(id)}</Text>
-                <Text style={[styles.petit, { color: colors.primary, fontWeight: '700' }]}>Historique du restaurant ›</Text>
-              </TouchableOpacity>
-              <Text style={[styles.ligneValeur, { color: r.reste ? colors.error : colors.success }]}>
-                {r.reste ? `doit ${fmt(r.reste)} F` : 'à jour'}
-              </Text>
-            </View>
-            {l && <Text style={[styles.petit, { marginBottom: 6 }]}>Loyer {fmt(l.montant)} F / mois · à payer avant le {l.jour_echeance} du mois suivant</Text>}
+            <TouchableOpacity style={styles.carteEntete} onPress={() => router.push(`/tresorerie-restaurant?id=${id}`)} activeOpacity={0.7}>
+              <Pastille icone="storefront-outline" couleur={r.reste ? colors.error : colors.success} taille={42} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.itemTitre, { fontSize: 16 }]} numberOfLines={1}>{nomResto(id)}</Text>
+                {l
+                  ? <Text style={styles.petit}>{fmt(l.montant)} F / mois · avant le {l.jour_echeance} du mois suivant</Text>
+                  : <Text style={styles.petit}>Loyer pas encore réglé</Text>}
+              </View>
+              <View style={[styles.etatPilule, { backgroundColor: r.reste ? colors.errorLight : colors.successLight }]}>
+                <Text style={[styles.etatPiluleTxt, { color: r.reste ? colors.errorDark : colors.successDark }]}>
+                  {r.reste ? `doit ${fmt(r.reste)}` : 'à jour'}
+                </Text>
+              </View>
+            </TouchableOpacity>
             {r.ouverts.map(d => {
               const p = parDu[d.id] || []
               const st = classement[d.id] || 'a_payer'
               const suffixe = d.mois > moisCourant ? ' (d\'avance)' : d.mois === moisCourant ? ' (en cours)' : ''
               return (
-                <TouchableOpacity key={d.id} style={[styles.item, { borderLeftWidth: 4, borderLeftColor: cs[st].trait, paddingLeft: 8 }]}
-                  onPress={() => onOuvrir(d)}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.itemTitre}>{libelleMois(d.mois)}{suffixe}</Text>
-                    <Text style={styles.petit}>
-                      {totalPaye(p) > 0 ? `payé ${fmt(totalPaye(p))} · ` : ''}
-                      <Text style={{ fontWeight: '800', color: colors.text }}>reste {fmt(resteDu(d, p))}</Text>
-                      {EN_RETARD.includes(st) ? ` · ${texteRetard(d, aujourdhui)}` : ` · avant le ${formatDateFR(d.echeance)}`}
-                    </Text>
-                  </View>
-                  <Badge c={cs[st]} />
-                </TouchableOpacity>
+                <ItemIcone key={d.id} onPress={() => onOuvrir(d)}
+                  icone="calendar-month-outline" couleur={cs[st].trait}
+                  titre={`${libelleMois(d.mois)}${suffixe}`}
+                  sous={[
+                    totalPaye(p) > 0 ? `payé ${fmt(totalPaye(p))}` : '',
+                    EN_RETARD.includes(st) ? texteRetard(d, aujourdhui) : `avant le ${formatDateFR(d.echeance)}`,
+                  ].filter(Boolean).join(' · ')}
+                  droite={`${fmt(resteDu(d, p))} F`}
+                  sousDroite={<Badge c={cs[st]} />}
+                />
               )
             })}
             {peutPayer && (r.ouverts.length > 0 || l) && (
-              <Bouton titre="Payer" style={{ marginTop: 8 }} onPress={() => onPayer(id)} />
+              <Bouton icone="cash-fast" titre="Payer un loyer" style={{ marginTop: 4 }} onPress={() => onPayer(id)} />
             )}
+            <TouchableOpacity style={styles.lienHistorique} onPress={() => router.push(`/tresorerie-restaurant?id=${id}`)}>
+              <MaterialCommunityIcons name="history" size={15} color={colors.primary} />
+              <Text style={styles.lienHistoriqueTxt}>Historique du restaurant</Text>
+              <MaterialCommunityIcons name="chevron-right" size={16} color={colors.primary} />
+            </TouchableOpacity>
           </View>
         )
       })}
@@ -288,9 +316,17 @@ function ListeDus({ categorie, dus, parDu, classement, aujourdhui, moisCourant, 
     const enCours = categorie !== 'bail' && g.cle >= moisCourant
     return (
       <View key={g.cle} style={styles.carte}>
-        <View style={styles.ligne}>
-          <Text style={styles.lbl}>{LIBELLES_CATEGORIE[categorie]} · {g.titre}{enCours ? ' (en cours)' : ''}</Text>
-          <Text style={[styles.ligneValeur, { color: resteGroupe ? colors.error : colors.success }]}>reste {fmt(resteGroupe)}</Text>
+        <View style={[styles.carteEntete, { marginBottom: 12 }]}>
+          <Pastille icone="calendar-month-outline" couleur={styleCategorie(categorie).couleur} taille={36} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.itemTitre, { fontSize: 16 }]}>{g.titre}</Text>
+            <Text style={styles.petit}>{LIBELLES_CATEGORIE[categorie]}{enCours ? ' · en cours' : ''} · {g.dus.length} restaurant{g.dus.length > 1 ? 's' : ''}</Text>
+          </View>
+          <View style={[styles.etatPilule, { backgroundColor: resteGroupe ? colors.errorLight : colors.successLight }]}>
+            <Text style={[styles.etatPiluleTxt, { color: resteGroupe ? colors.errorDark : colors.successDark }]}>
+              {resteGroupe ? `reste ${fmt(resteGroupe)}` : 'tout payé'}
+            </Text>
+          </View>
         </View>
         {g.dus
           .sort((a, b) => titreDu(a, nomResto).localeCompare(titreDu(b, nomResto)))
@@ -299,16 +335,16 @@ function ListeDus({ categorie, dus, parDu, classement, aujourdhui, moisCourant, 
             const reste = resteDu(d, p)
             const st = classement[d.id] || 'a_payer'
             return (
-              <TouchableOpacity key={d.id} style={styles.item} onPress={() => onOuvrir(d)}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.itemTitre}>{titreDu(d, nomResto)}</Text>
-                  <Text style={styles.petit}>
-                    dû {fmt(d.montant_du)} · payé {fmt(totalPaye(p))} · <Text style={{ fontWeight: '800', color: colors.text }}>reste {fmt(reste)}</Text>
-                    {EN_RETARD.includes(st) ? ` · ${texteRetard(d, aujourdhui)}` : d.echeance && reste ? ` · avant le ${formatDateFR(d.echeance)}` : ''}
-                  </Text>
-                </View>
-                <Badge c={cs[st]} />
-              </TouchableOpacity>
+              <ItemIcone key={d.id} onPress={() => onOuvrir(d)}
+                icone="storefront-outline" couleur={cs[st].trait}
+                titre={titreDu(d, nomResto)}
+                sous={[
+                  `dû ${fmt(d.montant_du)} · payé ${fmt(totalPaye(p))}`,
+                  EN_RETARD.includes(st) ? texteRetard(d, aujourdhui) : d.echeance && reste ? `avant le ${formatDateFR(d.echeance)}` : '',
+                ].filter(Boolean).join(' · ')}
+                droite={`${fmt(reste)} F`}
+                sousDroite={<Badge c={cs[st]} />}
+              />
             )
           })}
       </View>
@@ -328,31 +364,26 @@ function ListeDettes({ onglet, dus, parDu, aujourdhui, nomResto, onOuvrir }) {
   const tries = [...dus].sort((a, b) => (a.echeance || '9999').localeCompare(b.echeance || '9999'))
   const total = tries.reduce((s, d) => s + resteDu(d, parDu[d.id]), 0)
   return (
-    <View style={styles.carte}>
-      <View style={styles.ligne}>
-        <Text style={styles.lbl}>{LIBELLES_ONGLET[onglet]} · {tries.length} ligne{tries.length > 1 ? 's' : ''}</Text>
-        <Text style={[styles.ligneValeur, { color: colors.error }]}>{fmt(total)} F</Text>
-      </View>
+    <>
+      <TitreSection icone={styleCategorie(onglet).icone} couleur={styleCategorie(onglet).couleur}
+        titre={`${tries.length} ligne${tries.length > 1 ? 's' : ''}`} droite={`${fmt(total)} F`} style={{ marginTop: 0 }} />
       {tries.map(d => {
         const p = parDu[d.id] || []
+        const sc = styleCategorie(d.categorie)
         return (
-          <TouchableOpacity key={d.id} style={styles.item} onPress={() => onOuvrir(d)}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.itemTitre}>
-                {LIBELLES_CATEGORIE[d.categorie]} · {titreDu(d, nomResto)}{d.mois ? ` · ${libelleMoisCourt(d.mois)}` : ''}
-              </Text>
-              <Text style={styles.petit}>
-                {totalPaye(p) > 0 ? `payé ${fmt(totalPaye(p))} · ` : ''}
-                <Text style={{ fontWeight: '800', color: colors.text }}>reste {fmt(resteDu(d, p))}</Text>
-                {d.echeance ? ` · ${texteRetard(d, aujourdhui)}` : ''}
-                {d.en_dette_depuis ? ` · en dette depuis le ${formatDateFR(d.en_dette_depuis)}` : ''}
-              </Text>
-            </View>
-            <Badge c={cs[onglet]} />
-          </TouchableOpacity>
+          <ItemIcone key={d.id} onPress={() => onOuvrir(d)} icone={sc.icone} couleur={sc.couleur}
+            titre={`${LIBELLES_CATEGORIE[d.categorie]} · ${titreDu(d, nomResto)}${d.mois ? ` · ${libelleMoisCourt(d.mois)}` : ''}`}
+            sous={[
+              totalPaye(p) > 0 ? `payé ${fmt(totalPaye(p))}` : '',
+              d.echeance ? texteRetard(d, aujourdhui) : '',
+              d.en_dette_depuis ? `en dette depuis le ${formatDateFR(d.en_dette_depuis)}` : '',
+            ].filter(Boolean).join(' · ') || null}
+            droite={`${fmt(resteDu(d, p))} F`} couleurDroite={colors.error}
+            sousDroite={<Badge c={cs[onglet]} />}
+          />
         )
       })}
-    </View>
+    </>
   )
 }
 

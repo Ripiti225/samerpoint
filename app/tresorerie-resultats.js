@@ -11,7 +11,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, SafeAreaView, ScrollView, Text, View } from 'react-native'
 
-import { Entete, EtatEcran, Puces, useStylesTreso, useTresorerie } from '../components/tresorerie/commun'
+import {
+  Entete, EtatEcran, Hero, HeroCase, Pastille, Progression, Puces, TitreSection, useStylesTreso, useTresorerie,
+} from '../components/tresorerie/commun'
 import { derniersMois, resultatsParRestoMois } from '../lib/direction'
 import { aujourdhuiISO, fmt, libelleMois, peut } from '../lib/tresorerie'
 import { chargerResultats } from '../lib/tresorerieDb'
@@ -71,35 +73,50 @@ export default function TresorerieResultatsScreen() {
 
           {r && (
             <>
-              <View style={styles.carte}>
-                <Text style={styles.lbl}>Groupe · {libelleMois(`${moisChoisi}-01`)}</Text>
-                <Text style={[styles.grand, { color: couleurNet(total) }]}>{signe(total)} F</Text>
-                {provisoire && <Text style={styles.petit}>Mois en cours : chiffre provisoire, il bougera jusqu'à la fin du mois.</Text>}
-              </View>
-
-              {lignes.map(({ resto, c }) => (
-                <View key={resto.id} style={[styles.carte, {
-                  borderLeftWidth: 5,
-                  borderLeftColor: !c ? colors.border : provisoire ? colors.textMuted : c.net < 0 ? colors.error : colors.success,
-                }]}>
-                  <View style={styles.ligne}>
-                    <Text style={[styles.itemTitre, { fontSize: 16 }]}>{resto.nom}</Text>
-                    <Text style={{ fontSize: 20, fontWeight: '800', fontVariant: ['tabular-nums'], color: c ? couleurNet(c.net) : colors.textMuted }}>
-                      {c ? `${signe(c.net)} F` : '—'}
-                    </Text>
-                  </View>
-                  {c ? (
-                    <View style={{ marginTop: 6, gap: 2 }}>
-                      <Detail label={`Encaissé net (${c.nbPoints} points validés)`} valeur={fmt(c.encaisse)} />
-                      <Detail label="Charges du mois" valeur={`− ${fmt(c.charges)}`} />
-                      {c.direction > 0 && <Detail label="Dépenses direction" valeur={`− ${fmt(c.direction)}`} />}
-                      {c.pubs > 0 && <Detail label="Pubs Yango / Glovo" valeur={`− ${fmt(c.pubs)}`} />}
-                    </View>
-                  ) : (
-                    <Text style={styles.petit}>Aucun point validé ce mois-ci.</Text>
-                  )}
+              <Hero icone="chart-box" titre={`Groupe · ${libelleMois(`${moisChoisi}-01`)}`}
+                valeur={`${signe(total)} F`} couleurValeur={!provisoire && total < 0 ? '#FECACA' : undefined}
+                sous={provisoire ? 'Mois en cours : chiffre provisoire, il bougera jusqu\'à la fin du mois.' : 'Somme des résultats nets des restaurants'}>
+                <View style={styles.heroCases}>
+                  <HeroCase label="En bénéfice" couleur="#A7F3D0" valeur={`${lignes.filter(l => l.c && l.c.net >= 0).length} resto`} />
+                  <HeroCase label="En perte" couleur="#FCA5A5" valeur={`${lignes.filter(l => l.c && l.c.net < 0).length} resto`} />
+                  <HeroCase label="Sans point" couleur="rgba(255,255,255,0.5)" valeur={`${lignes.filter(l => !l.c).length}`} />
                 </View>
-              ))}
+              </Hero>
+
+              <TitreSection icone="storefront-outline" titre="Par restaurant" droite="du meilleur au moins bon" />
+              {lignes.map(({ resto, c }) => {
+                const ton = !c ? colors.textMuted : provisoire ? colors.textSecondary : c.net < 0 ? colors.error : colors.success
+                const sorties = c ? c.charges + (c.direction || 0) + (c.pubs || 0) : 0
+                const part = c && c.encaisse > 0 ? Math.round((sorties / c.encaisse) * 100) : null
+                return (
+                  <View key={resto.id} style={styles.carte}>
+                    <View style={styles.carteEntete}>
+                      <Pastille icone={c && c.net < 0 ? 'trending-down' : 'trending-up'} couleur={ton} taille={42} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={[styles.itemTitre, { fontSize: 16 }]} numberOfLines={1}>{resto.nom}</Text>
+                        <Text style={styles.petit}>{c ? `${c.nbPoints} points validés` : 'Aucun point validé ce mois-ci'}</Text>
+                      </View>
+                      <Text style={{ fontSize: 19, fontWeight: '800', fontVariant: ['tabular-nums'], color: c ? couleurNet(c.net) : colors.textMuted }}>
+                        {c ? `${signe(c.net)}` : '—'}
+                      </Text>
+                    </View>
+                    {c && (
+                      <>
+                        <Detail point={colors.success} label="Encaissé net" valeur={fmt(c.encaisse)} />
+                        <Detail point={colors.error} label="Charges du mois" valeur={`− ${fmt(c.charges)}`} />
+                        {c.direction > 0 && <Detail point="#7C3AED" label="Dépenses direction" valeur={`− ${fmt(c.direction)}`} />}
+                        {c.pubs > 0 && <Detail point="#E11D48" label="Pubs Yango / Glovo" valeur={`− ${fmt(c.pubs)}`} />}
+                        {part !== null && (
+                          <View style={{ marginTop: 10 }}>
+                            <Progression pct={part} couleur={part > 100 ? colors.error : colors.warning} hauteur={8} />
+                            <Text style={[styles.petit, { marginTop: 5 }]}>Les sorties prennent {part} % de l'encaissé</Text>
+                          </View>
+                        )}
+                      </>
+                    )}
+                  </View>
+                )
+              })}
             </>
           )}
           <Text style={styles.petit}>
@@ -111,11 +128,14 @@ export default function TresorerieResultatsScreen() {
   )
 }
 
-function Detail({ label, valeur }) {
+function Detail({ label, valeur, point }) {
   const { styles } = useStylesTreso()
   return (
     <View style={styles.ligne}>
-      <Text style={[styles.ligneLabel, { fontSize: 13 }]}>{label}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: point }} />
+        <Text style={[styles.ligneLabel, { fontSize: 13 }]}>{label}</Text>
+      </View>
       <Text style={[styles.ligneValeur, { fontSize: 13 }]}>{valeur}</Text>
     </View>
   )

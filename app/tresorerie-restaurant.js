@@ -7,9 +7,11 @@
 // ──────────────────────────────────────────────────────────────────────────────
 import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
-import { SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { SafeAreaView, ScrollView, Text, View } from 'react-native'
 
-import { Entete, EtatEcran, Ligne, Puces, useStylesTreso, useTresorerie } from '../components/tresorerie/commun'
+import {
+  Entete, EtatEcran, Hero, HeroCase, ItemIcone, Puces, TitreSection, styleCategorie, useStylesTreso, useTresorerie,
+} from '../components/tresorerie/commun'
 import { Badge, FeuilleDetail, FeuillePaiement, FeuillePrevision, couleursStatut, titreDu } from '../components/tresorerie/du'
 import { ChoixPeriode, libellePeriode, periodeParDefaut } from '../components/tresorerie/historique'
 import { historiqueRestaurant } from '../lib/historique'
@@ -67,41 +69,35 @@ export default function TresorerieRestaurantScreen() {
           <Text style={styles.label}>Période</Text>
           <ChoixPeriode dates={dates} valeur={periode} onChange={setPeriode} />
 
-          <View style={styles.carte}>
-            <Text style={[styles.lbl, { marginBottom: 4 }]}>{nomResto(restaurantId)} · {libellePeriode(periode)}</Text>
-            <Ligne label="Dû" valeur={total.du} />
-            <Ligne label="Payé" valeur={total.paye} couleur={colors.success} />
-            <Ligne label="Reste" valeur={total.reste} fort couleur={total.reste ? colors.error : colors.success} />
-          </View>
+          <Hero icone="storefront-outline" titre={`${nomResto(restaurantId)} · ${libellePeriode(periode)}`}
+            valeur={total.reste ? `reste ${fmt(total.reste)} F` : 'Tout est payé'}>
+            <View style={styles.heroCases}>
+              <HeroCase label="Dû" valeur={fmt(total.du)} couleur="rgba(255,255,255,0.6)" />
+              <HeroCase label="Payé" valeur={fmt(total.paye)} couleur="#A7F3D0" />
+              <HeroCase label="Reste" valeur={fmt(total.reste)} couleur="#FCA5A5" />
+            </View>
+          </Hero>
 
           {mois.length === 0 && <Text style={styles.vide}>Rien sur cette période.</Text>}
           {mois.map(m => (
-            <View key={m.mois} style={styles.carte}>
-              <View style={styles.ligne}>
-                <Text style={styles.lbl}>{libelleMois(m.mois)}</Text>
-                <Text style={[styles.ligneValeur, { color: m.reste ? colors.error : colors.success }]}>
-                  {m.reste ? `reste ${fmt(m.reste)}` : 'tout payé'}
-                </Text>
-              </View>
+            <View key={m.mois}>
+              <TitreSection icone="calendar-month-outline" titre={libelleMois(m.mois)}
+                droite={<View style={[styles.etatPilule, { backgroundColor: m.reste ? colors.errorLight : colors.successLight }]}>
+                  <Text style={[styles.etatPiluleTxt, { color: m.reste ? colors.errorDark : colors.successDark }]}>
+                    {m.reste ? `reste ${fmt(m.reste)}` : 'tout payé'}
+                  </Text>
+                </View>} />
               {m.lignes.map(({ du, paye, reste }) => {
                 const st = classement[du.id] || 'a_payer'
+                const sc = styleCategorie(du.categorie)
                 return (
-                  <TouchableOpacity key={du.id} style={styles.item} onPress={() => setDetail(du)}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.itemTitre}>
-                        {LIBELLES_CATEGORIE[du.categorie]}{du.categorie === 'autre' ? ` · ${titreDu(du, nomResto)}` : ''}
-                      </Text>
-                      <Text style={styles.petit}>
-                        dû {fmt(du.montant_du)} · payé {fmt(paye)}
-                        {reste ? ` · reste ${fmt(reste)}` : ''}
-                        {du.echeance ? ` · date limite ${formatDateFR(du.echeance)}` : ''}
-                      </Text>
-                    </View>
-                    {cs[st] && <Badge c={cs[st]} />}
-                  </TouchableOpacity>
+                  <ItemIcone key={du.id} onPress={() => setDetail(du)} icone={sc.icone} couleur={sc.couleur}
+                    titre={`${LIBELLES_CATEGORIE[du.categorie]}${du.categorie === 'autre' ? ` · ${titreDu(du, nomResto)}` : ''}`}
+                    sous={`dû ${fmt(du.montant_du)} · payé ${fmt(paye)}${du.echeance ? ` · date limite ${formatDateFR(du.echeance)}` : ''}`}
+                    droite={reste ? `${fmt(reste)} F` : 'payé'} couleurDroite={reste ? colors.error : colors.successDark}
+                    sousDroite={cs[st] ? <Badge c={cs[st]} /> : null} />
                 )
               })}
-              <Text style={styles.petit}>Dû {fmt(m.du)} · payé {fmt(m.paye)}</Text>
             </View>
           ))}
           <Text style={styles.petit}>

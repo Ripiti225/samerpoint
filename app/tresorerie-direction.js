@@ -10,10 +10,11 @@
 // de tresorerie_dus) : jamais en dette récente, passées en Dette à la main.
 // ──────────────────────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Image, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { Alert, Image, SafeAreaView, ScrollView, Text, View } from 'react-native'
 
 import {
-  Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Puces, useStylesTreso, useTresorerie,
+  Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Hero, HeroCase, ItemIcone, Puces, TitreSection,
+  useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import { Badge, FeuilleDetail, FeuillePaiement, FeuillePrevision, couleursStatut } from '../components/tresorerie/du'
 import {
@@ -24,6 +25,19 @@ import {
   aujourdhuiISO, classerTous, fmt, formatDateFR, libelleMois, paiementsParDu, peut, resteDu, totalPaye,
 } from '../lib/tresorerie'
 import { ajouterDepenseDirection, enregistrerDu, supprimerDepenseDirection } from '../lib/tresorerieDb'
+
+// Icône et couleur de chaque catégorie de dépense direction.
+const STYLE_DEPENSE = {
+  fond: { icone: 'cash-refund', couleur: '#0E9F6E' },
+  fond_nature: { icone: 'package-variant-closed', couleur: '#D97706' },
+  reparation: { icone: 'hammer-wrench', couleur: '#DC2626' },
+  materiel: { icone: 'silverware-fork-knife', couleur: '#2563EB' },
+  equipement: { icone: 'stove', couleur: '#7C3AED' },
+  investissement: { icone: 'office-building-cog-outline', couleur: '#0891B2' },
+  retrait_perso: { icone: 'account-arrow-right-outline', couleur: '#64748B' },
+  divers: { icone: 'dots-horizontal-circle-outline', couleur: '#64748B' },
+}
+const styleDepense = id => STYLE_DEPENSE[id] || STYLE_DEPENSE.divers
 
 export default function TresorerieDirectionScreen() {
   const { styles, colors } = useStylesTreso()
@@ -83,57 +97,62 @@ export default function TresorerieDirectionScreen() {
   } else {
     contenu = (
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContenu}>
-        <View style={styles.carte}>
-          <View style={styles.ligne}>
-            <Text style={styles.lbl}>À payer · autres charges</Text>
-            <Text style={[styles.ligneValeur, { color: totalAPayer ? colors.error : colors.success }]}>{fmt(totalAPayer)} F</Text>
+        <Hero icone="briefcase" titre="Autres charges à payer" valeur={`${fmt(totalAPayer)} F`}
+          sous={aPayer.length ? `${aPayer.length} charge${aPayer.length > 1 ? 's' : ''} notée${aPayer.length > 1 ? 's' : ''} avant d'être payée${aPayer.length > 1 ? 's' : ''}` : 'Rien à payer'}>
+          <View style={styles.heroCases}>
+            <HeroCase label="Dépenses ce mois" couleur="#FDE68A"
+              valeur={fmt((parMois.find(([m]) => m === aujourdhui.slice(0, 7))?.[1] || []).reduce((x, dep) => x + Number(dep.montant || 0), 0))} />
           </View>
-          {aPayer.length === 0 && <Text style={styles.petit}>Rien à payer. Notez ici une charge avant de la payer.</Text>}
-          {aPayer.map(x => {
-            const p = parDu[x.id] || []
-            const st = classement[x.id] || 'a_payer'
-            return (
-              <TouchableOpacity key={x.id} style={styles.item} onPress={() => setDetail(x)}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.itemTitre}>{x.libelle || 'Autre charge'} · {nomResto(x.restaurant_id)}</Text>
-                  <Text style={styles.petit}>
-                    {categorieDirection(x.categorie_direction)?.label || 'Autre'}
-                    {totalPaye(p) > 0 ? ` · payé ${fmt(totalPaye(p))}` : ''} · <Text style={{ fontWeight: '800', color: colors.text }}>reste {fmt(resteDu(x, p))}</Text>
-                  </Text>
-                </View>
-                <Badge c={cs[st]} />
-              </TouchableOpacity>
-            )
-          })}
-          <Bouton secondaire titre="+ Charge à payer" onPress={() => setCharge({})} style={{ marginTop: 8 }} />
+        </Hero>
+
+        {aPayer.length > 0 && <TitreSection icone="clock-outline" couleur={colors.warningDark} titre="À payer" droite={`${fmt(totalAPayer)} F`} style={{ marginTop: 0 }} />}
+        {aPayer.map(x => {
+          const p = parDu[x.id] || []
+          const st = classement[x.id] || 'a_payer'
+          const sd = styleDepense(x.categorie_direction)
+          return (
+            <ItemIcone key={x.id} onPress={() => setDetail(x)} icone={sd.icone} couleur={sd.couleur}
+              titre={`${x.libelle || 'Autre charge'} · ${nomResto(x.restaurant_id)}`}
+              sous={`${categorieDirection(x.categorie_direction)?.label || 'Autre'}${totalPaye(p) > 0 ? ` · payé ${fmt(totalPaye(p))}` : ''}`}
+              droite={`${fmt(resteDu(x, p))} F`}
+              sousDroite={<Badge c={cs[st]} />}
+            />
+          )
+        })}
+        <View style={[styles.rangee, { marginBottom: 6, marginTop: 4 }]}>
+          <Bouton style={{ flex: 1 }} secondaire icone="clock-plus-outline" titre="Charge à payer" onPress={() => setCharge({})} />
+          <Bouton style={{ flex: 1 }} icone="plus" titre="Dépense payée" onPress={() => setSaisie(true)} />
         </View>
-        <Bouton titre="+ Nouvelle dépense direction (déjà payée)" onPress={() => setSaisie(true)} style={{ marginBottom: 12 }} />
+
         {parMois.length === 0 && <Text style={styles.vide}>Aucune dépense direction.</Text>}
         {parMois.map(([m, deps]) => (
-          <View key={m} style={styles.carte}>
-            <View style={styles.ligne}>
-              <Text style={styles.lbl}>{libelleMois(`${m}-01`)}</Text>
-              <Text style={styles.ligneValeur}>{fmt(deps.reduce((s, x) => s + Number(x.montant || 0), 0))} F</Text>
-            </View>
-            {deps.map(dep => (
-              <TouchableOpacity key={dep.id} style={styles.item} onLongPress={() => supprimer(dep)} delayLongPress={500}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.itemTitre}>{categorieDirection(dep.categorie)?.label} · {nomResto(dep.restaurant_id)}</Text>
-                  <Text style={styles.petit}>
-                    {formatDateFR(dep.date)} · {dep.source === 'compte' ? nomCompte(dep.compte_id) : dep.source === 'coffre' ? 'coffre' : 'espèces'}
-                    {dep.note ? ` · ${dep.note}` : ''}{dep.photo_url ? ' · 📷' : ''}
-                  </Text>
-                  <Text style={[styles.petit, { color: compteDansResultat(dep) ? colors.warningDark : colors.textMuted }]}>
-                    {dep.categorie === 'fond' && dep.restaurant_id
-                      ? (dep.point_id ? 'fond en espèces · compté dans le FC reçu d\'un point validé' : 'fond en espèces · ira dans le FC reçu du prochain point')
-                      : dep.categorie === 'fond_nature'
-                        ? 'fond en nature · déduit du résultat du restaurant'
-                        : compteDansResultat(dep) ? 'compte dans le résultat du restaurant' : 'hors résultat des restaurants'}
-                  </Text>
-                </View>
-                <Text style={[styles.ligneValeur, { color: colors.error }]}>− {fmt(dep.montant)}</Text>
-              </TouchableOpacity>
-            ))}
+          <View key={m}>
+            <TitreSection icone="calendar-month-outline" titre={libelleMois(`${m}-01`)}
+              droite={`${fmt(deps.reduce((s2, x) => s2 + Number(x.montant || 0), 0))} F`} />
+            {deps.map(dep => {
+              const sd = styleDepense(dep.categorie)
+              return (
+                <ItemIcone key={dep.id} onLongPress={() => supprimer(dep)} icone={sd.icone} couleur={sd.couleur}
+                  titre={`${categorieDirection(dep.categorie)?.label} · ${nomResto(dep.restaurant_id)}`}
+                  sous={
+                    <>
+                      <Text style={styles.petit}>
+                        {formatDateFR(dep.date)} · {dep.source === 'compte' ? nomCompte(dep.compte_id) : dep.source === 'coffre' ? 'coffre' : 'espèces'}
+                        {dep.note ? ` · ${dep.note}` : ''}{dep.photo_url ? ' · photo' : ''}
+                      </Text>
+                      <Text style={[styles.petit, { color: compteDansResultat(dep) ? colors.warningDark : colors.textMuted, fontWeight: '600' }]}>
+                        {dep.categorie === 'fond' && dep.restaurant_id
+                          ? (dep.point_id ? 'fond en espèces · compté dans le FC reçu d\'un point validé' : 'fond en espèces · ira dans le FC reçu du prochain point')
+                          : dep.categorie === 'fond_nature'
+                            ? 'fond en nature · déduit du résultat du restaurant'
+                            : compteDansResultat(dep) ? 'compte dans le résultat du restaurant' : 'hors résultat des restaurants'}
+                      </Text>
+                    </>
+                  }
+                  droite={`− ${fmt(dep.montant)}`} couleurDroite={colors.error}
+                />
+              )
+            })}
           </View>
         ))}
         <Text style={styles.petit}>Appui long sur une dépense pour la supprimer.</Text>

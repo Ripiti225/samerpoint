@@ -13,7 +13,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Alert, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
 
 import {
-  Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Ligne, Puces, useStylesTreso, useTresorerie,
+  Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Hero, HeroCase, Ligne, Pastille, Puces, STYLE_PARTENAIRE,
+  useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import ChampDate from '../components/ChampDate'
 import { choisirEtLireExcel } from '../lib/lireExcel'
@@ -85,6 +86,13 @@ export default function TresoreriePartenairesScreen() {
   } else {
     contenu = (
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContenu}>
+        <Hero icone="moped" titre="À recevoir des partenaires" valeur={`${fmt(total)} F`} sous="Périodes terminées seulement">
+          <View style={styles.heroCases}>
+            {PARTENAIRES.map(part => (
+              <HeroCase key={part} label={INFOS_PARTENAIRE[part].nom} valeur={fmt(vues[part]?.total || 0)} couleur={STYLE_PARTENAIRE[part]?.couleur} />
+            ))}
+          </View>
+        </Hero>
         {PARTENAIRES.map(part => (
           <CartePartenaire
             key={part} partenaire={part} vue={vues[part]} niveau={niveau}
@@ -106,7 +114,7 @@ export default function TresoreriePartenairesScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Entete titre="Partenaires à recevoir" sous={p ? `Total ${fmt(total)} F · périodes terminées` : null} />
+      <Entete titre="Partenaires à recevoir" sous="Yango · Glovo · Wave · Orange Money · Djamo" />
       {contenu}
 
       {p && (
@@ -128,8 +136,9 @@ export default function TresoreriePartenairesScreen() {
 // ── Carte d'un partenaire ───────────────────────────────────────────────────
 
 function CartePartenaire({ partenaire, vue, niveau, onOuvrir, onRegler, onImporter }) {
-  const { styles } = useStylesTreso()
+  const { styles, colors } = useStylesTreso()
   const info = INFOS_PARTENAIRE[partenaire]
+  const sp = STYLE_PARTENAIRE[partenaire] || { icone: 'handshake-outline', couleur: colors.primary }
   if (!vue) return null
 
   const { reg, situations } = vue
@@ -138,13 +147,21 @@ function CartePartenaire({ partenaire, vue, niveau, onOuvrir, onRegler, onImport
   const recues = situations.filter(s => s.terminee && s.aRecevoir === 0).slice(0, PERIODES_RECUES_VISIBLES)
 
   return (
-    <View style={styles.carte}>
-      <View style={styles.ligne}>
-        <Text style={[styles.itemTitre, { fontSize: 16 }]}>{info.icone} {info.nom}</Text>
-        <Text style={[styles.ligneValeur, { fontSize: 16 }]}>{fmt(vue.total)}</Text>
+    <View style={[styles.carte, { overflow: 'hidden', paddingTop: 18 }]}>
+      <View style={[styles.compteTrait, { backgroundColor: sp.couleur }]} />
+      <View style={styles.carteEntete}>
+        <Pastille icone={sp.icone} couleur={sp.couleur} taille={44} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[styles.itemTitre, { fontSize: 17 }]}>{info.nom}</Text>
+          <Text style={styles.petit}>{info.rythme}</Text>
+        </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={[styles.itemMontant, { fontSize: 18, color: vue.total ? colors.text : colors.textMuted }]}>{fmt(vue.total)} F</Text>
+          <Text style={styles.petit}>à recevoir</Text>
+        </View>
       </View>
       <Text style={styles.petit}>
-        {info.rythme} · {LIBELLES_MODE[vue.mode] || LIBELLES_MODE.restaurant}
+        {LIBELLES_MODE[vue.mode] || LIBELLES_MODE.restaurant}
         {reg.date_depart ? ` · suivi depuis le ${formatDateFR(reg.date_depart)}` : ''}
       </Text>
 
@@ -165,12 +182,12 @@ function CartePartenaire({ partenaire, vue, niveau, onOuvrir, onRegler, onImport
 
       <View style={[styles.rangee, { marginTop: 10 }]}>
         {info.importable && peut(niveau, 'recevoir_partenaires') && reg.date_depart && (
-          <Bouton style={[styles.btnPetit, { flex: 1 }]} secondaire titre={`📥 Importer export ${info.nom}`} onPress={onImporter} />
+          <Bouton style={[styles.btnPetit, { flex: 1 }]} secondaire icone="file-import-outline" titre={`Importer l'export`} onPress={onImporter} />
         )}
         {peut(niveau, 'regler_partenaires') && (
           <Bouton
             style={[styles.btnPetit, info.importable && reg.date_depart ? { flexShrink: 0, minWidth: 96, paddingHorizontal: 16 } : { flex: 1 }]}
-            secondaire titre="Régler" onPress={onRegler}
+            secondaire icone="cog-outline" titre="Régler" onPress={onRegler}
           />
         )}
       </View>
@@ -193,13 +210,14 @@ function LignePeriode({ s, onPress, enCours }) {
   return (
     <TouchableOpacity onPress={onPress}
       style={{
-        marginTop: 8, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.border,
+        marginTop: 8, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.borderLight,
         backgroundColor: enCours ? 'transparent' : colors.surfaceAlt, borderStyle: enCours ? 'dashed' : 'solid',
         opacity: enCours ? 0.75 : 1,
       }}>
       <View style={styles.ligne}>
         <Text style={styles.itemTitre}>{libellePeriode(s.periode)}</Text>
-        <View style={[styles.badge, { backgroundColor: badge.fond }]}>
+        <View style={[styles.badge, styles.badgeLigne, { backgroundColor: badge.fond }]}>
+          <View style={[styles.badgePoint, { backgroundColor: badge.texte }]} />
           <Text style={[styles.badgeTxt, { color: badge.texte }]}>{badge.label}</Text>
         </View>
       </View>
@@ -387,7 +405,7 @@ function FeuillePeriode({ ouverte, situation, vue, donnees, niveau, nomResto, us
           {peutRecevoir && (
             <View style={{ gap: 8, marginTop: 10 }}>
               {imp && <Bouton secondaire titre={`+ Pub ${info.nom}`} onPress={() => setPubVisible(true)} />}
-              <Bouton secondaire titre={imp ? "📥 Réimporter l'export" : '📥 Importer l\'export'} onPress={() => { onFermer(); onImporter() }} />
+              <Bouton secondaire icone="file-import-outline" titre={imp ? "Réimporter l'export" : 'Importer l\'export'} onPress={() => { onFermer(); onImporter() }} />
               {imp && <Bouton danger titre="Supprimer l'export importé" onPress={retirerImport} />}
             </View>
           )}
