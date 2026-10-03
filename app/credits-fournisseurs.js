@@ -18,6 +18,7 @@ import {
   SafeAreaView, ScrollView, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native'
+import { MaterialCommunityIcons } from '@expo/vector-icons'
 import * as XLSX from 'xlsx'
 import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
@@ -580,89 +581,144 @@ ${mouvements.map(m => {
     setRemettreAZeroId(null)
   }
 
+  // Couleurs et libellé selon le solde : doit / avance / soldé
+  function tonCredit(credit) {
+    if (credit < 0) return { c: colors.successDark, bg: colors.successLight, label: 'Avance', icone: 'arrow-down-circle-outline' }
+    if (credit === 0) return { c: colors.textMuted, bg: colors.surfaceAlt, label: 'Soldé', icone: 'check-circle-outline' }
+    return { c: colors.error, bg: colors.errorLight, label: 'Doit', icone: 'alert-circle-outline' }
+  }
+
   function renderCard(f) {
     const credit = f.credit_actuel || 0
     const isCotisation = credit < 0
     const isSolde = credit === 0
+    const ton = tonCredit(credit)
+    const initiales = (f.nom || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(m => m[0]).join('').toUpperCase()
 
     return (
-      <View key={f.id} style={[
-        styles.card,
-        isCotisation && styles.cardCotis,
-        !isCotisation && !isSolde && styles.cardDue,
-      ]}>
-        <View style={styles.cardHeader}>
+      <View key={f.id} style={[styles.card, !isSolde && { borderColor: ton.c + '40' }]}>
+        <TouchableOpacity style={styles.cardHeader} onPress={() => chargerHistorique(f)} activeOpacity={0.7}>
+          <View style={[styles.avatar, { backgroundColor: ton.bg }]}>
+            <Text style={[styles.avatarTxt, { color: ton.c }]}>{initiales}</Text>
+          </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.cardNom}>{f.nom}</Text>
+            <Text style={styles.cardNom} numberOfLines={1}>{f.nom}</Text>
             {peutVoirRestaurants && f.restaurant_nom ? (
-              <Text style={styles.cardResto}>{f.restaurant_nom}</Text>
+              <Text style={styles.cardResto} numberOfLines={1}>{f.restaurant_nom}</Text>
             ) : null}
           </View>
-          {isCotisation && (
-            <View style={[styles.badge, styles.badgeCotis]}>
-              <Text style={styles.badgeCotisTxt}>🟢 Avance</Text>
-            </View>
-          )}
-          {isSolde && (
-            <View style={[styles.badge, styles.badgeSolde]}>
-              <Text style={styles.badgeSoldeTxt}>✅ Soldé</Text>
-            </View>
-          )}
-          {!isCotisation && !isSolde && (
-            <View style={[styles.badge, styles.badgeDue]}>
-              <Text style={styles.badgeDueTxt}>🔴 Doit</Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.creditBox}>
-          {isCotisation ? (
-            <>
-              <Text style={styles.creditLabel}>Avance reçue</Text>
-              <Text style={[styles.creditVal, { color: '#3B6D11' }]}>{fmt(Math.abs(credit))}</Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.creditLabel}>{isSolde ? 'Crédit' : 'Crédit dû'}</Text>
-              <Text style={[styles.creditVal, { color: isSolde ? colors.textMuted : '#A32D2D' }]}>{fmt(credit)}</Text>
-            </>
-          )}
-        </View>
-
-        {peutModifier && (
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => {
-              setSelectedFourn(f)
-              setFormCredit({ montant: '', motif: '' })
-              setShowEditCredit(true)
-            }}
-          >
-            <Text style={styles.actionBtnTxt}>✏️ Modifier le crédit</Text>
-          </TouchableOpacity>
-        )}
-        {isCotisation && peutModifier && (
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: '#EAF3DE', borderColor: '#C0DD97', marginTop: 6 }]}
-            onPress={() => remettreAZero(f)}
-            disabled={remettreAZeroId === f.id}
-          >
-            <Text style={[styles.actionBtnTxt, { color: '#3B6D11' }]}>
-              {remettreAZeroId === f.id ? 'En cours...' : '✅ Remettre à 0'}
-            </Text>
-          </TouchableOpacity>
-        )}
-        {isSolde && peutModifier && (
-          <TouchableOpacity
-            style={[styles.histoBtn, { marginTop: 6, borderColor: '#E57373', backgroundColor: '#FFF5F5' }]}
-            onPress={() => { setArchivageErreur(null); setFournisseurAArchiver(f) }}
-          >
-            <Text style={[styles.histoBtnTxt, { color: '#C62828' }]}>🗑️ Archiver ce fournisseur</Text>
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity style={styles.histoBtn} onPress={() => chargerHistorique(f)}>
-          <Text style={styles.histoBtnTxt}>📋 Voir l'historique</Text>
+          <View style={[styles.badge, { backgroundColor: ton.bg }]}>
+            <MaterialCommunityIcons name={ton.icone} size={13} color={ton.c} />
+            <Text style={[styles.badgeTxt, { color: ton.c }]}>{ton.label}</Text>
+          </View>
         </TouchableOpacity>
+
+        <View style={styles.creditLigne}>
+          <Text style={styles.creditLabel}>{isCotisation ? 'Avance reçue' : isSolde ? 'Crédit' : 'Crédit dû'}</Text>
+          <Text style={[styles.creditVal, { color: ton.c }]}>{fmt(Math.abs(credit))}</Text>
+        </View>
+
+        <View style={styles.cardActions}>
+          <TouchableOpacity style={styles.cardBtn} onPress={() => chargerHistorique(f)}>
+            <MaterialCommunityIcons name="history" size={16} color={colors.textSecondary} />
+            <Text style={styles.cardBtnTxt}>Historique</Text>
+          </TouchableOpacity>
+          {peutModifier && (
+            <TouchableOpacity
+              style={[styles.cardBtn, { backgroundColor: colors.primaryLight }]}
+              onPress={() => {
+                setSelectedFourn(f)
+                setFormCredit({ montant: '', motif: '' })
+                setShowEditCredit(true)
+              }}
+            >
+              <MaterialCommunityIcons name="pencil-outline" size={16} color={colors.primary} />
+              <Text style={[styles.cardBtnTxt, { color: colors.primary }]}>Modifier</Text>
+            </TouchableOpacity>
+          )}
+          {isCotisation && peutModifier && (
+            <TouchableOpacity
+              style={[styles.cardBtn, { backgroundColor: colors.successLight }]}
+              onPress={() => remettreAZero(f)}
+              disabled={remettreAZeroId === f.id}
+            >
+              <MaterialCommunityIcons name="restore" size={16} color={colors.successDark} />
+              <Text style={[styles.cardBtnTxt, { color: colors.successDark }]}>
+                {remettreAZeroId === f.id ? 'En cours…' : 'Remettre à 0'}
+              </Text>
+            </TouchableOpacity>
+          )}
+          {isSolde && peutModifier && (
+            <TouchableOpacity
+              style={[styles.cardBtn, { backgroundColor: colors.errorLight }]}
+              onPress={() => { setArchivageErreur(null); setFournisseurAArchiver(f) }}
+            >
+              <MaterialCommunityIcons name="archive-outline" size={16} color={colors.error} />
+              <Text style={[styles.cardBtnTxt, { color: colors.error }]}>Archiver</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    )
+  }
+
+  // En-tête commun (chargement et écran)
+  function entete(sousTitre) {
+    return (
+      <View style={styles.header}>
+        <View style={styles.headerLigne}>
+          <TouchableOpacity
+            onPress={() => router.canGoBack() ? router.back() : router.replace('/accueil')}
+            style={styles.enteteBtn} accessibilityRole="button" accessibilityLabel="Retour"
+          >
+            <MaterialCommunityIcons name="chevron-left" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <View style={styles.headerCentre}>
+            <View style={styles.headerIcone}>
+              <MaterialCommunityIcons name="credit-card-clock" size={18} color="#FFFFFF" />
+            </View>
+            <View style={{ flexShrink: 1 }}>
+              <Text style={styles.headerTitre} numberOfLines={1}>Fournisseurs</Text>
+              <Text style={styles.headerSub} numberOfLines={1}>{sousTitre}</Text>
+            </View>
+          </View>
+          <View style={{ width: 40 }} />
+        </View>
+        {peutVoirRestaurants && restaurants.length > 0 && (
+          <TouchableOpacity style={styles.restoBtn} onPress={() => setShowRestoPicker(true)} accessibilityRole="button" accessibilityLabel="Filtrer par restaurant">
+            <MaterialCommunityIcons name={restoFilter ? 'storefront-outline' : 'earth'} size={17} color="#FFFFFF" />
+            <Text style={styles.restoTxt} numberOfLines={1}>
+              {restoFilter ? (restaurants.find(r => r.id === restoFilter)?.nom || 'Restaurant') : 'Tous les restaurants'}
+            </Text>
+            <MaterialCommunityIcons name="chevron-down" size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+        )}
+      </View>
+    )
+  }
+
+  // Tuile du résumé (total dû, avances…)
+  function tuileKpi(icone, label, valeur, couleur, fond) {
+    return (
+      <View style={styles.kpiTuile}>
+        <View style={[styles.kpiIcone, { backgroundColor: fond }]}>
+          <MaterialCommunityIcons name={icone} size={18} color={couleur} />
+        </View>
+        <Text style={styles.kpiLabel}>{label}</Text>
+        <Text style={[styles.kpiVal, { color: couleur }]} numberOfLines={1} adjustsFontSizeToFit>{valeur}</Text>
+      </View>
+    )
+  }
+
+  // Titre de section avec pastille d'icône
+  function titreSection(icone, titre, sous, couleur, fond) {
+    return (
+      <View style={styles.sectionHeader}>
+        <View style={[styles.sectionPastille, { backgroundColor: fond }]}>
+          <MaterialCommunityIcons name={icone} size={15} color={couleur} />
+        </View>
+        <Text style={styles.sectionTitre}>{titre}</Text>
+        <Text style={styles.sectionSub}>{sous}</Text>
       </View>
     )
   }
@@ -671,13 +727,7 @@ ${mouvements.map(m => {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/accueil')}>
-            <Text style={styles.back}>‹ Retour</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitre}>Fournisseurs & Cotisations</Text>
-          <View style={{ width: 80 }} />
-        </View>
+        {entete('Crédits et cotisations')}
         <View style={styles.loadingBox}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
@@ -699,92 +749,63 @@ ${mouvements.map(m => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/accueil')}>
-          <Text style={styles.back}>‹ Retour</Text>
-        </TouchableOpacity>
-        <View style={{ alignItems: 'center' }}>
-          <Text style={styles.headerTitre}>Fournisseurs & Cotisations</Text>
-          <Text style={styles.headerSub}>Statut automatique selon solde</Text>
+      {entete(`Crédits et cotisations · ${fournisseurs.length} actif${fournisseurs.length > 1 ? 's' : ''}`)}
+
+      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContenu} showsVerticalScrollIndicator={false}>
+        {/* Résumé */}
+        <View style={styles.kpiRow}>
+          {tuileKpi('alert-circle-outline', 'Total dû', fmt(totalDu), colors.error, colors.errorLight)}
+          {tuileKpi('arrow-down-circle-outline', 'Avances reçues', fmt(totalAvances), colors.successDark, colors.successLight)}
         </View>
-        <View style={{ width: 80, alignItems: 'flex-end', gap: 6 }}>
-          {peutModifier && (
-            <TouchableOpacity style={styles.exportBtn} onPress={() => {
+
+        {/* Outils du manager */}
+        {peutModifier && (
+          <View style={styles.outilsRangee}>
+            <TouchableOpacity style={styles.outilBtn} onPress={() => {
               setExportFilters(p => ({ ...p, restoId: restoFilter, fournId: null }))
               setShowExportModal(true)
             }}>
-              <Text style={styles.exportBtnTxt}>📄 Export</Text>
+              <MaterialCommunityIcons name="file-export-outline" size={17} color={colors.primary} />
+              <Text style={styles.outilTxt}>Exporter</Text>
             </TouchableOpacity>
-          )}
-          {peutModifier && (
-            <TouchableOpacity style={styles.exportBtn} onPress={() => router.push('/brouillons-fournisseurs')}>
-              <Text style={styles.exportBtnTxt}>🗂 Brouillons</Text>
+            <TouchableOpacity style={styles.outilBtn} onPress={() => router.push('/brouillons-fournisseurs')}>
+              <MaterialCommunityIcons name="file-document-edit-outline" size={17} color={colors.primary} />
+              <Text style={styles.outilTxt}>Brouillons</Text>
             </TouchableOpacity>
-          )}
-        </View>
-      </View>
+            {/* Recalcule la chaîne de crédit de tous les fournisseurs */}
+            <TouchableOpacity style={[styles.outilBtn, repairing && { opacity: 0.6 }]} onPress={confirmerFixTous} disabled={repairing}>
+              {repairing
+                ? <ActivityIndicator size="small" color={colors.primary} />
+                : <MaterialCommunityIcons name="wrench-outline" size={17} color={colors.primary} />}
+              <Text style={styles.outilTxt}>{repairing ? 'Recalcul…' : 'Tout recalculer'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-      {/* Fix tout — recalcule la chaîne de crédit de tous les fournisseurs */}
-      {peutModifier && (
-        <TouchableOpacity style={styles.fixAllBtn} onPress={confirmerFixTous} disabled={repairing}>
-          <Text style={styles.fixAllTxt}>
-            {repairing ? '🔧 Recalcul en cours…' : '🔧 Fix tout — recalculer tous les crédits'}
-          </Text>
-        </TouchableOpacity>
-      )}
-
-      {/* KPIs */}
-      <View style={styles.kpiRow}>
-        <View style={styles.kpiBox}>
-          <Text style={styles.kpiLabel}>Total dû</Text>
-          <Text style={[styles.kpiVal, { color: '#A32D2D' }]}>{fmt(totalDu)}</Text>
-        </View>
-        <View style={[styles.kpiBox, { borderLeftWidth: 0.5, borderLeftColor: colors.border }]}>
-          <Text style={styles.kpiLabel}>Avances reçues</Text>
-          <Text style={[styles.kpiVal, { color: '#3B6D11' }]}>{fmt(totalAvances)}</Text>
-        </View>
-        <View style={[styles.kpiBox, { borderLeftWidth: 0.5, borderLeftColor: colors.border }]}>
-          <Text style={styles.kpiLabel}>Total actifs</Text>
-          <Text style={styles.kpiVal}>{fournisseurs.length}</Text>
-        </View>
-      </View>
-
-      {/* Sélecteur restaurant */}
-      {peutVoirRestaurants && restaurants.length > 0 && (
-        <TouchableOpacity style={styles.restoSelector} onPress={() => setShowRestoPicker(true)}>
-          <Text style={styles.restoSelectorIcon}>🏪</Text>
-          <Text style={styles.restoSelectorTxt} numberOfLines={1}>
-            {restoFilter ? (restaurants.find(r => r.id === restoFilter)?.nom || 'Restaurant') : 'Tous les restaurants'}
-          </Text>
-          <Text style={styles.restoSelectorArrow}>▾</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Sélecteur de mois : soldes actuels ou mouvements d'un mois */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={[styles.moisBar, { flexGrow: 0 }]}
-        contentContainerStyle={{ paddingHorizontal: 12, gap: 8, alignItems: 'center' }}
-      >
-        <TouchableOpacity
-          style={[styles.moisChip, !moisSel && styles.moisChipActive]}
-          onPress={() => setMoisSel(null)}
+        {/* Sélecteur de mois : soldes actuels ou mouvements d'un mois */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.moisBar}
+          contentContainerStyle={{ gap: 8, alignItems: 'center', paddingRight: 4 }}
         >
-          <Text style={[styles.moisChipTxt, !moisSel && styles.moisChipTxtActive]}>Soldes actuels</Text>
-        </TouchableOpacity>
-        {derniersMois(6).map(mk => (
           <TouchableOpacity
-            key={mk}
-            style={[styles.moisChip, moisSel === mk && styles.moisChipActive]}
-            onPress={() => setMoisSel(mk)}
+            style={[styles.moisChip, !moisSel && styles.moisChipActive]}
+            onPress={() => setMoisSel(null)}
           >
-            <Text style={[styles.moisChipTxt, moisSel === mk && styles.moisChipTxtActive]}>{moisLabel(mk)}</Text>
+            <Text style={[styles.moisChipTxt, !moisSel && styles.moisChipTxtActive]}>Soldes actuels</Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+          {derniersMois(6).map(mk => (
+            <TouchableOpacity
+              key={mk}
+              style={[styles.moisChip, moisSel === mk && styles.moisChipActive]}
+              onPress={() => setMoisSel(mk)}
+            >
+              <Text style={[styles.moisChipTxt, moisSel === mk && styles.moisChipTxtActive]}>{moisLabel(mk)}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
 
-      <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
         {moisSel ? (
           /* ─── Vue : mouvements du mois (factures + paiements) ─── */
           loadingMois ? (
@@ -793,20 +814,11 @@ ${mouvements.map(m => {
             </View>
           ) : (
             <>
-              <View style={styles.moisTotalRow}>
-                <View style={styles.moisTotalBox}>
-                  <Text style={styles.kpiLabel}>Factures {moisLabel(moisSel)}</Text>
-                  <Text style={[styles.kpiVal, { color: '#A32D2D' }]}>{fmt(mouvMois?.totalFacture || 0)}</Text>
-                </View>
-                <View style={[styles.moisTotalBox, { borderLeftWidth: 0.5, borderLeftColor: colors.border }]}>
-                  <Text style={styles.kpiLabel}>Payé {moisLabel(moisSel)}</Text>
-                  <Text style={[styles.kpiVal, { color: '#3B6D11' }]}>{fmt(mouvMois?.totalPaye || 0)}</Text>
-                </View>
+              <View style={styles.kpiRow}>
+                {tuileKpi('receipt-text-outline', `Factures ${moisLabel(moisSel)}`, fmt(mouvMois?.totalFacture || 0), colors.error, colors.errorLight)}
+                {tuileKpi('cash-check', `Payé ${moisLabel(moisSel)}`, fmt(mouvMois?.totalPaye || 0), colors.successDark, colors.successLight)}
               </View>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitre}>📅 MOUVEMENTS DU MOIS</Text>
-                <Text style={styles.sectionSub}>{mouvMois?.parFourn?.length || 0} fournisseur(s)</Text>
-              </View>
+              {titreSection('calendar-month-outline', 'Mouvements du mois', `${mouvMois?.parFourn?.length || 0} fournisseur(s)`, colors.primary, colors.primaryLight)}
               {(mouvMois?.parFourn?.length || 0) === 0 ? (
                 <View style={styles.emptySection}>
                   <Text style={styles.emptySectionTxt}>Aucun mouvement enregistré ce mois</Text>
@@ -818,12 +830,12 @@ ${mouvements.map(m => {
                       <Text style={styles.moisCardNom} numberOfLines={1}>{g.nom}</Text>
                       <View style={styles.moisCardVals}>
                         <View style={styles.moisCardVal}>
-                          <Text style={styles.moisCardValLabel}>📦 Factures</Text>
-                          <Text style={[styles.moisCardValNum, { color: '#A32D2D' }]}>{fmt(g.facture)}</Text>
+                          <Text style={styles.moisCardValLabel}>Factures</Text>
+                          <Text style={[styles.moisCardValNum, { color: colors.error }]}>{fmt(g.facture)}</Text>
                         </View>
                         <View style={styles.moisCardVal}>
-                          <Text style={styles.moisCardValLabel}>💳 Payé</Text>
-                          <Text style={[styles.moisCardValNum, { color: '#3B6D11' }]}>{fmt(g.paye)}</Text>
+                          <Text style={styles.moisCardValLabel}>Payé</Text>
+                          <Text style={[styles.moisCardValNum, { color: colors.successDark }]}>{fmt(g.paye)}</Text>
                         </View>
                       </View>
                     </View>
@@ -842,6 +854,7 @@ ${mouvements.map(m => {
                         </View>
                         {facture.photo_url && (
                           <TouchableOpacity onPress={() => setModalPhotoUri(facture.photo_url)} style={styles.moisFactureVoir}>
+                            <MaterialCommunityIcons name="image-outline" size={15} color={colors.primary} />
                             <Text style={styles.moisFactureVoirTxt}>Voir</Text>
                           </TouchableOpacity>
                         )}
@@ -855,10 +868,7 @@ ${mouvements.map(m => {
         ) : (
           <>
             {/* ─── Section Fournisseurs ─── */}
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitre}>🔴 FOURNISSEURS</Text>
-              <Text style={styles.sectionSub}>{fournList.length} · {fmt(totalDu)}</Text>
-            </View>
+            {titreSection('truck-outline', 'Fournisseurs', `${fournList.length} · ${fmt(totalDu)}`, colors.error, colors.errorLight)}
             {fournList.length === 0 ? (
               <View style={styles.emptySection}>
                 <Text style={styles.emptySectionTxt}>Aucun fournisseur</Text>
@@ -868,10 +878,8 @@ ${mouvements.map(m => {
             )}
 
             {/* ─── Section Cotisations ─── */}
-            <View style={[styles.sectionHeader, { marginTop: 10 }]}>
-              <Text style={[styles.sectionTitre, { color: '#3B6D11' }]}>🟢 COTISATIONS</Text>
-              <Text style={styles.sectionSub}>{cotisList.length} · {fmt(totalAvances)}</Text>
-            </View>
+            <View style={{ height: 8 }} />
+            {titreSection('piggy-bank-outline', 'Cotisations', `${cotisList.length} · ${fmt(totalAvances)}`, colors.successDark, colors.successLight)}
             {cotisList.length === 0 ? (
               <View style={styles.emptySection}>
                 <Text style={styles.emptySectionTxt}>Aucune cotisation</Text>
@@ -881,29 +889,31 @@ ${mouvements.map(m => {
             )}
           </>
         )}
-
-        <View style={{ height: 40 }} />
       </ScrollView>
 
       {/* ── Modal : Historique ── */}
       <Modal visible={showHistorique} animationType="slide" presentationStyle="formSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-          <View style={[styles.modalHeader, { backgroundColor: '#1a1a2e' }]}>
-            <TouchableOpacity onPress={() => setShowHistorique(false)}>
-              <Text style={styles.modalClose}>Fermer</Text>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowHistorique(false)} style={styles.enteteBtn} accessibilityRole="button" accessibilityLabel="Fermer">
+              <MaterialCommunityIcons name="close" size={22} color="#FFFFFF" />
             </TouchableOpacity>
-            <View style={{ alignItems: 'center' }}>
-              <Text style={styles.modalTitre}>📋 Historique</Text>
-              {fournHisto && <Text style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>{fournHisto.nom}</Text>}
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={styles.modalTitre}>Historique</Text>
+              {fournHisto && <Text style={styles.modalSous} numberOfLines={1}>{fournHisto.nom}</Text>}
             </View>
             {peutModifier ? (
-              <TouchableOpacity onPress={() => { setRepairCreditDepart(''); setRepairError(null); setShowRepairModal(true) }} disabled={repairing} style={{ width: 60, alignItems: 'flex-end' }}>
-                <Text style={[styles.modalClose, { fontSize: 11, color: repairing ? '#666' : colors.primary }]}>
-                  {repairing ? '...' : '🔧 Fix'}
-                </Text>
+              <TouchableOpacity
+                onPress={() => { setRepairCreditDepart(''); setRepairError(null); setShowRepairModal(true) }}
+                disabled={repairing} style={[styles.enteteBtn, repairing && { opacity: 0.5 }]}
+                accessibilityRole="button" accessibilityLabel="Recalculer la chaîne"
+              >
+                {repairing
+                  ? <ActivityIndicator size="small" color="#FFFFFF" />
+                  : <MaterialCommunityIcons name="wrench-outline" size={20} color="#FFFFFF" />}
               </TouchableOpacity>
             ) : (
-              <View style={{ width: 60 }} />
+              <View style={{ width: 40 }} />
             )}
           </View>
 
@@ -917,25 +927,26 @@ ${mouvements.map(m => {
                 <View style={styles.histoKpiRow}>
                   <View style={styles.histoKpi}>
                     <Text style={styles.histoKpiLabel}>Solde actuel</Text>
-                    <Text style={[styles.histoKpiVal, {
-                      color: (fournHisto.credit_actuel || 0) < 0 ? '#3B6D11' : '#A32D2D'
-                    }]}>
+                    <Text style={[styles.histoKpiVal, { color: tonCredit(fournHisto.credit_actuel || 0).c }]}>
                       {(fournHisto.credit_actuel || 0) < 0
                         ? fmt(Math.abs(fournHisto.credit_actuel || 0))
                         : fmt(fournHisto.credit_actuel || 0)}
                     </Text>
-                    <Text style={[styles.histoKpiLabel, { marginTop: 2 }]}>
-                      {(fournHisto.credit_actuel || 0) < 0 ? '🟢 Avance reçue' : (fournHisto.credit_actuel || 0) === 0 ? '✅ Soldé' : '🔴 Doit'}
-                    </Text>
+                    <View style={[styles.badge, { alignSelf: 'center', marginTop: 4, backgroundColor: tonCredit(fournHisto.credit_actuel || 0).bg }]}>
+                      <MaterialCommunityIcons name={tonCredit(fournHisto.credit_actuel || 0).icone} size={13} color={tonCredit(fournHisto.credit_actuel || 0).c} />
+                      <Text style={[styles.badgeTxt, { color: tonCredit(fournHisto.credit_actuel || 0).c }]}>
+                        {(fournHisto.credit_actuel || 0) < 0 ? 'Avance reçue' : (fournHisto.credit_actuel || 0) === 0 ? 'Soldé' : 'Doit'}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={[styles.histoKpi, { borderLeftWidth: 0.5, borderLeftColor: colors.border }]}>
+                  <View style={[styles.histoKpi, { borderLeftWidth: 1, borderLeftColor: colors.borderLight }]}>
                     <Text style={styles.histoKpiLabel}>Mouvements</Text>
                     <Text style={styles.histoKpiVal}>{histoMouvements.length}</Text>
                   </View>
                 </View>
               )}
 
-              <Text style={styles.histoSection}>📈 Mouvements ({histoMouvements.length})</Text>
+              <Text style={styles.histoSection}>Mouvements ({histoMouvements.length})</Text>
 
               {histoMouvements.length === 0 ? (
                 <View style={styles.histoEmpty}>
@@ -948,11 +959,11 @@ ${mouvements.map(m => {
                 // ─ Transaction normale (fournisseur.js / point-shift) ─
                 const src = m.source || m.saisi_par || 'manuel'
                 const sourceInfo = {
-                  caissier: { icon: '💼', label: 'Caissier', bg: '#E6F1FB', txt: '#185FA5' },
-                  gerant: { icon: '📊', label: 'Saisir Ventes', bg: '#EAF3DE', txt: '#3B6D11' },
-                  gerant_caissier: { icon: '🔑', label: 'Gérant Caissier', bg: '#FAEEDA', txt: '#854F0B' },
-                  deduction_gerant: { icon: '📋', label: 'Déduction Gérant', bg: '#FAEEDA', txt: '#854F0B' },
-                }[src] || { icon: '✏️', label: src, bg: '#f0f0f0', txt: '#888' }
+                  caissier: { icon: 'cash-register', label: 'Caissier', bg: colors.primaryLight, txt: colors.primary },
+                  gerant: { icon: 'chart-box-outline', label: 'Saisir Ventes', bg: colors.successLight, txt: colors.successDark },
+                  gerant_caissier: { icon: 'key-outline', label: 'Gérant Caissier', bg: colors.warningLight, txt: colors.warningDark },
+                  deduction_gerant: { icon: 'clipboard-text-outline', label: 'Déduction Gérant', bg: colors.warningLight, txt: colors.warningDark },
+                }[src] || { icon: 'pencil-outline', label: src, bg: colors.surfaceAlt, txt: colors.textMuted }
                 const facture = Number(m.facture) || 0
                 const paye = Number(m.paye) || 0
                 const solde = Number(m.reste) || 0
@@ -971,42 +982,46 @@ ${mouvements.map(m => {
                   <View key={`t-${m.id || idx}`} style={styles.histoMvtCard}>
                     <View style={styles.histoMvtHeader}>
                       <View>
-                        <Text style={styles.histoMvtDate}>📅 {fmtDate(jourFacture)}</Text>
+                        <Text style={styles.histoMvtDate}>{fmtDate(jourFacture)}</Text>
                         {saisieDecalee && (
                           <Text style={styles.histoMvtSaisie}>saisi le {fmtDate(m.created_at)}</Text>
                         )}
                       </View>
                       <View style={[styles.histoMvtBadge, { backgroundColor: sourceInfo.bg }]}>
-                        <Text style={[styles.histoMvtBadgeTxt, { color: sourceInfo.txt }]}>{sourceInfo.icon} {sourceInfo.label}</Text>
+                        <MaterialCommunityIcons name={sourceInfo.icon} size={12} color={sourceInfo.txt} />
+                        <Text style={[styles.histoMvtBadgeTxt, { color: sourceInfo.txt }]}>{sourceInfo.label}</Text>
                       </View>
                     </View>
 
                     {m.caissier_nom && (
-                      <Text style={{ fontSize: 11, color: colors.textMuted, marginBottom: 6 }}>👤 {m.caissier_nom}</Text>
+                      <View style={styles.histoMvtPersonne}>
+                        <MaterialCommunityIcons name="account-outline" size={13} color={colors.textMuted} />
+                        <Text style={{ fontSize: 12, color: colors.textMuted }}>{m.caissier_nom}</Text>
+                      </View>
                     )}
 
                     <View style={styles.histoMvtChiffres}>
                       <View style={styles.histoMvtChiffreItem}>
-                        <Text style={styles.histoMvtChiffreLabel}>🔄 Crédit</Text>
-                        <Text style={[styles.histoMvtChiffreVal, { color: creditVeille > 0 ? '#A32D2D' : creditVeille < 0 ? '#3B6D11' : colors.textMuted }]}>
+                        <Text style={styles.histoMvtChiffreLabel}>Crédit</Text>
+                        <Text style={[styles.histoMvtChiffreVal, { color: creditVeille > 0 ? colors.error : creditVeille < 0 ? colors.successDark : colors.textMuted }]}>
                           {creditVeille !== 0 ? fmtShort(creditVeille) : '—'}
                         </Text>
                       </View>
                       <View style={[styles.histoMvtChiffreItem, styles.histoMvtChiffreSep]}>
-                        <Text style={styles.histoMvtChiffreLabel}>📦 Facture</Text>
+                        <Text style={styles.histoMvtChiffreLabel}>Facture</Text>
                         <Text style={[styles.histoMvtChiffreVal, { color: colors.text }]}>
                           {facture > 0 ? fmtShort(facture) : '—'}
                         </Text>
                       </View>
                       <View style={[styles.histoMvtChiffreItem, styles.histoMvtChiffreSep]}>
-                        <Text style={styles.histoMvtChiffreLabel}>💳 Payé</Text>
-                        <Text style={[styles.histoMvtChiffreVal, { color: paye > 0 ? '#3B6D11' : colors.textMuted }]}>
+                        <Text style={styles.histoMvtChiffreLabel}>Payé</Text>
+                        <Text style={[styles.histoMvtChiffreVal, { color: paye > 0 ? colors.successDark : colors.textMuted }]}>
                           {paye > 0 ? fmtShort(paye) : '—'}
                         </Text>
                       </View>
                       <View style={[styles.histoMvtChiffreItem, styles.histoMvtChiffreSep]}>
-                        <Text style={styles.histoMvtChiffreLabel}>⚠️ Reste dû</Text>
-                        <Text style={[styles.histoMvtChiffreVal, { color: solde > 0 ? '#A32D2D' : '#3B6D11', fontWeight: '700' }]}>
+                        <Text style={styles.histoMvtChiffreLabel}>Reste dû</Text>
+                        <Text style={[styles.histoMvtChiffreVal, { color: solde > 0 ? colors.error : colors.successDark, fontWeight: '800' }]}>
                           {fmtShort(solde)}
                         </Text>
                       </View>
@@ -1015,7 +1030,7 @@ ${mouvements.map(m => {
                     {m.photo_url && (
                       <TouchableOpacity style={styles.histoMvtPhoto} onPress={() => setModalPhotoUri(m.photo_url)}>
                         <PhotoJustificatif uri={m.photo_url} style={styles.histoMvtPhotoThumb} compact />
-                        <Text style={styles.histoMvtPhotoTxt}>📷 Voir la facture</Text>
+                        <Text style={styles.histoMvtPhotoTxt}>Voir la facture</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -1031,13 +1046,16 @@ ${mouvements.map(m => {
       <Modal visible={!!fournisseurARemettre} transparent animationType="fade">
         <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setFournisseurARemettre(null)}>
           <TouchableOpacity activeOpacity={1} style={[styles.pickerBox, { padding: 20 }]} onPress={() => {}}>
-            <Text style={[styles.pickerTitre, { marginBottom: 8 }]}>✅ Remettre à 0 ?</Text>
+            <View style={[styles.confirmIcone, { backgroundColor: colors.successLight }]}>
+              <MaterialCommunityIcons name="restore" size={24} color={colors.successDark} />
+            </View>
+            <Text style={styles.confirmTitre}>Remettre à 0 ?</Text>
             <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 16, textAlign: 'center' }}>
               L'avance de {fmt(Math.abs(fournisseurARemettre?.credit_actuel || 0))} pour {fournisseurARemettre?.nom} sera annulée via une transaction.{'\n'}
               Cette action est irréversible.
             </Text>
             {remettreAZeroErreur && (
-              <Text style={{ color: '#C62828', fontSize: 12, marginBottom: 10, textAlign: 'center' }}>⚠️ {remettreAZeroErreur}</Text>
+              <Text style={{ color: colors.error, fontSize: 12, marginBottom: 10, textAlign: 'center' }}>{remettreAZeroErreur}</Text>
             )}
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity style={[styles.btnAnnuler, { flex: 1 }]} onPress={() => setFournisseurARemettre(null)}>
@@ -1059,20 +1077,23 @@ ${mouvements.map(m => {
       <Modal visible={!!fournisseurAArchiver} transparent animationType="fade">
         <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setFournisseurAArchiver(null)}>
           <TouchableOpacity activeOpacity={1} style={[styles.pickerBox, { padding: 20 }]} onPress={() => {}}>
-            <Text style={[styles.pickerTitre, { marginBottom: 8 }]}>🗑️ Archiver ce fournisseur ?</Text>
+            <View style={[styles.confirmIcone, { backgroundColor: colors.errorLight }]}>
+              <MaterialCommunityIcons name="archive-outline" size={24} color={colors.error} />
+            </View>
+            <Text style={styles.confirmTitre}>Archiver ce fournisseur ?</Text>
             <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 16, textAlign: 'center' }}>
               {fournisseurAArchiver?.nom} sera retiré de la liste active.{'\n'}
               Son historique sera conservé.
             </Text>
             {archivageErreur && (
-              <Text style={{ color: '#C62828', fontSize: 12, marginBottom: 10, textAlign: 'center' }}>⚠️ {archivageErreur}</Text>
+              <Text style={{ color: colors.error, fontSize: 12, marginBottom: 10, textAlign: 'center' }}>{archivageErreur}</Text>
             )}
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity style={[styles.btnAnnuler, { flex: 1 }]} onPress={() => setFournisseurAArchiver(null)}>
                 <Text style={styles.btnAnnulerTxt}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.btnValider, { flex: 1, backgroundColor: '#C62828' }]}
+                style={[styles.btnValider, { flex: 1, backgroundColor: colors.error }]}
                 onPress={confirmerArchivage}
                 disabled={!!archivageId}
               >
@@ -1087,7 +1108,10 @@ ${mouvements.map(m => {
       <Modal visible={showRepairModal} transparent animationType="fade">
         <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setShowRepairModal(false)}>
           <TouchableOpacity activeOpacity={1} style={[styles.pickerBox, { padding: 20 }]} onPress={() => {}}>
-            <Text style={[styles.pickerTitre, { marginBottom: 6 }]}>🔧 Recalculer la chaîne</Text>
+            <View style={[styles.confirmIcone, { backgroundColor: colors.primaryLight }]}>
+              <MaterialCommunityIcons name="wrench-outline" size={24} color={colors.primary} />
+            </View>
+            <Text style={styles.confirmTitre}>Recalculer la chaîne</Text>
             <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: 14, textAlign: 'center' }}>
               Entrez le crédit correct <Text style={{ fontWeight: '700' }}>avant</Text> la toute première transaction de ce fournisseur.{'\n'}
               (0 si le fournisseur n'avait aucune dette au départ)
@@ -1101,7 +1125,7 @@ ${mouvements.map(m => {
               onChangeText={setRepairCreditDepart}
             />
             {repairError && (
-              <Text style={{ color: '#C62828', fontSize: 12, marginBottom: 10, textAlign: 'center' }}>⚠️ {repairError}</Text>
+              <Text style={{ color: colors.error, fontSize: 12, marginBottom: 10, textAlign: 'center' }}>{repairError}</Text>
             )}
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity style={[styles.btnAnnuler, { flex: 1 }]} onPress={() => setShowRepairModal(false)}>
@@ -1131,8 +1155,8 @@ ${mouvements.map(m => {
               style={[styles.pickerRow, !restoFilter && styles.pickerRowActive]}
               onPress={() => { selectResto(null); setShowRestoPicker(false) }}
             >
-              <Text style={[styles.pickerRowTxt, !restoFilter && styles.pickerRowTxtActive]}>🏪 Tous les restaurants</Text>
-              {!restoFilter && <Text style={styles.pickerCheck}>✓</Text>}
+              <Text style={[styles.pickerRowTxt, !restoFilter && styles.pickerRowTxtActive]}>Tous les restaurants</Text>
+              {!restoFilter && <MaterialCommunityIcons name="check" size={20} color={colors.primary} />}
             </TouchableOpacity>
             {restaurants.map(r => (
               <TouchableOpacity
@@ -1141,7 +1165,7 @@ ${mouvements.map(m => {
                 onPress={() => { selectResto(r.id); setShowRestoPicker(false) }}
               >
                 <Text style={[styles.pickerRowTxt, restoFilter === r.id && styles.pickerRowTxtActive]} numberOfLines={1}>{r.nom}</Text>
-                {restoFilter === r.id && <Text style={styles.pickerCheck}>✓</Text>}
+                {restoFilter === r.id && <MaterialCommunityIcons name="check" size={20} color={colors.primary} />}
               </TouchableOpacity>
             ))}
           </TouchableOpacity>
@@ -1151,25 +1175,26 @@ ${mouvements.map(m => {
       {/* ── Modal : Modifier le crédit ── */}
       <Modal visible={showEditCredit} animationType="slide" presentationStyle="formSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-          <View style={[styles.modalHeader, { backgroundColor: colors.headerBg }]}>
-            <TouchableOpacity onPress={() => setShowEditCredit(false)}>
-              <Text style={[styles.modalClose, { color: '#A8D4F5' }]}>Annuler</Text>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowEditCredit(false)} style={styles.enteteBtn} accessibilityRole="button" accessibilityLabel="Annuler">
+              <MaterialCommunityIcons name="close" size={22} color="#FFFFFF" />
             </TouchableOpacity>
-            <Text style={styles.modalTitre}>✏️ Modifier le crédit</Text>
-            <TouchableOpacity onPress={modifierCredit} disabled={saving}>
-              <Text style={[styles.modalClose, saving && { opacity: 0.4 }]}>{saving ? '...' : 'Enregistrer'}</Text>
-            </TouchableOpacity>
+            <Text style={[styles.modalTitre, { flex: 1, textAlign: 'center' }]}>Modifier le crédit</Text>
+            <View style={{ width: 40 }} />
           </View>
           <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
             {selectedFourn && (
               <View style={styles.fournInfo}>
                 <Text style={styles.fournInfoNom}>{selectedFourn.nom}</Text>
                 <Text style={styles.fournInfoSub}>
-                  Solde actuel : {(selectedFourn.credit_actuel || 0) < 0
-                    ? `🟢 ${fmt(Math.abs(selectedFourn.credit_actuel || 0))} avance reçue`
-                    : (selectedFourn.credit_actuel || 0) === 0
-                    ? '✅ Soldé (0 FCFA)'
-                    : `🔴 ${fmt(selectedFourn.credit_actuel || 0)} dû`}
+                  Solde actuel :{' '}
+                  <Text style={{ color: tonCredit(selectedFourn.credit_actuel || 0).c, fontWeight: '800' }}>
+                    {(selectedFourn.credit_actuel || 0) < 0
+                      ? `${fmt(Math.abs(selectedFourn.credit_actuel || 0))} avance reçue`
+                      : (selectedFourn.credit_actuel || 0) === 0
+                      ? 'soldé (0 FCFA)'
+                      : `${fmt(selectedFourn.credit_actuel || 0)} dû`}
+                  </Text>
                 </Text>
               </View>
             )}
@@ -1182,7 +1207,7 @@ ${mouvements.map(m => {
                 onChangeText={v => setFormCredit(p => ({ ...p, montant: v }))}
                 keyboardType="numbers-and-punctuation"
                 placeholder="+50 000 ou -10 000"
-                placeholderTextColor="#bbb"
+                placeholderTextColor={colors.textPlaceholder}
               />
             </View>
 
@@ -1199,7 +1224,7 @@ ${mouvements.map(m => {
                 value={formCredit.motif}
                 onChangeText={v => setFormCredit(p => ({ ...p, motif: v }))}
                 placeholder="Ex: Facture semaine 20"
-                placeholderTextColor="#bbb"
+                placeholderTextColor={colors.textPlaceholder}
                 multiline
               />
             </View>
@@ -1210,16 +1235,15 @@ ${mouvements.map(m => {
                 <Text style={styles.previewCalc}>
                   {fmtShort(selectedFourn.credit_actuel || 0)} {deltaPreview >= 0 ? '+' : '−'} {fmtShort(Math.abs(deltaPreview))} = {fmtShort(nouveauPreview)} FCFA
                 </Text>
-                <Text style={[styles.previewStatut, {
-                  color: nouveauPreview < 0 ? '#3B6D11' : nouveauPreview === 0 ? colors.textMuted : '#A32D2D'
-                }]}>
-                  → {nouveauPreview < 0 ? '🟢 Cotisation (avance reçue)' : nouveauPreview === 0 ? '✅ Soldé' : '🔴 Fournisseur (doit)'}
+                <Text style={[styles.previewStatut, { color: tonCredit(nouveauPreview).c }]}>
+                  → {nouveauPreview < 0 ? 'Cotisation (avance reçue)' : nouveauPreview === 0 ? 'Soldé' : 'Fournisseur (doit)'}
                 </Text>
               </View>
             )}
 
             <View style={styles.traceNote}>
-              <Text style={styles.traceNoteTxt}>📝 Toutes les modifications sont tracées dans l'historique avec votre nom et la date.</Text>
+              <MaterialCommunityIcons name="information-outline" size={16} color={colors.textSecondary} />
+              <Text style={styles.traceNoteTxt}>Toutes les modifications sont tracées dans l'historique avec votre nom et la date.</Text>
             </View>
 
             <TouchableOpacity
@@ -1227,7 +1251,10 @@ ${mouvements.map(m => {
               onPress={modifierCredit}
               disabled={saving}
             >
-              <Text style={styles.saveBtnTxt}>{saving ? 'Enregistrement...' : '💾 Enregistrer la modification'}</Text>
+              {saving
+                ? <ActivityIndicator size="small" color="#FFFFFF" />
+                : <MaterialCommunityIcons name="content-save-outline" size={18} color="#FFFFFF" />}
+              <Text style={styles.saveBtnTxt}>{saving ? 'Enregistrement…' : 'Enregistrer la modification'}</Text>
             </TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
@@ -1236,12 +1263,12 @@ ${mouvements.map(m => {
       {/* ── Modal : Export ── */}
       <Modal visible={showExportModal} animationType="slide" presentationStyle="formSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-          <View style={[styles.modalHeader, { backgroundColor: colors.headerBg }]}>
-            <TouchableOpacity onPress={() => setShowExportModal(false)}>
-              <Text style={[styles.modalClose, { color: '#CECBF6' }]}>Fermer</Text>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowExportModal(false)} style={styles.enteteBtn} accessibilityRole="button" accessibilityLabel="Fermer">
+              <MaterialCommunityIcons name="close" size={22} color="#FFFFFF" />
             </TouchableOpacity>
-            <Text style={styles.modalTitre}>📊 Exporter un rapport</Text>
-            <View style={{ width: 60 }} />
+            <Text style={[styles.modalTitre, { flex: 1, textAlign: 'center' }]}>Exporter un rapport</Text>
+            <View style={{ width: 40 }} />
           </View>
           <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
             <Text style={styles.exportSection}>Période</Text>
@@ -1253,7 +1280,7 @@ ${mouvements.map(m => {
                   value={exportFilters.dateDebut}
                   onChangeText={v => setExportFilters(p => ({ ...p, dateDebut: v }))}
                   placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#bbb"
+                  placeholderTextColor={colors.textPlaceholder}
                 />
               </View>
               <View style={[styles.formGroup, { flex: 1 }]}>
@@ -1263,7 +1290,7 @@ ${mouvements.map(m => {
                   value={exportFilters.dateFin}
                   onChangeText={v => setExportFilters(p => ({ ...p, dateFin: v }))}
                   placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#bbb"
+                  placeholderTextColor={colors.textPlaceholder}
                 />
               </View>
             </View>
@@ -1314,18 +1341,20 @@ ${mouvements.map(m => {
 
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity
-                style={[styles.saveBtn, { flex: 1, backgroundColor: '#A32D2D' }, exporting && { opacity: 0.6 }]}
+                style={[styles.saveBtn, { flex: 1, backgroundColor: colors.errorDark }, exporting && { opacity: 0.6 }]}
                 onPress={exporterPdf}
                 disabled={exporting}
               >
-                <Text style={styles.saveBtnTxt}>{exporting ? 'Génération...' : '📄 PDF'}</Text>
+                <MaterialCommunityIcons name="file-pdf-box" size={18} color="#FFFFFF" />
+                <Text style={styles.saveBtnTxt}>{exporting ? 'Génération…' : 'PDF'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.saveBtn, { flex: 1, backgroundColor: '#2D7A3B' }, exporting && { opacity: 0.6 }]}
+                style={[styles.saveBtn, { flex: 1, backgroundColor: '#1D6F42' }, exporting && { opacity: 0.6 }]}
                 onPress={exporterExcel}
                 disabled={exporting}
               >
-                <Text style={styles.saveBtnTxt}>{exporting ? 'Génération...' : '📊 Excel'}</Text>
+                <MaterialCommunityIcons name="file-excel-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.saveBtnTxt}>{exporting ? 'Génération…' : 'Excel'}</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -1340,7 +1369,7 @@ ${mouvements.map(m => {
             onPress={() => setModalPhotoUri(null)}
             hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
           >
-            <Text style={{ fontSize: 30, color: '#fff', fontWeight: '300' }}>✕</Text>
+            <MaterialCommunityIcons name="close" size={30} color="#FFFFFF" />
           </TouchableOpacity>
           {modalPhotoUri && (
             <PhotoJustificatif
@@ -1350,7 +1379,7 @@ ${mouvements.map(m => {
             />
           )}
           <TouchableOpacity
-            style={{ marginTop: 20, backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 32, paddingVertical: 12 }}
+            style={{ marginTop: 20, backgroundColor: colors.primary, borderRadius: 14, paddingHorizontal: 32, paddingVertical: 13 }}
             onPress={() => setModalPhotoUri(null)}
           >
             <Text style={{ fontSize: 14, fontWeight: '600', color: '#fff' }}>Fermer</Text>
@@ -1366,136 +1395,190 @@ function makeStyles(colors) { return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   // Couleurs du groupe Trésorerie (thème selon l'écran, lib/groupesAccueil.js).
   header: {
-    backgroundColor: colors.headerBg, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: colors.headerBg, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 14, gap: 12,
     borderBottomLeftRadius: 22, borderBottomRightRadius: 22, zIndex: 2,
     shadowColor: colors.headerBg, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 14, elevation: 6,
   },
-  back: { fontSize: 16, color: colors.headerText, fontWeight: '700' },
-  headerTitre: { fontSize: 17, fontWeight: '800', color: colors.headerText },
-  headerSub: { fontSize: 11, color: colors.primaryText, textAlign: 'center', fontWeight: '600' },
-  exportBtn: { backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  exportBtnTxt: { fontSize: 11, color: colors.headerText, fontWeight: '700' },
-  fixAllBtn: { backgroundColor: '#EEF3FB', borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: 11, alignItems: 'center' },
-  fixAllTxt: { fontSize: 13, fontWeight: '700', color: colors.primary },
+  headerLigne: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  enteteBtn: {
+    width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  headerCentre: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  headerIcone: {
+    width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  headerTitre: { fontSize: 18, fontWeight: '800', color: colors.headerText, letterSpacing: -0.3 },
+  headerSub: { fontSize: 12, color: colors.primaryText, fontWeight: '600', marginTop: 1 },
+  restoBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44,
+    backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
+  },
+  restoTxt: { fontSize: 15, color: '#FFFFFF', fontWeight: '700', flex: 1 },
+
   loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  kpiRow: { flexDirection: 'row', backgroundColor: colors.surface, padding: 14, borderBottomWidth: 0.5, borderBottomColor: colors.border },
-  kpiBox: { flex: 1, alignItems: 'center' },
-  kpiLabel: { fontSize: 10, color: colors.textMuted, marginBottom: 2 },
-  kpiVal: { fontSize: 15, fontWeight: '800', color: colors.text },
-  restoSelector: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface, paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 0.5, borderBottomColor: colors.border },
-  restoSelectorIcon: { fontSize: 16 },
-  restoSelectorTxt: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.text },
-  restoSelectorArrow: { fontSize: 12, color: colors.textMuted },
-  moisBar: { flexGrow: 0, backgroundColor: colors.surface, borderBottomWidth: 0.5, borderBottomColor: colors.border, paddingVertical: 8 },
-  moisChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 0.5, borderColor: colors.border, backgroundColor: colors.bg },
-  moisChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  moisChipTxt: { fontSize: 12, fontWeight: '600', color: colors.textMuted },
+  body: { flex: 1 },
+  bodyContenu: { padding: 14, paddingBottom: 60 },
+
+  kpiRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  kpiTuile: {
+    flex: 1, backgroundColor: colors.surface, borderRadius: 18, padding: 14,
+    borderWidth: 1, borderColor: colors.borderLight,
+  },
+  kpiIcone: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  kpiLabel: { fontSize: 11, color: colors.textMuted, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 3 },
+  kpiVal: { fontSize: 18, fontWeight: '800', color: colors.text, letterSpacing: -0.3 },
+
+  outilsRangee: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  outilBtn: {
+    flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44,
+    backgroundColor: colors.surface, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 9,
+    borderWidth: 1, borderColor: colors.borderLight,
+  },
+  outilTxt: { fontSize: 13, fontWeight: '700', color: colors.primary },
+
+  moisBar: { flexGrow: 0, marginBottom: 14 },
+  moisChip: {
+    paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, minHeight: 38, justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.borderLight, backgroundColor: colors.surface,
+  },
+  moisChipActive: {
+    backgroundColor: colors.primary, borderColor: colors.primary,
+    shadowColor: colors.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 6, elevation: 2,
+  },
+  moisChipTxt: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
   moisChipTxtActive: { color: '#FFFFFF', fontWeight: '800' },
-  moisTotalRow: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 14, borderWidth: 0.5, borderColor: colors.border, paddingVertical: 14, marginBottom: 14 },
-  moisTotalBox: { flex: 1, alignItems: 'center' },
-  moisCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 0.5, borderColor: colors.border },
-  moisCardHeader: { flexDirection: 'row', alignItems: 'center' },
-  moisCardNom: { flex: 1, fontSize: 13, fontWeight: '700', color: colors.text },
-  moisCardVals: { flexDirection: 'row', gap: 18 },
+
+  moisCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.borderLight },
+  moisCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  moisCardNom: { flex: 1, fontSize: 15, fontWeight: '800', color: colors.text },
+  moisCardVals: { flexDirection: 'row', gap: 16 },
   moisCardVal: { alignItems: 'flex-end' },
-  moisCardValLabel: { fontSize: 9, color: colors.textMuted },
-  moisCardValNum: { fontSize: 13, fontWeight: '700' },
-  moisFactureRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: colors.borderLight },
-  moisFacturePhoto: { width: 44, height: 44, borderRadius: 8 },
-  moisFactureDate: { fontSize: 11, color: colors.textMuted },
-  moisFactureMontant: { fontSize: 13, fontWeight: '700', color: colors.text, marginTop: 2 },
-  moisFactureVoir: { backgroundColor: '#E6F1FB', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
-  moisFactureVoirTxt: { fontSize: 11, color: colors.primary, fontWeight: '700' },
-  pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  pickerBox: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingBottom: 32 },
-  pickerTitre: { fontSize: 13, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, paddingHorizontal: 20, marginBottom: 8 },
-  pickerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
-  pickerRowActive: { backgroundColor: '#FFF8ED' },
+  moisCardValLabel: { fontSize: 10, color: colors.textMuted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
+  moisCardValNum: { fontSize: 13, fontWeight: '800' },
+  moisFactureRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.borderLight },
+  moisFacturePhoto: { width: 46, height: 46, borderRadius: 10 },
+  moisFactureDate: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
+  moisFactureMontant: { fontSize: 14, fontWeight: '800', color: colors.text, marginTop: 2 },
+  moisFactureVoir: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: colors.primaryLight, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,
+  },
+  moisFactureVoirTxt: { fontSize: 12, color: colors.primary, fontWeight: '800' },
+
+  pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  pickerBox: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 18, paddingBottom: 32 },
+  pickerTitre: { fontSize: 16, fontWeight: '800', color: colors.text, paddingHorizontal: 20, marginBottom: 8 },
+  pickerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  pickerRowActive: { backgroundColor: colors.primaryLight },
   pickerRowTxt: { flex: 1, fontSize: 15, color: colors.text },
-  pickerRowTxtActive: { color: colors.primary, fontWeight: '600' },
-  pickerCheck: { fontSize: 16, color: colors.primary, fontWeight: '700' },
-  body: { flex: 1, padding: 12 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  sectionTitre: { fontSize: 12, fontWeight: '700', color: '#A32D2D', textTransform: 'uppercase', letterSpacing: 0.5 },
-  sectionSub: { fontSize: 11, color: colors.textMuted },
-  emptySection: { alignItems: 'center', paddingVertical: 14, backgroundColor: colors.surface, borderRadius: 10, marginBottom: 12, borderWidth: 0.5, borderColor: colors.border },
-  emptySectionTxt: { fontSize: 13, color: colors.textPlaceholder },
-  card: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: colors.border },
-  cardDue: { borderColor: '#F09595' },
-  cardCotis: { borderColor: '#C0DD97', backgroundColor: '#F4FAF0' },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
-  cardNom: { fontSize: 15, fontWeight: '700', color: colors.text },
-  cardResto: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
-  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
-  badgeDue: { backgroundColor: '#FDE8E8' },
-  badgeDueTxt: { fontSize: 10, color: '#A32D2D', fontWeight: '600' },
-  badgeCotis: { backgroundColor: '#E6F9EE' },
-  badgeCotisTxt: { fontSize: 10, color: '#3B6D11', fontWeight: '600' },
-  badgeSolde: { backgroundColor: '#EBEBF0' },
-  badgeSoldeTxt: { fontSize: 10, color: '#555', fontWeight: '500' },
-  creditBox: { alignItems: 'center', backgroundColor: colors.bg, borderRadius: 10, padding: 12, marginBottom: 10 },
-  creditLabel: { fontSize: 10, color: colors.textMuted, marginBottom: 4 },
-  creditVal: { fontSize: 20, fontWeight: '800' },
-  actionBtn: { backgroundColor: '#E6F1FB', borderRadius: 8, padding: 10, alignItems: 'center', marginBottom: 6 },
-  actionBtnTxt: { fontSize: 12, fontWeight: '600', color: colors.primary },
-  histoBtn: { borderRadius: 8, padding: 9, alignItems: 'center', backgroundColor: colors.inputBg, borderWidth: 0.5, borderColor: colors.borderLight },
-  histoBtnTxt: { fontSize: 12, color: colors.textMuted, fontWeight: '500' },
-  btnAnnuler: { borderRadius: 12, padding: 14, alignItems: 'center', backgroundColor: colors.inputBg, borderWidth: 0.5, borderColor: colors.borderLight },
-  btnAnnulerTxt: { fontSize: 14, fontWeight: '600', color: colors.textMuted },
-  btnValider: { borderRadius: 12, padding: 14, alignItems: 'center', backgroundColor: '#3B6D11' },
-  btnValiderTxt: { fontSize: 14, fontWeight: '600', color: '#fff' },
-  input: { backgroundColor: colors.inputBg, borderRadius: 8, padding: 12, fontSize: 14, color: colors.text },
-  histoKpiRow: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 12, marginBottom: 16, borderWidth: 0.5, borderColor: colors.border, overflow: 'hidden' },
-  histoKpi: { flex: 1, alignItems: 'center', paddingVertical: 14 },
-  histoKpiLabel: { fontSize: 9, color: colors.textMuted, textAlign: 'center' },
-  histoKpiVal: { fontSize: 16, fontWeight: '800', textAlign: 'center', color: colors.text, marginBottom: 2 },
-  histoSection: { fontSize: 12, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 4 },
-  histoCard: { backgroundColor: colors.surface, borderRadius: 12, marginBottom: 16, borderWidth: 0.5, borderColor: colors.border, overflow: 'hidden' },
-  histoTableHead: { flexDirection: 'row', backgroundColor: colors.inputBg, paddingHorizontal: 10, paddingVertical: 7, borderBottomWidth: 0.5, borderBottomColor: colors.border },
-  histoTH: { fontSize: 10, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase' },
-  histoRow: { flexDirection: 'row', paddingHorizontal: 10, paddingVertical: 9, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
-  histoTD: { fontSize: 12, color: colors.text },
-  histoEmpty: { alignItems: 'center', paddingVertical: 24, backgroundColor: colors.surface, borderRadius: 12, marginBottom: 16 },
+  pickerRowTxtActive: { color: colors.primary, fontWeight: '800' },
+  confirmIcone: {
+    width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
+    alignSelf: 'center', marginBottom: 10,
+  },
+  confirmTitre: { fontSize: 18, fontWeight: '800', color: colors.text, textAlign: 'center', marginBottom: 8 },
+
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, marginTop: 4 },
+  sectionPastille: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  sectionTitre: { flex: 1, fontSize: 16, fontWeight: '800', color: colors.text },
+  sectionSub: { fontSize: 12, color: colors.textMuted, fontWeight: '700' },
+  emptySection: {
+    alignItems: 'center', paddingVertical: 18, backgroundColor: colors.surface, borderRadius: 16, marginBottom: 12,
+    borderWidth: 1, borderColor: colors.borderLight, borderStyle: 'dashed',
+  },
+  emptySectionTxt: { fontSize: 13, color: colors.textMuted, fontWeight: '600' },
+
+  card: {
+    backgroundColor: colors.surface, borderRadius: 18, padding: 14, marginBottom: 10,
+    borderWidth: 1, borderColor: colors.borderLight,
+  },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  avatar: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  avatarTxt: { fontSize: 14, fontWeight: '800' },
+  cardNom: { fontSize: 15, fontWeight: '800', color: colors.text },
+  cardResto: { fontSize: 12, color: colors.textMuted, marginTop: 2, fontWeight: '600' },
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
+  badgeTxt: { fontSize: 11, fontWeight: '800' },
+  creditLigne: {
+    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10,
+    marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.borderLight,
+  },
+  creditLabel: { fontSize: 12, color: colors.textMuted, fontWeight: '700' },
+  creditVal: { fontSize: 22, fontWeight: '800', letterSpacing: -0.4 },
+  cardActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  cardBtn: {
+    flexGrow: 1, flexBasis: 0, minWidth: 96, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    minHeight: 40, borderRadius: 12, paddingHorizontal: 8, backgroundColor: colors.surfaceAlt,
+  },
+  cardBtnTxt: { fontSize: 12, fontWeight: '800', color: colors.textSecondary },
+
+  btnAnnuler: { borderRadius: 14, padding: 14, alignItems: 'center', backgroundColor: colors.surfaceAlt },
+  btnAnnulerTxt: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
+  btnValider: { borderRadius: 14, padding: 14, alignItems: 'center', backgroundColor: colors.successDark },
+  btnValiderTxt: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
+  input: { backgroundColor: colors.inputBg, borderRadius: 12, padding: 12, fontSize: 14, color: colors.text, borderWidth: 1, borderColor: colors.inputBorder },
+
+  histoKpiRow: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 18, marginBottom: 16, borderWidth: 1, borderColor: colors.borderLight, overflow: 'hidden' },
+  histoKpi: { flex: 1, alignItems: 'center', paddingVertical: 16 },
+  histoKpiLabel: { fontSize: 11, color: colors.textMuted, textAlign: 'center', fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 },
+  histoKpiVal: { fontSize: 20, fontWeight: '800', textAlign: 'center', color: colors.text, letterSpacing: -0.3 },
+  histoSection: { fontSize: 11, fontWeight: '800', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, marginTop: 4 },
+  histoEmpty: { alignItems: 'center', paddingVertical: 24, backgroundColor: colors.surface, borderRadius: 16, marginBottom: 16 },
   histoEmptyTxt: { fontSize: 13, color: colors.textMuted },
-  modalHeader: { padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  modalTitre: { fontSize: 15, fontWeight: '700', color: '#fff' },
-  modalClose: { fontSize: 14, color: '#fff', fontWeight: '500' },
+
+  modalHeader: {
+    backgroundColor: colors.headerBg, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 14, gap: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderBottomLeftRadius: 22, borderBottomRightRadius: 22,
+  },
+  modalTitre: { fontSize: 17, fontWeight: '800', color: colors.headerText },
+  modalSous: { fontSize: 12, color: colors.primaryText, marginTop: 1, fontWeight: '600' },
   modalBody: { flex: 1, padding: 16 },
-  fournInfo: { backgroundColor: colors.inputBg, borderRadius: 10, padding: 12, marginBottom: 16 },
-  fournInfoNom: { fontSize: 16, fontWeight: '700', color: colors.text },
+  fournInfo: { backgroundColor: colors.surface, borderRadius: 16, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: colors.borderLight },
+  fournInfoNom: { fontSize: 17, fontWeight: '800', color: colors.text },
   fournInfoSub: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
   formGroup: { marginBottom: 14 },
-  formLabel: { fontSize: 12, color: colors.textMuted, fontWeight: '500', marginBottom: 6 },
-  formInput: { backgroundColor: colors.inputBg, borderRadius: 8, padding: 12, fontSize: 14, color: colors.text },
-  examplesBox: { backgroundColor: '#EEF4FB', borderRadius: 8, padding: 10, marginBottom: 14 },
-  examplesTitre: { fontSize: 11, fontWeight: '600', color: '#185FA5', marginBottom: 4 },
-  examplesLine: { fontSize: 12, color: '#185FA5', marginBottom: 2 },
-  previewBox: { backgroundColor: '#FFF8ED', borderRadius: 10, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: '#EF9F27' },
-  previewLabel: { fontSize: 11, color: '#854F0B', marginBottom: 6 },
-  previewCalc: { fontSize: 14, color: colors.text, fontWeight: '600', marginBottom: 4 },
-  previewStatut: { fontSize: 14, fontWeight: '700' },
-  traceNote: { backgroundColor: '#E6F1FB', borderRadius: 8, padding: 10, marginBottom: 14 },
-  traceNoteTxt: { fontSize: 12, color: '#185FA5' },
-  saveBtn: { borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 4 },
-  saveBtnTxt: { fontSize: 14, fontWeight: '600', color: '#fff' },
-  filterPill: { paddingHorizontal: 14, paddingVertical: 10, marginHorizontal: 2 },
-  filterPillActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
-  filterTxt: { fontSize: 12, color: colors.textMuted },
-  filterTxtActive: { color: colors.primary, fontWeight: '600' },
-  exportSection: { fontSize: 11, fontWeight: '600', color: colors.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
-  histoMvtCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: colors.border },
-  histoMvtHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  histoMvtDate: { fontSize: 13, fontWeight: '600', color: colors.text },
-  histoMvtSaisie: { fontSize: 10, color: colors.textMuted, marginTop: 1 },
-  histoMvtBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
-  histoMvtBadgeTxt: { fontSize: 10, fontWeight: '600' },
-  histoMvtChiffres: { flexDirection: 'row', borderTopWidth: 0.5, borderTopColor: colors.border, paddingTop: 10 },
+  formLabel: { fontSize: 11, color: colors.textMuted, fontWeight: '800', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.6 },
+  formInput: { backgroundColor: colors.inputBg, borderRadius: 12, padding: 12, fontSize: 14, color: colors.text, borderWidth: 1, borderColor: colors.inputBorder },
+  examplesBox: { backgroundColor: colors.primaryLight, borderRadius: 14, padding: 12, marginBottom: 14 },
+  examplesTitre: { fontSize: 12, fontWeight: '800', color: colors.primary, marginBottom: 4 },
+  examplesLine: { fontSize: 12, color: colors.primary, marginBottom: 2, fontWeight: '600' },
+  previewBox: { backgroundColor: colors.warningLight, borderRadius: 14, padding: 12, marginBottom: 14, borderWidth: 1, borderColor: colors.warning + '66' },
+  previewLabel: { fontSize: 11, color: colors.warningDark, marginBottom: 6, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  previewCalc: { fontSize: 14, color: colors.text, fontWeight: '700', marginBottom: 4 },
+  previewStatut: { fontSize: 14, fontWeight: '800' },
+  traceNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: colors.surfaceAlt, borderRadius: 12, padding: 12, marginBottom: 14 },
+  traceNoteTxt: { flex: 1, fontSize: 12, color: colors.textSecondary, lineHeight: 17 },
+  saveBtn: {
+    borderRadius: 14, padding: 14, minHeight: 50, alignItems: 'center', justifyContent: 'center',
+    flexDirection: 'row', gap: 8, marginTop: 4,
+  },
+  saveBtnTxt: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
+  filterPill: {
+    paddingHorizontal: 14, paddingVertical: 8, marginRight: 8, borderRadius: 999, minHeight: 36, justifyContent: 'center',
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderLight,
+  },
+  filterPillActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  filterTxt: { fontSize: 13, color: colors.textSecondary, fontWeight: '600' },
+  filterTxtActive: { color: '#FFFFFF', fontWeight: '800' },
+  exportSection: { fontSize: 11, fontWeight: '800', color: colors.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.6 },
+
+  histoMvtCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.borderLight },
+  histoMvtHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  histoMvtDate: { fontSize: 15, fontWeight: '800', color: colors.text },
+  histoMvtSaisie: { fontSize: 11, color: colors.warningDark, marginTop: 1, fontWeight: '600' },
+  histoMvtBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
+  histoMvtBadgeTxt: { fontSize: 11, fontWeight: '800' },
+  histoMvtPersonne: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
+  histoMvtChiffres: { flexDirection: 'row', backgroundColor: colors.surfaceAlt, borderRadius: 12, paddingVertical: 10 },
   histoMvtChiffreItem: { flex: 1, alignItems: 'center' },
-  histoMvtChiffreSep: { borderLeftWidth: 0.5, borderLeftColor: colors.border },
-  histoMvtChiffreLabel: { fontSize: 10, color: colors.textMuted, marginBottom: 4, textAlign: 'center' },
-  histoMvtChiffreVal: { fontSize: 14, fontWeight: '600', textAlign: 'center' },
-  histoMvtPhoto: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: colors.border },
-  histoMvtPhotoThumb: { width: 48, height: 48, borderRadius: 8 },
-  histoMvtPhotoTxt: { fontSize: 12, color: colors.primary, fontWeight: '500' },
+  histoMvtChiffreSep: { borderLeftWidth: 1, borderLeftColor: colors.border },
+  histoMvtChiffreLabel: { fontSize: 10, color: colors.textMuted, marginBottom: 4, textAlign: 'center', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
+  histoMvtChiffreVal: { fontSize: 14, fontWeight: '700', textAlign: 'center' },
+  histoMvtPhoto: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.borderLight },
+  histoMvtPhotoThumb: { width: 48, height: 48, borderRadius: 10 },
+  histoMvtPhotoTxt: { fontSize: 13, color: colors.primary, fontWeight: '800' },
 }) }
