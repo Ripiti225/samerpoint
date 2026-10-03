@@ -25,6 +25,10 @@ language sql
 stable
 security definer
 set search_path = public
+-- Indispensable : dans une fonction, PostgreSQL prépare la requête sans
+-- connaître les dates et choisit des boucles imbriquées (8 s pour 7 jours,
+-- au-delà des 3 s permises par la clé publique). Sans elles : 0,2 s pour un mois.
+set enable_nestloop = off
 as $$
 with c as (
   select c.id, c.statut, c.type, c.partenaire, c.origine, c.total, c.remise_montant, c.promo_montant,
