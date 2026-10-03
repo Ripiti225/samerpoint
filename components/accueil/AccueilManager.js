@@ -20,7 +20,9 @@ import Animated, {
 } from 'react-native-reanimated'
 
 import { useTheme } from '../../context/ThemeContext'
+import Jauge from '../ui/Jauge'
 import Survol from '../ui/Survol'
+import { resumeContrats } from '../../lib/contrats'
 import {
   ICONES_TUILES, etatPointsDuJour, groupeDeTuile, messagesTresorerie, nbAVerifier, organiserAccueilAdmin,
 } from '../../lib/groupesAccueil'
@@ -75,8 +77,19 @@ async function chargerTresorerie({ role, userId, hier, auj, demain }) {
   return messagesTresorerie({ dus: d.data, paiements: p.data, emprunts, receptions, aujourdhui: auj, demain, hier })
 }
 
-// Points des 7 derniers jours, restaurants, demandes en attente et messages
-// Trésorerie. null tant que rien n'est chargé (ou hors ligne) : pas de bandeau.
+// Résumé des contrats (jauge « sous contrat » et rappels) ; null si la lecture échoue.
+// .range explicite : PostgREST tronque silencieusement à 1000 lignes.
+async function chargerContrats(jour) {
+  const [t, c] = await Promise.all([
+    supabase.from('travailleurs').select('id, actif, statut').neq('statut', 'archive').range(0, 4999),
+    supabase.from('contrats_travailleurs').select('travailleur_id, type, date_debut, date_fin, cloture_le').range(0, 4999),
+  ])
+  if (t.error || c.error) return null
+  return resumeContrats(t.data, c.data, jour)
+}
+
+// Points des 7 derniers jours, restaurants, demandes en attente, messages
+// Trésorerie et contrats. null tant que rien n'est chargé (ou hors ligne) : pas de bandeau.
 function useEtatDuJour(role, userId) {
   const [etat, setEtat] = useState(null)
   const charger = useCallback(async () => {
@@ -85,12 +98,13 @@ function useEtatDuJour(role, userId) {
       const hier = new Date(auj); hier.setDate(auj.getDate() - 1)
       const demain = new Date(auj); demain.setDate(auj.getDate() + 1)
       const depuis = new Date(auj); depuis.setDate(auj.getDate() - 7)
-      const [p, r, d, treso] = await Promise.all([
+      const [p, r, d, treso, contrats] = await Promise.all([
         supabase.from('points').select('restaurant_id, date, valide, verifie')
           .gte('date', isoLocal(depuis)).lte('date', isoLocal(auj)).order('date').range(0, 999),
         supabase.from('restaurants').select('id, nom').order('nom'),
         supabase.from('demandes').select('id', { count: 'exact', head: true }).eq('statut', 'en_attente'),
         chargerTresorerie({ role, userId, hier: isoLocal(hier), auj: isoLocal(auj), demain: isoLocal(demain) }).catch(() => null),
+        chargerContrats(isoLocal(auj)).catch(() => null),
       ])
       if (p.error || r.error) return
       setEtat({
@@ -99,6 +113,7 @@ function useEtatDuJour(role, userId) {
         aVerifier: nbAVerifier(p.data),
         demandes: d.error ? 0 : d.count || 0,
         treso,
+        contrats,
       })
     } catch (_) { /* hors ligne : pas de bandeau */ }
   }, [role, userId])
@@ -258,6 +273,8 @@ function BandeauRH({ etat, styles, colors }) {
             </Survol>
           ))}
         </View>
+
+        {etat.contrats && <BlocContrats resume={etat.contrats} styles={styles} colors={colors} />}
       </Survol>
     </Animated.View>
   )
@@ -346,8 +363,43 @@ function BandeauPoints({ etat, styles, colors }) {
             ))}
           </View>
         )}
+
+        {etat.contrats && <BlocContrats resume={etat.contrats} styles={styles} colors={colors} />}
       </Survol>
     </Animated.View>
+  )
+}
+
+// ── Contrats : jauge « sous contrat » et rappels, dans les deux bandeaux ─────
+
+function BlocContrats({ resume: r, styles, colors }) {
+  const lignes = [
+    r.bientot > 0 && { cle: 'bie', icone: 'timer-sand', couleur: r.plusProche !== null && r.plusProche <= 7 ? colors.error : colors.warningDark,
+      texte: `${r.bientot} expire${r.bientot > 1 ? 'nt' : ''} bientôt${r.plusProche !== null ? ` · le plus proche ${r.plusProche === 0 ? "aujourd'hui" : `dans ${r.plusProche} j`}` : ''}` },
+    r.aRenouveler > 0 && { cle: 'ren', icone: 'autorenew', couleur: colors.error,
+      texte: `${r.aRenouveler} expiré${r.aRenouveler > 1 ? 's' : ''} à renouveler` },
+    r.sans > 0 && { cle: 'san', icone: 'file-alert', couleur: colors.error,
+      texte: `${r.sans} sans contrat` },
+    { cle: 'sous', icone: 'file-check', couleur: colors.success,
+      texte: `${r.sousContrat} / ${r.total} sous contrat` },
+  ].filter(Boolean)
+  return (
+    <View style={styles.bandeauTreso}>
+      <Text style={styles.bandeauSousTitre}>Contrats</Text>
+      <Survol onPress={() => router.push('/contrats')} accessibilityRole="button" hitSlop={6}
+        accessibilityLabel={`${r.pct} % des travailleurs sous contrat. Ouvrir les contrats.`}
+        style={[styles.lienTreso, { flexDirection: 'column', alignItems: 'stretch', paddingVertical: 4 }]} echelle={1.01}>
+        <Jauge variante="barre" pct={r.pct} libelle="Travailleurs sous contrat" />
+      </Survol>
+      {lignes.map(l => (
+        <Survol key={l.cle} onPress={() => router.push('/contrats')} accessibilityRole="button" hitSlop={6}
+          accessibilityLabel={l.texte} style={styles.lienTreso} echelle={1.02}
+          styleSurvol={{ backgroundColor: l.couleur + '14' }}>
+          <Indicateur icone={l.icone} couleur={l.couleur} texte={l.texte} styles={styles} />
+          <MaterialCommunityIcons name="chevron-right" size={16} color={colors.textMuted} />
+        </Survol>
+      ))}
+    </View>
   )
 }
 

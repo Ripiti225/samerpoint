@@ -17,10 +17,11 @@ import FormulaireContrat from '../components/FormulaireContrat'
 import SelecteurTravailleur from '../components/SelecteurTravailleur'
 import Avatar from '../components/equipe/Avatar'
 import { Compteurs, EnTete, Puces, Recherche, Vide, teinte, useEcranModerne } from '../components/ui/EcranModerne'
+import Jauge from '../components/ui/Jauge'
 import { useApp } from '../context/AppContext'
 import {
   FILTRES_CONTRAT, aujourdhuiISO, compterContrats, contratAffiche, correspondFiltreContrat, expireBientot,
-  formatFR, ordinalFR, progressionContrat, rangParType, statutContrat,
+  formatFR, ordinalFR, progressionContrat, rangParType, resumeContrats, statutContrat,
 } from '../lib/contrats'
 import { journaliser } from '../lib/journal'
 import { creerNotification } from '../lib/notificationsInterne'
@@ -100,6 +101,10 @@ export default function ContratsScreen() {
   }, [travailleurs, contrats, filtreResto, recherche, jour])
 
   const comptes = useMemo(() => compterContrats(lignes, jour), [lignes, jour])
+  // Jauge « sous contrat » : le restaurant choisi, sans tenir compte de la recherche.
+  const resume = useMemo(() => resumeContrats(
+    travailleurs.filter(t => filtreResto === 'tous' || t.restaurant_id === filtreResto), contrats, jour,
+  ), [travailleurs, contrats, filtreResto, jour])
 
   // L'onglet « Travailleurs » montre tout l'effectif du restaurant choisi, avec
   // ou sans contrat : c'est la vue d'entrée, celle où l'on cherche quelqu'un par
@@ -350,6 +355,22 @@ export default function ContratsScreen() {
           <Compteurs elements={compteurs} actif={filtreEtat} styles={styles}
             onChoisir={cle => setFiltreEtat(cle ?? 'tous')} />
           <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+            <View style={[styles.carte, { flexDirection: 'row', alignItems: 'center', gap: 14, flexWrap: 'wrap' }]}>
+              <Jauge pct={resume.pct} taille={150} epaisseur={14} libelle="sous contrat" />
+              <View style={{ flex: 1, minWidth: 140, gap: 6 }}>
+                <Text style={[styles.carteTitre, { fontSize: 16 }]}>{resume.sousContrat} / {resume.total} en règle</Text>
+                <Text style={styles.infoTxt}>Travailleurs actifs avec un contrat valable aujourd'hui, ou dont la suite est déjà enregistrée.</Text>
+                {resume.bientot > 0 && (
+                  <Text style={[styles.infoTxt, { color: '#C27C1A', fontWeight: '700' }]}>
+                    ⏰ {resume.bientot} expire{resume.bientot > 1 ? 'nt' : ''} bientôt
+                    {resume.plusProche !== null ? ` · le plus proche ${resume.plusProche === 0 ? "aujourd'hui" : `dans ${resume.plusProche} j`}` : ''}
+                  </Text>
+                )}
+                {resume.aRenouveler > 0 && <Text style={[styles.infoTxt, { color: '#C2462B', fontWeight: '700' }]}>🔁 {resume.aRenouveler} à renouveler</Text>}
+                {resume.sans > 0 && <Text style={[styles.infoTxt, { color: '#C2462B', fontWeight: '700' }]}>⚠ {resume.sans} sans contrat</Text>}
+              </View>
+            </View>
+
             {affichees.length > 0 && (
               <Text style={styles.resultat}>
                 {affichees.length} travailleur{affichees.length > 1 ? 's' : ''}
