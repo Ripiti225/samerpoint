@@ -1,5 +1,6 @@
 // ──────────────────────────────────────────────────────────────────────────────
-// Accueil manager / directeur.
+// Accueil manager / directeur / RH (le RH voit ses demandes et ses échéances à
+// la place des points d'hier, et seulement les bannières de ses accès).
 //
 //  1. « Points d'hier » : un coup d'œil sur les 8 restaurants (vérifié, à
 //     vérifier, en attente), ce qui reste à vérifier et les demandes en attente.
@@ -141,7 +142,9 @@ export default function AccueilManager({ items, role, userId }) {
 
   return (
     <View>
-      {etat && <BandeauPoints etat={etat} styles={styles} colors={colors} />}
+      {etat && (role === 'rh'
+        ? <BandeauRH etat={etat} styles={styles} colors={colors} />
+        : <BandeauPoints etat={etat} styles={styles} colors={colors} />)}
 
       {favoris.length > 0 && (
         <View style={styles.section}>
@@ -198,6 +201,60 @@ export default function AccueilManager({ items, role, userId }) {
         ))}
       </View>
     </View>
+  )
+}
+
+// ── Bandeau du compte RH : ses demandes et les charges à échéance ────────────
+// Les points des restaurants ne le concernent pas : à la place, les demandes
+// en attente et les échéances (salaires, CNPS, impôts…) d'aujourd'hui et demain.
+
+function BandeauRH({ etat, styles, colors }) {
+  const { demandes, treso } = etat
+  const auj = new Date()
+  const lignes = treso ? [
+    treso.aujourdhui.n > 0 && { cle: 'auj', icone: 'calendar-alert', couleur: colors.error,
+      texte: `${treso.aujourdhui.n} échéance${treso.aujourdhui.n > 1 ? 's' : ''} aujourd'hui · ${fmt(treso.aujourdhui.total)} F` },
+    treso.demain.n > 0 && { cle: 'dem', icone: 'calendar-clock', couleur: colors.warningDark,
+      texte: `${treso.demain.n} demain · ${fmt(treso.demain.total)} F` },
+    treso.detteCeMatin.n > 0 && { cle: 'det', icone: 'alert-octagon', couleur: colors.error,
+      texte: `${treso.detteCeMatin.n} passée${treso.detteCeMatin.n > 1 ? 's' : ''} en dette ce matin · ${fmt(treso.detteCeMatin.total)} F` },
+  ].filter(Boolean) : []
+  return (
+    <Animated.View entering={FadeIn.duration(300)}>
+      <Survol
+        onPress={() => router.push('/demandes-admin')}
+        accessibilityRole="button"
+        accessibilityLabel={`${demandes} demande${demandes > 1 ? 's' : ''} en attente. Ouvrir les demandes.`}
+        style={styles.bandeau} echelle={1.01} styleSurvol={{ borderColor: colors.primary + '66' }}
+      >
+        <View style={styles.bandeauHaut}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.bandeauLabel}>Aujourd'hui · {auj.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+              <Text style={[styles.bandeauGrand, { color: demandes ? colors.warningDark : colors.success }]}>{demandes}</Text>
+              <Text style={styles.bandeauUnite}>demande{demandes > 1 ? 's' : ''} en attente</Text>
+            </View>
+          </View>
+          <MaterialCommunityIcons name={demandes ? 'inbox-arrow-down' : 'check-decagram'} size={34}
+            color={demandes ? colors.warningDark : colors.success} />
+        </View>
+
+        <View style={styles.bandeauTreso}>
+          <Text style={styles.bandeauSousTitre}>Charges à payer</Text>
+          {lignes.length === 0 && (
+            <Indicateur icone="check-circle" couleur={colors.success} texte="Aucune échéance aujourd'hui ni demain" styles={styles} />
+          )}
+          {lignes.map(l => (
+            <Survol key={l.cle} onPress={() => router.push('/tresorerie-a-payer')} accessibilityRole="button" hitSlop={6}
+              accessibilityLabel={l.texte} style={styles.lienTreso} echelle={1.02}
+              styleSurvol={{ backgroundColor: l.couleur + '14' }}>
+              <Indicateur icone={l.icone} couleur={l.couleur} texte={l.texte} styles={styles} />
+              <MaterialCommunityIcons name="chevron-right" size={16} color={colors.textMuted} />
+            </Survol>
+          ))}
+        </View>
+      </Survol>
+    </Animated.View>
   )
 }
 

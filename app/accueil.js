@@ -342,7 +342,7 @@ export default function AccueilScreen() {
 
         {/* Menu construit depuis le catalogue central + config par rôle.
             Manager & directeur : accès total. RH/gérant/caissier : configurable. */}
-        {(isManager || isDirecteur)
+        {(isManager || isDirecteur || isRH)
           ? <AccueilManager items={menuItems} role={roleEffectif} userId={userId} />
           : renderMenu(menuItems, isCaissier ? 'Mon point du jour' : null)}
 
