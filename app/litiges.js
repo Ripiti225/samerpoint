@@ -23,6 +23,7 @@ import { PLAFOND_COMPTAGE } from '../lib/deductionsVerification'
 import {
   responsablesEcartPOS, fusionnerResponsablesEcart, SOURCE_DECISION_POS,
 } from '../lib/ecartPOS'
+import { caissierAuMoment, normaliserHeure, phraseAttribution } from '../lib/attributionAvis'
 import { chargerLitigesRestaurant, chargerShiftsEcart } from '../lib/litigesGlobal'
 import { restoSansLitige } from '../lib/litigesResume'
 import { exporterPdf } from '../lib/pdfDocuments'
@@ -157,6 +158,9 @@ export default function LitigesScreen() {
   const [onglet, setOnglet] = useState('ecarts')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  // Shifts servant à retrouver le caissier présent à l'heure d'un avis (lib/attributionAvis.js).
+  const [shiftsAvis, setShiftsAvis] = useState([])
+  const [attributionEnCours, setAttributionEnCours] = useState(false)
   const [confirmSuppr, setConfirmSuppr] = useState(null)
   const [saveError, setSaveError] = useState(null)
 
@@ -189,7 +193,7 @@ export default function LitigesScreen() {
   // ── Volet 3 — avis clients ──────────────────────────────────
   const [avisClients, setAvisClients] = useState([])
   const [showFormAvis, setShowFormAvis] = useState(false)
-  const [formAvis, setFormAvis] = useState({ type: 'mauvais', canal: 'sur_place', notes: '', numero_commande: '', date_saisie: TODAY, id: null })
+  const [formAvis, setFormAvis] = useState({ type: 'mauvais', canal: 'sur_place', notes: '', numero_commande: '', date_saisie: TODAY, heure: '', id: null })
 
   // ── Volet 4 — Yango ─────────────────────────────────────────
   const [litigesYango, setLitigesYango] = useState([])
@@ -611,6 +615,46 @@ export default function LitigesScreen() {
         { text: 'Retour', style: 'cancel' },
         { text: 'Annuler la déduction', style: 'destructive', onPress: faire },
       ]
+    )
+  }
+
+  // Shifts du restaurant autour des dates d'avis (la veille comprise : un
+  // service de soirée finit après minuit).
+  async function chargerShiftsAvis(debut, fin) {
+    if (!restoSelectionne) return []
+    const veille = new Date(`${debut}T12:00:00Z`); veille.setUTCDate(veille.getUTCDate() - 1)
+    const { data } = await supabase.from('points_shifts')
+      .select('restaurant_id, date, caissier_id, caissier_nom, heure_debut, heure_fin')
+      .eq('restaurant_id', restoSelectionne.id)
+      .gte('date', veille.toISOString().slice(0, 10)).lte('date', fin)
+      .order('date').range(0, 4999)
+    setShiftsAvis(data || [])
+    return data || []
+  }
+
+  // Attribue d'un coup les avis sans responsable de la période affichée.
+  async function attribuerAvisAutomatiquement() {
+    const sans = avisClients.filter(a => !a.responsable_id && !a.responsable_nom)
+    if (!sans.length) return
+    setAttributionEnCours(true)
+    const dates = sans.map(a => a.date).sort()
+    const shifts = await chargerShiftsAvis(dates[0], dates[dates.length - 1])
+    let faits = 0
+    for (const a of sans) {
+      const r = caissierAuMoment(shifts, { restaurantId: restoSelectionne.id, date: a.date, heure: a.heure_commande })
+      if (!r.caissier_id && !r.caissier_nom) continue
+      const { error } = await supabase.from('litiges_avis_clients')
+        .update({ responsable_id: r.caissier_id || null, responsable_nom: r.caissier_nom || null }).eq('id', a.id)
+      if (!error) faits += 1
+    }
+    setAttributionEnCours(false)
+    await chargerAvis()
+    const restants = sans.length - faits
+    Alert.alert(
+      `${faits} avis attribué${faits > 1 ? 's' : ''}`,
+      restants
+        ? `${restants} avis restent sans responsable : plusieurs caissiers ce jour-là et pas d’heure de commande. Ouvrez-les pour indiquer l’heure.`
+        : 'Tous les avis ont un responsable.',
     )
   }
 
@@ -1234,23 +1278,34 @@ export default function LitigesScreen() {
     setSaving(true)
     const montant = typeAvis(formAvis.type)?.montant ?? 1000
     const dateToSave = formAvis.date_saisie || TODAY
+    // Sans responsable choisi : le caissier présent à l'heure de la commande.
+    let { responsable_id: respId, responsable_nom: respNom } = formAvis
+    if (!respId && !respNom) {
+      const r = caissierAuMoment(shiftsAvis, { restaurantId: restoSelectionne.id, date: dateToSave, heure: formAvis.heure })
+      if (r.caissier_id || r.caissier_nom) { respId = r.caissier_id; respNom = r.caissier_nom }
+    }
     const champs = {
       type: formAvis.type, montant,
       canal: formAvis.canal || 'sur_place',
       notes: formAvis.notes || null,
       numero_commande: formAvis.numero_commande || null,
       date: dateToSave,
-      responsable_id: formAvis.responsable_id || null,
-      responsable_nom: formAvis.responsable_nom || null,
+      heure_commande: normaliserHeure(formAvis.heure),
+      responsable_id: respId || null,
+      responsable_nom: respNom || null,
     }
     const run = (payload) => formAvis.id
       ? supabase.from('litiges_avis_clients').update(payload).eq('id', formAvis.id)
       : supabase.from('litiges_avis_clients').insert({ ...payload, restaurant_id: restoSelectionne.id, created_by: userNom || userId })
 
     let { error } = await run(champs)
-    // Repli si la colonne `canal` n'existe pas encore en base (migration non jouée)
+    // Repli si `heure_commande` (supabase_avis_heure.sql) ou `canal` n'existent pas encore en base
+    if (error && /heure_commande/i.test(error.message || '')) {
+      const { heure_commande: _h, ...sansHeure } = champs
+      ;({ error } = await run(sansHeure))
+    }
     if (error && /canal/i.test(error.message || '')) {
-      const { canal: _omit, ...sansCanal } = champs
+      const { canal: _omit, heure_commande: _h2, ...sansCanal } = champs
       ;({ error } = await run(sansCanal))
     }
     setSaving(false)
@@ -1383,11 +1438,14 @@ export default function LitigesScreen() {
 
   function ouvrirAddAvis() {
     setSaving(false)
-    setFormAvis({ type: 'mauvais', canal: 'sur_place', notes: '', numero_commande: '', date_saisie: formDateDefaut(periodeKey, dateUnique), responsable_id: null, responsable_nom: '', id: null })
+    const date = formDateDefaut(periodeKey, dateUnique)
+    setFormAvis({ type: 'mauvais', canal: 'sur_place', notes: '', numero_commande: '', date_saisie: date, heure: '', responsable_id: null, responsable_nom: '', id: null })
+    chargerShiftsAvis(date, date)
     setShowFormAvis(true)
   }
   function ouvrirEditAvis(a) {
-    setFormAvis({ type: a.type, canal: a.canal || 'sur_place', notes: a.notes || '', numero_commande: a.numero_commande || '', date_saisie: a.date || TODAY, responsable_id: a.responsable_id || null, responsable_nom: a.responsable_nom || '', id: a.id })
+    setFormAvis({ type: a.type, canal: a.canal || 'sur_place', notes: a.notes || '', numero_commande: a.numero_commande || '', date_saisie: a.date || TODAY, heure: a.heure_commande ? String(a.heure_commande).slice(0, 5) : '', responsable_id: a.responsable_id || null, responsable_nom: a.responsable_nom || '', id: a.id })
+    chargerShiftsAvis(a.date || TODAY, a.date || TODAY)
     setShowFormAvis(true)
   }
   function ouvrirAddYango() {
@@ -1902,6 +1960,19 @@ export default function LitigesScreen() {
             </Text>
           </View>
         )}
+        {avisClients.some(a => !a.responsable_id && !a.responsable_nom) && (
+          <TouchableOpacity style={styles.attribuerBtn} onPress={attribuerAvisAutomatiquement} disabled={attributionEnCours}>
+            {attributionEnCours
+              ? <ActivityIndicator size="small" color={colors.primary} />
+              : <MaterialCommunityIcons name="account-arrow-left-outline" size={18} color={colors.primary} />}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.attribuerBtnTxt}>
+                Attribuer les {avisClients.filter(a => !a.responsable_id && !a.responsable_nom).length} avis sans responsable
+              </Text>
+              <Text style={styles.attribuerBtnSous}>Au caissier présent à l’heure de la commande (ou seul caissier du jour)</Text>
+            </View>
+          </TouchableOpacity>
+        )}
         {avisClients.map(a => {
           const type = typeAvis(a.type)
           return (
@@ -1911,7 +1982,8 @@ export default function LitigesScreen() {
                 {a.canal ? info('map-marker-outline', canalAvis(a.canal)?.court || a.canal, [styles.ligneSous, { color: canalAvis(a.canal)?.couleur || colors.textMuted, fontWeight: '700' }]) : null}
                 {a.responsable_nom ? info('account-outline', a.responsable_nom, styles.ligneSous) : null}
                 {a.numero_commande ? info('receipt-text-outline', <>Commande #{a.numero_commande}</>, styles.ligneCmd) : null}
-                {multiJour && a.date ? info('calendar-blank-outline', a.date, styles.ligneSous) : null}
+                {multiJour && a.date ? info('calendar-blank-outline', `${a.date}${a.heure_commande ? ` · ${String(a.heure_commande).slice(0, 5)}` : ''}`, styles.ligneSous) : null}
+                {!multiJour && a.heure_commande ? info('clock-outline', `Commande à ${String(a.heure_commande).slice(0, 5)}`, styles.ligneSous) : null}
                 {a.notes ? <Text style={styles.ligneSous}>{a.notes}</Text> : null}
                 {a.created_by ? <Text style={styles.ligneCreer}>par {a.created_by}</Text> : null}
               </View>
@@ -2458,12 +2530,45 @@ export default function LitigesScreen() {
               onChangeText={v => setFormAvis(p => ({ ...p, numero_commande: v }))}
               placeholder="Ex: 48291" placeholderTextColor="#bbb" keyboardType="default" />
 
-            <Text style={styles.formLabel}>Date</Text>
-            <TextInput style={styles.formInput} value={formAvis.date_saisie}
-              onChangeText={v => setFormAvis(p => ({ ...p, date_saisie: v }))}
-              placeholder="AAAA-MM-JJ" placeholderTextColor="#bbb" />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.formLabel}>Date</Text>
+                <TextInput style={styles.formInput} value={formAvis.date_saisie}
+                  onChangeText={v => { setFormAvis(p => ({ ...p, date_saisie: v })); if (/^\d{4}-\d{2}-\d{2}$/.test(v)) chargerShiftsAvis(v, v) }}
+                  placeholder="AAAA-MM-JJ" placeholderTextColor={colors.textPlaceholder} />
+              </View>
+              <View style={{ width: 120 }}>
+                <Text style={styles.formLabel}>Heure commande</Text>
+                <TextInput style={styles.formInput} value={formAvis.heure}
+                  onChangeText={v => setFormAvis(p => ({ ...p, heure: v }))}
+                  placeholder="Ex : 9h30" placeholderTextColor={colors.textPlaceholder} />
+              </View>
+            </View>
+            {(() => {
+              const r = caissierAuMoment(shiftsAvis, { restaurantId: restoSelectionne?.id, date: formAvis.date_saisie, heure: formAvis.heure })
+              const trouve = !!(r.caissier_id || r.caissier_nom)
+              const dejaChoisi = trouve && (formAvis.responsable_id ? formAvis.responsable_id === r.caissier_id : formAvis.responsable_nom === r.caissier_nom)
+              return (
+                <View style={[styles.suggestion, { backgroundColor: trouve ? colors.successLight : colors.surfaceAlt }]}>
+                  <MaterialCommunityIcons name={trouve ? 'account-check-outline' : 'account-question-outline'} size={18}
+                    color={trouve ? colors.successDark : colors.textSecondary} />
+                  <Text style={[styles.suggestionTxt, { color: trouve ? colors.successDark : colors.textSecondary }]}>
+                    {phraseAttribution(r, formAvis.heure)}
+                  </Text>
+                  {trouve && !dejaChoisi ? (
+                    <TouchableOpacity style={styles.suggestionBtn}
+                      onPress={() => setFormAvis(p => ({ ...p, responsable_id: r.caissier_id, responsable_nom: r.caissier_nom }))}>
+                      <Text style={styles.suggestionBtnTxt}>Attribuer</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              )
+            })()}
 
             {renderResponsablePicker(formAvis.responsable_id, (id, nom) => setFormAvis(p => ({ ...p, responsable_id: id, responsable_nom: nom })))}
+            {formAvis.responsable_nom && !formAvis.responsable_id ? (
+              <Text style={[styles.ligneSous, { marginTop: -6, marginBottom: 10 }]}>Responsable : {formAvis.responsable_nom} (nom du POS)</Text>
+            ) : null}
 
             <Text style={styles.formLabel}>Notes (optionnel)</Text>
             <TextInput style={[styles.formInput, { height: 56 }]} value={formAvis.notes}
@@ -3128,6 +3233,13 @@ function makeStyles(colors) { return StyleSheet.create({
   btnValider: { flex: 1, padding: 13, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center' },
   btnValiderTxt: { fontSize: 14, color: '#FFFFFF', fontWeight: '800' },
 
+  suggestion: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, padding: 10, marginBottom: 12 },
+  suggestionTxt: { flex: 1, fontSize: 12.5, fontWeight: '600', lineHeight: 17 },
+  suggestionBtn: { backgroundColor: colors.successDark, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+  suggestionBtnTxt: { fontSize: 12, fontWeight: '800', color: '#FFFFFF' },
+  attribuerBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.primaryLight, borderRadius: 14, padding: 12, minHeight: 52 },
+  attribuerBtnTxt: { fontSize: 13.5, fontWeight: '800', color: colors.primary },
+  attribuerBtnSous: { fontSize: 11.5, color: colors.primary, opacity: 0.85, marginTop: 1 },
   responsableChip: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999,
     backgroundColor: colors.bg, borderWidth: 0.5, borderColor: colors.border,
