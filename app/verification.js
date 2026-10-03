@@ -93,14 +93,14 @@ export default function VerificationScreen() {
   const [photoSelectionnee, setPhotoSelectionnee] = useState(null)
   const [validating, setValidating] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
-  const [onglet, setOnglet] = useState('point')
   // Un mois à la fois (les points à vérifier plus anciens restent en tête).
   const [mois, setMois] = useState(() => new Date().toISOString().slice(0, 7))
   const liste = useMemo(() => organiserPoints(points, mois), [points, mois])
   // Onglet de la fiche d'un point : ventes · ecart · photos · depenses · argent · equipe · stock · historique
   const [ongletFiche, setOngletFiche] = useState('ventes')
-  const [modalInventaire, setModalInventaire] = useState(false)
+  // Inventaire du point, affiché dans l'onglet Stock de la fiche
   const [detailInventaire, setDetailInventaire] = useState(null)
+  const inventaireDemande = useRef(null)  // point dont l'inventaire est attendu
   const [annulDeducSaving, setAnnulDeducSaving] = useState(null)  // id de la ligne en cours d'annulation
   // Décision manager sur un écart inventaire expliqué (validee / refusee)
   const [decisionInv, setDecisionInv] = useState(null)  // { ...ligneEcart } ou null
@@ -230,6 +230,9 @@ export default function VerificationScreen() {
     setLoadingDetail(true)
     setModalPoint(true)
     setDetailPoint(null)
+    setDetailInventaire(null)
+    setRepartition({})
+    chargerInventaire(point)
 
     const [
       { data: sequences },
@@ -395,6 +398,38 @@ export default function VerificationScreen() {
     }
   }
 
+  // Décisions inventaire encore ouvertes dans l'onglet Stock. Elles
+  // n'empêchent pas de vérifier le point : on prévient seulement.
+  function inventaireEnAttente() {
+    const restes = []
+    if (loadingInventaire && !detailInventaire) restes.push("l'inventaire est encore en chargement")
+    const explications = (detailInventaire?.shiftsNouveauFormat || [])
+      .flatMap(sh => sh.lignes)
+      .filter(l => l.stock_reel != null && (l.ecart ?? 0) < -0.01 && l.explication_statut === 'en_attente')
+      .length
+    if (explications) restes.push(`${explications} explication${explications > 1 ? 's' : ''} d'écart en attente de décision`)
+    const comptages = Object.entries(repartition)
+      .filter(([lot, parts]) => rouverts[lot] || !['repartie', 'validee'].includes(parts[0]?.statut))
+      .length
+    if (comptages) restes.push(`${comptages} comptage${comptages > 1 ? 's' : ''} vérificateur non réparti${comptages > 1 ? 's' : ''}`)
+    return restes
+  }
+
+  function confirmerVerification() {
+    const restes = inventaireEnAttente()
+    const avertissement = restes.length
+      ? `\n\n⚠️ Stock : ${restes.join(' · ')}. Vous pouvez valider quand même.`
+      : ''
+    Alert.alert(
+      'Confirmer la vérification',
+      `Vous confirmez avoir vérifié toutes les données, photos et le stock du point du ${formatDate(pointSelectionne?.date)} ?\n\nCette action signifie que tout est conforme.${avertissement}`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Confirmer', onPress: () => marquerVerifie(pointSelectionne?.id) },
+      ]
+    )
+  }
+
   async function marquerVerifie(pointId) {
     setValidating(true)
     const { error } = await supabase.from('points').update({
@@ -459,11 +494,12 @@ export default function VerificationScreen() {
     matin: '🌅 Shift Matin', soir: '🌆 Shift Soir', nuit: '🌙 Shift Nuit', double: '🔄 Shift Double',
   }
 
-  async function ouvrirInventaire(point) {
-    setPointSelectionne(point)
+  // Charge l'inventaire du point pour l'onglet Stock (appelé à l'ouverture
+  // de la fiche, puis après chaque décision pour recharger le détail à jour).
+  async function chargerInventaire(point) {
+    if (!point) return
+    inventaireDemande.current = point.id
     setLoadingInventaire(true)
-    setModalInventaire(true)
-    setDetailInventaire(null)
 
     const [
       { data: invShiftsRaw },
@@ -579,6 +615,8 @@ export default function VerificationScreen() {
       .sort((a, b) => b.nbLignes - a.nbLignes)
 
     const { lignes: dv, migration: dvMig } = await chargerDeductions(point.restaurant_id, point.date)
+    // Une autre fiche a été ouverte entre-temps : on n'écrase pas son inventaire.
+    if (inventaireDemande.current !== point.id) return
     setDeducVerif(dv)
     setDeducMigration(dvMig)
     // Répartition initiale = la proposition enregistrée par le vérificateur.
@@ -692,7 +730,7 @@ export default function VerificationScreen() {
       : { error: null }
     setDeducEnCours(null)
     if (error) { Alert.alert('Erreur', error.message); return }
-    await ouvrirInventaire(pointSelectionne)
+    await chargerInventaire(pointSelectionne)
   }
 
   // Annule DÉFINITIVEMENT la déduction d'inventaire d'un produit (manager/directeur).
@@ -707,7 +745,7 @@ export default function VerificationScreen() {
           pointId: pointSelectionne?.id,
           par: userNom || roleActif || 'Manager',
         })
-        await ouvrirInventaire(pointSelectionne)  // recharge le détail à jour
+        await chargerInventaire(pointSelectionne)  // recharge le détail à jour
       } catch (e) {
         Alert.alert('Erreur', e?.message || "Impossible d'annuler la déduction")
       } finally {
@@ -764,7 +802,7 @@ export default function VerificationScreen() {
         screen: null,
       }).catch(() => {})
       setDecisionInv(null)
-      await ouvrirInventaire(pointSelectionne)
+      await chargerInventaire(pointSelectionne)
     } catch (err) {
       Alert.alert('Erreur', err?.message || 'Décision impossible')
     } finally {
@@ -1586,22 +1624,6 @@ export default function VerificationScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      {/* Onglets */}
-      <View style={styles.ongletBar}>
-        <TouchableOpacity
-          style={[styles.ongletBtn, onglet === 'point' && styles.ongletBtnActive]}
-          onPress={() => setOnglet('point')}
-        >
-          <Text style={[styles.ongletTxt, onglet === 'point' && styles.ongletTxtActive]}>Points</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.ongletBtn, onglet === 'inventaire' && styles.ongletBtnActive]}
-          onPress={() => setOnglet('inventaire')}
-        >
-          <Text style={[styles.ongletTxt, onglet === 'inventaire' && styles.ongletTxtActive]}>Inventaire</Text>
-        </TouchableOpacity>
-      </View>
-
       {/* Sélection restaurant */}
       <ScrollView
         horizontal showsHorizontalScrollIndicator={false}
@@ -1672,7 +1694,7 @@ export default function VerificationScreen() {
                       <TouchableOpacity
                         key={point.id}
                         style={[styles.carteAVerifier, { borderLeftColor: enRetard ? colors.error : colors.primary }]}
-                        onPress={() => onglet === 'inventaire' ? ouvrirInventaire(point) : ouvrirPoint(point)}
+                        onPress={() => ouvrirPoint(point)}
                         accessibilityRole="button"
                         accessibilityLabel={`${formatJour(point.date)}, ventes ${fmtCourt(point.vente_total)}${enRetard ? ', en retard' : ''}`}
                       >
@@ -1699,7 +1721,7 @@ export default function VerificationScreen() {
                       <TouchableOpacity
                         key={point.id}
                         style={[styles.ligneCompacte, i > 0 && styles.ligneCompacteSep]}
-                        onPress={() => onglet === 'inventaire' ? ouvrirInventaire(point) : ouvrirPoint(point)}
+                        onPress={() => ouvrirPoint(point)}
                         accessibilityRole="button"
                         accessibilityLabel={`${formatJour(point.date)}, ${point.verifie ? 'vérifié' : 'en cours'}`}
                       >
@@ -2996,355 +3018,18 @@ export default function VerificationScreen() {
 
               {ongletFiche === 'stock' && (<>
 {/* ══════════════════════════════════════
-                  8. INVENTAIRE
+                  8. INVENTAIRE (comptages, écarts, déductions)
               ══════════════════════════════════════ */}
-              <View style={{ marginBottom: 14 }}>
-                <Text style={styles.sectionTitre}>Inventaire</Text>
-                {detailPoint.invShifts.length === 0 ? (
-                  <View style={styles.emptySection}>
-                    <Text style={styles.emptySectionTxt}>Aucune donnée enregistrée</Text>
-                  </View>
-                ) : detailPoint.invShifts.map((shift, si) => (
-                  <View key={si} style={styles.invShiftCard}>
-                    <View style={styles.invShiftHeader}>
-                      <View style={styles.invShiftBadge}>
-                        <Text style={styles.invShiftBadgeTxt}>{shift.numero === 0 ? '🚚' : `S${shift.numero}`}</Text>
-                      </View>
-                      <Text style={styles.invShiftNom}>{shift.nom || (shift.numero === 0 ? 'Livraisons fournisseurs' : `Shift ${shift.numero}`)}</Text>
-                    </View>
-                    {shift.lignes.map((ligne, li) => {
-                      const ecart = ligne.stock_final == null
-                        ? null
-                        : ligne.stock_final - (ligne.stock_initial + ligne.entrees - ligne.sorties)
-                      const hasEcart = shift.numero !== 0 && ecart != null && Math.abs(ecart) > 0.01
-                      const source = ligne.fournisseur_id
-                        ? `📦 Via fournisseur : ${ligne.fournisseurs?.nom || '—'}`
-                        : (ligne.entrees > 0 ? '📥 Entrée directe' : null)
-                      return (
-                        <View key={li} style={[styles.invLigneRow, hasEcart && styles.invLigneRowAlert]}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={[styles.invLigneNom, hasEcart && { color: '#A32D2D' }]}>{ligne.produit_nom}</Text>
-                            {shift.numero === 0 ? (
-                              source && <Text style={styles.invLigneSub}>{source} — Qté: {ligne.entrees}</Text>
-                            ) : (
-                              <Text style={styles.invLigneSub}>
-                                Init: {ligne.stock_initial} | +{ligne.entrees} | -{ligne.sorties} | Final: {ligne.stock_final ?? '—'}
-                              </Text>
-                            )}
-                            {shift.numero !== 0 && (ligne.nombre_a_expliquer || 0) > 0 && (
-                              <Text style={styles.invLigneSub}>
-                                Écart: {ecart != null ? (ecart >= 0 ? '+' : '') + ecart.toFixed(1) : '—'} | Expliqué: {ligne.nombre_a_expliquer}
-                              </Text>
-                            )}
-                            {ligne.explication_ecart ? (
-                              <Text style={[styles.invLigneSub, { color: '#A32D2D', fontWeight: '700' }]}>
-                                📝 {ligne.explication_ecart}
-                              </Text>
-                            ) : hasEcart ? (
-                              <Text style={[styles.invLigneSub, { color: '#A32D2D' }]}>⚠️ Aucune explication</Text>
-                            ) : null}
-                          </View>
-                          {shift.numero !== 0 && (
-                            <View style={[styles.invEcartBadge, {
-                              backgroundColor: ecart == null ? '#f5f5f5' : hasEcart ? '#FCEBEB' : '#EAF3DE',
-                            }]}>
-                              {ecart == null
-                                ? <Text style={[styles.invEcartTxt, { color: '#888' }]}>—</Text>
-                                : hasEcart
-                                  ? <Text style={[styles.invEcartTxt, { color: '#A32D2D' }]}>{ecart >= 0 ? '+' : ''}{ecart.toFixed(1)}</Text>
-                                  : <Text style={[styles.invEcartTxt, { color: '#3B6D11' }]}>✅</Text>
-                              }
-                            </View>
-                          )}
-                        </View>
-                      )
-                    })}
-                  </View>
-                ))}
-              </View>
-              </>)}
-
-              {ongletFiche === 'photos' && (<>
-              {/* Toutes les photos du point */}
-              {(() => {
-                const toutes = getToutesPhotos()
-                if (!toutes.length) return null
-                return (
-                  <View style={{ marginBottom: 14 }}>
-                    <Text style={styles.sectionTitre}>Toutes les photos ({toutes.length})</Text>
-                    <View style={styles.grillePhotos}>
-                      {toutes.map((ph, i) => (
-                        <PhotoVignette key={`${ph.uri}-${i}`} uri={ph.uri} label={ph.label} onPress={() => ouvriGalerie(toutes, i)} />
-                      ))}
-                    </View>
-                  </View>
-                )
-              })()}
-
-{/* ══════════════════════════════════════
-                  9. PHOTOS GÉNÉRALES (séquences)
-              ══════════════════════════════════════ */}
-              <View style={{ marginBottom: 14 }}>
-                <Text style={styles.sectionTitre}>Photos générales</Text>
-                {detailPoint.sequences.filter(s => s.photo_url).length === 0 ? (
-                  <View style={styles.emptySection}>
-                    <Text style={styles.emptySectionTxt}>Aucune photo enregistrée</Text>
-                  </View>
-                ) : (
-                  <View style={styles.photosGrid}>
-                    {detailPoint.sequences.filter(s => s.photo_url).map((s, i) => {
-                      const toutes = getToutesPhotos()
-                      const idx = toutes.findIndex(x => x.uri === s.photo_url)
-                      return (
-                        <PhotoVignette
-                          key={i}
-                          uri={s.photo_url}
-                          label={`Séq. ${s.numero}`}
-                          montant={s.montant || 0}
-                          onPress={() => ouvriGalerie(toutes, idx >= 0 ? idx : 0)}
-                        />
-                      )
-                    })}
-                  </View>
-                )}
-              </View>
-              </>)}
-
-              {ongletFiche === 'historique' && (<>
-{/* ══════════════════════════════════════
-                  10. HISTORIQUE CORRECTIONS
-              ══════════════════════════════════════ */}
-              {detailPoint.deverouillages.length > 0 && (
-                <View style={{ marginBottom: 14 }}>
-                  <Text style={styles.sectionTitre}>Historique des corrections</Text>
-                  <View style={styles.listCard}>
-                    {detailPoint.deverouillages.map((d, i) => {
-                      const SECTION_ICONS = { partenaires: '🛵', fournisseurs: '🧾', photos: '📷', inventaire: '📦' }
-                      const SECTION_LABELS = { partenaires: 'Partenaires', fournisseurs: 'Fournisseurs', photos: 'Photos', inventaire: 'Inventaire' }
-                      const estCorrige = d.statut === 'corrige'
-                      const estReferme = d.statut === 'referme'
-                      const badgeBg = estCorrige ? '#EAF3DE' : estReferme ? '#E6F1FB' : '#FAEEDA'
-                      const badgeTxt = estCorrige ? '#3B6D11' : estReferme ? '#185FA5' : '#854F0B'
-                      const badgeLabel = estCorrige ? '✅ Corrigé' : estReferme ? '🔒 Refermé' : '⏳ En attente'
-                      const fmtDt = (iso) => {
-                        if (!iso) return ''
-                        const dt = new Date(iso)
-                        return dt.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' ' + dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-                      }
-                      return (
-                        <View key={d.id} style={[styles.listRow, i === detailPoint.deverouillages.length - 1 && { borderBottomWidth: 0 }]}>
-                          <View style={styles.listLeft}>
-                            <Text style={styles.listLabel}>
-                              {SECTION_ICONS[d.section] || '⚙️'} {SECTION_LABELS[d.section] || d.section}
-                            </Text>
-                            <Text style={[styles.listSub, { fontStyle: 'italic' }]} numberOfLines={2}>"{d.motif}"</Text>
-                            <Text style={styles.listSub}>Demandé le {fmtDt(d.deverouille_at)}</Text>
-                            {estCorrige && d.corrige_at && (
-                              <Text style={[styles.listSub, { color: '#3B6D11' }]}>Corrigé le {fmtDt(d.corrige_at)}</Text>
-                            )}
-                          </View>
-                          <View style={[styles.statutBadge, { backgroundColor: badgeBg, alignSelf: 'flex-start' }]}>
-                            <Text style={[styles.statutTxt, { color: badgeTxt }]}>{badgeLabel}</Text>
-                          </View>
-                        </View>
-                      )
-                    })}
-                  </View>
+              {loadingInventaire && !detailInventaire ? (
+                <View style={styles.emptySection}>
+                  <ActivityIndicator color={colors.primary} />
+                  <Text style={styles.emptySectionTxt}>Chargement de l'inventaire...</Text>
                 </View>
-              )}
-              </>)}
-
-              <View style={{ height: 24 }} />
-            </ScrollView>
-
-            {/* Actions toujours visibles en bas */}
-            <View style={styles.ficheActions}>
-              {pointSelectionne?.valide && (roleActif === 'manager' || roleActif === 'directeur') && (
-                <TouchableOpacity
-                  style={styles.actionSecondaire}
-                  onPress={() => { setSectionsSelectionnees([]); setMotifCorrection(''); setModalCorrection(true) }}
-                  accessibilityRole="button" accessibilityLabel="Demander une correction"
-                >
-                  <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.text} />
-                  <Text style={styles.actionSecondaireTxt}>Corriger</Text>
-                </TouchableOpacity>
-              )}
-              {pointSelectionne?.verifie ? (
-                <View style={styles.actionFait}>
-                  <MaterialCommunityIcons name="check-decagram" size={18} color={colors.success} />
-                  <Text style={[styles.actionFaitTxt, { color: colors.successDark }]}>Vérifié par {pointSelectionne.verifie_par || '—'}</Text>
+              ) : !detailInventaire ? (
+                <View style={styles.emptySection}>
+                  <Text style={styles.emptySectionTxt}>Aucun inventaire enregistré</Text>
                 </View>
-              ) : pointSelectionne?.valide ? (
-                <TouchableOpacity
-                  style={[styles.actionPrincipale, validating && { opacity: 0.6 }]}
-                  onPress={() => Alert.alert(
-                    'Confirmer la vérification',
-                    `Vous confirmez avoir vérifié toutes les données et photos du point du ${formatDate(pointSelectionne?.date)} ?\n\nCette action signifie que tout est conforme.`,
-                    [
-                      { text: 'Annuler', style: 'cancel' },
-                      { text: 'Confirmer', onPress: () => marquerVerifie(pointSelectionne?.id) },
-                    ]
-                  )}
-                  disabled={validating}
-                  accessibilityRole="button" accessibilityLabel="Marquer comme vérifié"
-                >
-                  {validating
-                    ? <ActivityIndicator color="#FFFFFF" />
-                    : <>
-                        <MaterialCommunityIcons name="check-circle-outline" size={20} color="#FFFFFF" />
-                        <Text style={styles.actionPrincipaleTxt}>Marquer vérifié</Text>
-                      </>}
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.actionFait}>
-                  <MaterialCommunityIcons name="clock-outline" size={18} color={colors.textMuted} />
-                  <Text style={[styles.actionFaitTxt, { color: colors.textSecondary }]}>Point pas encore validé par le gérant</Text>
-                </View>
-              )}
-            </View>
-            </>
-          )}
-
-          {/* ── GALERIE + ZOOM (un seul Modal, deux modes) ── */}
-          <Modal visible={showGalerie} transparent animationType="fade">
-            <View style={styles.galerieOverlay}>
-              <SafeAreaView style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
-                <View style={styles.galerieTopBar}>
-                  {zoomActif ? (
-                    <TouchableOpacity onPress={() => setZoomActif(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-                      <Text style={{ fontSize: 14, color: '#aaa' }}>‹ Galerie</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <Text style={styles.galerieCounter}>{galerieIndex + 1} / {galeriePhotos.length}</Text>
-                  )}
-                  <Text style={styles.galerieLabel} numberOfLines={1}>
-                    {galeriePhotos[galerieIndex]?.label || ''}
-                  </Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-                    {!zoomActif && (
-                      <TouchableOpacity onPress={() => setZoomActif(true)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-                        <Text style={{ fontSize: 22, color: '#fff' }}>🔍</Text>
-                      </TouchableOpacity>
-                    )}
-                    <TouchableOpacity
-                      onPress={() => { setZoomActif(false); setShowGalerie(false) }}
-                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                    >
-                      <Text style={styles.galerieClose}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </SafeAreaView>
-
-              {zoomActif ? (
-                /* MODE ZOOM — ScrollView seul, pinch libre */
-                <>
-                  <ScrollView
-                    style={{ flex: 1 }}
-                    contentContainerStyle={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
-                    maximumZoomScale={6}
-                    minimumZoomScale={1}
-                    showsHorizontalScrollIndicator={false}
-                    showsVerticalScrollIndicator={false}
-                    centerContent
-                    bouncesZoom
-                  >
-                    {galeriePhotos[galerieIndex]?.uri && (
-                      <PhotoJustificatif
-                        uri={galeriePhotos[galerieIndex].uri}
-                        style={{ width: SW, height: SW * 1.3 }}
-                        resizeMode="contain"
-                      />
-                    )}
-                  </ScrollView>
-                  <TouchableOpacity style={styles.galerieFermerBtn} onPress={() => setZoomActif(false)}>
-                    <Text style={styles.galerieFermerTxt}>‹ Retour galerie</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                /* MODE GALERIE — FlatList swipe */
-                <>
-                  <FlatList
-                    ref={galerieRef}
-                    data={galeriePhotos}
-                    horizontal
-                    pagingEnabled
-                    showsHorizontalScrollIndicator={false}
-                    initialScrollIndex={galerieIndex}
-                    getItemLayout={(_, idx) => ({ length: SW, offset: SW * idx, index: idx })}
-                    onViewableItemsChanged={onViewableItemsChanged}
-                    viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
-                    keyExtractor={(_, idx) => String(idx)}
-                    renderItem={({ item }) => (
-                      <View style={{ width: SW, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                        <PhotoJustificatif
-                          uri={item.uri}
-                          style={{ width: SW, height: SW * 1.1 }}
-                          resizeMode="contain"
-                        />
-                      </View>
-                    )}
-                  />
-                  <TouchableOpacity style={styles.galerieFermerBtn} onPress={() => setShowGalerie(false)}>
-                    <Text style={styles.galerieFermerTxt}>Fermer</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-          </Modal>
-
-          {/* ── MODAL PHOTO SIMPLE (fournisseurs) ── */}
-          <Modal visible={modalPhoto} animationType="fade" transparent>
-            <View style={styles.photoModalOverlay}>
-              <TouchableOpacity
-                style={styles.photoModalClose} onPress={() => setModalPhoto(false)}
-                hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-              >
-                <Text style={styles.photoModalCloseTxt}>✕</Text>
-              </TouchableOpacity>
-              <Text style={styles.photoModalLabel}>{photoSelectionnee?.label}</Text>
-              <View style={styles.photoModalImgWrapper}>
-                {photoSelectionnee?.uri && (
-                  <PhotoJustificatif uri={photoSelectionnee.uri} style={styles.photoModalImg} resizeMode="contain" />
-                )}
-              </View>
-              <TouchableOpacity style={styles.photoModalFermer} onPress={() => setModalPhoto(false)}>
-                <Text style={styles.photoModalFermerTxt}>Fermer</Text>
-              </TouchableOpacity>
-            </View>
-          </Modal>
-
-        </SafeAreaView>
-      </Modal>
-
-      {/* ══════════════════════════════════════════
-          MODAL INVENTAIRE (onglet inventaire)
-      ══════════════════════════════════════════ */}
-      <Modal visible={modalInventaire} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
-          <View style={[styles.modalHeader, { backgroundColor: '#EF9F27' }]}>
-            <TouchableOpacity onPress={() => setModalInventaire(false)}>
-              <Text style={[styles.modalClose, { color: '#412402' }]}>✕ Fermer</Text>
-            </TouchableOpacity>
-            <View style={{ alignItems: 'center' }}>
-              <Text style={[styles.modalTitre, { color: '#412402' }]}>{formatDate(pointSelectionne?.date)}</Text>
-              <Text style={[styles.modalSub, { color: '#854F0B' }]}>Inventaire — {restoSelectionne?.nom}</Text>
-            </View>
-            <View style={{ width: 60 }} />
-          </View>
-
-          {loadingInventaire ? (
-            <View style={styles.loadingBox}>
-              <ActivityIndicator size="large" color="#EF9F27" />
-              <Text style={styles.loadingTxt}>Chargement de l'inventaire...</Text>
-            </View>
-          ) : !detailInventaire ? (
-            <View style={styles.emptyBox}>
-              <Text style={styles.emptyIcon}>📦</Text>
-              <Text style={styles.emptyTxt}>Aucun inventaire enregistré</Text>
-              <Text style={styles.emptySub}>L'inventaire de ce jour n'a pas encore été saisi</Text>
-            </View>
-          ) : (() => {
+              ) : (() => {
             const { shiftsNouveauFormat, shiftsAncienFormat, useNouveauFormat,
               entreesParFournisseur = [], nbEntrees = 0 } = detailInventaire
             const peutVoirEcarts = roleActif === 'manager' || roleActif === 'directeur'
@@ -3403,10 +3088,8 @@ export default function VerificationScreen() {
               : shiftsAncienFormat.filter(s => s.numero > 0).length === 0
 
             if (aucunInventaire) return (
-              <View style={styles.emptyBox}>
-                <Text style={styles.emptyIcon}>📦</Text>
-                <Text style={styles.emptyTxt}>Aucun inventaire enregistré</Text>
-                <Text style={styles.emptySub}>L'inventaire de ce jour n'a pas encore été saisi</Text>
+              <View style={styles.emptySection}>
+                <Text style={styles.emptySectionTxt}>Aucun inventaire enregistré</Text>
               </View>
             )
 
@@ -3424,7 +3107,7 @@ export default function VerificationScreen() {
             const totalDeduit = toutesLignesEcart.reduce((s, l) => s + (l.montantDeduit || 0), 0)
 
             return (
-              <ScrollView style={{ padding: 14 }} showsVerticalScrollIndicator={false}>
+                  <View>
 
                 {/* ══ SECTION 1 : Résumé global ════════════════════════ */}
                 <Text style={styles.sectionTitre}>Résumé global</Text>
@@ -3478,8 +3161,9 @@ export default function VerificationScreen() {
                   )}
                 </View>
 
-                {/* ══ Entrées de produits reçues, par fournisseur ═══════ */}
-                {entreesParFournisseur.length > 0 && (
+                {/* ══ Entrées de produits reçues, par fournisseur ═══════
+                    Sur un site POS elles sont déjà dans « Entrées du jour ». */}
+                {entreesParFournisseur.length > 0 && detailPoint.entreesVerification?.source !== 'POS' && (
                   <>
                     <Text style={styles.sectionTitre}>Entrées de produits ({nbEntrees})</Text>
                     <View style={styles.invResumeCard}>
@@ -3941,11 +3625,254 @@ export default function VerificationScreen() {
                     </View>
                   ))
                 )}
+                  </View>
+                )
+              })()}
+              </>)}
 
-                <View style={{ height: 40 }} />
-              </ScrollView>
-            )
-          })()}
+              {ongletFiche === 'photos' && (<>
+              {/* Toutes les photos du point */}
+              {(() => {
+                const toutes = getToutesPhotos()
+                if (!toutes.length) return null
+                return (
+                  <View style={{ marginBottom: 14 }}>
+                    <Text style={styles.sectionTitre}>Toutes les photos ({toutes.length})</Text>
+                    <View style={styles.grillePhotos}>
+                      {toutes.map((ph, i) => (
+                        <PhotoVignette key={`${ph.uri}-${i}`} uri={ph.uri} label={ph.label} onPress={() => ouvriGalerie(toutes, i)} />
+                      ))}
+                    </View>
+                  </View>
+                )
+              })()}
+
+{/* ══════════════════════════════════════
+                  9. PHOTOS GÉNÉRALES (séquences)
+              ══════════════════════════════════════ */}
+              <View style={{ marginBottom: 14 }}>
+                <Text style={styles.sectionTitre}>Photos générales</Text>
+                {detailPoint.sequences.filter(s => s.photo_url).length === 0 ? (
+                  <View style={styles.emptySection}>
+                    <Text style={styles.emptySectionTxt}>Aucune photo enregistrée</Text>
+                  </View>
+                ) : (
+                  <View style={styles.photosGrid}>
+                    {detailPoint.sequences.filter(s => s.photo_url).map((s, i) => {
+                      const toutes = getToutesPhotos()
+                      const idx = toutes.findIndex(x => x.uri === s.photo_url)
+                      return (
+                        <PhotoVignette
+                          key={i}
+                          uri={s.photo_url}
+                          label={`Séq. ${s.numero}`}
+                          montant={s.montant || 0}
+                          onPress={() => ouvriGalerie(toutes, idx >= 0 ? idx : 0)}
+                        />
+                      )
+                    })}
+                  </View>
+                )}
+              </View>
+              </>)}
+
+              {ongletFiche === 'historique' && (<>
+{/* ══════════════════════════════════════
+                  10. HISTORIQUE CORRECTIONS
+              ══════════════════════════════════════ */}
+              {detailPoint.deverouillages.length > 0 && (
+                <View style={{ marginBottom: 14 }}>
+                  <Text style={styles.sectionTitre}>Historique des corrections</Text>
+                  <View style={styles.listCard}>
+                    {detailPoint.deverouillages.map((d, i) => {
+                      const SECTION_ICONS = { partenaires: '🛵', fournisseurs: '🧾', photos: '📷', inventaire: '📦' }
+                      const SECTION_LABELS = { partenaires: 'Partenaires', fournisseurs: 'Fournisseurs', photos: 'Photos', inventaire: 'Inventaire' }
+                      const estCorrige = d.statut === 'corrige'
+                      const estReferme = d.statut === 'referme'
+                      const badgeBg = estCorrige ? '#EAF3DE' : estReferme ? '#E6F1FB' : '#FAEEDA'
+                      const badgeTxt = estCorrige ? '#3B6D11' : estReferme ? '#185FA5' : '#854F0B'
+                      const badgeLabel = estCorrige ? '✅ Corrigé' : estReferme ? '🔒 Refermé' : '⏳ En attente'
+                      const fmtDt = (iso) => {
+                        if (!iso) return ''
+                        const dt = new Date(iso)
+                        return dt.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' ' + dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                      }
+                      return (
+                        <View key={d.id} style={[styles.listRow, i === detailPoint.deverouillages.length - 1 && { borderBottomWidth: 0 }]}>
+                          <View style={styles.listLeft}>
+                            <Text style={styles.listLabel}>
+                              {SECTION_ICONS[d.section] || '⚙️'} {SECTION_LABELS[d.section] || d.section}
+                            </Text>
+                            <Text style={[styles.listSub, { fontStyle: 'italic' }]} numberOfLines={2}>"{d.motif}"</Text>
+                            <Text style={styles.listSub}>Demandé le {fmtDt(d.deverouille_at)}</Text>
+                            {estCorrige && d.corrige_at && (
+                              <Text style={[styles.listSub, { color: '#3B6D11' }]}>Corrigé le {fmtDt(d.corrige_at)}</Text>
+                            )}
+                          </View>
+                          <View style={[styles.statutBadge, { backgroundColor: badgeBg, alignSelf: 'flex-start' }]}>
+                            <Text style={[styles.statutTxt, { color: badgeTxt }]}>{badgeLabel}</Text>
+                          </View>
+                        </View>
+                      )
+                    })}
+                  </View>
+                </View>
+              )}
+              </>)}
+
+              <View style={{ height: 24 }} />
+            </ScrollView>
+
+            {/* Actions toujours visibles en bas */}
+            <View style={styles.ficheActions}>
+              {pointSelectionne?.valide && (roleActif === 'manager' || roleActif === 'directeur') && (
+                <TouchableOpacity
+                  style={styles.actionSecondaire}
+                  onPress={() => { setSectionsSelectionnees([]); setMotifCorrection(''); setModalCorrection(true) }}
+                  accessibilityRole="button" accessibilityLabel="Demander une correction"
+                >
+                  <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.text} />
+                  <Text style={styles.actionSecondaireTxt}>Corriger</Text>
+                </TouchableOpacity>
+              )}
+              {pointSelectionne?.verifie ? (
+                <View style={styles.actionFait}>
+                  <MaterialCommunityIcons name="check-decagram" size={18} color={colors.success} />
+                  <Text style={[styles.actionFaitTxt, { color: colors.successDark }]}>Vérifié par {pointSelectionne.verifie_par || '—'}</Text>
+                </View>
+              ) : pointSelectionne?.valide ? (
+                <TouchableOpacity
+                  style={[styles.actionPrincipale, validating && { opacity: 0.6 }]}
+                  onPress={confirmerVerification}
+                  disabled={validating}
+                  accessibilityRole="button" accessibilityLabel="Marquer comme vérifié"
+                >
+                  {validating
+                    ? <ActivityIndicator color="#FFFFFF" />
+                    : <>
+                        <MaterialCommunityIcons name="check-circle-outline" size={20} color="#FFFFFF" />
+                        <Text style={styles.actionPrincipaleTxt}>Marquer vérifié</Text>
+                      </>}
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.actionFait}>
+                  <MaterialCommunityIcons name="clock-outline" size={18} color={colors.textMuted} />
+                  <Text style={[styles.actionFaitTxt, { color: colors.textSecondary }]}>Point pas encore validé par le gérant</Text>
+                </View>
+              )}
+            </View>
+            </>
+          )}
+
+          {/* ── GALERIE + ZOOM (un seul Modal, deux modes) ── */}
+          <Modal visible={showGalerie} transparent animationType="fade">
+            <View style={styles.galerieOverlay}>
+              <SafeAreaView style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10 }}>
+                <View style={styles.galerieTopBar}>
+                  {zoomActif ? (
+                    <TouchableOpacity onPress={() => setZoomActif(false)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                      <Text style={{ fontSize: 14, color: '#aaa' }}>‹ Galerie</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.galerieCounter}>{galerieIndex + 1} / {galeriePhotos.length}</Text>
+                  )}
+                  <Text style={styles.galerieLabel} numberOfLines={1}>
+                    {galeriePhotos[galerieIndex]?.label || ''}
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                    {!zoomActif && (
+                      <TouchableOpacity onPress={() => setZoomActif(true)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                        <Text style={{ fontSize: 22, color: '#fff' }}>🔍</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      onPress={() => { setZoomActif(false); setShowGalerie(false) }}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    >
+                      <Text style={styles.galerieClose}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </SafeAreaView>
+
+              {zoomActif ? (
+                /* MODE ZOOM — ScrollView seul, pinch libre */
+                <>
+                  <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
+                    maximumZoomScale={6}
+                    minimumZoomScale={1}
+                    showsHorizontalScrollIndicator={false}
+                    showsVerticalScrollIndicator={false}
+                    centerContent
+                    bouncesZoom
+                  >
+                    {galeriePhotos[galerieIndex]?.uri && (
+                      <PhotoJustificatif
+                        uri={galeriePhotos[galerieIndex].uri}
+                        style={{ width: SW, height: SW * 1.3 }}
+                        resizeMode="contain"
+                      />
+                    )}
+                  </ScrollView>
+                  <TouchableOpacity style={styles.galerieFermerBtn} onPress={() => setZoomActif(false)}>
+                    <Text style={styles.galerieFermerTxt}>‹ Retour galerie</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                /* MODE GALERIE — FlatList swipe */
+                <>
+                  <FlatList
+                    ref={galerieRef}
+                    data={galeriePhotos}
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    initialScrollIndex={galerieIndex}
+                    getItemLayout={(_, idx) => ({ length: SW, offset: SW * idx, index: idx })}
+                    onViewableItemsChanged={onViewableItemsChanged}
+                    viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+                    keyExtractor={(_, idx) => String(idx)}
+                    renderItem={({ item }) => (
+                      <View style={{ width: SW, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                        <PhotoJustificatif
+                          uri={item.uri}
+                          style={{ width: SW, height: SW * 1.1 }}
+                          resizeMode="contain"
+                        />
+                      </View>
+                    )}
+                  />
+                  <TouchableOpacity style={styles.galerieFermerBtn} onPress={() => setShowGalerie(false)}>
+                    <Text style={styles.galerieFermerTxt}>Fermer</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </Modal>
+
+          {/* ── MODAL PHOTO SIMPLE (fournisseurs) ── */}
+          <Modal visible={modalPhoto} animationType="fade" transparent>
+            <View style={styles.photoModalOverlay}>
+              <TouchableOpacity
+                style={styles.photoModalClose} onPress={() => setModalPhoto(false)}
+                hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+              >
+                <Text style={styles.photoModalCloseTxt}>✕</Text>
+              </TouchableOpacity>
+              <Text style={styles.photoModalLabel}>{photoSelectionnee?.label}</Text>
+              <View style={styles.photoModalImgWrapper}>
+                {photoSelectionnee?.uri && (
+                  <PhotoJustificatif uri={photoSelectionnee.uri} style={styles.photoModalImg} resizeMode="contain" />
+                )}
+              </View>
+              <TouchableOpacity style={styles.photoModalFermer} onPress={() => setModalPhoto(false)}>
+                <Text style={styles.photoModalFermerTxt}>Fermer</Text>
+              </TouchableOpacity>
+            </View>
+          </Modal>
+
         </SafeAreaView>
       </Modal>
 
@@ -4575,11 +4502,6 @@ function makeStyles(colors) { return StyleSheet.create({
   entreeProdQte: { fontSize: 12, fontWeight: '700', color: '#3B6D11' },
   // ─── Onglets ───
   // Points / Inventaire : un sélecteur à deux positions sous l'en-tête.
-  ongletBar: { flexDirection: 'row', backgroundColor: colors.surfaceAlt, borderRadius: 14, padding: 4, marginHorizontal: 14, marginTop: 14 },
-  ongletBtn: { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 11 },
-  ongletBtnActive: { backgroundColor: colors.surface, shadowColor: colors.cardShadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 2 },
-  ongletTxt: { fontSize: 13, color: colors.textSecondary, fontWeight: '600' },
-  ongletTxtActive: { color: colors.primary, fontWeight: '800' },
   // ─── Boutons ───
   verifierBtn: { backgroundColor: colors.primary, borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 10, marginTop: 6 },
   verifierBtnTxt: { fontSize: 15, fontWeight: '600', color: colors.surface },
