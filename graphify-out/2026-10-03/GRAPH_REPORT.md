@@ -1,16 +1,16 @@
 # Graph Report - samtrackly  (2026-10-03)
 
 ## Corpus Check
-- 356 files · ~489,751 words
+- 360 files · ~491,756 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3265 nodes · 8320 edges · 259 communities (187 shown, 72 thin omitted)
-- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 64 edges (avg confidence: 0.85)
+- 3278 nodes · 8418 edges · 271 communities (199 shown, 72 thin omitted)
+- Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 65 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `f9a938e0`
+- Built from commit: `5ae75bf1`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -19,9 +19,9 @@
 - exportRapportMensuel.js
 - InventaireScreen
 - app/contrats.js
-- BrouillonsFournisseursScreen
+- brouillons-fournisseurs.js
 - AccueilManager.js
-- du.js
+- DashboardScreen
 - expo
 - ModifierPointScreen
 - VerificationScreen
@@ -37,20 +37,20 @@
 - Travailleurs & Utilisateurs par restaurant
 - DashboardGlobalScreen
 - CreditsFournisseursScreen
-- useTheme
+- ChoixDateScreen
 - rapportMensuel.js
 - demandes-admin.js
-- DashboardScreen
-- app/journal.js
+- dashboard.js
+- lib/journal.js
 - ParametresScreen
 - litigeContacts.js
-- lib/corbeille.js
+- login.js
 - deductionsVerification.js
 - dependencies
 - Gestion des contrats de travail (RH)
 - AppProvider
 - Écran Contrats autonome — design
-- DocumentsScreen
+- useEcranModerne
 - sourcePoint.js
 - Modales.js
 - Le POS Samer alimente Samtrackly — bascule des caissiers, site par site
@@ -60,8 +60,8 @@
 - rappelsTresorerie.js
 - Avis clients Yango & Glovo — mise en service
 - Comparaison A / B — Dashboard Global
-- litiges.js
-- dashboard-global.js
+- caissierAuMoment
+- comparaisonDashboard.js
 - supabase_avis_plateformes.sql
 - points_shifts
 - ingest-reviews/index.ts
@@ -78,7 +78,7 @@
 - accueil.js
 - Structure des fichiers
 - rappel-contrats/index.ts
-- ecartPOS.js
+- litiges.js
 - LoginScreen
 - public.points_shifts
 - Pont inventaire POS → Samtrackly — Implementation Plan
@@ -87,8 +87,8 @@
 - expo-dev-client
 - FournisseursScreen
 - useStylesTreso
-- aujourdhuiISO
-- useApp
+- FeuilleMouvement
+- useTheme
 - devDependencies
 - tsconfig.json
 - reset-project.js
@@ -111,11 +111,11 @@
 - vercel.json
 - eslint.config.js
 - rappel-explications/index.ts
-- choisirPhoto
+- parametres.js
 - lib/equipe.js
 - ModifierInventaireScreen
 - PointShiftScreen
-- creerNotification
+- DemandesAdminScreen
 - api.js
 - periodeComparee.js
 - verification.js
@@ -126,7 +126,7 @@
 - expo-device
 - expo-system-ui
 - expo-updates
-- basculePOS.js
+- verificateur.js
 - jspdf
 - pptxgenjs
 - react
@@ -155,8 +155,8 @@
 - public.inventaires_shifts
 - public.utilisateurs
 - inventaire_lignes
-- (tabs)/_layout.tsx
-- photoQueue.js
+- offlineCache.js
+- offlineQueue.js
 - points
 - points
 - inventaire_lignes
@@ -169,12 +169,12 @@
 - restaurants
 - inventaires_shifts
 - inventaires_shifts
-- suppressionCompte.js
+- notificationsInterne.js
 - verifications_stock
 - public.litiges_avis_clients
 - Point caissier — design
 - Q: Pourquoi les photos des factures fournisseurs s'affichent dans Vérification mais pas dans Crédits fournisseurs ?
-- external-link.tsx
+- FormulaireContrat.js
 - tresorerie-partenaires.js
 - @expo/vector-icons
 - supabase_tresorerie_alertes.sql
@@ -182,7 +182,7 @@
 - public.points_shifts
 - Global Constraints
 - Q: Pourquoi les photos des factures fournisseurs s'affichent dans Vérification mais pas dans Crédits fournisseurs ?
-- gestion-stock.js
+- dashboard-global.js
 - Q: Pourquoi les photos visibles dans Vérification restent absentes de l'historique Crédits fournisseurs sur localhost ?
 - Trésorerie — étape 1 : le socle
 - public.points_shifts
@@ -193,55 +193,67 @@
 - decisionInventaire.js
 - public.decider_ecart_inventaire_atomique
 - expo-haptics
+- TresorerieDirectionScreen
 - expo-file-system
 - manifest.json
-- permissions
+- android
 - File Structure
 - expo
 - Note des caissiers — sur 20 (Samtrackly + POS)
 - expo-document-picker
 - recap-point.js
-- ContactsScreen
+- contacts.js
 - Global Constraints
 - equipeDb.js
-- livraisons.js
+- LivraisonsScreen
 - extra
 - react-native-reanimated
 - public.stats_dashboard
 - FicheTravailleur.js
 - @shopify/react-native-skia
+- notifications.js
 - supabase_tresorerie_charges.sql
 - joursRepos.js
-- lib/historique.js
+- creerNotification
 - Trésorerie étape 3 — Nouvel accueil — Implementation Plan
-- selectionner-journee.js
+- choisir
+- VerificateurScreen
+- fmt
 - expo-font
 - tresorerie_coffre_mouvements
 - supabase_tresorerie_direction.sql
 - Trésorerie étape 4 — Prévisions — Implementation Plan
 - Trésorerie étape 5 — Notifications — Implementation Plan
-- rappels-tresorerie/index.ts
+- verificationListe.js
+- derniersRestesFournisseurs.js
 - EquipeScreen
-- TresorerieScreen
+- tresorerie-coffre.js
+- DemandesExplicationScreen
 - app/equipe.js
-- saisieGroupee.js
+- aujourdhuiISO
 - supabase_tresorerie_previsions.sql
 - expo-constants
 - rapportHebdo.js
 - transactions_fournisseurs
-- deductions-gerant.js
+- generatePdf.js
+- DeductionsGerantScreen
+- permissions
+- chargerRestaurantsContact
 - expo-image-picker
 - travailleurs
+- ios
+- DemandesScreen
+- chargerComparaison
 
 ## God Nodes (most connected - your core abstractions)
-1. `useTheme()` - 117 edges
+1. `useTheme()` - 113 edges
 2. `journaliser()` - 105 edges
 3. `useApp()` - 84 edges
 4. `useStylesTreso()` - 80 edges
 5. `InventaireScreen()` - 73 edges
 6. `fmt()` - 72 edges
 7. `LitigesScreen()` - 68 edges
-8. `supabase` - 66 edges
+8. `supabase` - 67 edges
 9. `VerificationScreen()` - 64 edges
 10. `aujourdhuiISO()` - 55 edges
 
@@ -260,79 +272,79 @@
 ## Import Cycles
 - None detected.
 
-## Communities (259 total, 72 thin omitted)
+## Communities (271 total, 72 thin omitted)
 
 ### Community 0 - "LitigesScreen"
-Cohesion: 0.08
-Nodes (58): canalAvis(), couleurMontant(), fmt(), fmtShort(), formDateDefaut(), LitigesScreen(), actions(), attribuerAvisAutomatiquement() (+50 more)
+Cohesion: 0.09
+Nodes (54): canalAvis(), couleurMontant(), fmt(), fmtShort(), formDateDefaut(), LitigesScreen(), actions(), attribuerAvisAutomatiquement() (+46 more)
 
 ### Community 1 - "exportRapportMensuel.js"
-Cohesion: 0.07
-Nodes (80): DetailProduit(), exporter(), CACHET_SAMER, cachetPourResto(), formaterMontantSigneFCFA(), chargerDetailProduit(), exporterDetailPdf(), exporterDetailXlsx() (+72 more)
+Cohesion: 0.08
+Nodes (74): calcPreset(), CAT_ORDER, DetailProduit(), fmtDateCourt(), GestionStockScreen(), choisirPreset(), exporter(), isoJour() (+66 more)
 
 ### Community 2 - "InventaireScreen"
 Cohesion: 0.11
-Nodes (70): InventaireScreen(), aExplicationKey(), analyserSourceStock(), appliquerOverrideVerif(), chargerLignes(), chargerOuCreer(), chargerStockInitial(), darinaEnt() (+62 more)
+Nodes (69): InventaireScreen(), aExplicationKey(), analyserSourceStock(), appliquerOverrideVerif(), chargerLignes(), chargerOuCreer(), chargerStockInitial(), darinaEnt() (+61 more)
 
 ### Community 3 - "app/contrats.js"
-Cohesion: 0.07
-Nodes (71): ContratsScreen(), charger(), contratsDe(), enregistrerContrat(), messageErreur(), ouvrirFiche(), pied(), renderLigne() (+63 more)
+Cohesion: 0.10
+Nodes (50): ContratsScreen(), charger(), contratsDe(), enregistrerContrat(), messageErreur(), ouvrirFiche(), pied(), renderLigne() (+42 more)
 
-### Community 4 - "BrouillonsFournisseursScreen"
-Cohesion: 0.23
+### Community 4 - "brouillons-fournisseurs.js"
+Cohesion: 0.26
 Nodes (14): BrouillonsFournisseursScreen(), charger(), confirmerIgnorer(), confirmerIgnorerLot(), grouperParPoint(), quitterSelection(), reinjecter(), retirerDuBrouillon() (+6 more)
 
 ### Community 5 - "AccueilManager.js"
 Cohesion: 0.10
-Nodes (26): AccueilManager(), BandeauPoints(), BandeauRH(), chargerContrats(), isoLocal(), makeStyles(), STATUTS, useEtatDuJour() (+18 more)
+Nodes (28): AccueilManager(), BandeauPoints(), BandeauRH(), chargerContrats(), chargerTresorerie(), isoLocal(), makeStyles(), STATUTS (+20 more)
 
-### Community 6 - "du.js"
-Cohesion: 0.14
-Nodes (48): EN_RETARD, ListeDettes(), ListeDus(), ListeLoyers(), texteRetard(), TITRES_SAISIE, annuler(), annulerUnEmprunt() (+40 more)
+### Community 6 - "DashboardScreen"
+Cohesion: 0.11
+Nodes (14): DashboardScreen(), calculerAlertes(), chargerPoints(), confirmerPeriode(), fmt(), fmtFull(), formatDate(), formatDateLong() (+6 more)
 
 ### Community 7 - "expo"
-Cohesion: 0.10
-Nodes (19): expo, icon, ios, name, orientation, owner, runtimeVersion, scheme (+11 more)
+Cohesion: 0.12
+Nodes (16): expo, icon, name, orientation, owner, plugins, runtimeVersion, scheme (+8 more)
 
 ### Community 8 - "ModifierPointScreen"
-Cohesion: 0.12
-Nodes (36): makeStyles(), ModifierPointScreen(), afficherToast(), beneficeSC(), calculerVenteShift(), chargerDepGerant(), chargerDetailShift(), chargerPoint() (+28 more)
+Cohesion: 0.07
+Nodes (57): CorbeilleScreen(), charger(), restaurer(), decrireContenu(), formatDatePoint(), formatHeure(), makeStyles(), makeStyles() (+49 more)
 
 ### Community 9 - "VerificationScreen"
-Cohesion: 0.07
-Nodes (36): makeStyles(), VerificationScreen(), appliquerDeltaFond(), changerMois(), changerResto(), chargerPointsResto(), confirmerAnnulationDeduction(), confirmerAnnulationMachine() (+28 more)
+Cohesion: 0.09
+Nodes (12): makeStyles(), VerificationScreen(), appliquerDeltaFond(), changerMois(), changerResto(), chargerPointsResto(), confirmerRetourDecisionPOS(), estDecisionDuShiftPOS() (+4 more)
 
 ### Community 10 - "explore.tsx"
-Cohesion: 0.16
-Nodes (15): styles, styles, ParallaxScrollView(), Props, styles, styles, ThemedText(), ThemedTextProps (+7 more)
+Cohesion: 0.11
+Nodes (23): styles, styles, TabLayout(), ExternalLink(), Props, HapticTab(), ParallaxScrollView(), Props (+15 more)
 
 ### Community 11 - "stats-caissiers.js"
-Cohesion: 0.06
-Nodes (73): couleurTon(), CRITERES, DetailLigne(), EcartBadge(), EcartDetail(), FicheCaissier(), fmt(), fmtNote() (+65 more)
+Cohesion: 0.08
+Nodes (51): couleurTon(), CRITERES, DetailLigne(), EcartBadge(), EcartDetail(), FicheCaissier(), fmt(), fmtNote() (+43 more)
 
 ### Community 12 - "lib/tresorerie.js"
-Cohesion: 0.11
-Nodes (54): FeuilleEdition(), echeanceDe(), enregistrer(), TresorerieAPayerScreen(), FeuilleEcheance(), enregistrer(), FeuilleMontantsFixes(), enregistrer() (+46 more)
+Cohesion: 0.08
+Nodes (86): EN_RETARD, FeuilleEdition(), echeanceDe(), enregistrer(), ListeDettes(), ListeDus(), ListeLoyers(), texteRetard() (+78 more)
 
 ### Community 13 - "point-caissier.js"
-Cohesion: 0.20
-Nodes (14): couleurEcart(), DETAIL_VIDE, fmt(), makeStyles(), PointCaissierScreen(), ouvrir(), titreJour(), ouvrirDetailShift() (+6 more)
+Cohesion: 0.15
+Nodes (19): couleurEcart(), DETAIL_VIDE, fmt(), makeStyles(), PointCaissierScreen(), ouvrir(), titreJour(), couleurEcart() (+11 more)
 
 ### Community 14 - "avis-plateformes.js"
 Cohesion: 0.18
 Nodes (24): AvisPlateformes(), charger(), confirmerRattachement(), onRefresh(), Badge(), etoiles(), fmtDate(), makeStyles() (+16 more)
 
 ### Community 15 - "alertesDb.js"
-Cohesion: 0.28
-Nodes (12): alertesNouvelles(), calculerAlertes(), derniersPoints(), fmtF(), moisTerminePrecedent(), n(), SEUIL_RETARD_CNPS, chargerAlertes() (+4 more)
+Cohesion: 0.14
+Nodes (23): alertesNouvelles(), calculerAlertes(), derniersPoints(), fmtF(), moisTerminePrecedent(), n(), SEUIL_RETARD_CNPS, chargerAlertes() (+15 more)
 
 ### Community 16 - "Handoff — Samtrackly / SamerPoint"
 Cohesion: 0.06
 Nodes (30): ✅ 1. Congés futurs saisis par le RH — CODE FAIT (non déployé), ~~1. Congés futurs saisis par le RH~~ (spec d'origine), 2. Demandes d'explication — workflow avec suivi, ✅ 2. Demandes d'explication — workflow avec suivi — CODE FAIT (non déployé), 3. Gestion de stock (menu Manager & Admin), ✅ 3. Gestion de stock (menu Manager & Admin) — CODE FAIT (non déployé), 4. Textes PDF prédéfinis, 4. Textes PDF prédéfinis — ✅ FAIT (dans `lib/pdfDocuments.js`) (+22 more)
 
 ### Community 17 - "DemandesExplicationAdminScreen"
-Cohesion: 0.21
-Nodes (14): DemandesExplicationAdminScreen(), accepter(), charger(), confirmerRefus(), confirmerRelance(), confirmerReponse(), imprimerPdf(), marquerEnvoyee() (+6 more)
+Cohesion: 0.11
+Nodes (29): DemandesExplicationAdminScreen(), accepter(), charger(), confirmerRefus(), confirmerRelance(), confirmerReponse(), imprimerPdf(), marquerEnvoyee() (+21 more)
 
 ### Community 18 - "partenairesImport.js"
 Cohesion: 0.20
@@ -350,41 +362,41 @@ Nodes (22): DashboardGlobalScreen(), chargerPoints(), chargerPrecedente(), confi
 Cohesion: 0.13
 Nodes (22): CreditsFournisseursScreen(), charger(), chargerHistorique(), confirmerArchivage(), confirmerFixTous(), confirmerRemiseAZero(), exporterExcel(), exporterPdf() (+14 more)
 
-### Community 22 - "useTheme"
-Cohesion: 0.08
-Nodes (32): ChoixDateScreen(), chargerDonneesPoint(), confirmer(), pointVientDuPOS(), makeStyles(), GerantCaissierScreen(), makeStyles(), MENU (+24 more)
+### Community 22 - "ChoixDateScreen"
+Cohesion: 0.29
+Nodes (5): ChoixDateScreen(), chargerDonneesPoint(), pointVientDuPOS(), makeStyles(), getSequences()
 
 ### Community 23 - "rapportMensuel.js"
-Cohesion: 0.09
-Nodes (52): buildRapport(), fmt(), formatDateFr(), FORMATS, getDimanche(), getLundi(), makeStyles(), MoisCard() (+44 more)
+Cohesion: 0.06
+Nodes (74): buildRapport(), fmt(), formatDateFr(), FORMATS, getDimanche(), getLundi(), makeStyles(), MoisCard() (+66 more)
 
 ### Community 24 - "demandes-admin.js"
-Cohesion: 0.16
-Nodes (37): DemandesScreen(), charger(), resetForm(), soumettre(), CarteDemande(), CarteExplication(), Bouton(), Champ() (+29 more)
+Cohesion: 0.17
+Nodes (36): FORM_VIDE, CarteDemande(), CarteExplication(), Bouton(), Champ(), ChampDates(), Compteurs(), EnTete() (+28 more)
 
-### Community 25 - "DashboardScreen"
-Cohesion: 0.06
-Nodes (40): CATEGORIES_FOOD, DashboardScreen(), beneficeToday(), calculerAlertes(), chargerCouts(), chargerPoints(), confirmerPeriode(), fmt() (+32 more)
+### Community 25 - "dashboard.js"
+Cohesion: 0.13
+Nodes (25): CATEGORIES_FOOD, chargerCouts(), chargerCoutsB(), chargerCoutsGlobal(), jaugeStyles, PERIODES, PILIERS, { width } (+17 more)
 
-### Community 26 - "app/journal.js"
-Cohesion: 0.14
-Nodes (20): CLES_MONTANT, EntryRow(), ErreurRow(), FILTRES, formatHeure(), formatRelative(), formatValeur(), JournalScreen() (+12 more)
+### Community 26 - "lib/journal.js"
+Cohesion: 0.13
+Nodes (21): CLES_MONTANT, EntryRow(), ErreurRow(), FILTRES, formatHeure(), formatRelative(), formatValeur(), JournalScreen() (+13 more)
 
 ### Community 27 - "ParametresScreen"
-Cohesion: 0.16
-Nodes (19): makeStyles(), ParametresScreen(), chargerDocsTravailleur(), chargerDonnees(), chargerTousRestaurants(), gererPhotoDoc(), modifierCredit(), ouvrirModal() (+11 more)
+Cohesion: 0.07
+Nodes (46): executer(), gererPhotoRegul(), executer(), makeStyles(), ParametresScreen(), ajouterDocument(), basculerRestaurant(), CarteBascule() (+38 more)
 
 ### Community 28 - "litigeContacts.js"
-Cohesion: 0.14
-Nodes (30): chargerLitigesMois(), chargerEcartContacts(), sauvegarderCorrLitige(), sauvegarderCorrNbCommandes(), sauvegarderCorrectionCommandes(), calculerLitigeContact(), choisirNombreContacts(), compterCommandesPOS() (+22 more)
+Cohesion: 0.21
+Nodes (16): ouvrirPoint(), choisirNombreContacts(), compterCommandesPOS(), compterContactsPOS(), DATE_DEBLOCAGE_CONTACTS_POS, entierPositif(), estRenseigne(), MOTIF_CONTACTS_POS_INCOHERENTS (+8 more)
 
-### Community 29 - "lib/corbeille.js"
-Cohesion: 0.18
-Nodes (17): CorbeilleScreen(), charger(), restaurer(), decrireContenu(), formatDatePoint(), formatHeure(), makeStyles(), archiverSuppressionShift() (+9 more)
+### Community 29 - "login.js"
+Cohesion: 0.13
+Nodes (11): InactivityGuard(), PUBLIC_ROUTES, SessionGuard(), styles, SignatureFooter(), styles, verrouillerSession(), ROLES_GLOBAUX (+3 more)
 
 ### Community 30 - "deductionsVerification.js"
-Cohesion: 0.10
-Nodes (26): aujourdhui(), makeStyles(), VerificateurScreen(), changerResto(), chargerRestaurants(), chargerStock(), creerDemandeRH(), seDeconnecter() (+18 more)
+Cohesion: 0.18
+Nodes (15): appliquerPlafond(), caissiersResponsables(), calculerDeductions(), chargerDeductions(), chiffrerComptage(), cleLot(), couvre(), enMinutes() (+7 more)
 
 ### Community 31 - "dependencies"
 Cohesion: 0.10
@@ -395,16 +407,16 @@ Cohesion: 0.10
 Nodes (19): Automatisation, Bloc « Contrat » dans la fiche travailleur, Formulaire de contrat (modal), Gestion des contrats de travail (RH), Hors périmètre, Le fichier du contrat, Le statut n'est pas stocké, Limite connue : le PIN survit à la désactivation (+11 more)
 
 ### Community 33 - "AppProvider"
-Cohesion: 0.16
-Nodes (21): depensesToday(), laborCostMontant(), effacerDraft(), sauvegarderShift(), venteShift(), AppProvider(), aDonneesSaisies(), beneficeSC() (+13 more)
+Cohesion: 0.17
+Nodes (19): confirmer(), depensesToday(), laborCostMontant(), effacerDraft(), sauvegarderShift(), venteShift(), AppProvider(), aDonneesSaisies() (+11 more)
 
 ### Community 34 - "Écran Contrats autonome — design"
 Cohesion: 0.11
 Nodes (18): Ajouter un contrat, Changements ailleurs, Durées de contrat, Décisions, Découpage des fichiers, Fiche d'un travailleur et actions, Hors périmètre, Interfaces (+10 more)
 
-### Community 35 - "DocumentsScreen"
-Cohesion: 0.19
-Nodes (6): DocumentsScreen(), chargerDocuments(), resetForm(), sauvegarder(), supprimerDoc(), makeStyles()
+### Community 35 - "useEcranModerne"
+Cohesion: 0.17
+Nodes (11): DocumentsScreen(), chargerDocuments(), resetForm(), sauvegarder(), supprimerDoc(), vignette(), formatDate(), sansAccents() (+3 more)
 
 ### Community 36 - "sourcePoint.js"
 Cohesion: 0.33
@@ -423,16 +435,16 @@ Cohesion: 0.11
 Nodes (16): Activity Journal (`lib/journal.js`), Architecture, Commands, Constants (`lib/constants.js`), Database — Supabase (`lib/supabase.js`), Déploiement — TOUJOURS en mise à jour automatique, graphify, iOS Web Specifics (+8 more)
 
 ### Community 40 - "VentesScreen"
-Cohesion: 0.17
-Nodes (10): makeStyles(), VentesScreen(), allerAuRecap(), fmt(), gererPhoto(), PhotoBlock(), sauvegarderEtContinuer(), sauvegarderPhotosPoints() (+2 more)
+Cohesion: 0.14
+Nodes (14): beneficeToday(), makeStyles(), VentesScreen(), allerAuRecap(), fmt(), gererPhoto(), PhotoBlock(), sauvegarderEtContinuer() (+6 more)
 
 ### Community 41 - "Architecture"
 Cohesion: 0.11
 Nodes (16): Activity Journal (`lib/journal.js`), Architecture, Commands, Constants (`lib/constants.js`), Database — Supabase (`lib/supabase.js`), Déploiement — TOUJOURS en mise à jour automatique, graphify, iOS Web Specifics (+8 more)
 
 ### Community 42 - "rappelsTresorerie.js"
-Cohesion: 0.16
-Nodes (15): chargerTresorerie(), etatPrevision(), n(), nomPartenaire(), PARTENAIRES_PREVISION, du, totalPrevu(), trierPrevisions() (+7 more)
+Cohesion: 0.09
+Nodes (23): statutEmprunt(), etatPrevision(), n(), nomPartenaire(), PARTENAIRES_PREVISION, du, totalPrevu(), trierPrevisions() (+15 more)
 
 ### Community 43 - "Avis clients Yango & Glovo — mise en service"
 Cohesion: 0.17
@@ -442,13 +454,13 @@ Nodes (11): 1. Migration, 2. Secret + déploiement de la fonction, 3. Premier en
 Cohesion: 0.08
 Nodes (23): 10. Tests, 11. Définition de « terminé », 1. Le problème, 2. Périmètre, 3.1 La période B n'est pas choisie, elle est déduite, 3.2 Qui remplit A et B, et ce que devient `restoFiltre`, 3. Les deux modes, 4.1 Les couleurs (+15 more)
 
-### Community 45 - "litiges.js"
-Cohesion: 0.14
-Nodes (18): CANAUX_AVIS, getPlage(), sauvegarderAvis(), makeStyles(), ONGLETS, PERIODES, PRODUIT_TO_CAT, SHIFT_LABELS (+10 more)
+### Community 45 - "caissierAuMoment"
+Cohesion: 0.38
+Nodes (7): caissierAuMoment(), cleCaissier(), jours(), minutes(), normaliserHeure(), phraseAttribution(), shifts
 
-### Community 46 - "dashboard-global.js"
-Cohesion: 0.13
-Nodes (27): JaugeCout(), jaugeStyles, PERIODES, PIE_COLORS, PILIERS, PILIERS_COMPARABLES, COULEUR_ECART, LigneComparee() (+19 more)
+### Community 46 - "comparaisonDashboard.js"
+Cohesion: 0.19
+Nodes (20): JaugeCout(), COULEUR_ECART, LigneComparee(), makeStyles(), valeurLisible(), decimal(), ecart(), ecarts() (+12 more)
 
 ### Community 47 - "supabase_avis_plateformes.sql"
 Cohesion: 0.23
@@ -471,8 +483,8 @@ Cohesion: 0.21
 Nodes (8): CorrectionPointScreen(), initEdits(), _marquerCorrige(), marquerSansEdit(), recalculerTotaux(), sauvegarder(), toggleExpand(), makeStyles()
 
 ### Community 53 - "components/graphiques.js"
-Cohesion: 0.13
-Nodes (29): Anneau(), Barres(), BarresHorizontales(), CarteChaleur(), CarteGraphique(), CourbeAire(), EtiquettesX(), fmtEntier() (+21 more)
+Cohesion: 0.11
+Nodes (32): nb(), PastilleEvolution(), ResumeContacts(), Anneau(), Barres(), BarresHorizontales(), CarteChaleur(), CarteGraphique() (+24 more)
 
 ### Community 54 - "Structure des fichiers"
 Cohesion: 0.15
@@ -487,8 +499,8 @@ Cohesion: 0.15
 Nodes (12): 1. Ce qui existe déjà côté POS (vérifié le 2026-08-20), 2. Ce qui manque, 3. Où ça s'ajoute, 4. Correspondance des champs, 5. Idempotence, 6. Ce que ce chantier ne change PAS, 7. Migration Samtrackly, 8. Tests (+4 more)
 
 ### Community 57 - "dashboardGlobal.js"
-Cohesion: 0.17
-Nodes (23): BarreComparaison(), makeStyles(), MODE_PERIODES, MODE_RESTOS, SelecteurTerme(), CANAUX, CATEGORIES_FOOD, chargesFixesMontant() (+15 more)
+Cohesion: 0.21
+Nodes (20): BarreComparaison(), makeStyles(), SelecteurTerme(), CATEGORIES_FOOD, chargesFixesMontant(), couleurResto(), courtNom(), detailFondRecu() (+12 more)
 
 ### Community 58 - "scripts"
 Cohesion: 0.15
@@ -499,8 +511,8 @@ Cohesion: 0.15
 Nodes (12): Ce que ça NE fait pas, Contraintes à respecter (ne rien casser), Décisions à prendre avant de coder, Effort estimé, ⚠️ La menace qu'on traite, Le plus gros risque à régler en premier 🔴, Phasage, Phase 1 — Auth serveur légère + PIN hashés (fondation) (+4 more)
 
 ### Community 60 - "accueil.js"
-Cohesion: 0.06
-Nodes (43): AccueilScreen(), activerPush(), makeStyles(), MenuCard(), sauvegarderRole(), SignatureFooter(), styles, NotificationsProvider() (+35 more)
+Cohesion: 0.13
+Nodes (20): AccueilScreen(), activerPush(), makeStyles(), MenuCard(), SPRINGS, staggerDelay(), colonnesPour(), useLargeurCase() (+12 more)
 
 ### Community 62 - "Structure des fichiers"
 Cohesion: 0.17
@@ -510,21 +522,21 @@ Nodes (11): Global Constraints, Structure des fichiers, Task 1 : Migration — d
 Cohesion: 0.23
 Nodes (8): Contrat, enCours(), finEffective(), joursRestants(), palierAEnvoyer(), PALIERS, ROLES_ADMIN, versUTC()
 
-### Community 64 - "ecartPOS.js"
-Cohesion: 0.26
-Nodes (10): ouvrirDecisionCloturePOS(), CHAMPS_SHIFT_ECART, CHAMPS_SHIFT_ECART_LEGACY, decisionEcartShiftPOS(), ecartsParCaissier(), fusionnerResponsablesEcart(), responsablesEcartPOS(), SOURCE_DECISION_POS (+2 more)
+### Community 64 - "litiges.js"
+Cohesion: 0.10
+Nodes (36): chargerLitigesMois(), CANAUX_AVIS, getPlage(), chargerEcartContacts(), chargerTousRestaurants(), sauvegarderCorrLitige(), sauvegarderCorrNbCommandes(), makeStyles() (+28 more)
 
 ### Community 65 - "LoginScreen"
-Cohesion: 0.21
-Nodes (17): LoginScreen(), appuyerChiffre(), chargerUtilisateurs(), chargerUtilisateursGlobaux(), choisirRestaurant(), choisirUtilisateur(), fetchRestaurants(), getRoleBg() (+9 more)
+Cohesion: 0.19
+Nodes (18): LoginScreen(), appuyerChiffre(), chargerUtilisateurs(), chargerUtilisateursGlobaux(), choisirRestaurant(), choisirUtilisateur(), fetchRestaurants(), getRoleBg() (+10 more)
 
 ### Community 67 - "Pont inventaire POS → Samtrackly — Implementation Plan"
 Cohesion: 0.18
 Nodes (10): Global Constraints, Pont inventaire POS → Samtrackly — Implementation Plan, Self-Review (fait avant de vous remettre ce plan), Step 1: Écrire les tests (ils doivent tous échouer au départ — le fichier `samtrackly-inventaire.ts` n'existe pas encore), Step 3: Écrire l'implémentation, Task 1: Migration Samtrackly — colonne d'idempotence, Task 2: Helper DELETE dans `samtrackly-api.ts`, Task 3: Module pur `samtrackly-inventaire.ts` (TDD) (+2 more)
 
 ### Community 68 - "RecapPointScreen"
-Cohesion: 0.15
-Nodes (19): calcVariation(), getDateMoisPrecedent(), getDateSemainePrecedente(), makeStyles(), RecapPointScreen(), beneficeSCCalc(), chargerComparaison(), confirmerValider() (+11 more)
+Cohesion: 0.20
+Nodes (15): calcVariation(), makeStyles(), RecapPointScreen(), beneficeSCCalc(), confirmerValider(), fcCalc(), resteEspecesCalc(), totalDepensesGlobal() (+7 more)
 
 ### Community 69 - "Nouvelle Trésorerie — prévisions, dette récente, charges post-payées"
 Cohesion: 0.09
@@ -532,19 +544,19 @@ Nodes (22): Accès, Banque, espèces, coffre (étape 2), Création automatique (
 
 ### Community 71 - "FournisseursScreen"
 Cohesion: 0.07
-Nodes (34): DepensesScreen(), ajouterLigne(), enregistrer(), saveDepensesGerant(), setLibelle(), setMontant(), supprimerLigne(), totalCategorie() (+26 more)
+Nodes (33): DepensesScreen(), ajouterLigne(), enregistrer(), saveDepensesGerant(), setLibelle(), setMontant(), supprimerLigne(), totalCategorie() (+25 more)
 
 ### Community 72 - "useStylesTreso"
-Cohesion: 0.12
-Nodes (45): estTete(), ICONES_TYPE, LIBELLES_TYPE, LIES, styleCompte(), TresorerieBanqueScreen(), confirmerSuppression(), Bloc() (+37 more)
+Cohesion: 0.15
+Nodes (40): ICONES_TYPE, LIBELLES_TYPE, LIES, Bloc(), STYLE_DEPENSE, FeuillePlafonds(), enregistrer(), CartePartenaire() (+32 more)
 
-### Community 73 - "aujourdhuiISO"
-Cohesion: 0.16
-Nodes (18): estEspeces(), fermer(), FeuilleMouvement(), enregistrer(), fermer(), FeuilleVirement(), enregistrer(), fermer() (+10 more)
+### Community 73 - "FeuilleMouvement"
+Cohesion: 0.23
+Nodes (12): estEspeces(), estTete(), FeuilleMouvement(), enregistrer(), fermer(), FeuilleVirement(), enregistrer(), fermer() (+4 more)
 
-### Community 74 - "useApp"
+### Community 74 - "useTheme"
 Cohesion: 0.08
-Nodes (39): LITIGES_CATS, MOIS_NOMS, SECTION_CONFIG, CATEGORIES, CATS_ENTREE, EXCLUS, PRODUITS_ENTREE, TYPES_SHIFTS (+31 more)
+Nodes (39): LITIGES_CATS, MOIS_NOMS, SECTION_CONFIG, CATEGORIES, GerantCaissierScreen(), makeStyles(), MENU, CATS_ENTREE (+31 more)
 
 ### Community 75 - "devDependencies"
 Cohesion: 0.22
@@ -559,8 +571,8 @@ Cohesion: 0.22
 Nodes (7): exampleDirPath, fs, oldDirs, path, readline, rl, root
 
 ### Community 78 - "journaliser"
-Cohesion: 0.11
-Nodes (59): FeuilleEntreeEspeces(), enregistrer(), FeuilleObjectif(), enregistrer(), FeuilleDroits(), changer(), confirmer(), FeuillePeriode() (+51 more)
+Cohesion: 0.09
+Nodes (67): FeuilleEntreeEspeces(), enregistrer(), FeuilleEpargne(), enregistrer(), FeuilleObjectif(), enregistrer(), FeuilleRemboursement(), enregistrer() (+59 more)
 
 ### Community 80 - "inventaires_shifts"
 Cohesion: 0.38
@@ -571,8 +583,8 @@ Cohesion: 0.29
 Nodes (5): admin, cors, GLOBAL_ROLES, RESTO_ROLES, Sub
 
 ### Community 82 - "ChargesScreen"
-Cohesion: 0.16
-Nodes (14): ChargesScreen(), beneficeApresCharge(), beneficeReel(), chargerCharges(), chargerRestaurants(), recalculerBSC(), sauvegarder(), supprimerCharge() (+6 more)
+Cohesion: 0.21
+Nodes (11): ChargesScreen(), beneficeApresCharge(), beneficeReel(), chargerCharges(), recalculerBSC(), sauvegarder(), supprimerCharge(), totalApresCharge() (+3 more)
 
 ### Community 84 - "Welcome to your Expo app 👋"
 Cohesion: 0.33
@@ -618,9 +630,9 @@ Nodes (3): restaurants, utilisateurs, verifications_stock
 Cohesion: 0.50
 Nodes (3): buildCommand, outputDirectory, rewrites
 
-### Community 100 - "choisirPhoto"
-Cohesion: 0.26
-Nodes (12): executer(), gererPhotoRegul(), executer(), ajouterDocument(), choisirPhotoProfil(), choisirPhotoResto(), ajouterPhoto(), ajouterPhoto() (+4 more)
+### Community 100 - "parametres.js"
+Cohesion: 0.16
+Nodes (17): sauvegarderRole(), SECTIONS, ChampDate(), dateEnClair(), FormulaireTravailleur(), normaliserPoste(), POSTES, migrerIdsTuiles() (+9 more)
 
 ### Community 102 - "lib/equipe.js"
 Cohesion: 0.25
@@ -628,51 +640,51 @@ Nodes (17): CLES_STATUT, compter(), compteurVide(), correspondRecherche(), dedup
 
 ### Community 104 - "PointShiftScreen"
 Cohesion: 0.12
-Nodes (11): lireDraft(), PointShiftScreen(), chargerShiftsGerant(), chargerStatutInventaire(), gererPhoto(), selectionnerPhoto(), supprimerShift(), supprimerShiftsMultiples() (+3 more)
+Nodes (8): lireDraft(), PointShiftScreen(), chargerStatutInventaire(), gererPhoto(), ouvrirDetailShift(), selectionnerPhoto(), validerShift(), fournisseursNonEnregistres()
 
-### Community 105 - "creerNotification"
-Cohesion: 0.11
-Nodes (29): DemandesAdminScreen(), charger(), confirmerDeclin(), confirmerValidation(), demanderValidation(), estFinanciere(), executerAnnulation(), soumettreCreation() (+21 more)
+### Community 105 - "DemandesAdminScreen"
+Cohesion: 0.22
+Nodes (9): DemandesAdminScreen(), charger(), confirmerDeclin(), confirmerValidation(), demanderValidation(), estFinanciere(), executerAnnulation(), soumettreCreation() (+1 more)
 
 ### Community 106 - "api.js"
-Cohesion: 0.09
-Nodes (43): styles, getFournisseurs(), getOrCreatePoint(), getRestaurants(), getTravailleurs(), getUtilisateurs(), getUtilisateursGlobaux(), majPresenceExistante() (+35 more)
+Cohesion: 0.21
+Nodes (18): getRestaurants(), majPresenceExistante(), saveCommandes(), saveDepenses(), saveInventaireShift(), saveOnePresence(), saveOneTransactionFournisseur(), savePointShiftData() (+10 more)
 
 ### Community 107 - "periodeComparee.js"
 Cohesion: 0.41
 Nodes (11): bandeauDeuxPeriodes(), estMoisEntier(), libelleDuree(), libelleJour(), libellePeriode(), MOIS_COURT, moisCouverts(), nombreDeJours() (+3 more)
 
 ### Community 108 - "verification.js"
-Cohesion: 0.15
-Nodes (19): STATUT_MACHINE, { width: SW }, LIBELLES_SHIFT, preparerEntreesVerification(), buildHtml(), fmt(), formatDate(), genererPdfEcarts() (+11 more)
+Cohesion: 0.11
+Nodes (26): verifierPhotosManquantes(), STATUT_MACHINE, PhotoVignette(), voirPhoto(), { width: SW }, photoConsultable(), PhotoJustificatif(), styles (+18 more)
 
-### Community 116 - "basculePOS.js"
-Cohesion: 0.27
-Nodes (9): basculerRestaurant(), CarteBascule(), chargerComptesShifts(), compterShiftsParRestaurant(), diagnosticBascule(), ETAT_BASCULE, nombre(), SAMTRACKLY (+1 more)
+### Community 116 - "verificateur.js"
+Cohesion: 0.18
+Nodes (14): makeStyles(), RecapVerificationsScreen(), ORDRE_PRODUIT, makeStyles(), RecapVerifications(), charger(), enregistrerCorrection(), onRefresh() (+6 more)
 
 ### Community 126 - "contactsParCaissier.js"
-Cohesion: 0.25
-Nodes (14): ouvrirPoint(), contactPris(), depuisCommandes(), depuisShiftsPOS(), detailContactsParCaissier(), ECART_ALERTE_COMMANDES, entierPositif(), estimerCommandesShift() (+6 more)
+Cohesion: 0.28
+Nodes (13): contactPris(), depuisCommandes(), depuisShiftsPOS(), detailContactsParCaissier(), ECART_ALERTE_COMMANDES, entierPositif(), estimerCommandesShift(), estRenseigne() (+5 more)
 
 ### Community 135 - "statsPOS.js"
-Cohesion: 0.21
-Nodes (21): renderActivite(), feuillesAnalyse(), CANAUX_POS, cleCanal(), creneauxForts(), faitsMarquants(), grilleSemaine(), HEURE_DEBUT_SERVICE (+13 more)
+Cohesion: 0.23
+Nodes (20): renderActivite(), feuillesAnalyse(), CANAUX_POS, cleCanal(), creneauxForts(), faitsMarquants(), grilleSemaine(), HEURE_DEBUT_SERVICE (+12 more)
 
-### Community 160 - "(tabs)/_layout.tsx"
-Cohesion: 0.31
-Nodes (6): TabLayout(), HapticTab(), IconMapping, IconSymbol(), IconSymbolName, MAPPING
+### Community 160 - "offlineCache.js"
+Cohesion: 0.20
+Nodes (18): getFournisseurs(), getOrCreatePoint(), getTravailleurs(), getUtilisateursGlobaux(), cacheFournisseurs(), cachePoint(), cachePointData(), cacheRestaurants() (+10 more)
 
-### Community 161 - "photoQueue.js"
-Cohesion: 0.09
-Nodes (34): InactivityGuard(), PUBLIC_ROUTES, SessionGuard(), NetworkStatusBar(), styles, verrouillerSession(), NetworkContext, NetworkProvider() (+26 more)
+### Community 161 - "offlineQueue.js"
+Cohesion: 0.19
+Nodes (15): NetworkStatusBar(), styles, NetworkContext, NetworkProvider(), useNetwork(), setOnlineStatus(), clearIdMappings(), generateId() (+7 more)
 
 ### Community 173 - "onedrive.js"
 Cohesion: 0.27
 Nodes (13): gererConnexionOneDrive(), base64urlEncode(), connecterOneDrive(), deconnecterOneDrive(), generateChallenge(), generateVerifier(), genererExcelPoint(), getAccessToken() (+5 more)
 
-### Community 186 - "suppressionCompte.js"
-Cohesion: 0.48
-Nodes (5): element(), ELEMENTS, estContrainteHistorique(), expliquerEchecSuppression(), texteErreur()
+### Community 186 - "notificationsInterne.js"
+Cohesion: 0.18
+Nodes (15): NotificationsContext, NotificationsProvider(), charger(), fermerPanel(), marquerUneCommeLue(), naviguerDepuisNotif(), ouvrirPanel(), supprimerTout() (+7 more)
 
 ### Community 190 - "Point caissier — design"
 Cohesion: 0.18
@@ -682,9 +694,9 @@ Nodes (10): Données, Décisions, Découpage du code, Détail d'un shift, Hors p
 Cohesion: 0.40
 Nodes (4): Answer, Outcome, Q: Pourquoi les photos des factures fournisseurs s'affichent dans Vérification mais pas dans Crédits fournisseurs ?, Source Nodes
 
-### Community 192 - "external-link.tsx"
-Cohesion: 0.40
-Nodes (4): plugins, ExternalLink(), Props, expo-web-browser
+### Community 192 - "FormulaireContrat.js"
+Cohesion: 0.20
+Nodes (13): debutParDefaut(), FormulaireContrat(), prendrePDF(), prendrePhoto(), televerser(), LIBELLE_DUREE, uploadFichier(), ajouterJours() (+5 more)
 
 ### Community 193 - "tresorerie-partenaires.js"
 Cohesion: 0.14
@@ -706,9 +718,9 @@ Nodes (9): Global Constraints, Point caissier — plan d'implémentation, Task 1
 Cohesion: 0.40
 Nodes (4): Answer, Outcome, Q: Pourquoi les photos des factures fournisseurs s'affichent dans Vérification mais pas dans Crédits fournisseurs ?, Source Nodes
 
-### Community 201 - "gestion-stock.js"
-Cohesion: 0.24
-Nodes (9): calcPreset(), CAT_ORDER, fmtDateCourt(), GestionStockScreen(), choisirPreset(), isoJour(), makeStyles(), PRESETS (+1 more)
+### Community 201 - "dashboard-global.js"
+Cohesion: 0.19
+Nodes (11): jaugeStyles, PERIODES, PIE_COLORS, PILIERS, PILIERS_COMPARABLES, MODE_PERIODES, MODE_RESTOS, CANAUX (+3 more)
 
 ### Community 202 - "Q: Pourquoi les photos visibles dans Vérification restent absentes de l'historique Crédits fournisseurs sur localhost ?"
 Cohesion: 0.40
@@ -730,13 +742,17 @@ Nodes (7): restaurants, tresorerie_alias, tresorerie_annuler_reception(), tresor
 Cohesion: 0.40
 Nodes (4): Answer, Outcome, Q: Dans espace caissier détails de chaque caissier, afficher son manquant, son explication et l'explication d'inventaire, Source Nodes
 
+### Community 214 - "TresorerieDirectionScreen"
+Cohesion: 0.23
+Nodes (14): FeuilleChargeAPayer(), enregistrer(), FeuilleDepense(), enregistrer(), fermer(), styleDepense(), TresorerieDirectionScreen(), supprimer() (+6 more)
+
 ### Community 216 - "manifest.json"
 Cohesion: 0.17
 Nodes (11): background_color, description, display, icons, lang, name, orientation, scope (+3 more)
 
-### Community 217 - "permissions"
-Cohesion: 0.15
-Nodes (13): backgroundColor, foregroundImage, adaptiveIcon, googleServicesFile, package, permissions, versionCode, android (+5 more)
+### Community 217 - "android"
+Cohesion: 0.29
+Nodes (7): backgroundColor, foregroundImage, adaptiveIcon, googleServicesFile, package, versionCode, android
 
 ### Community 218 - "File Structure"
 Cohesion: 0.15
@@ -747,12 +763,12 @@ Cohesion: 0.22
 Nodes (8): Barème (20 points + 1 de bonus), Ce que voit le caissier (après son PIN, avant l'accueil caisse), Constats au 2026-10-03 (30 jours, 551 shifts), D'où vient la note (proposition), Fiche POS — à réaliser sur le master Windows, Garde-fous (pour qu'aucun caissier ne se sente lésé), Note des caissiers — sur 20 (Samtrackly + POS), Principe
 
 ### Community 222 - "recap-point.js"
-Cohesion: 0.32
-Nodes (6): STATUT_COLORS, fondPourPoint(), n(), chargerFondTresorerie(), rattacherFondAuPoint(), useFondTresorerie()
-
-### Community 223 - "ContactsScreen"
 Cohesion: 0.17
-Nodes (3): ContactsScreen(), makeStyles(), ONGLETS
+Nodes (13): chargerMois(), STATUT_COLORS, agregerMouvementsMensuels(), facturesGerantSansPhoto(), photoConsultable(), preparerHistoriqueFournisseur(), restaurerPhotosFacturesDepuisPoints(), fondPourPoint() (+5 more)
+
+### Community 223 - "contacts.js"
+Cohesion: 0.23
+Nodes (16): ContactsScreen(), envoyerWhatsApp(), nettoyer(), contactsParPoint(), evolution(), iso(), numerosUniques(), parJour() (+8 more)
 
 ### Community 224 - "Global Constraints"
 Cohesion: 0.29
@@ -762,9 +778,9 @@ Nodes (6): Global Constraints, Task 1: Migration `supabase_tresorerie_especes.sq
 Cohesion: 0.22
 Nodes (15): enregistrer(), aplatirPoint(), archiverTravailleur(), champsJourRepos(), chargerHistoriqueTravailleur(), chargerPaiesGerant(), chargerPoints(), chargerPresences() (+7 more)
 
-### Community 227 - "livraisons.js"
-Cohesion: 0.25
-Nodes (8): LivraisonsScreen(), ajouterCommande(), sauvegarder(), sauvegarderEtQuitter(), supprimerCommande(), makeStyles(), VIDE, getCommandes()
+### Community 227 - "LivraisonsScreen"
+Cohesion: 0.28
+Nodes (7): LivraisonsScreen(), ajouterCommande(), sauvegarder(), sauvegarderEtQuitter(), supprimerCommande(), makeStyles(), getCommandes()
 
 ### Community 228 - "extra"
 Cohesion: 0.29
@@ -778,6 +794,10 @@ Nodes (8): commande_items, commandes, created_at, paiements, public.stats_dashbo
 Cohesion: 0.25
 Nodes (14): esc(), f(), FicheTravailleur(), exporter(), htmlCarte(), libelleStatut(), nbJoursEntre(), TYPE_DOC_ICONS (+6 more)
 
+### Community 233 - "notifications.js"
+Cohesion: 0.33
+Nodes (13): configurerHandler(), enregistrerTokenDirecteur(), envoyerNotifDemandeNouvelle(), envoyerNotifDemandeStatut(), envoyerNotifExplicationNouvelle(), envoyerNotifExplicationStatut(), envoyerNotifFactureCorrigee(), envoyerNotifNouveauTravailleur() (+5 more)
+
 ### Community 234 - "supabase_tresorerie_charges.sql"
 Cohesion: 0.50
 Nodes (3): restaurants, tresorerie_charges_fixes, tresorerie_echeances
@@ -786,17 +806,25 @@ Nodes (3): restaurants, tresorerie_charges_fixes, tresorerie_echeances
 Cohesion: 0.21
 Nodes (13): analyserEquipe(), analyserJourRepos(), completerPresences(), FENETRE_JOURS, fenetreAnalyse(), iso(), jourIso(), JOURS_SEMAINE (+5 more)
 
-### Community 236 - "lib/historique.js"
-Cohesion: 0.27
-Nodes (11): anneesDisponibles(), dansPeriode(), dateDuSolde(), dettesRemboursees(), historiqueRestaurant(), loyersPayes(), moisDe(), n() (+3 more)
+### Community 236 - "creerNotification"
+Cohesion: 0.21
+Nodes (13): creerDemandeRH(), valider(), confirmerRefusCloturePOS(), confirmerStatutMachine(), demanderCorrection(), fermerCorrectionFacture(), formatDate(), refuserExplicationCloturePOS() (+5 more)
 
 ### Community 237 - "Trésorerie étape 3 — Nouvel accueil — Implementation Plan"
 Cohesion: 0.50
 Nodes (3): Task 1: Logique (TDD), Task 2: Écran, Trésorerie étape 3 — Nouvel accueil — Implementation Plan
 
-### Community 238 - "selectionner-journee.js"
-Cohesion: 0.36
-Nodes (5): makeStyles(), SelectionJourneeScreen(), choisir(), restaurerPresencesDuJour(), getPresences()
+### Community 238 - "choisir"
+Cohesion: 0.67
+Nodes (3): choisir(), restaurerPresencesDuJour(), getPresences()
+
+### Community 239 - "VerificateurScreen"
+Cohesion: 0.22
+Nodes (9): aujourdhui(), makeStyles(), VerificateurScreen(), changerResto(), chargerRestaurants(), chargerStock(), seDeconnecter(), deconnecter() (+1 more)
+
+### Community 240 - "fmt"
+Cohesion: 0.24
+Nodes (11): confirmerAnnulationDeduction(), confirmerAnnulationMachine(), confirmerRetourDecisionMachine(), enregistrerDecisionInv(), enregistrerRepartition(), fmt(), ouvrirInventaire(), revenirSurDecisionMachine() (+3 more)
 
 ### Community 242 - "tresorerie_coffre_mouvements"
 Cohesion: 0.36
@@ -814,33 +842,65 @@ Nodes (5): Task 1: Migration `supabase_tresorerie_previsions.sql`, Task 2: `lib/
 Cohesion: 0.33
 Nodes (5): Task 1: `lib/rappelsTresorerie.js` (TDD), Task 2: Edge Function `rappels-tresorerie`, Task 3: Réception partenaire + correctif « actif », Task 4: Migration `supabase_tresorerie_rappels.sql`, Trésorerie étape 5 — Notifications — Implementation Plan
 
-### Community 247 - "rappels-tresorerie/index.ts"
-Cohesion: 0.17
-Nodes (7): messagePour(), base, loyerLav, salKms, admin, envoyerExpo(), json()
+### Community 246 - "verificationListe.js"
+Cohesion: 0.40
+Nodes (8): alertesPoint(), bornesDuMois(), libelleMoisLong(), MOIS, moisVoisin(), n(), organiserPoints(), ventesParCanal()
+
+### Community 247 - "derniersRestesFournisseurs.js"
+Cohesion: 0.33
+Nodes (6): chargerFournisseurs(), chargerDerniersRestes(), choisirDerniersRestes(), PAGE_SUPABASE, PAQUET_POINTS, SOURCE_PRIO
 
 ### Community 250 - "EquipeScreen"
 Cohesion: 0.24
 Nodes (6): EquipeScreen(), exporterExcel(), reactiver(), supprimer(), lignesPaiesGerant(), chargerArchives()
 
-### Community 251 - "TresorerieScreen"
-Cohesion: 0.14
-Nodes (29): nomPartenaire(), TresorerieCoffreScreen(), FeuilleChargeAPayer(), enregistrer(), styleDepense(), TresorerieDirectionScreen(), supprimer(), FeuilleNouvelleDette() (+21 more)
+### Community 251 - "tresorerie-coffre.js"
+Cohesion: 0.22
+Nodes (18): ICONES, LIBELLES, nomPartenaire(), PARTENAIRES, TresorerieCoffreScreen(), TresorerieResultatsScreen(), bornesMois(), CATEGORIES_CHARGE_A_PAYER (+10 more)
+
+### Community 252 - "DemandesExplicationScreen"
+Cohesion: 0.43
+Nodes (6): DemandesExplicationScreen(), charger(), imprimerPdf(), resetForm(), soumettre(), uploaderReponse()
 
 ### Community 253 - "app/equipe.js"
 Cohesion: 0.20
 Nodes (19): Avatar(), couleurResto(), ModalCalendrier(), OngletArchives(), Kpi(), OngletDashboard(), OngletPresences(), PastilleStatut() (+11 more)
 
-### Community 254 - "saisieGroupee.js"
-Cohesion: 0.14
-Nodes (18): FeuilleSaisieBaux(), enregistrer(), jjmm(), LigneEntamee(), lireDate(), lireMontant(), Rangee(), Saisie() (+10 more)
+### Community 254 - "aujourdhuiISO"
+Cohesion: 0.10
+Nodes (31): fermer(), FeuilleEmprunt(), enregistrer(), enregistrer(), finDuMois(), SectionCotisation(), enregistrer(), SectionRetenueLitiges() (+23 more)
 
 ### Community 258 - "rapportHebdo.js"
 Cohesion: 0.39
 Nodes (5): envoyerNotifRapportHebdo(), fmt(), formatDateFr(), getSemaine(), verifierEtGenererRapportHebdo()
 
-### Community 261 - "deductions-gerant.js"
-Cohesion: 0.09
-Nodes (19): chargerMois(), DeductionsGerantScreen(), chargerDonnees(), fmt(), gererPhoto(), sauvegarder(), makeStyles(), chargerFournisseurs() (+11 more)
+### Community 260 - "generatePdf.js"
+Cohesion: 0.57
+Nodes (6): buildHtml(), fmt(), formatDate(), genererPdfEcarts(), genererPdfPoint(), photoVersBase64()
+
+### Community 261 - "DeductionsGerantScreen"
+Cohesion: 0.15
+Nodes (6): DeductionsGerantScreen(), chargerDonnees(), fmt(), gererPhoto(), sauvegarder(), makeStyles()
+
+### Community 262 - "permissions"
+Cohesion: 0.33
+Nodes (6): permissions, android.permission.CAMERA, android.permission.POST_NOTIFICATIONS, android.permission.READ_EXTERNAL_STORAGE, android.permission.READ_MEDIA_IMAGES, android.permission.RECORD_AUDIO
+
+### Community 263 - "chargerRestaurantsContact"
+Cohesion: 0.33
+Nodes (6): chargerRestaurants(), chargerDatesAvec(), chargerRestaurants(), chargerUtilisateurs(), chargerRestaurants(), chargerRestaurantsContact()
+
+### Community 268 - "ios"
+Cohesion: 0.40
+Nodes (5): ios, ITSAppUsesNonExemptEncryption, bundleIdentifier, infoPlist, supportsTablet
+
+### Community 269 - "DemandesScreen"
+Cohesion: 0.83
+Nodes (4): DemandesScreen(), charger(), resetForm(), soumettre()
+
+### Community 270 - "chargerComparaison"
+Cohesion: 0.67
+Nodes (3): getDateMoisPrecedent(), getDateSemainePrecedente(), chargerComparaison()
 
 ## Knowledge Gaps
 - **645 isolated node(s):** `name`, `slug`, `version`, `orientation`, `icon` (+640 more)
@@ -850,17 +910,17 @@ Nodes (19): chargerMois(), DeductionsGerantScreen(), chargerDonnees(), fmt(), ge
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `useTheme()` connect `useTheme` to `LitigesScreen`, `InventaireScreen`, `app/contrats.js`, `BrouillonsFournisseursScreen`, `deductions-gerant.js`, `AccueilManager.js`, `ModifierPointScreen`, `VerificationScreen`, `stats-caissiers.js`, `point-caissier.js`, `avis-plateformes.js`, `DashboardGlobalScreen`, `CreditsFournisseursScreen`, `rapportMensuel.js`, `demandes-admin.js`, `DashboardScreen`, `app/journal.js`, `ParametresScreen`, `lib/corbeille.js`, `deductionsVerification.js`, `DocumentsScreen`, `VentesScreen`, `litiges.js`, `dashboard-global.js`, `CorrectionPointScreen`, `components/graphiques.js`, `dashboardGlobal.js`, `accueil.js`, `LoginScreen`, `RecapPointScreen`, `FournisseursScreen`, `useStylesTreso`, `gestion-stock.js`, `useApp`, `ChargesScreen`, `recap-point.js`, `ContactsScreen`, `livraisons.js`, `ModifierInventaireScreen`, `PointShiftScreen`, `api.js`, `verification.js`, `selectionner-journee.js`, `EquipeScreen`, `app/equipe.js`?**
-  _High betweenness centrality (0.151) - this node is a cross-community bridge._
-- **Why does `useApp()` connect `useApp` to `LitigesScreen`, `InventaireScreen`, `app/contrats.js`, `BrouillonsFournisseursScreen`, `deductions-gerant.js`, `ModifierPointScreen`, `VerificationScreen`, `stats-caissiers.js`, `point-caissier.js`, `avis-plateformes.js`, `DemandesExplicationAdminScreen`, `CreditsFournisseursScreen`, `useTheme`, `demandes-admin.js`, `DashboardScreen`, `app/journal.js`, `ParametresScreen`, `lib/corbeille.js`, `deductionsVerification.js`, `photoQueue.js`, `DocumentsScreen`, `VentesScreen`, `litiges.js`, `CorrectionPointScreen`, `accueil.js`, `LoginScreen`, `RecapPointScreen`, `FournisseursScreen`, `useStylesTreso`, `ChargesScreen`, `recap-point.js`, `ContactsScreen`, `livraisons.js`, `PointShiftScreen`, `creerNotification`, `api.js`, `verification.js`, `selectionner-journee.js`, `EquipeScreen`, `app/equipe.js`?**
+- **Why does `useTheme()` connect `useTheme` to `LitigesScreen`, `exportRapportMensuel.js`, `InventaireScreen`, `brouillons-fournisseurs.js`, `DeductionsGerantScreen`, `DashboardScreen`, `AccueilManager.js`, `ModifierPointScreen`, `VerificationScreen`, `stats-caissiers.js`, `point-caissier.js`, `avis-plateformes.js`, `DashboardGlobalScreen`, `CreditsFournisseursScreen`, `ChoixDateScreen`, `rapportMensuel.js`, `demandes-admin.js`, `dashboard.js`, `lib/journal.js`, `ParametresScreen`, `login.js`, `useEcranModerne`, `VentesScreen`, `comparaisonDashboard.js`, `CorrectionPointScreen`, `components/graphiques.js`, `dashboardGlobal.js`, `accueil.js`, `litiges.js`, `LoginScreen`, `RecapPointScreen`, `FournisseursScreen`, `useStylesTreso`, `dashboard-global.js`, `ChargesScreen`, `recap-point.js`, `LivraisonsScreen`, `parametres.js`, `ModifierInventaireScreen`, `PointShiftScreen`, `verification.js`, `VerificateurScreen`, `verificateur.js`, `EquipeScreen`, `app/equipe.js`?**
+  _High betweenness centrality (0.128) - this node is a cross-community bridge._
+- **Why does `useApp()` connect `useTheme` to `LitigesScreen`, `InventaireScreen`, `app/contrats.js`, `brouillons-fournisseurs.js`, `DeductionsGerantScreen`, `DashboardScreen`, `ModifierPointScreen`, `VerificationScreen`, `stats-caissiers.js`, `DemandesScreen`, `avis-plateformes.js`, `point-caissier.js`, `DemandesExplicationAdminScreen`, `CreditsFournisseursScreen`, `ChoixDateScreen`, `demandes-admin.js`, `dashboard.js`, `lib/journal.js`, `ParametresScreen`, `login.js`, `useEcranModerne`, `VentesScreen`, `CorrectionPointScreen`, `notificationsInterne.js`, `accueil.js`, `litiges.js`, `LoginScreen`, `RecapPointScreen`, `FournisseursScreen`, `useStylesTreso`, `journaliser`, `ChargesScreen`, `recap-point.js`, `contacts.js`, `LivraisonsScreen`, `parametres.js`, `PointShiftScreen`, `DemandesAdminScreen`, `verification.js`, `VerificateurScreen`, `verificateur.js`, `EquipeScreen`, `DemandesExplicationScreen`, `app/equipe.js`?**
   _High betweenness centrality (0.093) - this node is a cross-community bridge._
-- **Why does `expo-router` connect `useTheme` to `app/contrats.js`, `deductions-gerant.js`, `du.js`, `AccueilManager.js`, `explore.tsx`, `demandes-admin.js`, `DashboardScreen`, `(tabs)/_layout.tsx`, `photoQueue.js`, `dashboard-global.js`, `accueil.js`, `external-link.tsx`, `useStylesTreso`, `gestion-stock.js`, `useApp`, `recap-point.js`, `ContactsScreen`, `livraisons.js`, `api.js`, `verification.js`, `selectionner-journee.js`, `app/equipe.js`?**
-  _High betweenness centrality (0.043) - this node is a cross-community bridge._
+- **Why does `expo-router` connect `useTheme` to `exportRapportMensuel.js`, `app/contrats.js`, `brouillons-fournisseurs.js`, `AccueilManager.js`, `expo`, `explore.tsx`, `lib/tresorerie.js`, `demandes-admin.js`, `dashboard.js`, `login.js`, `notificationsInterne.js`, `accueil.js`, `useStylesTreso`, `dashboard-global.js`, `recap-point.js`, `contacts.js`, `parametres.js`, `verification.js`, `verificateur.js`, `tresorerie-coffre.js`, `app/equipe.js`?**
+  _High betweenness centrality (0.056) - this node is a cross-community bridge._
 - **What connects `name`, `slug`, `version` to the rest of the system?**
   _645 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `LitigesScreen` be split into smaller, more focused modules?**
-  _Cohesion score 0.08065458796025717 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09023569023569024 - nodes in this community are weakly interconnected._
 - **Should `exportRapportMensuel.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.07465667915106117 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.08316191595650896 - nodes in this community are weakly interconnected._
 - **Should `InventaireScreen` be split into smaller, more focused modules?**
-  _Cohesion score 0.10663983903420524 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.1093167701863354 - nodes in this community are weakly interconnected._

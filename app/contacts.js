@@ -2,10 +2,10 @@
 // Contacts — SMS & WhatsApp groupés, et suivi des contacts clients pris.
 //
 // Onglet Clients : période + restaurant, résumé comparé à la période juste
-// avant (même durée, cf. lib/periodeComparee.js), puis les numéros saisis sur
-// la période. Depuis le passage au POS, seuls les NOMBRES de contacts remontent
-// (points_shifts.pos_nb_contacts) : les numéros restent dans le POS, la liste
-// ne contient donc que les numéros saisis dans Samtrackly avant la bascule.
+// avant (même durée, cf. lib/periodeComparee.js), puis les numéros de la
+// période : ceux saisis dans Samtrackly avant la bascule POS, et ceux saisis
+// au POS, rapatriés à chaque shift validé (table contacts_clients, fonction
+// import-contacts-pos).
 // Calculs : lib/contactsPeriode.js — Chargement : lib/contactsPeriodeDb.js
 // ──────────────────────────────────────────────────────────────────────────────
 import { router } from 'expo-router'
@@ -17,7 +17,7 @@ import ResumeContacts from '../components/contacts/ResumeContacts'
 import { Bouton, EnTete, Feuille, Libelle, Puces, Recherche, Vide, teinte, useEcranModerne } from '../components/ui/EcranModerne'
 import { useApp } from '../context/AppContext'
 import { numerosUniques, parJour, parRestaurant, totaux } from '../lib/contactsPeriode'
-import { chargerContactsPeriode, chargerEquipeEtFournisseurs, derniereDateNumero } from '../lib/contactsPeriodeDb'
+import { chargerContactsPeriode, chargerEquipeEtFournisseurs, dernierNumeroPOS } from '../lib/contactsPeriodeDb'
 import { PERIODES, plageDates, titrePeriode } from '../lib/equipe'
 import { libelleJour, periodePrecedente } from '../lib/periodeComparee'
 import { supabase } from '../lib/supabase'
@@ -56,7 +56,7 @@ export default function ContactsScreen() {
 
   useEffect(() => {
     supabase.from('restaurants').select('id, nom').order('nom').then(({ data }) => setRestaurants(data || []))
-    derniereDateNumero().then(setDernierNumero).catch(() => {})
+    dernierNumeroPOS().then(setDernierNumero).catch(() => {})
   }, [])
 
   // Une seule lecture couvre les deux périodes (B est juste avant A).
@@ -147,7 +147,9 @@ export default function ContactsScreen() {
   }
 
   const restoNom = restoId ? restoParId[restoId]?.nom || '' : 'Tous les restaurants'
-  const avantPOS = dernierNumero && plageA && plageA.fin > dernierNumero
+  const heureDernier = dernierNumero
+    ? new Date(dernierNumero).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })
+    : null
 
   return (
     <SafeAreaView style={styles.container}>
@@ -187,11 +189,10 @@ export default function ContactsScreen() {
           {onglet === 'Clients' && (
             <>
               <Text style={[styles.resultat, { marginTop: 4 }]}>Numéros clients de la période</Text>
-              {avantPOS && (
-                <View style={[styles.carte, { backgroundColor: teinte(principale, '14'), borderColor: teinte(principale, '40') }]}>
-                  <Text style={[styles.infoTxt, { color: colors.text }]}>
-                    ℹ️ Depuis le passage au POS, les numéros restent dans le POS : seul le nombre de contacts remonte ici.
-                    Les numéros disponibles s'arrêtent au {libelleJour(dernierNumero)}.
+              {heureDernier && (
+                <View style={[styles.carte, { backgroundColor: teinte(principale, '14'), borderColor: teinte(principale, '40'), padding: 12 }]}>
+                  <Text style={[styles.infoTxt, { color: colors.text, fontSize: 12.5 }]}>
+                    🔄 Les numéros pris au POS arrivent ici à chaque shift validé. Dernier reçu : {heureDernier}.
                   </Text>
                 </View>
               )}
@@ -218,7 +219,7 @@ export default function ContactsScreen() {
           {liste.length === 0 ? (
             <Vide styles={styles} icone={onglet === 'Clients' ? '🛵' : onglet === 'Équipe' ? '👥' : '🧾'}
               texte={onglet === 'Clients' ? 'Aucun numéro sur cette période' : 'Aucun contact'}
-              sous={onglet === 'Clients' ? 'Les numéros viennent des livraisons saisies dans Samtrackly.' : 'Ajoutez des numéros dans Paramètres.'} />
+              sous={onglet === 'Clients' ? 'Les numéros viennent des commandes Yango / Glovo (POS et Samtrackly).' : 'Ajoutez des numéros dans Paramètres.'} />
           ) : affiches.map(c => {
             const sel = !!selectionnes[c.id]
             return (
