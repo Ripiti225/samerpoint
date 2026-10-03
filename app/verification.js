@@ -4,6 +4,7 @@ import {
   SafeAreaView, ScrollView, ActivityIndicator,
   Modal, Alert, RefreshControl, Dimensions, FlatList, TextInput,
 } from 'react-native'
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { router, useLocalSearchParams } from 'expo-router'
 import { supabase } from '../lib/supabase'
 import { annulerDeductionInventaire, deciderEcartInventaire } from '../lib/api'
@@ -28,6 +29,9 @@ import { cloturesPOS, resumerEcartsGlobaux } from '../lib/cloturesCaisse'
 import { decisionEcartShiftPOS, SOURCE_DECISION_POS } from '../lib/ecartPOS'
 import { preparerEntreesVerification } from '../lib/entreesVerification'
 import { photosCanalDisponibles } from '../lib/photosVerification'
+import {
+  alertesPoint, bornesDuMois, libelleMoisLong, moisVoisin, organiserPoints, ventesParCanal,
+} from '../lib/verificationListe'
 
 const { width: SW } = Dimensions.get('window')
 
@@ -90,6 +94,11 @@ export default function VerificationScreen() {
   const [validating, setValidating] = useState(false)
   const [generatingPdf, setGeneratingPdf] = useState(false)
   const [onglet, setOnglet] = useState('point')
+  // Un mois à la fois (les points à vérifier plus anciens restent en tête).
+  const [mois, setMois] = useState(() => new Date().toISOString().slice(0, 7))
+  const liste = useMemo(() => organiserPoints(points, mois), [points, mois])
+  // Onglet de la fiche d'un point : ventes · ecart · photos · depenses · argent · equipe · stock · historique
+  const [ongletFiche, setOngletFiche] = useState('ventes')
   const [modalInventaire, setModalInventaire] = useState(false)
   const [detailInventaire, setDetailInventaire] = useState(null)
   const [annulDeducSaving, setAnnulDeducSaving] = useState(null)  // id de la ligne en cours d'annulation
@@ -167,25 +176,40 @@ export default function VerificationScreen() {
 
     if (restoInitial) {
       setRestoSelectionne(restoInitial)
-      const pts = await chargerPointsResto(restoInitial.id)
-
-      if (paramPointId && pts) {
-        const point = pts.find(p => p.id === paramPointId)
-        if (point) ouvrirPoint(point)
+      // Lien direct vers un point (notification) : on ouvre son mois.
+      let m = mois
+      let cible = null
+      if (paramPointId) {
+        const { data } = await supabase.from('points').select('*').eq('id', paramPointId).maybeSingle()
+        if (data) { cible = data; m = data.date.slice(0, 7); setMois(m) }
       }
+      await chargerPointsResto(restoInitial.id, m)
+      if (cible) ouvrirPoint(cible)
     }
     setLoading(false)
   }
 
-  async function chargerPointsResto(restoId) {
+  // Points du mois choisi + points validés jamais vérifiés des mois d'avant.
+  async function chargerPointsResto(restoId, m = mois) {
     if (!restoId) return []
     setLoading(true)
-    const { data } = await supabase
-      .from('points').select('*').eq('restaurant_id', restoId)
-      .order('date', { ascending: false }).limit(50)
-    setPoints(data || [])
+    const { debut, finExclue } = bornesDuMois(m)
+    const [duMois, enRetard] = await Promise.all([
+      supabase.from('points').select('*').eq('restaurant_id', restoId)
+        .gte('date', debut).lt('date', finExclue).order('date', { ascending: false }),
+      supabase.from('points').select('*').eq('restaurant_id', restoId)
+        .lt('date', debut).eq('valide', true).eq('verifie', false).order('date'),
+    ])
+    const data = [...(enRetard.data || []), ...(duMois.data || [])]
+    setPoints(data)
     setLoading(false)
-    return data || []
+    return data
+  }
+
+  async function changerMois(decalage) {
+    const m = moisVoisin(mois, decalage)
+    setMois(m)
+    if (restoSelectionne) await chargerPointsResto(restoSelectionne.id, m)
   }
 
   async function onRefresh() {
@@ -202,6 +226,7 @@ export default function VerificationScreen() {
 
   async function ouvrirPoint(point) {
     setPointSelectionne(point)
+    setOngletFiche('ventes')
     setLoadingDetail(true)
     setModalPoint(true)
     setDetailPoint(null)
@@ -384,17 +409,36 @@ export default function VerificationScreen() {
 
   function fmt(n) { return Math.round(n).toLocaleString('fr-FR') + ' FCFA' }
 
+  // « Jeudi 2 octobre »
+  function formatJour(dateStr) {
+    if (!dateStr) return ''
+    const t = new Date(`${dateStr}T12:00:00`).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+    return t.charAt(0).toUpperCase() + t.slice(1)
+  }
+
+  // « 412 500 F »
+  function fmtCourt(n) {
+    return `${Math.round(Number(n) || 0).toLocaleString('fr-FR').replace(/[\u00a0\u202f]/g, ' ')} F`
+  }
+
+  // Petite étiquette colorée : rouge = écart / retard, orange = à surveiller, vert = bon.
+  function puce(ton, texte) {
+    const t = {
+      rouge: [colors.errorLight, colors.errorDark], orange: [colors.warningLight, colors.warningDark],
+      vert: [colors.successLight, colors.successDark], gris: [colors.surfaceAlt, colors.textSecondary],
+    }[ton]
+    return (
+      <View key={texte} style={[styles.puce, { backgroundColor: t[0] }]}>
+        <Text style={[styles.puceTxt, { color: t[1] }]}>{texte}</Text>
+      </View>
+    )
+  }
+
   function formatDate(dateStr) {
     if (!dateStr) return ''
     const [y, m, d] = dateStr.split('-')
     const mois = ['jan', 'fév', 'mar', 'avr', 'mai', 'juin', 'juil', 'août', 'sep', 'oct', 'nov', 'déc']
     return `${parseInt(d)} ${mois[parseInt(m) - 1]} ${y}`
-  }
-
-  function statutPoint(point) {
-    if (point.verifie) return { label: '✅ Vérifié', bg: '#EAF3DE', text: '#3B6D11' }
-    if (point.valide) return { label: '🔒 Validé', bg: '#E6F1FB', text: '#185FA5' }
-    return { label: '⏳ En cours', bg: '#FAEEDA', text: '#854F0B' }
   }
 
   function photosManquantesPoint(point) {
@@ -1532,14 +1576,14 @@ export default function VerificationScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.replace('/accueil')}>
-          <Text style={styles.back}>‹ Retour</Text>
+        <TouchableOpacity onPress={() => router.replace('/accueil')} style={styles.enteteBtn} accessibilityRole="button" accessibilityLabel="Retour">
+          <MaterialCommunityIcons name="chevron-left" size={24} color="#FFFFFF" />
         </TouchableOpacity>
-        <View>
+        <View style={{ flex: 1, alignItems: 'center' }}>
           <Text style={styles.headerTitre}>Vérification</Text>
-          <Text style={styles.headerSub}>Contrôle des points & photos</Text>
+          <Text style={styles.headerSub}>{restoSelectionne?.nom || 'Contrôle des points & photos'}</Text>
         </View>
-        <View style={{ width: 60 }} />
+        <View style={{ width: 40 }} />
       </View>
 
       {/* Onglets */}
@@ -1548,13 +1592,13 @@ export default function VerificationScreen() {
           style={[styles.ongletBtn, onglet === 'point' && styles.ongletBtnActive]}
           onPress={() => setOnglet('point')}
         >
-          <Text style={[styles.ongletTxt, onglet === 'point' && styles.ongletTxtActive]}>📋 Vérification Point</Text>
+          <Text style={[styles.ongletTxt, onglet === 'point' && styles.ongletTxtActive]}>Points</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.ongletBtn, onglet === 'inventaire' && styles.ongletBtnActive]}
           onPress={() => setOnglet('inventaire')}
         >
-          <Text style={[styles.ongletTxt, onglet === 'inventaire' && styles.ongletTxtActive]}>📦 Vérification Inventaire</Text>
+          <Text style={[styles.ongletTxt, onglet === 'inventaire' && styles.ongletTxtActive]}>Inventaire</Text>
         </TouchableOpacity>
       </View>
 
@@ -1574,21 +1618,28 @@ export default function VerificationScreen() {
         ))}
       </ScrollView>
 
-      {/* Stats rapides */}
-      {!loading && points.length > 0 && (
-        <View style={styles.statsBar}>
+      {/* Mois choisi */}
+      <View style={styles.moisBarre}>
+        <TouchableOpacity style={styles.moisFleche} onPress={() => changerMois(-1)} accessibilityRole="button" accessibilityLabel="Mois précédent">
+          <MaterialCommunityIcons name="chevron-left" size={22} color={colors.primary} />
+        </TouchableOpacity>
+        <Text style={styles.moisTxt}>{libelleMoisLong(mois)}</Text>
+        <TouchableOpacity style={styles.moisFleche} onPress={() => changerMois(1)} accessibilityRole="button" accessibilityLabel="Mois suivant">
+          <MaterialCommunityIcons name="chevron-right" size={22} color={colors.primary} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Résumé du mois */}
+      {!loading && (
+        <View style={styles.resumeMois}>
           {[
-            { val: points.length, label: 'Total', color: '#534AB7' },
-            { val: points.filter(p => p.verifie).length, label: 'Vérifiés', color: '#3B6D11' },
-            { val: points.filter(p => p.valide && !p.verifie).length, label: 'À vérifier', color: '#185FA5' },
-            { val: points.filter(p => !p.valide).length, label: 'En cours', color: '#854F0B' },
-          ].map((s, i, arr) => (
-            <View key={i} style={{ flex: 1, flexDirection: 'row' }}>
-              <View style={styles.statItem}>
-                <Text style={[styles.statVal, { color: s.color }]}>{s.val}</Text>
-                <Text style={styles.statLabel}>{s.label}</Text>
-              </View>
-              {i < arr.length - 1 && <View style={styles.statDivider} />}
+            { val: liste.compteurs.aVerifier, label: 'À vérifier', color: colors.warningDark },
+            { val: liste.compteurs.verifies, label: 'Vérifiés', color: colors.success },
+            { val: liste.compteurs.enCours, label: 'En cours', color: colors.textMuted },
+          ].map((c, i) => (
+            <View key={c.label} style={[styles.resumeCase, i > 0 && styles.resumeCaseSep]}>
+              <Text style={[styles.resumeVal, { color: c.color }]}>{c.val}</Text>
+              <Text style={styles.resumeLabel}>{c.label}</Text>
             </View>
           ))}
         </View>
@@ -1596,83 +1647,71 @@ export default function VerificationScreen() {
 
       {loading ? (
         <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color="#534AB7" />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingTxt}>Chargement des points...</Text>
         </View>
       ) : (
         <ScrollView
           style={styles.body} showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#534AB7" />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         >
-          {points.length === 0 ? (
+          {liste.aVerifier.length === 0 && liste.historique.length === 0 ? (
             <View style={styles.emptyBox}>
-              <Text style={styles.emptyIcon}>🔍</Text>
-              <Text style={styles.emptyTxt}>Aucun point pour ce restaurant</Text>
-              <Text style={styles.emptySub}>Tirez vers le bas pour rafraîchir</Text>
+              <MaterialCommunityIcons name="calendar-blank-outline" size={42} color={colors.textMuted} />
+              <Text style={styles.emptyTxt}>Aucun point en {libelleMoisLong(mois).toLowerCase()}</Text>
+              <Text style={styles.emptySub}>Changez de mois, ou tirez vers le bas pour rafraîchir</Text>
             </View>
           ) : (
             <>
-              {onglet === 'point' && points.filter(p => p.valide && !p.verifie).length > 0 && (
-                <View style={styles.prioriteSection}>
-                  <Text style={styles.prioriteTitre}>🔔 En attente de vérification</Text>
-                  {points.filter(p => p.valide && !p.verifie).map(point => (
-                    <TouchableOpacity key={point.id} style={styles.prioriteCard} onPress={() => ouvrirPoint(point)}>
-                      <View>
-                        <Text style={styles.prioriteDate}>{formatDate(point.date)}</Text>
-                        <Text style={styles.prioriteBSC}>BSC : {fmt(point.benefice_sc || 0)}</Text>
-                      </View>
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={styles.prioriteVentes}>{fmt(point.vente_total || 0)}</Text>
-                        <Text style={styles.prioriteVerifier}>Vérifier ›</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+              {liste.aVerifier.length > 0 && (
+                <>
+                  <Text style={styles.titreListe}>À vérifier</Text>
+                  {liste.aVerifier.map(({ point, enRetard }) => {
+                    const alertes = alertesPoint(point, photosManquantesPoint(point))
+                    return (
+                      <TouchableOpacity
+                        key={point.id}
+                        style={[styles.carteAVerifier, { borderLeftColor: enRetard ? colors.error : colors.primary }]}
+                        onPress={() => onglet === 'inventaire' ? ouvrirInventaire(point) : ouvrirPoint(point)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${formatJour(point.date)}, ventes ${fmtCourt(point.vente_total)}${enRetard ? ', en retard' : ''}`}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.carteDate}>{formatJour(point.date)}</Text>
+                          <View style={styles.alertes}>
+                            {enRetard && puce('rouge', 'En retard · mois précédent')}
+                            {alertes.map(al => puce(al.ton, al.texte))}
+                          </View>
+                        </View>
+                        <Text style={styles.carteMontant}>{fmtCourt(point.vente_total)}</Text>
+                        <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
+                      </TouchableOpacity>
+                    )
+                  })}
+                </>
               )}
 
-              <Text style={styles.sectionTitre}>Tous les points</Text>
-              {points.map(point => {
-                const statut = statutPoint(point)
-                const manquantes = photosManquantesPoint(point)
-                return (
-                  <TouchableOpacity
-                    key={point.id}
-                    style={[
-                      styles.pointCard,
-                      point.verifie && styles.pointCardVerifie,
-                      point.valide && !point.verifie && styles.pointCardAVerifier,
-                      !point.valide && styles.pointCardEnCours,
-                    ]}
-                    onPress={() => onglet === 'inventaire' ? ouvrirInventaire(point) : ouvrirPoint(point)}
-                  >
-                    <View style={styles.pointHeader}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.pointDate}>{formatDate(point.date)}</Text>
-                        <View style={styles.pointStats}>
-                          <Text style={styles.pointStatTxt}>📈 {fmt(point.vente_total || 0)}</Text>
-                          <Text style={styles.pointStatTxt}>💳 {fmt(point.depense_total || 0)}</Text>
-                          <Text style={[styles.pointStatTxt, { color: '#3B6D11', fontWeight: '600' }]}>
-                            BSC: {fmt(point.benefice_sc || 0)}
-                          </Text>
-                        </View>
-                      </View>
-                      <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                        <View style={[styles.statutBadge, { backgroundColor: statut.bg }]}>
-                          <Text style={[styles.statutTxt, { color: statut.text }]}>{statut.label}</Text>
-                        </View>
-                        {manquantes.length > 0 && (
-                          <View style={styles.manquanteBadge}>
-                            <Text style={styles.manquanteTxt}>⚠️ {manquantes.length} photo(s)</Text>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-                    <Text style={styles.voirDetailTxt}>
-                      {onglet === 'inventaire' ? "Appuyer pour voir l'inventaire ›" : 'Appuyer pour voir les détails ›'}
-                    </Text>
-                  </TouchableOpacity>
-                )
-              })}
+              {liste.historique.length > 0 && (
+                <>
+                  <Text style={styles.titreListe}>Historique</Text>
+                  <View style={styles.listeCompacte}>
+                    {liste.historique.map((point, i) => (
+                      <TouchableOpacity
+                        key={point.id}
+                        style={[styles.ligneCompacte, i > 0 && styles.ligneCompacteSep]}
+                        onPress={() => onglet === 'inventaire' ? ouvrirInventaire(point) : ouvrirPoint(point)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${formatJour(point.date)}, ${point.verifie ? 'vérifié' : 'en cours'}`}
+                      >
+                        <View style={[styles.pointStatut, { backgroundColor: point.verifie ? colors.success : colors.textMuted }]} />
+                        <Text style={styles.ligneDate}>{formatJour(point.date)}{!point.valide ? ' · en cours' : ''}</Text>
+                        <Text style={styles.ligneMontant}>{point.valide ? fmtCourt(point.vente_total) : '—'}</Text>
+                        <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textMuted} />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
+              )}
             </>
           )}
           <View style={{ height: 40 }} />
@@ -1683,42 +1722,88 @@ export default function VerificationScreen() {
           MODAL DÉTAIL POINT
       ══════════════════════════════════════════ */}
       <Modal visible={modalPoint} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setModalPoint(false)}>
-              <Text style={styles.modalClose}>✕ Fermer</Text>
+            <TouchableOpacity onPress={() => setModalPoint(false)} style={styles.enteteBtn} accessibilityRole="button" accessibilityLabel="Fermer">
+              <MaterialCommunityIcons name="close" size={22} color="#FFFFFF" />
             </TouchableOpacity>
-            <View style={{ alignItems: 'center' }}>
-              <Text style={styles.modalTitre}>{formatDate(pointSelectionne?.date)}</Text>
+            <View style={{ alignItems: 'center', flex: 1 }}>
+              <Text style={styles.modalTitre}>{formatJour(pointSelectionne?.date)}</Text>
               <Text style={styles.modalSub}>{restoSelectionne?.nom}</Text>
             </View>
-            <View style={{ width: 60 }} />
+            {pointSelectionne?.valide ? (
+              <TouchableOpacity onPress={telechargerPdf} disabled={generatingPdf} style={styles.enteteBtn}
+                accessibilityRole="button" accessibilityLabel="Télécharger le point en PDF">
+                {generatingPdf
+                  ? <ActivityIndicator color="#FFFFFF" size="small" />
+                  : <MaterialCommunityIcons name="file-download-outline" size={22} color="#FFFFFF" />}
+              </TouchableOpacity>
+            ) : <View style={{ width: 40 }} />}
           </View>
 
           {loadingDetail ? (
             <View style={styles.loadingBox}>
-              <ActivityIndicator size="large" color="#534AB7" />
+              <ActivityIndicator size="large" color={colors.primary} />
               <Text style={styles.loadingTxt}>Chargement...</Text>
             </View>
           ) : detailPoint && (
+            <>
             <ScrollView style={{ padding: 14 }} showsVerticalScrollIndicator={false}>
 
-              {/* Statut */}
-              {pointSelectionne?.verifie ? (
-                <View style={[styles.verifBanner, { backgroundColor: '#EAF3DE', borderColor: '#3B6D11' }]}>
-                  <Text style={[styles.verifBannerTxt, { color: '#3B6D11' }]}>✅ Vérifié par {pointSelectionne.verifie_par}</Text>
-                </View>
-              ) : pointSelectionne?.valide ? (
-                <View style={[styles.verifBanner, { backgroundColor: '#E6F1FB', borderColor: '#185FA5' }]}>
-                  <Text style={[styles.verifBannerTxt, { color: '#185FA5' }]}>🔍 Validé — en attente de vérification</Text>
-                </View>
-              ) : (
-                <View style={[styles.verifBanner, { backgroundColor: '#FAEEDA', borderColor: '#EF9F27' }]}>
-                  <Text style={[styles.verifBannerTxt, { color: '#854F0B' }]}>⏳ Point en cours — non encore validé</Text>
-                </View>
-              )}
+              {/* Résumé : l'essentiel du point, avant le détail en onglets */}
+              {(() => {
+                const p = pointSelectionne
+                const toutes = getToutesPhotos()
+                const manquantes = photosManquantesPoint(p || {})
+                const ecart = p?.ecart_caisse
+                const statut = p?.verifie
+                  ? puce('vert', `Vérifié par ${p.verifie_par || '—'}`)
+                  : p?.valide ? puce('orange', 'À vérifier') : puce('gris', 'En cours · pas encore validé')
+                return (
+                  <View style={styles.ficheResume}>
+                    <View style={{ flexDirection: 'row' }}>{statut}</View>
+                    <Text style={styles.ficheLabel}>Ventes du jour</Text>
+                    <Text style={styles.ficheGros}>{fmtCourt(p?.vente_total)}</Text>
+                    <View style={styles.ficheTrois}>
+                      <View style={styles.ficheCase}>
+                        <Text style={styles.ficheCaseLabel}>Écart caisse</Text>
+                        <Text style={[styles.ficheCaseVal, { color: ecart == null ? colors.textMuted : ecart ? colors.error : colors.success }]}>
+                          {ecart == null ? '—' : ecart === 0 ? 'Juste' : `${ecart > 0 ? '+' : '−'} ${fmtCourt(Math.abs(ecart)).replace(' F', '')}`}
+                        </Text>
+                      </View>
+                      <View style={styles.ficheCase}>
+                        <Text style={styles.ficheCaseLabel}>Dépenses</Text>
+                        <Text style={styles.ficheCaseVal}>{fmtCourt(p?.depense_total).replace(' F', '')}</Text>
+                      </View>
+                      <View style={styles.ficheCase}>
+                        <Text style={styles.ficheCaseLabel}>Photos</Text>
+                        <Text style={[styles.ficheCaseVal, manquantes.length > 0 && { color: colors.warningDark }]}>
+                          {toutes.length}{manquantes.length ? ` · ${manquantes.length} manq.` : ''}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )
+              })()}
 
-              {/* ══════════════════════════════════════
+              {/* Onglets de la fiche */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 12 }}
+                contentContainerStyle={{ gap: 8 }}>
+                {[
+                  ['ventes', 'Ventes'], ['ecart', 'Écart'], ['photos', 'Photos'], ['depenses', 'Dépenses'],
+                  ['argent', 'Argent'], ['equipe', 'Équipe'], ['stock', 'Stock'],
+                  ...(detailPoint.deverouillages.length > 0 ? [['historique', 'Corrections']] : []),
+                ].map(([cle, label]) => (
+                  <TouchableOpacity key={cle} onPress={() => setOngletFiche(cle)}
+                    style={[styles.ficheOnglet, ongletFiche === cle && styles.ficheOngletActif]}
+                    accessibilityRole="tab" accessibilityState={{ selected: ongletFiche === cle }}>
+                    <Text style={[styles.ficheOngletTxt, ongletFiche === cle && styles.ficheOngletTxtActif]}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {ongletFiche === 'argent' && (<>
+{/* ══════════════════════════════════════
                   1. RÉCAPITULATIF FINANCIER
               ══════════════════════════════════════ */}
               {(() => {
@@ -1734,7 +1819,7 @@ export default function VerificationScreen() {
 
                 return (
                   <View style={{ marginBottom: 14 }}>
-                    <Text style={styles.sectionTitre}>💰 Récapitulatif Financier</Text>
+                    <Text style={styles.sectionTitre}>Récapitulatif Financier</Text>
                     <View style={styles.recapCard}>
                       {/* Ventes */}
                       {[
@@ -1816,19 +1901,19 @@ export default function VerificationScreen() {
                       {/* Espèces */}
                       <View style={styles.recapRow}>
                         <Text style={styles.recapLabel}>Reste Espèces</Text>
-                        <Text style={[styles.recapVal, { color: '#534AB7', fontWeight: '600' }]}>{fmt(p?.reste_especes || 0)}</Text>
+                        <Text style={[styles.recapVal, { color: colors.primary, fontWeight: '600' }]}>{fmt(p?.reste_especes || 0)}</Text>
                       </View>
                       {(p?.fc_veille || 0) > 0 && (
                         <View style={styles.recapRow}>
                           <Text style={styles.recapLabel}>Fc de la veille</Text>
-                          <Text style={[styles.recapVal, { color: '#534AB7' }]}>{fmt(p.fc_veille)}</Text>
+                          <Text style={[styles.recapVal, { color: colors.primary }]}>{fmt(p.fc_veille)}</Text>
                         </View>
                       )}
                       {/* Fond reçu : fond_recu (Modifier le point) sinon fc_compte (validation gérant) */}
                       {((p?.fond_recu || 0) || (p?.fc_compte || 0)) > 0 && (
                         <View style={styles.recapRow}>
                           <Text style={styles.recapLabel}>Fond reçu</Text>
-                          <Text style={[styles.recapVal, { color: '#534AB7' }]}>{fmt((p?.fond_recu || 0) || (p?.fc_compte || 0))}</Text>
+                          <Text style={[styles.recapVal, { color: colors.primary }]}>{fmt((p?.fond_recu || 0) || (p?.fc_compte || 0))}</Text>
                         </View>
                       )}
                       {(p?.ajustement_fond || 0) !== 0 && (
@@ -1841,7 +1926,7 @@ export default function VerificationScreen() {
                       )}
                       <View style={[styles.recapRow, styles.recapRowTotal]}>
                         <Text style={[styles.recapLabel, { fontWeight: '700' }]}>Reste + Fc</Text>
-                        <Text style={[styles.recapVal, { color: '#534AB7', fontWeight: '700' }]}>{fmt((p?.reste_fc || 0) + (p?.ajustement_fond || 0))}</Text>
+                        <Text style={[styles.recapVal, { color: colors.primary, fontWeight: '700' }]}>{fmt((p?.reste_fc || 0) + (p?.ajustement_fond || 0))}</Text>
                       </View>
 
                       <View style={styles.recapSep} />
@@ -1857,8 +1942,31 @@ export default function VerificationScreen() {
                   </View>
                 )
               })()}
+              </>)}
 
-              {/* ══════════════════════════════════════
+              {ongletFiche === 'ventes' && (<>
+              {/* Ventes par canal en barres : d'où vient l'argent */}
+              {(() => {
+                const especes = detailPoint.shifts.reduce((t, sh) => t + (sh.espece || 0), 0)
+                const canaux = ventesParCanal(pointSelectionne || {}, especes)
+                const max = Math.max(1, ...canaux.map(c => c.montant))
+                if (!canaux.length) return null
+                return (
+                  <View style={styles.barresCarte}>
+                    {canaux.map(c => (
+                      <View key={c.canal} style={styles.barreLigne}>
+                        <Text style={styles.barreNom}>{c.canal}</Text>
+                        <View style={styles.barreFond}>
+                          <View style={[styles.barrePlein, { width: `${Math.max(3, Math.round((c.montant / max) * 100))}%` }]} />
+                        </View>
+                        <Text style={styles.barreVal}>{fmtCourt(c.montant).replace(' F', '')}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )
+              })()}
+
+{/* ══════════════════════════════════════
                   2. VENTES PAR CANAL
               ══════════════════════════════════════ */}
               {(() => {
@@ -1890,7 +1998,7 @@ export default function VerificationScreen() {
 
                 return (
                   <View style={{ marginBottom: 14 }}>
-                    <Text style={styles.sectionTitre}>🛵 Ventes par canal</Text>
+                    <Text style={styles.sectionTitre}>Ventes par canal</Text>
 
                     {/* YANGO */}
                     {hasYango && (
@@ -2151,8 +2259,10 @@ export default function VerificationScreen() {
                   </View>
                 )
               })()}
+              </>)}
 
-              {/* ══════════════════════════════════════
+              {ongletFiche === 'ecart' && (<>
+{/* ══════════════════════════════════════
                   2.5 VENTE MACHINE
               ══════════════════════════════════════ */}
               {(() => {
@@ -2172,7 +2282,7 @@ export default function VerificationScreen() {
                 const resteMachine = Math.max(0, Math.round((ecart != null ? Math.abs(ecart) : 0) - totalRegulMachine))
                 return (
                   <View style={{ marginBottom: 14 }}>
-                    <Text style={styles.sectionTitre}>📊 Vente machine</Text>
+                    <Text style={styles.sectionTitre}>Vente machine</Text>
                     <View style={styles.recapCard}>
                       <View style={styles.recapRow}>
                         <Text style={styles.recapLabel}>Vente théorique (shifts)</Text>
@@ -2345,7 +2455,7 @@ export default function VerificationScreen() {
                 if (clotures.length === 0) return null
                 return (
                   <View style={{ marginBottom: 14 }}>
-                    <Text style={styles.sectionTitre}>💵 Rapports Z — clôtures POS</Text>
+                    <Text style={styles.sectionTitre}>Rapports Z — clôtures POS</Text>
                     <View style={styles.ecartsPosCard}>
                       {clotures.map((cloture, index) => {
                         const manquant = cloture.ecartGlobal != null && cloture.ecartGlobal < 0
@@ -2453,15 +2563,17 @@ export default function VerificationScreen() {
                   </View>
                 )
               })()}
+              </>)}
 
-              {/* ══════════════════════════════════════
+              {ongletFiche === 'equipe' && (<>
+{/* ══════════════════════════════════════
                   3. SHIFTS CAISSIERS
                   Détail opérationnel immédiatement après les clôtures POS.
                   Les photos ne sont plus demandées au POS.
               ══════════════════════════════════════ */}
               {detailPoint.shifts.length > 0 && (
                 <View style={{ marginBottom: 14 }}>
-                  <Text style={styles.sectionTitre}>⏱️ Shifts caissiers ({detailPoint.shifts.length})</Text>
+                  <Text style={styles.sectionTitre}>Shifts caissiers ({detailPoint.shifts.length})</Text>
                   {detailPoint.shifts.map((shift, i) => (
                     <View key={shift.id} style={styles.shiftCard}>
                       <View style={styles.shiftHeader}>
@@ -2497,8 +2609,10 @@ export default function VerificationScreen() {
                   ))}
                 </View>
               )}
+              </>)}
 
-              {/* ══════════════════════════════════════
+              {ongletFiche === 'depenses' && (<>
+{/* ══════════════════════════════════════
                   4. DÉDUCTIONS GÉRANT
               ══════════════════════════════════════ */}
               {(() => {
@@ -2537,7 +2651,7 @@ export default function VerificationScreen() {
                 const totalGerant = totalFourGerant + totalDepGerant
                 return (
                   <View style={{ marginBottom: 14 }}>
-                    <Text style={styles.sectionTitre}>💳 Déductions Gérant</Text>
+                    <Text style={styles.sectionTitre}>Déductions Gérant</Text>
 
                     {/* Fournisseurs gérant */}
                     <Text style={styles.listSubTitre}>💼 Fournisseurs</Text>
@@ -2632,7 +2746,7 @@ export default function VerificationScreen() {
                 const fourCaissier = detailPoint.fournisseurs.filter(f => f.saisi_par !== 'gerant')
                 return (
                   <View style={{ marginBottom: 14 }}>
-                    <Text style={styles.sectionTitre}>🧾 Fournisseurs caissiers ({fourCaissier.length})</Text>
+                    <Text style={styles.sectionTitre}>Fournisseurs caissiers ({fourCaissier.length})</Text>
                     {fourCaissier.length === 0 ? (
                       <View style={styles.emptySection}>
                         <Text style={styles.emptySectionTxt}>Aucune donnée enregistrée</Text>
@@ -2697,7 +2811,7 @@ export default function VerificationScreen() {
                 const total = depCaissier.reduce((s, d) => s + (d.montant || 0), 0)
                 return (
                   <View style={{ marginBottom: 14 }}>
-                    <Text style={styles.sectionTitre}>🧾 Dépenses caissiers ({depCaissier.length})</Text>
+                    <Text style={styles.sectionTitre}>Dépenses caissiers ({depCaissier.length})</Text>
                     <View style={styles.listCard}>
                       {depCaissier.map((d, i) => (
                         <View key={i} style={[styles.listRow, i === depCaissier.length - 1 && { borderBottomWidth: 0 }]}>
@@ -2719,8 +2833,10 @@ export default function VerificationScreen() {
                   </View>
                 )
               })()}
+              </>)}
 
-              {/* ══════════════════════════════════════
+              {ongletFiche === 'stock' && (<>
+{/* ══════════════════════════════════════
                   6. ENTRÉES DU JOUR
               ══════════════════════════════════════ */}
               {(() => {
@@ -2729,7 +2845,7 @@ export default function VerificationScreen() {
                   return (
                     <View style={{ marginBottom: 14 }}>
                       <View style={styles.entreeSectionHeader}>
-                        <Text style={styles.sectionTitre}>📥 Entrées du jour ({entreesPOS.nbEntrees})</Text>
+                        <Text style={styles.sectionTitre}>Entrées du jour ({entreesPOS.nbEntrees})</Text>
                         <View style={styles.entreeSourceBadge}>
                           <Text style={styles.entreeSourceBadgeTxt}>Source POS</Text>
                         </View>
@@ -2781,7 +2897,7 @@ export default function VerificationScreen() {
 
                 return (
                   <View style={{ marginBottom: 14 }}>
-                    <Text style={styles.sectionTitre}>📥 Entrées du jour</Text>
+                    <Text style={styles.sectionTitre}>Entrées du jour</Text>
 
                     {/* Fournisseurs avec entrées inventaire liées (ancien format) */}
                     {fournEntrees.map(([fournId, lignes]) => {
@@ -2836,12 +2952,14 @@ export default function VerificationScreen() {
                   </View>
                 )
               })()}
+              </>)}
 
-              {/* ══════════════════════════════════════
+              {ongletFiche === 'equipe' && (<>
+{/* ══════════════════════════════════════
                   7. PRÉSENCES & PAIES
               ══════════════════════════════════════ */}
               <View style={{ marginBottom: 14 }}>
-                <Text style={styles.sectionTitre}>👥 Présences & Paies ({detailPoint.presences.length})</Text>
+                <Text style={styles.sectionTitre}>Présences & Paies ({detailPoint.presences.length})</Text>
                 {detailPoint.presences.length === 0 ? (
                   <View style={styles.emptySection}>
                     <Text style={styles.emptySectionTxt}>Aucune donnée enregistrée</Text>
@@ -2874,12 +2992,14 @@ export default function VerificationScreen() {
                   </View>
                 )}
               </View>
+              </>)}
 
-              {/* ══════════════════════════════════════
+              {ongletFiche === 'stock' && (<>
+{/* ══════════════════════════════════════
                   8. INVENTAIRE
               ══════════════════════════════════════ */}
               <View style={{ marginBottom: 14 }}>
-                <Text style={styles.sectionTitre}>📦 Inventaire</Text>
+                <Text style={styles.sectionTitre}>Inventaire</Text>
                 {detailPoint.invShifts.length === 0 ? (
                   <View style={styles.emptySection}>
                     <Text style={styles.emptySectionTxt}>Aucune donnée enregistrée</Text>
@@ -2942,12 +3062,30 @@ export default function VerificationScreen() {
                   </View>
                 ))}
               </View>
+              </>)}
 
-              {/* ══════════════════════════════════════
+              {ongletFiche === 'photos' && (<>
+              {/* Toutes les photos du point */}
+              {(() => {
+                const toutes = getToutesPhotos()
+                if (!toutes.length) return null
+                return (
+                  <View style={{ marginBottom: 14 }}>
+                    <Text style={styles.sectionTitre}>Toutes les photos ({toutes.length})</Text>
+                    <View style={styles.grillePhotos}>
+                      {toutes.map((ph, i) => (
+                        <PhotoVignette key={`${ph.uri}-${i}`} uri={ph.uri} label={ph.label} onPress={() => ouvriGalerie(toutes, i)} />
+                      ))}
+                    </View>
+                  </View>
+                )
+              })()}
+
+{/* ══════════════════════════════════════
                   9. PHOTOS GÉNÉRALES (séquences)
               ══════════════════════════════════════ */}
               <View style={{ marginBottom: 14 }}>
-                <Text style={styles.sectionTitre}>📷 Photos générales</Text>
+                <Text style={styles.sectionTitre}>Photos générales</Text>
                 {detailPoint.sequences.filter(s => s.photo_url).length === 0 ? (
                   <View style={styles.emptySection}>
                     <Text style={styles.emptySectionTxt}>Aucune photo enregistrée</Text>
@@ -2970,13 +3108,15 @@ export default function VerificationScreen() {
                   </View>
                 )}
               </View>
+              </>)}
 
-              {/* ══════════════════════════════════════
+              {ongletFiche === 'historique' && (<>
+{/* ══════════════════════════════════════
                   10. HISTORIQUE CORRECTIONS
               ══════════════════════════════════════ */}
               {detailPoint.deverouillages.length > 0 && (
                 <View style={{ marginBottom: 14 }}>
-                  <Text style={styles.sectionTitre}>🔧 Historique des corrections</Text>
+                  <Text style={styles.sectionTitre}>Historique des corrections</Text>
                   <View style={styles.listCard}>
                     {detailPoint.deverouillages.map((d, i) => {
                       const SECTION_ICONS = { partenaires: '🛵', fournisseurs: '🧾', photos: '📷', inventaire: '📦' }
@@ -3012,57 +3152,57 @@ export default function VerificationScreen() {
                   </View>
                 </View>
               )}
+              </>)}
 
-              {/* Bouton vérifier */}
-              {!pointSelectionne?.verifie && pointSelectionne?.valide && (
+              <View style={{ height: 24 }} />
+            </ScrollView>
+
+            {/* Actions toujours visibles en bas */}
+            <View style={styles.ficheActions}>
+              {pointSelectionne?.valide && (roleActif === 'manager' || roleActif === 'directeur') && (
                 <TouchableOpacity
-                  style={[styles.verifierBtn, validating && { opacity: 0.6 }]}
+                  style={styles.actionSecondaire}
+                  onPress={() => { setSectionsSelectionnees([]); setMotifCorrection(''); setModalCorrection(true) }}
+                  accessibilityRole="button" accessibilityLabel="Demander une correction"
+                >
+                  <MaterialCommunityIcons name="pencil-outline" size={18} color={colors.text} />
+                  <Text style={styles.actionSecondaireTxt}>Corriger</Text>
+                </TouchableOpacity>
+              )}
+              {pointSelectionne?.verifie ? (
+                <View style={styles.actionFait}>
+                  <MaterialCommunityIcons name="check-decagram" size={18} color={colors.success} />
+                  <Text style={[styles.actionFaitTxt, { color: colors.successDark }]}>Vérifié par {pointSelectionne.verifie_par || '—'}</Text>
+                </View>
+              ) : pointSelectionne?.valide ? (
+                <TouchableOpacity
+                  style={[styles.actionPrincipale, validating && { opacity: 0.6 }]}
                   onPress={() => Alert.alert(
-                    '✅ Confirmer la vérification',
+                    'Confirmer la vérification',
                     `Vous confirmez avoir vérifié toutes les données et photos du point du ${formatDate(pointSelectionne?.date)} ?\n\nCette action signifie que tout est conforme.`,
                     [
                       { text: 'Annuler', style: 'cancel' },
-                      { text: '✅ Confirmer', onPress: () => marquerVerifie(pointSelectionne?.id) }
+                      { text: 'Confirmer', onPress: () => marquerVerifie(pointSelectionne?.id) },
                     ]
                   )}
                   disabled={validating}
+                  accessibilityRole="button" accessibilityLabel="Marquer comme vérifié"
                 >
                   {validating
-                    ? <ActivityIndicator color="#fff" />
+                    ? <ActivityIndicator color="#FFFFFF" />
                     : <>
-                        <Text style={styles.verifierBtnTxt}>✅ Marquer comme vérifié</Text>
-                        <Text style={styles.verifierBtnSub}>Confirmer que toutes les données sont conformes</Text>
-                      </>
-                  }
+                        <MaterialCommunityIcons name="check-circle-outline" size={20} color="#FFFFFF" />
+                        <Text style={styles.actionPrincipaleTxt}>Marquer vérifié</Text>
+                      </>}
                 </TouchableOpacity>
+              ) : (
+                <View style={styles.actionFait}>
+                  <MaterialCommunityIcons name="clock-outline" size={18} color={colors.textMuted} />
+                  <Text style={[styles.actionFaitTxt, { color: colors.textSecondary }]}>Point pas encore validé par le gérant</Text>
+                </View>
               )}
-
-              {/* Bouton PDF */}
-              {pointSelectionne?.valide && (
-                <TouchableOpacity
-                  style={[styles.pdfBtn, generatingPdf && { opacity: 0.6 }]}
-                  onPress={telechargerPdf} disabled={generatingPdf}
-                >
-                  {generatingPdf
-                    ? <><ActivityIndicator color="#534AB7" size="small" /><Text style={[styles.pdfBtnTxt, { marginLeft: 8 }]}>Génération en cours...</Text></>
-                    : <><Text style={styles.pdfBtnTxt}>📄 Télécharger le point en PDF</Text><Text style={styles.pdfBtnSub}>Toutes les sections et photos incluses</Text></>
-                  }
-                </TouchableOpacity>
-              )}
-
-              {/* Bouton correction (manager / directeur uniquement) */}
-              {pointSelectionne?.valide && (roleActif === 'manager' || roleActif === 'directeur') && (
-                <TouchableOpacity
-                  style={styles.correctionBtn}
-                  onPress={() => { setSectionsSelectionnees([]); setMotifCorrection(''); setModalCorrection(true) }}
-                >
-                  <Text style={styles.correctionBtnTxt}>⚠️ Demander une correction</Text>
-                  <Text style={styles.correctionBtnSub}>Signaler une section à corriger sur ce point</Text>
-                </TouchableOpacity>
-              )}
-
-              <View style={{ height: 40 }} />
-            </ScrollView>
+            </View>
+            </>
           )}
 
           {/* ── GALERIE + ZOOM (un seul Modal, deux modes) ── */}
@@ -3287,7 +3427,7 @@ export default function VerificationScreen() {
               <ScrollView style={{ padding: 14 }} showsVerticalScrollIndicator={false}>
 
                 {/* ══ SECTION 1 : Résumé global ════════════════════════ */}
-                <Text style={styles.sectionTitre}>📊 Résumé global</Text>
+                <Text style={styles.sectionTitre}>Résumé global</Text>
                 <View style={styles.invResumeCard}>
                   <View style={styles.invResumeRow}>
                     <View style={[styles.invResumeBadge, { backgroundColor: '#EAF3DE' }]}>
@@ -3341,7 +3481,7 @@ export default function VerificationScreen() {
                 {/* ══ Entrées de produits reçues, par fournisseur ═══════ */}
                 {entreesParFournisseur.length > 0 && (
                   <>
-                    <Text style={styles.sectionTitre}>📥 Entrées de produits ({nbEntrees})</Text>
+                    <Text style={styles.sectionTitre}>Entrées de produits ({nbEntrees})</Text>
                     <View style={styles.invResumeCard}>
                       {entreesParFournisseur.map((f, i) => (
                         <View
@@ -3389,8 +3529,7 @@ export default function VerificationScreen() {
                   const fige = tranche && !rouverts[lot]
                   return (
                     <View key={lot}>
-                      <Text style={styles.sectionTitre}>
-                        🔍 Comptage vérificateur — {fmt(plafond)} à répartir
+                      <Text style={styles.sectionTitre}>Comptage vérificateur — {fmt(plafond)} à répartir
                       </Text>
 
                       <View style={styles.invResumeCard}>
@@ -3562,7 +3701,7 @@ export default function VerificationScreen() {
                 {/* ══ SECTION 2 : Produits avec écarts (manager/directeur) ══ */}
                 {peutVoirEcarts && nbAvecEcart > 0 && (
                   <>
-                    <Text style={styles.sectionTitre}>⚠️ Produits avec écarts ({nbAvecEcart})</Text>
+                    <Text style={styles.sectionTitre}>Produits avec écarts ({nbAvecEcart})</Text>
                     {toutesLignesEcart.map((e, i) => {
                       const stockTheo = (e.stock_initial || 0) + (e.entrees || 0) - (e.sorties || 0)
                       const ecartExplique = e.diffInexpliquee <= 0.01
@@ -3679,7 +3818,7 @@ export default function VerificationScreen() {
                 {/* ══ SECTION 3 : Bilan financier (manager/directeur) ══ */}
                 {peutVoirEcarts && (
                   <>
-                    <Text style={styles.sectionTitre}>💰 Bilan financier</Text>
+                    <Text style={styles.sectionTitre}>Bilan financier</Text>
                     <View style={styles.invBilanCard}>
                       {toutesLignesEcart.filter(e => e.montantDeduit > 0).length === 0 ? (
                         <View style={{ alignItems: 'center', paddingVertical: 12 }}>
@@ -3709,7 +3848,7 @@ export default function VerificationScreen() {
                         disabled={generatingEcartsPdf}
                       >
                         {generatingEcartsPdf
-                          ? <><ActivityIndicator color="#534AB7" size="small" /><Text style={[styles.pdfBtnTxt, { marginLeft: 8 }]}>Génération en cours...</Text></>
+                          ? <><ActivityIndicator color={colors.primary} size="small" /><Text style={[styles.pdfBtnTxt, { marginLeft: 8 }]}>Génération en cours...</Text></>
                           : <><Text style={styles.pdfBtnTxt}>📄 Exporter le bilan en PDF</Text><Text style={styles.pdfBtnSub}>Rapport complet : écarts, explications et montants</Text></>
                         }
                       </TouchableOpacity>
@@ -4172,18 +4311,101 @@ export default function VerificationScreen() {
 
 function makeStyles(colors) { return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    backgroundColor: colors.headerBg, padding: 16,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'
+  // ── Liste : mois, résumé, points à vérifier, historique compact ──
+  moisBarre: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginHorizontal: 14, marginTop: 12, padding: 6, borderRadius: 16,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderLight,
   },
-  back: { fontSize: 16, color: colors.primaryText, fontWeight: '500' },
-  headerTitre: { fontSize: 16, fontWeight: '600', color: colors.surface, textAlign: 'center' },
-  headerSub: { fontSize: 11, color: colors.primaryText, textAlign: 'center' },
-  restoBar: { backgroundColor: colors.surface, maxHeight: 46, borderBottomWidth: 0.5, borderBottomColor: '#eee' },
-  restoBtn: { paddingHorizontal: 14, paddingVertical: 12 },
-  restoBtnActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
-  restoTxt: { fontSize: 12, color: colors.textMuted },
-  restoTxtActive: { color: colors.primary, fontWeight: '600' },
+  moisFleche: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
+  moisTxt: { fontSize: 16, fontWeight: '800', color: colors.text },
+  resumeMois: {
+    flexDirection: 'row', marginHorizontal: 14, marginTop: 10, paddingVertical: 12, borderRadius: 18,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderLight,
+  },
+  resumeCase: { flex: 1, alignItems: 'center' },
+  resumeCaseSep: { borderLeftWidth: 1, borderLeftColor: colors.borderLight },
+  resumeVal: { fontSize: 24, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  resumeLabel: { fontSize: 12, color: colors.textSecondary, fontWeight: '600', marginTop: 2 },
+  titreListe: { fontSize: 11, fontWeight: '800', color: colors.textMuted, letterSpacing: 1.2, textTransform: 'uppercase', marginTop: 8, marginBottom: 8 },
+  carteAVerifier: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.surface, borderRadius: 16,
+    padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.borderLight, borderLeftWidth: 5,
+    shadowColor: colors.cardShadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 2,
+  },
+  carteDate: { fontSize: 15, fontWeight: '800', color: colors.text },
+  alertes: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
+  carteMontant: { fontSize: 16, fontWeight: '800', color: colors.text, fontVariant: ['tabular-nums'] },
+  puce: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  puceTxt: { fontSize: 11, fontWeight: '800' },
+  listeCompacte: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.borderLight, overflow: 'hidden' },
+  ligneCompacte: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, minHeight: 48 },
+  ligneCompacteSep: { borderTopWidth: 1, borderTopColor: colors.borderLight },
+  pointStatut: { width: 10, height: 10, borderRadius: 5 },
+  ligneDate: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.text },
+  ligneMontant: { fontSize: 14, fontWeight: '700', color: colors.textSecondary, fontVariant: ['tabular-nums'] },
+
+  // ── Fiche d'un point ──
+  enteteBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' },
+  ficheResume: {
+    backgroundColor: colors.surface, borderRadius: 20, padding: 16, marginBottom: 12, gap: 4,
+    borderWidth: 1, borderColor: colors.borderLight,
+    shadowColor: colors.cardShadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 3,
+  },
+  ficheLabel: { fontSize: 12, fontWeight: '800', color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 8 },
+  ficheGros: { fontSize: 34, fontWeight: '800', color: colors.text, letterSpacing: -1, fontVariant: ['tabular-nums'] },
+  ficheTrois: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  ficheCase: { flex: 1, backgroundColor: colors.surfaceAlt, borderRadius: 12, padding: 10 },
+  ficheCaseLabel: { fontSize: 11, color: colors.textSecondary, fontWeight: '700' },
+  ficheCaseVal: { fontSize: 15, fontWeight: '800', color: colors.text, marginTop: 2, fontVariant: ['tabular-nums'] },
+  ficheOnglet: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  ficheOngletActif: {
+    backgroundColor: colors.primary, borderColor: colors.primary,
+    shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 3,
+  },
+  ficheOngletTxt: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
+  ficheOngletTxtActif: { color: '#FFFFFF', fontWeight: '800' },
+  barresCarte: { backgroundColor: colors.surface, borderRadius: 18, padding: 16, marginBottom: 14, gap: 10, borderWidth: 1, borderColor: colors.borderLight },
+  barreLigne: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  barreNom: { width: 96, fontSize: 13, fontWeight: '700', color: colors.text },
+  barreFond: { flex: 1, height: 10, borderRadius: 6, backgroundColor: colors.surfaceAlt, overflow: 'hidden' },
+  barrePlein: { height: '100%', borderRadius: 6, backgroundColor: colors.primary },
+  barreVal: { minWidth: 76, textAlign: 'right', fontSize: 13, fontWeight: '800', color: colors.text, fontVariant: ['tabular-nums'] },
+  grillePhotos: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  ficheActions: {
+    flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 14,
+    backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.borderLight,
+  },
+  actionSecondaire: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, minHeight: 48,
+    borderRadius: 14, backgroundColor: colors.surfaceAlt,
+  },
+  actionSecondaireTxt: { fontSize: 14, fontWeight: '700', color: colors.text },
+  actionPrincipale: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48,
+    borderRadius: 14, backgroundColor: colors.primary,
+  },
+  actionPrincipaleTxt: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
+  actionFait: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 48 },
+  actionFaitTxt: { fontSize: 14, fontWeight: '700' },
+
+  header: {
+    backgroundColor: colors.headerBg, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 16,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderBottomLeftRadius: 22, borderBottomRightRadius: 22, zIndex: 2,
+    shadowColor: colors.headerBg, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 14, elevation: 6,
+  },
+  back: { fontSize: 16, color: colors.headerText, fontWeight: '700' },
+  headerTitre: { fontSize: 18, fontWeight: '800', color: colors.headerText, textAlign: 'center' },
+  headerSub: { fontSize: 12, color: colors.primaryText, textAlign: 'center', fontWeight: '600' },
+  restoBar: { maxHeight: 56, marginTop: 12 },
+  restoBtn: {
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, marginHorizontal: 4,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignSelf: 'center',
+  },
+  restoBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  restoTxt: { fontSize: 13, color: colors.textSecondary, fontWeight: '600' },
+  restoTxtActive: { color: '#FFFFFF', fontWeight: '800' },
   statsBar: { flexDirection: 'row', backgroundColor: colors.surface, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#eee' },
   statItem: { flex: 1, alignItems: 'center' },
   statVal: { fontSize: 20, fontWeight: '700' },
@@ -4207,7 +4429,7 @@ function makeStyles(colors) { return StyleSheet.create({
   prioriteBSC: { fontSize: 11, color: '#3B6D11', marginTop: 2 },
   prioriteVentes: { fontSize: 14, fontWeight: '600', color: '#EF9F27' },
   prioriteVerifier: { fontSize: 11, color: '#185FA5', marginTop: 2 },
-  sectionTitre: { fontSize: 12, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 6 },
+  sectionTitre: { fontSize: 11, fontWeight: '800', color: colors.primary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, marginTop: 6 },
   pointCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: colors.border },
   pointCardVerifie: { borderColor: '#3B6D11', backgroundColor: '#F4FAF0' },
   pointCardAVerifier: { borderColor: '#185FA5', backgroundColor: '#F0F5FF' },
@@ -4221,14 +4443,18 @@ function makeStyles(colors) { return StyleSheet.create({
   manquanteBadge: { backgroundColor: '#FAECE7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
   manquanteTxt: { fontSize: 10, color: '#993C1D', fontWeight: '500' },
   voirDetailTxt: { fontSize: 11, color: colors.primary, marginTop: 4 },
-  modalHeader: { backgroundColor: colors.headerBg, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  modalHeader: {
+    backgroundColor: colors.headerBg, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 16, gap: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderBottomLeftRadius: 22, borderBottomRightRadius: 22, marginBottom: 12,
+  },
   modalClose: { fontSize: 14, color: colors.primaryText, fontWeight: '500' },
-  modalTitre: { fontSize: 16, fontWeight: '600', color: colors.surface },
+  modalTitre: { fontSize: 18, fontWeight: '800', color: colors.headerText },
   modalSub: { fontSize: 11, color: colors.primaryText, textAlign: 'center' },
   verifBanner: { borderRadius: 12, padding: 12, marginBottom: 14, borderWidth: 1, alignItems: 'center' },
   verifBannerTxt: { fontSize: 13, fontWeight: '600' },
   // ─── Récapitulatif Financier ───
-  recapCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 4, borderWidth: 0.5, borderColor: colors.border },
+  recapCard: { backgroundColor: colors.surface, borderRadius: 18, padding: 16, marginBottom: 4, borderWidth: 1, borderColor: colors.borderLight },
   recapRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5' },
   recapRowTotal: { backgroundColor: '#fafafa', marginHorizontal: -4, paddingHorizontal: 4, borderRadius: 6, borderBottomWidth: 0 },
   recapLabel: { fontSize: 13, color: colors.text },
@@ -4262,7 +4488,7 @@ function makeStyles(colors) { return StyleSheet.create({
   canalPhotoMini: { width: 60, height: 60, borderRadius: 8 },
   canalPhotoLabel: { fontSize: 11, color: colors.primary, flex: 1 },
   // ─── Listes ───
-  listCard: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 4, borderWidth: 0.5, borderColor: colors.border },
+  listCard: { backgroundColor: colors.surface, borderRadius: 18, padding: 16, marginBottom: 4, borderWidth: 1, borderColor: colors.borderLight },
   listRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5' },
   listLeft: { flex: 1, flexDirection: 'column', gap: 2, paddingRight: 8 },
   listRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -4322,7 +4548,7 @@ function makeStyles(colors) { return StyleSheet.create({
   galerieCounter: { fontSize: 13, color: '#aaa', minWidth: 40 },
   galerieLabel: { flex: 1, fontSize: 13, color: '#fff', textAlign: 'center', fontWeight: '500', paddingHorizontal: 8 },
   galerieClose: { fontSize: 28, color: '#fff', fontWeight: '300', minWidth: 40, textAlign: 'right' },
-  galerieFermerBtn: { backgroundColor: '#534AB7', marginHorizontal: 40, marginBottom: 20, padding: 14, borderRadius: 14, alignItems: 'center' },
+  galerieFermerBtn: { backgroundColor: colors.primary, marginHorizontal: 40, marginBottom: 20, padding: 14, borderRadius: 14, alignItems: 'center' },
   galerieFermerTxt: { fontSize: 14, fontWeight: '600', color: '#fff' },
   // ─── Modal photo simple ───
   photoModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', flexDirection: 'column', paddingTop: 50, paddingBottom: 30 },
@@ -4348,11 +4574,12 @@ function makeStyles(colors) { return StyleSheet.create({
   entreeProdMeta: { marginTop: 2, fontSize: 10, color: colors.textMuted },
   entreeProdQte: { fontSize: 12, fontWeight: '700', color: '#3B6D11' },
   // ─── Onglets ───
-  ongletBar: { flexDirection: 'row', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
-  ongletBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  ongletBtnActive: { borderBottomColor: colors.primary },
-  ongletTxt: { fontSize: 12, color: colors.textMuted, fontWeight: '500' },
-  ongletTxtActive: { color: colors.primary, fontWeight: '700' },
+  // Points / Inventaire : un sélecteur à deux positions sous l'en-tête.
+  ongletBar: { flexDirection: 'row', backgroundColor: colors.surfaceAlt, borderRadius: 14, padding: 4, marginHorizontal: 14, marginTop: 14 },
+  ongletBtn: { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 11 },
+  ongletBtnActive: { backgroundColor: colors.surface, shadowColor: colors.cardShadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 2 },
+  ongletTxt: { fontSize: 13, color: colors.textSecondary, fontWeight: '600' },
+  ongletTxtActive: { color: colors.primary, fontWeight: '800' },
   // ─── Boutons ───
   verifierBtn: { backgroundColor: colors.primary, borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 10, marginTop: 6 },
   verifierBtnTxt: { fontSize: 15, fontWeight: '600', color: colors.surface },
@@ -4428,7 +4655,7 @@ function makeStyles(colors) { return StyleSheet.create({
   // Correction du nombre de commandes livraison (base du litige contacts)
   corrCmdBox: {
     backgroundColor: colors.surface, borderRadius: 12, padding: 12, marginTop: 4,
-    borderWidth: 0.5, borderColor: colors.border, borderLeftWidth: 3, borderLeftColor: '#534AB7',
+    borderWidth: 0.5, borderColor: colors.border, borderLeftWidth: 3, borderLeftColor: colors.primary,
   },
   corrCmdLitige: { fontSize: 12, color: '#A32D2D', fontWeight: '700', marginTop: 4 },
   corrCmdBadge: { fontSize: 11, color: '#854F0B', fontWeight: '600', marginTop: 4, lineHeight: 15 },
