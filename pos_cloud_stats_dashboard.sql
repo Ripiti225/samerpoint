@@ -82,3 +82,36 @@ grant execute on function public.stats_dashboard(date, date, uuid) to anon, auth
 
 -- Vérification : doit renvoyer un objet JSON avec « totaux », « par_heure »…
 -- select public.stats_dashboard(current_date - 7, current_date);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- Ventes par service de caisse (un service = le shift d'un caissier) : nombre
+-- de commandes payées, montant, et l'identifiant POS du caissier (u) — qui
+-- servira à renvoyer sa note au bon caissier dans le POS. Samtrackly retrouve le caissier par
+-- points_shifts.pos_service_id et en tire son ticket moyen, comparé à celui de
+-- son restaurant (bonus « ventes additionnelles » de la note des caissiers).
+-- Aucun nom ni client : seulement l'identifiant du service et deux totaux.
+-- ════════════════════════════════════════════════════════════════════════════
+
+create or replace function public.stats_services(p_debut date, p_fin date)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+set enable_nestloop = off
+as $$
+  select coalesce(jsonb_agg(x), '[]') from (
+    select c.service_id as s, sc.caissier_id as u, count(*) as nb, sum(c.total) as ca
+    from commandes c
+    left join services_caisse sc on sc.id = c.service_id
+    where c.statut = 'PAYEE' and c.service_id is not null
+      and c.created_at >= ((p_debut + time '06:00') at time zone 'UTC')
+      and c.created_at <  ((p_fin + 1 + time '06:00') at time zone 'UTC')
+    group by 1, 2
+  ) x;
+$$;
+
+grant execute on function public.stats_services(date, date) to anon, authenticated;
+
+-- Vérification : une liste de { s, u, nb, ca }.
+-- select public.stats_services(current_date - 7, current_date);
