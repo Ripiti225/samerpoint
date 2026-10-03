@@ -7,13 +7,15 @@ import { Alert, Image, Text, TouchableOpacity, View } from 'react-native'
 
 import { PARTENAIRES_PREVISION, etatPrevision, trierPrevisions } from '../../lib/previsions'
 import { CATEGORIES_COTISABLES, cotisationPourCategorie } from '../../lib/cotisations'
+import { chargerLitigesRestaurant } from '../../lib/litigesGlobal'
+import { lireRegleRetenue, phraseRetenue } from '../../lib/retenueLitiges'
 import { usePhoto } from '../../lib/usePhoto'
 import {
   CATEGORIES_SERIE, LIBELLES_CATEGORIE, aujourdhuiISO, echeancePostPayee, fmt, formatDateFR, joursDeRetard,
   libelleMois, libelleMoisCourt, moisEntre, peut, premierDuMois, repartirPaiement, resteDu, totalPaye,
 } from '../../lib/tresorerie'
 import {
-  ajouterPrevision, annulerCotisation, annulerPaiement, basculerDette, recevoirCotisation, chargerDusLoyer, enregistrerDu, payer, payerAvant, supprimerDu, supprimerPrevision,
+  ajouterPrevision, annulerCotisation, annulerPaiement, basculerDette, enregistrerRetenueLitiges, recevoirCotisation, chargerDusLoyer, enregistrerDu, payer, payerAvant, supprimerDu, supprimerPrevision,
 } from '../../lib/tresorerieDb'
 import { Bouton, Champ, ChampMontant, Feuille, ItemIcone, Ligne, Pastille, Progression, Puces, TitreSection, styleCategorie, useStylesTreso } from './commun'
 
@@ -152,10 +154,11 @@ export function FeuilleDetail({
           </View>
           {classement && cs[classement] && <Badge c={cs[classement]} />}
         </View>
-        <Progression pct={du.montant_du ? Math.round((totalPaye(paiements) / du.montant_du) * 100) : 0} couleur={colors.success} hauteur={8} />
+        <Progression pct={du.montant_du ? Math.round(((totalPaye(paiements) + (Number(du.retenue_litiges) || 0)) / du.montant_du) * 100) : 0} couleur={colors.success} hauteur={8} />
         <View style={{ marginTop: 8 }}>
           <Ligne label="Dû" valeur={du.montant_du} />
           <Ligne label="Déjà payé" valeur={totalPaye(paiements)} couleur={colors.successDark} />
+          {Number(du.retenue_litiges) > 0 && <Ligne label="Retenue sur litiges" valeur={du.retenue_litiges} signe="-" couleur={colors.error} />}
         </View>
         {!!du.echeance && (
           <Text style={[styles.petit, retard ? { color: colors.error, fontWeight: '700' } : null]}>
@@ -166,6 +169,10 @@ export function FeuilleDetail({
         {!!du.note && <Text style={[styles.petit, { marginTop: 6 }]}>{du.note}</Text>}
         {!!du.cree_par_nom && <Text style={styles.petit}>Saisi par {du.cree_par_nom}</Text>}
       </View>
+
+      {du.categorie === 'salaire' && du.restaurant_id && du.mois && (
+        <SectionRetenueLitiges du={du} donnees={donnees} niveau={niveau} user={user} apres={apres} />
+      )}
 
       {CATEGORIES_COTISABLES.includes(du.categorie) && du.restaurant_id && (
         <SectionCotisation du={du} donnees={donnees} niveau={niveau} nomResto={nomResto} user={user} apres={apres} />
@@ -234,6 +241,101 @@ export function FeuilleDetail({
         )}
       </View>
     </Feuille>
+  )
+}
+
+// ── Retenue sur litiges (salaires, lib/retenueLitiges.js) ───────────────────
+// Le RH retient une part des litiges du restaurant sur les salaires du mois
+// (« 30% » ou « 40000 ») ; le reste est annulé. Les salaires à payer baissent
+// du montant retenu ; le résultat garde la charge entière et compte la retenue
+// en revenu.
+function finDuMois(mois) {
+  const [a, m] = String(mois).slice(0, 7).split('-').map(Number)
+  return `${String(mois).slice(0, 7)}-${String(new Date(Date.UTC(a, m, 0)).getUTCDate()).padStart(2, '0')}`
+}
+
+function SectionRetenueLitiges({ du, donnees, niveau, user, apres }) {
+  const { styles, colors } = useStylesTreso()
+  const [ouvert, setOuvert] = useState(false)
+  const [total, setTotal] = useState(null)        // litiges du mois (calculés), corrigeables
+  const [totalSaisi, setTotalSaisi] = useState('')
+  const [regle, setRegle] = useState(du.retenue_regle || '')
+  const [occupe, setOccupe] = useState(false)
+  const peutSaisir = peut(niveau, 'saisir_charges')
+  const retenu = Number(du.retenue_litiges) || 0
+
+  useEffect(() => {
+    if (!ouvert || total !== null) return
+    const resto = donnees.restaurants.find(r => r.id === du.restaurant_id) || { id: du.restaurant_id }
+    chargerLitigesRestaurant(resto, String(du.mois).slice(0, 10), finDuMois(du.mois))
+      .then(d => { setTotal(Math.round(d.total || 0)); setTotalSaisi(String(Math.round(d.total || 0))) })
+      .catch(() => { setTotal(0); setTotalSaisi('0') })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ouvert])
+
+  if (!retenu && !peutSaisir) return null
+  const totalRetenu = totalSaisi === '' ? 0 : parseInt(totalSaisi, 10) || 0
+  const lecture = lireRegleRetenue(regle, totalRetenu)
+
+  async function enregistrer(effacer = false) {
+    if (!effacer && (lecture.erreur || lecture.vide)) {
+      Alert.alert('Retenue', lecture.erreur || 'Écrivez un pourcentage (ex. 30%) ou un montant (ex. 40000).'); return
+    }
+    setOccupe(true)
+    try {
+      await enregistrerRetenueLitiges(effacer
+        ? { du, total: 0, regle: null, retenu: 0 }
+        : { du, total: totalRetenu, regle: lecture.regle, retenu: lecture.retenu }, user)
+      setOuvert(false)
+      await apres()
+    } catch (e) {
+      Alert.alert('Non enregistré', e?.message || 'Réessayez.')
+    } finally {
+      setOccupe(false)
+    }
+  }
+
+  return (
+    <View style={styles.carte}>
+      <View style={styles.carteEntete}>
+        <Pastille icone="scale-balance" couleur={colors.error} taille={36} />
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.itemTitre, { fontSize: 15 }]}>Retenue sur litiges</Text>
+          <Text style={styles.petit}>
+            {retenu ? `${phraseRetenue(du)} · salaires à payer réduits d'autant` : 'Aucune retenue sur ces salaires'}
+          </Text>
+          {retenu && du.retenue_par_nom ? <Text style={styles.petit}>par {du.retenue_par_nom}</Text> : null}
+        </View>
+      </View>
+      {peutSaisir && !ouvert && (
+        <View style={styles.rangee}>
+          <Bouton style={{ flex: 1 }} secondaire icone="scale-balance" titre={retenu ? 'Modifier la retenue' : 'Retenir sur les litiges'} onPress={() => setOuvert(true)} />
+          {retenu ? <Bouton style={{ flex: 1 }} danger icone="close" titre="Retirer" occupe={occupe} onPress={() => enregistrer(true)} /> : null}
+        </View>
+      )}
+      {peutSaisir && ouvert && (
+        <View style={{ marginTop: 4 }}>
+          {total === null ? (
+            <Text style={styles.petit}>Calcul des litiges du mois…</Text>
+          ) : (
+            <>
+              <ChampMontant label={`Litiges du restaurant (${libelleMois(du.mois)})`} valeur={totalSaisi} onChange={setTotalSaisi} />
+              {totalRetenu !== total && <Text style={[styles.petit, { marginTop: -6, marginBottom: 8 }]}>Calculé : {fmt(total)} F (écran Litiges)</Text>}
+              <Champ label="Part retenue : 30% ou un montant" value={regle} onChangeText={setRegle} placeholder="Ex : 30% ou 40000" autoCapitalize="none" />
+              {!lecture.vide && (
+                <Text style={[styles.petit, { marginBottom: 10, color: lecture.erreur ? colors.error : colors.textSecondary, fontWeight: '700' }]}>
+                  {lecture.erreur || `Retenu ${fmt(lecture.retenu)} F sur les salaires · annulé ${fmt(lecture.annule)} F`}
+                </Text>
+              )}
+              <View style={styles.rangee}>
+                <Bouton style={{ flex: 1 }} secondaire titre="Annuler" onPress={() => setOuvert(false)} />
+                <Bouton style={{ flex: 1 }} icone="check" titre="Enregistrer" occupe={occupe} onPress={() => enregistrer(false)} />
+              </View>
+            </>
+          )}
+        </View>
+      )}
+    </View>
   )
 }
 

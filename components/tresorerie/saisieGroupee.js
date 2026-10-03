@@ -14,8 +14,10 @@ import {
   paiementsParDu, planSaisieBaux, planSaisieGroupee, premierDuMois,
 } from '../../lib/tresorerie'
 import { cotisationPourCategorie, cotiseParDu } from '../../lib/cotisations'
+import { chargerLitigesRestaurant } from '../../lib/litigesGlobal'
+import { lireRegleRetenue } from '../../lib/retenueLitiges'
 import { supabase } from '../../lib/supabase'
-import { appliquerPlanDus, enregistrerChargeFixe, recevoirCotisation } from '../../lib/tresorerieDb'
+import { appliquerPlanDus, enregistrerChargeFixe, enregistrerRetenueLitiges, recevoirCotisation } from '../../lib/tresorerieDb'
 import { Bouton, Feuille, Puces, useStylesTreso } from './commun'
 
 const TITRES = {
@@ -73,6 +75,9 @@ export function FeuilleSaisieMois({ categorie, donnees, user, onFermer, apres })
   const [valeurs, setValeurs] = useState({})
   // « dont cotisé » : ce que chaque restaurant remet au RH aujourd'hui (lib/cotisations.js).
   const [cotises, setCotises] = useState({})
+  // Salaires : retenue sur les litiges du mois (« 30% » ou un montant) par restaurant.
+  const [litiges, setLitiges] = useState(null)   // { [restaurant_id]: total } une fois calculés
+  const [retenues, setRetenues] = useState({})
   const [occupe, setOccupe] = useState(false)
 
   const parDu = useMemo(() => paiementsParDu(donnees.paiements), [donnees])
@@ -97,6 +102,21 @@ export function FeuilleSaisieMois({ categorie, donnees, user, onFermer, apres })
       return [r.id, v != null ? String(v) : '']
     })))
     setCotises({})
+    setRetenues(Object.fromEntries(donnees.restaurants.map(r => [r.id, ligneDe(r.id)?.retenue_regle || ''])))
+  }, [categorie, mois])
+
+  // Litiges du mois de chaque restaurant (mêmes calculs que l'écran Litiges).
+  useEffect(() => {
+    if (categorie !== 'salaire' || !mois) return
+    let vivant = true
+    setLitiges(null)
+    const debut = String(mois).slice(0, 10)
+    const [a, m] = debut.split('-').map(Number)
+    const fin = `${debut.slice(0, 7)}-${String(new Date(Date.UTC(a, m, 0)).getUTCDate()).padStart(2, '0')}`
+    Promise.all(donnees.restaurants.map(r => chargerLitigesRestaurant(r, debut, fin).then(d => [r.id, Math.round(d.total || 0)]).catch(() => [r.id, 0])))
+      .then(l => { if (vivant) setLitiges(Object.fromEntries(l)) })
+    return () => { vivant = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categorie, mois])
 
   if (!categorie) return null
@@ -117,18 +137,34 @@ export function FeuilleSaisieMois({ categorie, donnees, user, onFermer, apres })
       dus: donnees.dus, paiements: donnees.paiements,
     })
     const aCotiser = donnees.restaurants.map(r => ({ r, montant: lireMontant(cotises[r.id]) || 0 })).filter(x => x.montant > 0)
+    // Retenues sur litiges modifiées (salaires seulement).
+    const aRetenir = categorie === 'salaire' && litiges ? donnees.restaurants.map(r => {
+      const avant = ligneDe(r.id)?.retenue_regle || ''
+      const texte = (retenues[r.id] || '').trim()
+      if (texte === avant) return null
+      return { r, texte, lecture: lireRegleRetenue(texte, litiges[r.id] || 0) }
+    }).filter(Boolean) : []
+    const erreurRetenue = aRetenir.find(x => x.lecture.erreur)
+    if (erreurRetenue) { Alert.alert(`Retenue · ${erreurRetenue.r.nom}`, erreurRetenue.lecture.erreur); return }
     const rienAuPlan = !plan.aCreer.length && !plan.aModifier.length && !plan.aSupprimer.length
-    if (rienAuPlan && !aCotiser.length) {
+    if (rienAuPlan && !aCotiser.length && !aRetenir.length) {
       Alert.alert('Rien à enregistrer', 'Aucun montant n\'a changé.'); return
     }
     setOccupe(true)
     try {
       if (!rienAuPlan) await appliquerPlanDus(plan, user, { categorie, mois })
-      if (aCotiser.length) {
+      if (aCotiser.length || aRetenir.length) {
         // Les lignes du mois, à jour (celles qu'on vient de créer comprises).
         const { data: lignes, error } = await supabase.from('tresorerie_dus').select('*')
           .eq('categorie', categorie).eq('mois', mois)
         if (error) throw error
+        for (const { r, lecture } of aRetenir) {
+          const du = (lignes || []).find(d => d.restaurant_id === r.id)
+          if (!du) throw new Error(`${r.nom} : saisissez d'abord le montant des salaires avant la retenue.`)
+          await enregistrerRetenueLitiges(lecture.vide
+            ? { du, total: 0, regle: null, retenu: 0 }
+            : { du, total: litiges[r.id] || 0, regle: lecture.regle, retenu: lecture.retenu }, user)
+        }
         const especes = (donnees.comptes || []).find(c => c.nom === 'Espèces')
         for (const { r, montant } of aCotiser) {
           const du = (lignes || []).find(d => d.restaurant_id === r.id)
@@ -195,9 +231,31 @@ export function FeuilleSaisieMois({ categorie, donnees, user, onFermer, apres })
                 déjà {fmt(deja)} F cotisés reçus pour ce mois
               </Text>
             )}
+            {categorie === 'salaire' && (() => {
+              const total = litiges?.[r.id]
+              const lecture = litiges ? lireRegleRetenue(retenues[r.id], total || 0) : null
+              return (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -2, marginBottom: 10 }}>
+                  <Text style={[styles.petit, { flex: 1, marginTop: 0 }]}>
+                    {litiges === null ? 'Litiges du mois : calcul…'
+                      : `Litiges ${fmt(total || 0)} F${lecture && !lecture.vide && !lecture.erreur ? ` · retenu ${fmt(lecture.retenu)} · annulé ${fmt(lecture.annule)}` : ''}`}
+                    {lecture?.erreur ? <Text style={{ color: colors.error }}>{` · ${lecture.erreur}`}</Text> : null}
+                  </Text>
+                  <Saisie largeur={110} valeur={retenues[r.id] ?? ''} placeholder="Retenue"
+                    onChange={v => setRetenues(x => ({ ...x, [r.id]: v }))} />
+                </View>
+              )
+            })()}
           </View>
         )
       })}
+      {mois && categorie === 'salaire' && (
+        <Text style={[styles.petit, { marginBottom: 6 }]}>
+          « Retenue » : la part des litiges du mois retenue sur les salaires du restaurant, en pourcentage (30%) ou en
+          montant (40000). Le reste des litiges est annulé. Les salaires à payer baissent d'autant ; le résultat garde
+          la charge entière et compte la retenue en revenu.
+        </Text>
+      )}
       {mois && cotisationsActives && (
         <Text style={[styles.petit, { marginBottom: 6 }]}>
           « Dont cotisé » : l'argent que le restaurant vous remet aujourd'hui. Il entre dans les espèces, le solde de sa

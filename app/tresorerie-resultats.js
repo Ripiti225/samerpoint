@@ -103,6 +103,7 @@ export default function TresorerieResultatsScreen() {
                     {c && (
                       <>
                         <Detail point={colors.success} label="Encaissé net" valeur={fmt(c.encaisse)} />
+                        {c.litigesRetenus > 0 && <Detail point={colors.success} label="Litiges retenus sur salaires" valeur={`+ ${fmt(c.litigesRetenus)}`} />}
                         <Detail point={colors.error} label="Charges du mois" valeur={`− ${fmt(c.charges)}`} />
                         {c.direction > 0 && <Detail point="#7C3AED" label="Dépenses direction" valeur={`− ${fmt(c.direction)}`} />}
                         {c.pubs > 0 && <Detail point="#E11D48" label="Pubs Yango / Glovo" valeur={`− ${fmt(c.pubs)}`} />}
