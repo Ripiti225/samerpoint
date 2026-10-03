@@ -5,7 +5,9 @@ import { ActivityIndicator, Image, Linking, Modal, SafeAreaView, ScrollView, Sty
 import {
   BLEU, PERIODES, STATUTS, couleurTaux, fmt, formatDate, friseJours, plageDates, statsTravailleur, titrePeriode,
 } from '../../lib/equipe'
-import { chargerDocuments, chargerHistoriqueTravailleur } from '../../lib/equipeDb'
+import { aujourdhuiISO } from '../../lib/contrats'
+import { chargerDocuments, chargerHistoriqueTravailleur, chargerPoints } from '../../lib/equipeDb'
+import { completerPresences, nomJour } from '../../lib/joursRepos'
 import { exporterPdf } from '../../lib/pdfDocuments'
 import Avatar from './Avatar'
 import { PastilleStatut } from './OngletPresences'
@@ -78,12 +80,20 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
     if (!visible || !trav?.id || !plage) return
     let actif = true
     setLoadingPres(true)
-    chargerHistoriqueTravailleur(trav.id, plage)
-      .then(p => { if (actif) setPresences(p) })
+    Promise.all([
+      chargerHistoriqueTravailleur(trav.id, plage),
+      trav.restaurant_id ? chargerPoints(plage, trav.restaurant_id) : [],
+    ])
+      .then(([hist, points]) => {
+        if (!actif) return
+        // Jours non pointés : Repos / Absent / Non pointé selon son jour de repos.
+        const complet = completerPresences({ presences: hist, travailleurs: [trav], points, aujourdhui: aujourdhuiISO() })
+        setPresences(complet.sort((a, b) => b.date.localeCompare(a.date)))
+      })
       .catch(() => { if (actif) setPresences([]) })
       .finally(() => { if (actif) setLoadingPres(false) })
     return () => { actif = false }
-  }, [visible, trav?.id, plage])
+  }, [visible, trav?.id, trav?.jour_repos, plage]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!trav) return null
   const archive = trav.statut === 'archive'
@@ -143,6 +153,9 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
               {trav.salaire_journalier ? ligneInfo('💰', 'Salaire', `${Number(trav.salaire_journalier).toLocaleString('fr-FR')} F / jour`) : null}
               {trav.type_contrat ? ligneInfo('📋', 'Contrat', trav.type_contrat) : null}
               {ligneInfo(archive ? '⚫' : trav.actif ? '🟢' : '🔴', 'Statut', libelleStatut(trav))}
+              {!archive ? ligneInfo('😴', 'Jour de repos', trav.jour_repos
+                ? `${nomJour(trav.jour_repos)} · ${trav.jour_repos_source === 'manuel' ? 'fixé à la main' : 'déduit'}`
+                : trav.jour_repos_source === 'manuel' ? 'Pas de jour fixe' : 'Pas encore connu') : null}
               {trav.date_embauche ? ligneInfo('📅', "Date d'embauche",
                 new Date(trav.date_embauche).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })) : null}
               {archive && trav.archive_motif ? ligneInfo('📦', 'Motif', trav.archive_motif) : null}
@@ -220,10 +233,10 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
                 <Text style={styles.heroSub}>Moyenne : {s.present > 0 ? fmt(s.totalPaye / s.present) : '0 FCFA'} / jour</Text>
               </View>
 
-              {frise.length > 0 && s.total > 0 && (
+              {frise.length > 0 && (s.total > 0 || s.nonPointe > 0) && (
                 <View style={styles.carte}>
                   <Text style={[styles.sousNom, { marginTop: 0, marginBottom: 8, fontWeight: '600' }]}>
-                    {s.taux.toFixed(0)}% de présence sur {s.total} jour(s) pointé(s)
+                    {s.taux.toFixed(0)}% de présence sur {s.total} jour(s){s.nonPointe ? ` · ${s.nonPointe} non pointé(s)` : ''}
                   </Text>
                   <View style={s2.frise}>
                     {frise.map(j => (
@@ -231,7 +244,7 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
                     ))}
                   </View>
                   <View style={[styles.miniStats, { marginTop: 8 }]}>
-                    {['Présent', 'Absent', 'Repos', 'Congé', 'Malade'].map(st => (
+                    {['Présent', 'Absent', 'Repos', 'Congé', 'Malade', 'Non pointé'].map(st => (
                       <View key={st} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                         <View style={[s2.case, { width: 9, height: 9, backgroundColor: STATUTS[st] }]} />
                         <Text style={[styles.sousNom, { marginTop: 0, fontSize: 11 }]}>{st}</Text>
@@ -247,12 +260,12 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
               ) : (
                 <View style={styles.carteListe}>
                   {presences.map((p, i) => (
-                    <View key={p.id || i} style={[styles.ligne, i === presences.length - 1 && { borderBottomWidth: 0 }]}>
+                    <View key={p.id || `${p.date}|${i}`} style={[styles.ligne, i === presences.length - 1 && { borderBottomWidth: 0 }]}>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.nom, { fontSize: 13, fontWeight: '600' }]}>{formatDate(p.date)}</Text>
                         {p.shift_nom ? <Text style={styles.shift}>⏰ {p.shift_nom} {p.heure_debut ? `(${p.heure_debut} → ${p.heure_fin})` : ''}</Text> : null}
                       </View>
-                      <PastilleStatut styles={styles} statut={p.statut} />
+                      <PastilleStatut styles={styles} statut={p.statut} deduit={p.deduit} />
                       {p.statut === 'Présent' && parseFloat(p.paye) > 0 ? <Text style={[styles.paie, { marginLeft: 8 }]}>{fmt(p.paye)}</Text> : null}
                     </View>
                   ))}

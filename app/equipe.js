@@ -24,6 +24,8 @@ import {
   statsParTravailleur, tauxParRestaurant, titrePeriode,
 } from '../lib/equipe'
 import * as db from '../lib/equipeDb'
+import { aujourdhuiISO } from '../lib/contrats'
+import { completerPresences } from '../lib/joursRepos'
 import { enregistrer } from '../lib/exportRapportMensuel'
 
 export default function EquipeScreen() {
@@ -46,6 +48,8 @@ export default function EquipeScreen() {
   const [travailleurs, setTravailleurs] = useState([])
   const [presences, setPresences] = useState([])
   const [paiesGerant, setPaiesGerant] = useState([])
+  const [points, setPoints] = useState([])
+  const [analyse, setAnalyse] = useState(false)
   const [archives, setArchives] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingArchives, setLoadingArchives] = useState(false)
@@ -70,12 +74,13 @@ export default function EquipeScreen() {
     if (!plage) return
     setLoading(true)
     try {
-      const [t, p, g] = await Promise.all([
+      const [t, p, g, pts] = await Promise.all([
         db.chargerTravailleurs(restoId),
         db.chargerPresences(plage, restoId),
         db.chargerPaiesGerant(plage, restoId),
+        db.chargerPoints(plage, restoId),
       ])
-      setTravailleurs(t); setPresences(p); setPaiesGerant(g)
+      setTravailleurs(t); setPresences(p); setPaiesGerant(g); setPoints(pts)
     } catch {
       Alert.alert('Erreur', 'Impossible de charger les données. Vérifiez la connexion.')
     }
@@ -91,14 +96,21 @@ export default function EquipeScreen() {
   useEffect(() => { charger() }, [charger])
   useEffect(() => { if (onglet === 'Archivés') chargerArchives() }, [onglet, chargerArchives])
 
+  // Le POS ne transmet que les présences : les jours d'ouverture non pointés
+  // deviennent Repos / Absent / Non pointé selon le jour de repos (lib/joursRepos.js).
+  const presencesCompletes = useMemo(
+    () => completerPresences({ presences, travailleurs, points, aujourdhui: aujourdhuiISO() }),
+    [presences, travailleurs, points],
+  )
+
   // ── Recherche (nom, poste) appliquée à tous les onglets ──
   const travFiltres = useMemo(
     () => travailleurs.filter(t => correspondRecherche(recherche, t.nom, t.poste)),
     [travailleurs, recherche],
   )
   const presFiltrees = useMemo(
-    () => (recherche ? presences.filter(p => correspondRecherche(recherche, p.travailleur_nom)) : presences),
-    [presences, recherche],
+    () => (recherche ? presencesCompletes.filter(p => correspondRecherche(recherche, p.travailleur_nom)) : presencesCompletes),
+    [presencesCompletes, recherche],
   )
   const paiesFiltrees = useMemo(
     () => (recherche ? paiesGerant.filter(d => correspondRecherche(recherche, d.libelle)) : paiesGerant),
@@ -170,6 +182,26 @@ export default function EquipeScreen() {
         },
       ],
     )
+  }
+
+  async function analyserJoursRepos() {
+    setAnalyse(true)
+    try {
+      const r = await db.lancerAnalyseJoursRepos()
+      const lignes = [
+        r.nouveaux && `${r.nouveaux} jour(s) de repos trouvé(s)`,
+        r.changes && `${r.changes} jour(s) de repos changé(s)`,
+        r.confirmes && `${r.confirmes} confirmé(s), inchangé(s)`,
+        r.manuels && `${r.manuels} fixé(s) à la main, non touché(s)`,
+        r.sansJour && `${r.sansJour} sans jour de repos net (non touché(s))`,
+        r.pasAssez && `${r.pasAssez} avec trop peu de semaines de données (non touché(s))`,
+      ].filter(Boolean)
+      Alert.alert('Analyse des jours de repos', `12 dernières semaines :\n\n${lignes.join('\n')}`)
+      charger()
+    } catch {
+      Alert.alert('Erreur', "L'analyse a échoué. Vérifiez la connexion et réessayez.")
+    }
+    setAnalyse(false)
   }
 
   async function exporterExcel() {
@@ -244,7 +276,7 @@ export default function EquipeScreen() {
           </ScrollView>
           <View style={styles.periodeInfo}>
             <Text style={styles.periodeInfoTxt}>📅 {titre}</Text>
-            <Text style={styles.periodeInfoSub}>{presFiltrees.length} enregistrement(s)</Text>
+            <Text style={styles.periodeInfoSub}>{presFiltrees.filter(p => !p.deduit).length} pointage(s)</Text>
           </View>
         </>
       )}
@@ -274,6 +306,7 @@ export default function EquipeScreen() {
           {onglet === 'Travailleurs' && (
             <OngletTravailleurs styles={styles} travailleurs={travFiltres} statsParId={statsParId} tous={tous}
               peutEditer={peutEditer} recherche={recherche}
+              analyse={analyse} onAnalyser={analyserJoursRepos}
               onAjouter={() => setForm({ visible: true, edition: null })}
               onOuvrir={t => setFiche(t)}
               onModifier={t => setForm({ visible: true, edition: t })}

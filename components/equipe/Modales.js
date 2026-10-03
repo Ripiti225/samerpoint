@@ -11,6 +11,7 @@ import { Calendar } from 'react-native-calendars'
 import { aujourdhuiISO } from '../../lib/contrats'
 import { BLEU, MOTIFS_ARCHIVE, formatDate } from '../../lib/equipe'
 import { enregistrerTravailleur } from '../../lib/equipeDb'
+import { JOURS_COURTS, nomJour } from '../../lib/joursRepos'
 import { uploaderFichier } from '../../lib/uploadFichier'
 import { usePhoto } from '../../lib/usePhoto'
 import FormulaireTravailleur from '../FormulaireTravailleur'
@@ -18,13 +19,18 @@ import FormulaireTravailleur from '../FormulaireTravailleur'
 const TYPES_PAPIERS = ['CNI', 'Passeport', 'Permis de conduire', 'Autre']
 
 function formVide() {
-  return { nom: '', poste: '', type_contrat: 'CDD', contact: '', salaire_journalier: '', date_embauche: aujourdhuiISO(), photo_url: null }
+  return {
+    nom: '', poste: '', type_contrat: 'CDD', contact: '', salaire_journalier: '', date_embauche: aujourdhuiISO(), photo_url: null,
+    jour_repos_choix: 'auto',
+  }
 }
 
 function formDepuis(t) {
   return {
     nom: t.nom, poste: t.poste || '', type_contrat: t.type_contrat || 'CDD', contact: t.contact || '',
     salaire_journalier: t.salaire_journalier?.toString() || '', date_embauche: t.date_embauche || '', photo_url: t.photo_url || null,
+    // 'auto' = l'analyse décide ; 1…7 ou 'aucun' = fixé à la main (lib/equipeDb.js).
+    jour_repos_choix: t.jour_repos_source === 'manuel' ? (t.jour_repos || 'aucun') : 'auto',
   }
 }
 
@@ -141,6 +147,26 @@ export function ModalFormTravailleur({ visible, edition, restaurants, restoParDe
           )}
 
           <FormulaireTravailleur form={form} setForm={setForm} colors={colors} nomEditable={!edition} />
+
+          <Text style={styles.modalLabel}>Jour de repos</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+            {[{ v: 'auto', l: 'Automatique' }, ...JOURS_COURTS.map((l, i) => ({ v: i + 1, l })), { v: 'aucun', l: 'Aucun jour fixe' }].map(c => {
+              const actif = form.jour_repos_choix === c.v
+              return (
+                <TouchableOpacity key={c.v} style={[styles.motifBtn, { paddingHorizontal: 11 }, actif && styles.motifBtnActive]}
+                  onPress={() => setForm(p => ({ ...p, jour_repos_choix: c.v }))}>
+                  <Text style={[styles.motifTxt, actif && styles.motifTxtActive]}>{c.l}</Text>
+                </TouchableOpacity>
+              )
+            })}
+          </View>
+          <Text style={[styles.motifTxt, { fontSize: 12, fontWeight: '400', marginBottom: 14 }]}>
+            {form.jour_repos_choix === 'auto'
+              ? (edition?.jour_repos && edition.jour_repos_source !== 'manuel'
+                ? `Déduit des pointages : ${nomJour(edition.jour_repos)}. Mis à jour par « Analyser les jours de repos ».`
+                : 'Déduit des pointages dès qu\'il y aura assez de semaines de données.')
+              : 'Fixé à la main : l\'analyse automatique ne le changera pas.'}
+          </Text>
 
           <Text style={styles.modalLabel}>Papiers</Text>
           <View style={{ marginBottom: 14 }}>

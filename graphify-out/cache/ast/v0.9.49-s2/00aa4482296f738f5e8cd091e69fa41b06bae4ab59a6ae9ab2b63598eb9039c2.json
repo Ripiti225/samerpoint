@@ -1,0 +1,1 @@
+{"nodes": [{"id": "$graphify-root$_supabase_jour_repos_sql", "label": "supabase_jour_repos.sql", "file_type": "code", "source_file": "supabase_jour_repos.sql", "source_location": null}, {"id": "travailleurs", "label": "travailleurs", "file_type": "code", "source_file": "", "source_location": "", "origin_file": "$graphify-root$/supabase_jour_repos.sql"}], "edges": []}

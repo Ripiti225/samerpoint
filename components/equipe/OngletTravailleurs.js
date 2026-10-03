@@ -1,5 +1,6 @@
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native'
-import { STATUTS, couleurTaux, fmt } from '../../lib/equipe'
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { BLEU, STATUTS, couleurTaux, fmt } from '../../lib/equipe'
+import { JOURS_COURTS } from '../../lib/joursRepos'
 import Avatar from './Avatar'
 
 function CarteTravailleur({ styles, t, s, tous, peutEditer, onOuvrir, onModifier, onMenu }) {
@@ -15,6 +16,11 @@ function CarteTravailleur({ styles, t, s, tous, peutEditer, onOuvrir, onModifier
           <View style={styles.badgeRow}>
             {tous && <View style={styles.badge}><Text style={styles.badgeTxt}>{t.restaurants?.nom || 'Sans restaurant'}</Text></View>}
             {t.identifiant ? <View style={styles.badgeBleu}><Text style={styles.badgeBleuTxt}>{t.identifiant}</Text></View> : null}
+            {t.jour_repos ? (
+              <View style={styles.badge}>
+                <Text style={[styles.badgeTxt, { color: STATUTS['Repos'] }]}>😴 Repos {JOURS_COURTS[t.jour_repos - 1]}{t.jour_repos_source === 'manuel' ? ' ✋' : ''}</Text>
+              </View>
+            ) : null}
             {inactif && <View style={styles.badge}><Text style={[styles.badgeTxt, { color: STATUTS['Absent'] }]}>Inactif</Text></View>}
           </View>
           {s && (
@@ -43,7 +49,7 @@ function CarteTravailleur({ styles, t, s, tous, peutEditer, onOuvrir, onModifier
   )
 }
 
-export default function OngletTravailleurs({ styles, travailleurs, statsParId, tous, peutEditer, recherche, onAjouter, onOuvrir, onModifier, onMenu }) {
+export default function OngletTravailleurs({ styles, travailleurs, statsParId, tous, peutEditer, recherche, analyse, onAnalyser, onAjouter, onOuvrir, onModifier, onMenu }) {
   const actifs = travailleurs.filter(t => t.actif)
   const inactifs = travailleurs.filter(t => !t.actif)
   const carte = t => (
@@ -54,9 +60,16 @@ export default function OngletTravailleurs({ styles, travailleurs, statsParId, t
   return (
     <ScrollView showsVerticalScrollIndicator={false}>
       {peutEditer && (
-        <TouchableOpacity style={styles.btnPointille} onPress={onAjouter}>
-          <Text style={styles.btnPointilleTxt}>+ Ajouter un travailleur</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity style={[styles.btnPointille, { flex: 1 }]} onPress={onAjouter}>
+            <Text style={styles.btnPointilleTxt}>+ Ajouter un travailleur</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.btnTeinte, { flex: 1, marginBottom: 14 }, analyse && { opacity: 0.6 }]} onPress={onAnalyser} disabled={analyse}>
+            {analyse
+              ? <ActivityIndicator color={BLEU} size="small" />
+              : <Text style={[styles.btnTeinteTxt, { textAlign: 'center' }]}>😴 Analyser les jours de repos</Text>}
+          </TouchableOpacity>
+        </View>
       )}
 
       {actifs.length > 0 && (

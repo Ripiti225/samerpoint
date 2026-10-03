@@ -27,6 +27,7 @@ export default function OngletDashboard({ styles, globales, stats, tauxRestos, t
     { nom: 'Congé', valeur: ps.conge, couleur: STATUTS['Congé'] },
     { nom: 'Malade', valeur: ps.malade, couleur: STATUTS['Malade'] },
     { nom: 'Permission', valeur: ps.permission, couleur: STATUTS['Permission'] },
+    { nom: 'Non pointé', valeur: ps.nonPointe, couleur: STATUTS['Non pointé'] },
   ].filter(s => s.valeur > 0)
 
   return (
@@ -61,7 +62,8 @@ export default function OngletDashboard({ styles, globales, stats, tauxRestos, t
       </View>
 
       {segments.length > 0 && (
-        <CarteGraphique icone="chart-donut" couleur={BLEU} titre="Répartition des jours" sous={`${ps.jours} jour(s) pointé(s)`}>
+        <CarteGraphique icone="chart-donut" couleur={BLEU} titre="Répartition des jours"
+          sous={`${ps.jours + ps.nonPointe} jour(s) d'ouverture`}>
           {() => (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
               <Anneau segments={segments} taille={140} epaisseur={18}
@@ -69,6 +71,12 @@ export default function OngletDashboard({ styles, globales, stats, tauxRestos, t
                 formatDetail={v => `${v} j`} />
               <View style={{ flex: 1, minWidth: 140 }}>
                 <Legende elements={segments.map(s => ({ nom: s.nom, couleur: s.couleur, valeur: `${s.valeur} j` }))} />
+                {ps.nonPointe > 0 && (
+                  <Text style={[styles.sousNom, { marginTop: 10, fontSize: 11.5 }]}>
+                    « Non pointé » : jour de repos pas encore connu, donc ni repos ni absence. Ces jours ne comptent pas
+                    dans le taux. Lancez « Analyser les jours de repos » (onglet Travailleurs) quand il y aura plus de données.
+                  </Text>
+                )}
               </View>
             </View>
           )}
@@ -118,6 +126,7 @@ export default function OngletDashboard({ styles, globales, stats, tauxRestos, t
                 {t.conge > 0 && <Text style={[styles.miniStat, { color: STATUTS['Congé'] }]}>🏖 {t.conge}j</Text>}
                 {t.malade > 0 && <Text style={[styles.miniStat, { color: STATUTS['Malade'] }]}>🤒 {t.malade}j</Text>}
                 {t.permission > 0 && <Text style={[styles.miniStat, { color: STATUTS['Permission'] }]}>📋 {t.permission}j</Text>}
+                {t.nonPointe > 0 && <Text style={[styles.miniStat, { color: STATUTS['Non pointé'] }]}>❔ {t.nonPointe}j non pointé(s)</Text>}
               </View>
             </TouchableOpacity>
           )

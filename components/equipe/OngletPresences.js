@@ -3,10 +3,14 @@ import { STATUTS, dedupPresences, fmt, formatDate } from '../../lib/equipe'
 import Avatar from './Avatar'
 import { teinte } from './styles'
 
-export function PastilleStatut({ styles, statut }) {
+// `deduit` : jour non pointé dont le statut est déduit du jour de repos
+// (pastille en pointillés, voir lib/joursRepos.js).
+export function PastilleStatut({ styles, statut, deduit }) {
   const c = STATUTS[statut] || '#888888'
   return (
-    <View style={[styles.statutPill, { backgroundColor: teinte(c, '24') }]}>
+    <View style={[styles.statutPill, deduit
+      ? { borderWidth: 1, borderStyle: 'dashed', borderColor: c, paddingVertical: 3 }
+      : { backgroundColor: teinte(c, '24') }]}>
       <Text style={[styles.statutPillTxt, { color: c }]}>{statut}</Text>
     </View>
   )
@@ -50,7 +54,7 @@ export default function OngletPresences({ styles, presences, tous, restoParId })
                         {p.statut === 'Présent' && p.paye > 0 ? <Text style={styles.paie}>{fmt(p.paye)}</Text> : null}
                       </View>
                     </View>
-                    <PastilleStatut styles={styles} statut={p.statut} />
+                    <PastilleStatut styles={styles} statut={p.statut} deduit={p.deduit} />
                   </View>
                 )
               })}
