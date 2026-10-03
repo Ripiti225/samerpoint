@@ -13,12 +13,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { router, useFocusEffect } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import Animated, {
   FadeIn, FadeInDown, LinearTransition, useAnimatedStyle, useSharedValue, withTiming,
 } from 'react-native-reanimated'
 
 import { useTheme } from '../../context/ThemeContext'
+import Survol from '../ui/Survol'
 import {
   ICONES_TUILES, etatPointsDuJour, groupeDeTuile, messagesTresorerie, nbAVerifier, organiserAccueilAdmin,
 } from '../../lib/groupesAccueil'
@@ -26,6 +27,9 @@ import { supabase } from '../../lib/supabase'
 import { CATEGORIES_SERIE, fmt, niveauTresorerie, peut } from '../../lib/tresorerie'
 
 const CLE_OUVERTS = 'samtrackly_accueil_groupes_ouverts'
+const TRANSITION_WEB = Platform.OS === 'web'
+  ? { transitionProperty: 'transform, border-color, box-shadow', transitionDuration: '160ms', transitionTimingFunction: 'ease-out' }
+  : null
 const VERT_HERO = '#047857' // fond de la carte Trésorerie : blanc lisible dessus (≥ 4,5:1)
 
 const STATUTS = {
@@ -142,10 +146,10 @@ export default function AccueilManager({ items, role, userId }) {
           <Text style={styles.sectionTitre} accessibilityRole="header">Accès direct</Text>
           {hero && (
             <Animated.View entering={FadeInDown.delay(60).springify().damping(18)}>
-              <Pressable
+              <Survol
                 onPress={() => !hero.bloque && router.push(hero.route)}
                 accessibilityRole="button" accessibilityLabel={`${hero.titre}, ${hero.sous}`}
-                style={({ pressed }) => [styles.hero, pressed && styles.presse]}
+                style={styles.hero} echelle={1.02} styleSurvol={styles.heroSurvol}
               >
                 <View style={styles.heroIcone}>
                   <MaterialCommunityIcons name={ICONES_TUILES[hero.id] || 'apps'} size={30} color="#FFFFFF" />
@@ -155,7 +159,7 @@ export default function AccueilManager({ items, role, userId }) {
                   <Text style={styles.heroSous} numberOfLines={2}>{hero.sous}</Text>
                 </View>
                 <MaterialCommunityIcons name="chevron-right" size={26} color="#FFFFFF" />
-              </Pressable>
+              </Survol>
             </Animated.View>
           )}
           <View style={styles.rangee}>
@@ -163,10 +167,11 @@ export default function AccueilManager({ items, role, userId }) {
               const { couleur: c, fonce } = groupeDeTuile(t.id)
               return (
                 <Animated.View key={t.id} style={{ flex: 1 }} entering={FadeInDown.delay(120 + i * 60).springify().damping(18)}>
-                  <Pressable
+                  <Survol
                     onPress={() => !t.bloque && router.push(t.route)}
                     accessibilityRole="button" accessibilityLabel={`${t.titre}${badges[t.id] ? `, ${badges[t.id]}` : ''}`}
-                    style={({ pressed }) => [styles.favori, { backgroundColor: c + '14', borderColor: c + '40' }, pressed && styles.presse]}
+                    style={[styles.favori, { backgroundColor: c + '14', borderColor: c + '40' }]}
+                    echelle={1.05} styleSurvol={{ borderColor: c, backgroundColor: c + '22' }}
                   >
                     <View style={[styles.favoriIcone, { backgroundColor: c }]}>
                       <MaterialCommunityIcons name={ICONES_TUILES[t.id] || 'apps'} size={22} color="#FFFFFF" />
@@ -175,7 +180,7 @@ export default function AccueilManager({ items, role, userId }) {
                     {badges[t.id]
                       ? <View style={[styles.pastille, { backgroundColor: fonce, alignSelf: 'flex-start', marginTop: 6 }]}><Text style={styles.pastilleTxt}>{badges[t.id]}</Text></View>
                       : <Text style={styles.favoriSous} numberOfLines={2}>{t.sous}</Text>}
-                  </Pressable>
+                  </Survol>
                 </Animated.View>
               )
             })}
@@ -214,11 +219,11 @@ function BandeauPoints({ etat, styles, colors }) {
   const complet = jour.valides === jour.total
   return (
     <Animated.View entering={FadeIn.duration(300)}>
-      <Pressable
+      <Survol
         onPress={() => router.push('/verification')}
         accessibilityRole="button"
         accessibilityLabel={`Points d'hier : ${jour.valides} sur ${jour.total} validés, ${aVerifier} à vérifier. Ouvrir la vérification.`}
-        style={({ pressed }) => [styles.bandeau, pressed && styles.presse]}
+        style={styles.bandeau} echelle={1.01} styleSurvol={{ borderColor: colors.primary + '66' }}
       >
         <View style={styles.bandeauHaut}>
           <View style={{ flex: 1 }}>
@@ -261,15 +266,16 @@ function BandeauPoints({ etat, styles, colors }) {
               <Indicateur icone="check-circle" couleur={colors.success} texte="Aucune échéance aujourd'hui ni demain" styles={styles} />
             )}
             {lignesTreso.map(l => (
-              <Pressable key={l.cle} onPress={() => router.push(l.route)} accessibilityRole="button" hitSlop={6}
-                accessibilityLabel={l.texte} style={({ pressed }) => [styles.lienTreso, pressed && { opacity: 0.6 }]}>
+              <Survol key={l.cle} onPress={() => router.push(l.route)} accessibilityRole="button" hitSlop={6}
+                accessibilityLabel={l.texte} style={styles.lienTreso} echelle={1.02}
+                styleSurvol={{ backgroundColor: l.couleur + '14' }}>
                 <Indicateur icone={l.icone} couleur={l.couleur} texte={l.texte} styles={styles} />
                 <MaterialCommunityIcons name="chevron-right" size={16} color={colors.textMuted} />
-              </Pressable>
+              </Survol>
             ))}
           </View>
         )}
-      </Pressable>
+      </Survol>
     </Animated.View>
   )
 }
@@ -286,6 +292,7 @@ function Indicateur({ icone, couleur, texte, styles }) {
 // ── Bannière dépliable ───────────────────────────────────────────────────────
 
 function Banniere({ g, index, ouvert, onBasculer, badge, badges, styles, colors }) {
+  const [survol, setSurvol] = useState(false)
   const rotation = useSharedValue(ouvert ? 180 : 0)
   useEffect(() => { rotation.value = withTiming(ouvert ? 180 : 0, { duration: 220 }) }, [ouvert, rotation])
   const chevron = useAnimatedStyle(() => ({ transform: [{ rotate: `${rotation.value}deg` }] }))
@@ -294,10 +301,16 @@ function Banniere({ g, index, ouvert, onBasculer, badge, badges, styles, colors 
     <Animated.View
       entering={FadeInDown.delay(80 + index * 45).springify().damping(20)}
       layout={LinearTransition.duration(220)}
-      style={[styles.banniere, ouvert && { borderColor: g.couleur + '66' }]}
+      style={[
+        styles.banniere, TRANSITION_WEB,
+        ouvert && { borderColor: g.couleur + '66' },
+        survol && { borderColor: g.couleur, transform: [{ scale: 1.015 }], shadowOpacity: 0.12 },
+      ]}
     >
       <Pressable
         onPress={onBasculer}
+        onHoverIn={() => setSurvol(true)}
+        onHoverOut={() => setSurvol(false)}
         accessibilityRole="button"
         accessibilityState={{ expanded: ouvert }}
         accessibilityLabel={`${g.titre}, ${g.tuiles.length} écrans${badge ? `, ${badge}` : ''}`}
@@ -321,13 +334,14 @@ function Banniere({ g, index, ouvert, onBasculer, badge, badges, styles, colors 
       {ouvert && (
         <Animated.View entering={FadeIn.duration(200)} style={styles.liste}>
           {g.tuiles.map((t, i) => (
-            <Pressable
+            <Survol
               key={t.id || i}
               onPress={() => !t.bloque && router.push(t.route)}
               disabled={t.bloque}
               accessibilityRole="button"
               accessibilityLabel={`${t.titre}, ${t.sous}${badges[t.id] ? `, ${badges[t.id]}` : ''}`}
-              style={({ pressed }) => [styles.ligne, i > 0 && styles.ligneSep, pressed && { backgroundColor: colors.surfaceAlt }, t.bloque && { opacity: 0.5 }]}
+              style={[styles.ligne, i > 0 && styles.ligneSep, t.bloque && { opacity: 0.5 }]}
+              echelle={1.02} styleSurvol={{ backgroundColor: g.couleur + '14' }}
             >
               <View style={[styles.ligneIcone, { backgroundColor: g.couleur + '1A' }]}>
                 <MaterialCommunityIcons name={ICONES_TUILES[t.id] || 'apps'} size={20} color={g.couleur} />
@@ -338,7 +352,7 @@ function Banniere({ g, index, ouvert, onBasculer, badge, badges, styles, colors 
               </View>
               {badges[t.id] && <View style={[styles.pastille, { backgroundColor: g.fonce }]}><Text style={styles.pastilleTxt}>{badges[t.id]}</Text></View>}
               <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
-            </Pressable>
+            </Survol>
           ))}
         </Animated.View>
       )}
@@ -376,7 +390,7 @@ const makeStyles = (c) => StyleSheet.create({
   indicateur: { flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 },
   bandeauTreso: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: c.borderLight, gap: 8 },
   bandeauSousTitre: { fontSize: 11, fontWeight: '800', color: c.textMuted, letterSpacing: 1, textTransform: 'uppercase' },
-  lienTreso: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 28 },
+  lienTreso: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 32, borderRadius: 10, paddingHorizontal: 6, marginHorizontal: -6 },
   indicateurTxt: { fontSize: 13, fontWeight: '700' },
 
   // Accès direct
@@ -385,6 +399,7 @@ const makeStyles = (c) => StyleSheet.create({
     borderRadius: 20, padding: 18, minHeight: 84,
     shadowColor: VERT_HERO, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 6,
   },
+  heroSurvol: { shadowOpacity: 0.45, shadowRadius: 22 },
   heroIcone: {
     width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.18)',

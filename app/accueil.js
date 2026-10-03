@@ -37,6 +37,9 @@ function MenuCard({ item, index }) {
       <Pressable
         onPressIn={() => { if (!item.bloque) scale.value = withSpring(0.93, SPRINGS.snappy) }}
         onPressOut={() => { scale.value = withSpring(1, SPRINGS.gentle) }}
+        // Souris (web) : la tuile grossit un peu pour montrer qu'on est dessus.
+        onHoverIn={() => { if (!item.bloque) scale.value = withSpring(1.05, SPRINGS.gentle) }}
+        onHoverOut={() => { scale.value = withSpring(1, SPRINGS.gentle) }}
         onPress={() => !item.bloque && router.push(item.route)}
         style={[styles.card, item.bloque && styles.cardBloque]}
         disabled={item.bloque}
