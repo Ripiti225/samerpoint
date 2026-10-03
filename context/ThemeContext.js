@@ -1,7 +1,26 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { createContext, useContext, useEffect, useState } from 'react'
-import { useColorScheme } from 'react-native'
+import { usePathname } from 'expo-router'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { Platform, useColorScheme } from 'react-native'
+import { couleursGroupe, groupeDeRoute } from '../lib/groupesAccueil'
 import { DARK, LIGHT } from '../lib/theme'
+
+// Web : les éléments cliquables des écrans d'un groupe grossissent un peu au
+// survol de la souris (body[data-groupe] posé selon l'écran ouvert).
+const CSS_SURVOL = `
+@media (hover: hover) and (pointer: fine) {
+  body[data-groupe] div[tabindex="0"] { transition: transform 160ms ease-out, box-shadow 160ms ease-out; }
+  body[data-groupe] div[tabindex="0"]:hover { transform: scale(1.02); }
+  body[data-groupe] div[tabindex="0"][aria-disabled="true"]:hover { transform: none; }
+}`
+
+function installerSurvolWeb() {
+  if (Platform.OS !== 'web' || typeof document === 'undefined' || document.getElementById('samer-survol')) return
+  const style = document.createElement('style')
+  style.id = 'samer-survol'
+  style.textContent = CSS_SURVOL
+  document.head.appendChild(style)
+}
 
 const ThemeContext = createContext({ isDark: false, colors: LIGHT, toggleTheme: () => {}, setAuto: () => {} })
 
@@ -24,7 +43,21 @@ export function ThemeProvider({ children }) {
     mode === 'light' ? false :
     systemScheme === 'dark'
 
-  const colors = isDark ? DARK : LIGHT
+  // Chaque écran d'un groupe activé prend la couleur de sa bannière d'accueil
+  // (lib/groupesAccueil.js) : en-tête, boutons, onglets.
+  const chemin = usePathname()
+  const groupe = groupeDeRoute(chemin)
+  const colors = useMemo(() => {
+    const base = isDark ? DARK : LIGHT
+    return groupe ? { ...base, ...couleursGroupe(groupe, isDark) } : base
+  }, [isDark, groupe])
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return
+    installerSurvolWeb()
+    if (groupe) document.body.dataset.groupe = groupe.id
+    else delete document.body.dataset.groupe
+  }, [groupe])
 
   function toggleTheme() {
     const next = isDark ? 'light' : 'dark'
@@ -38,7 +71,7 @@ export function ThemeProvider({ children }) {
   }
 
   return (
-    <ThemeContext.Provider value={{ isDark, colors, mode, toggleTheme, setThemeMode }}>
+    <ThemeContext.Provider value={{ isDark, colors, groupe, mode, toggleTheme, setThemeMode }}>
       {children}
     </ThemeContext.Provider>
   )

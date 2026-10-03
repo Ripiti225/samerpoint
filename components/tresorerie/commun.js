@@ -1,6 +1,7 @@
 // ──────────────────────────────────────────────────────────────────────────────
 // Trésorerie — briques partagées par les trois écrans (vue, banque, à payer).
 // ──────────────────────────────────────────────────────────────────────────────
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { useFocusEffect } from 'expo-router'
 import { retour } from '../../lib/navigation'
 import { useCallback, useMemo, useState } from 'react'
@@ -65,18 +66,28 @@ export function useStylesTreso() {
 }
 
 // repli : écran où revenir quand il n'y a pas d'écran précédent (page rechargée).
+// En-tête aux couleurs du groupe (thème), avec l'icône de la bannière d'accueil.
 export function Entete({ titre, sous, droite, repli = '/tresorerie' }) {
   const { styles } = useStylesTreso()
+  const { groupe } = useTheme()
   return (
     <View style={styles.header}>
-      <TouchableOpacity onPress={() => retour(repli)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-        <Text style={styles.back}>‹ Retour</Text>
+      <TouchableOpacity onPress={() => retour(repli)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        accessibilityRole="button" accessibilityLabel="Retour" style={styles.retourBtn}>
+        <MaterialCommunityIcons name="chevron-left" size={24} color="#FFFFFF" />
       </TouchableOpacity>
-      <View style={{ flex: 1, alignItems: 'center' }}>
-        <Text style={styles.headerTitre}>{titre}</Text>
-        {!!sous && <Text style={styles.headerSous}>{sous}</Text>}
+      <View style={styles.headerCentre}>
+        {groupe && (
+          <View style={styles.headerIcone}>
+            <MaterialCommunityIcons name={groupe.icone} size={18} color="#FFFFFF" />
+          </View>
+        )}
+        <View style={{ flexShrink: 1 }}>
+          <Text style={styles.headerTitre} numberOfLines={1}>{titre}</Text>
+          {!!sous && <Text style={styles.headerSous} numberOfLines={1}>{sous}</Text>}
+        </View>
       </View>
-      <View style={{ minWidth: 60, alignItems: 'flex-end' }}>{droite}</View>
+      <View style={{ minWidth: 44, alignItems: 'flex-end' }}>{droite}</View>
     </View>
   )
 }
@@ -200,29 +211,52 @@ export function Bouton({ titre, onPress, secondaire, danger, desactive, occupe, 
 
 export function makeStyles(colors) { return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: { backgroundColor: colors.headerBg, paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  back: { fontSize: 16, color: colors.primaryText, fontWeight: '500', minWidth: 60 },
-  headerTitre: { fontSize: 16, fontWeight: '700', color: colors.headerText },
-  headerSous: { fontSize: 11, color: colors.primaryText, marginTop: 2 },
+  header: {
+    backgroundColor: colors.headerBg, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    borderBottomLeftRadius: 22, borderBottomRightRadius: 22,
+    shadowColor: colors.headerBg, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 14, elevation: 6,
+    zIndex: 2,
+  },
+  retourBtn: {
+    width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  headerCentre: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  headerIcone: {
+    width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  back: { fontSize: 15, color: colors.headerText, fontWeight: '700' },
+  headerTitre: { fontSize: 18, fontWeight: '800', color: colors.headerText, letterSpacing: -0.3 },
+  headerSous: { fontSize: 12, color: colors.primaryText, marginTop: 1, fontWeight: '600' },
   body: { flex: 1 },
-  bodyContenu: { padding: 14, paddingBottom: 60 },
+  bodyContenu: { padding: 16, paddingTop: 18, paddingBottom: 60 },
   centre: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   muted: { fontSize: 13, color: colors.textMuted, marginTop: 10, textAlign: 'center' },
   erreur: { fontSize: 14, color: colors.error, textAlign: 'center', lineHeight: 20 },
-  carte: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: colors.border },
-  lbl: { fontSize: 11, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', color: colors.textMuted },
-  grand: { fontSize: 30, fontWeight: '800', color: colors.text, marginTop: 4, fontVariant: ['tabular-nums'] },
+  carte: {
+    backgroundColor: colors.surface, borderRadius: 18, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: colors.borderLight,
+    shadowColor: colors.cardShadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2,
+  },
+  lbl: { fontSize: 11, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase', color: colors.primary },
+  grand: { fontSize: 32, fontWeight: '800', color: colors.text, marginTop: 4, letterSpacing: -0.8, fontVariant: ['tabular-nums'] },
   sep: { borderTopWidth: 1, borderStyle: 'dashed', borderTopColor: colors.border, marginVertical: 8 },
   ligne: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5, gap: 10 },
   ligneLabel: { fontSize: 14, color: colors.textSecondary, flex: 1 },
   ligneValeur: { fontSize: 14, fontWeight: '600', color: colors.text, fontVariant: ['tabular-nums'] },
   fort: { fontWeight: '800', color: colors.text },
   petit: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
-  tuiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tuile: { flexBasis: '48%', flexGrow: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderWidth: 0.5, borderColor: colors.border, minHeight: 64 },
-  tuileTitre: { fontSize: 14, fontWeight: '700', color: colors.text },
-  tuileSous: { fontSize: 11, color: colors.textMuted, marginTop: 3 },
-  btn: { backgroundColor: colors.primary, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', minHeight: 44 },
+  tuiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  tuile: {
+    flexBasis: '47%', flexGrow: 1, backgroundColor: colors.surface, borderRadius: 18, padding: 14,
+    borderWidth: 1, borderColor: colors.borderLight, minHeight: 92,
+    shadowColor: colors.cardShadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 2,
+  },
+  tuileIcone: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 8, backgroundColor: colors.primaryLight },
+  tuileTitre: { fontSize: 14, fontWeight: '800', color: colors.text },
+  tuileSous: { fontSize: 11, color: colors.textSecondary, marginTop: 3, lineHeight: 15 },
+  btn: { backgroundColor: colors.primary, borderRadius: 14, paddingVertical: 13, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', minHeight: 46 },
   btnSecondaire: { backgroundColor: colors.primaryLight },
   btnDanger: { backgroundColor: colors.error },
   btnTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
@@ -230,29 +264,32 @@ export function makeStyles(colors) { return StyleSheet.create({
   btnPetit: { paddingVertical: 7, paddingHorizontal: 12, minHeight: 34 },
   rangee: { flexDirection: 'row', gap: 8 },
   puces: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
-  puce: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  puce: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   puceActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
   puceTxt: { fontSize: 13, color: colors.textSecondary },
   puceTxtActive: { color: colors.primary, fontWeight: '700' },
   label: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 6 },
-  input: { backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.inputBorder, borderRadius: 10, padding: 11, fontSize: 15, color: colors.text },
+  input: { backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.inputBorder, borderRadius: 12, padding: 12, fontSize: 15, color: colors.text },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
-  feuille: { backgroundColor: colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, maxHeight: '88%' },
+  feuille: { backgroundColor: colors.bg, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 18, maxHeight: '88%', borderTopWidth: 4, borderTopColor: colors.primary },
   feuilleEntete: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-  feuilleTitre: { fontSize: 17, fontWeight: '700', color: colors.text, flex: 1 },
+  feuilleTitre: { fontSize: 18, fontWeight: '800', color: colors.text, flex: 1, letterSpacing: -0.2 },
   fermer: { fontSize: 18, color: colors.textMuted, paddingLeft: 12 },
   // Le fond est sur la barre (toute la largeur), pas sur son contenu.
-  ongletsBarre: { flexGrow: 0, backgroundColor: colors.surface, borderBottomWidth: 0.5, borderBottomColor: colors.border },
-  onglets: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingVertical: 10 },
-  onglet: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: colors.border },
-  ongletActif: { backgroundColor: colors.primary, borderColor: colors.primary },
-  ongletTxt: { fontSize: 13, color: colors.textSecondary },
+  ongletsBarre: { flexGrow: 0, backgroundColor: colors.bg },
+  onglets: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
+  onglet: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  ongletActif: {
+    backgroundColor: colors.primary, borderColor: colors.primary,
+    shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 3,
+  },
+  ongletTxt: { fontSize: 13, color: colors.textSecondary, fontWeight: '600' },
   ongletTxtActif: { color: '#fff', fontWeight: '700' },
-  item: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 6, marginHorizontal: -6, borderRadius: 12, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
   itemTitre: { fontSize: 14, fontWeight: '600', color: colors.text },
-  badge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start' },
+  badge: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, alignSelf: 'flex-start' },
   badgeTxt: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.3 },
   vide: { fontSize: 13, color: colors.textMuted, textAlign: 'center', paddingVertical: 24 },
-  avert: { backgroundColor: colors.warningLight, borderRadius: 10, padding: 10, marginBottom: 10 },
+  avert: { backgroundColor: colors.warningLight, borderRadius: 14, padding: 12, marginBottom: 10, borderLeftWidth: 4, borderLeftColor: colors.warning },
   avertTxt: { fontSize: 13, color: colors.warningDark, lineHeight: 18 },
 }) }

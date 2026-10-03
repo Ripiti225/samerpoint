@@ -9,6 +9,7 @@
 // Les alertes sont chargées à part pour ne pas retarder l'affichage.
 // Spéc : docs/superpowers/specs/2026-10-02-nouvelle-tresorerie-design.md (étape 3)
 // ──────────────────────────────────────────────────────────────────────────────
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { Redirect, router } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
@@ -275,10 +276,7 @@ export default function TresorerieScreen() {
             {peut(niveau, 'voir_coffre') && <Tuile icone="🔒" titre="Coffre" sous="Épargner · emprunter · objectif" route="/tresorerie-coffre" />}
             {peut(niveau, 'voir_direction') && <Tuile icone="💼" titre="Dépenses direction" sous="Autres charges, réparations…" route="/tresorerie-direction" />}
             {peut(niveau, 'gerer_droits') && (
-              <TouchableOpacity style={styles.tuile} onPress={() => setPlafondsVisible(true)}>
-                <Text style={styles.tuileTitre}>🚨 Plafonds de fond</Text>
-                <Text style={styles.tuileSous}>Alerte « fond bas » par restaurant</Text>
-              </TouchableOpacity>
+              <Tuile icone="🚨" titre="Plafonds de fond" sous="Alerte « fond bas » par restaurant" onPress={() => setPlafondsVisible(true)} />
             )}
             <Tuile icone="💳" titre="Fournisseurs" sous={`${fmt(fournisseursDus(donnees.fournisseurs))} F dus`} route="/credits-fournisseurs" />
             <Tuile icone="🗂️" titre="Historique par restaurant" sous="Dû et payé, mois par mois" route="/tresorerie-restaurant" />
@@ -428,11 +426,21 @@ function LigneDu({ du, reste, paye, nomResto, info, badge, onPress }) {
   )
 }
 
-function Tuile({ icone, titre, sous, route }) {
-  const { styles } = useStylesTreso()
+// Icône vectorielle de chaque raccourci (à la place des emojis).
+const ICONES_RACCOURCIS = {
+  '🏦': 'bank', '🛵': 'moped', '📋': 'clipboard-list', '📒': 'notebook', '📊': 'chart-box',
+  '🔒': 'safe', '💼': 'briefcase', '💳': 'credit-card-clock', '🗂️': 'folder-table', '🚨': 'alarm-light',
+}
+
+function Tuile({ icone, titre, sous, route, onPress }) {
+  const { styles, colors } = useStylesTreso()
   return (
-    <TouchableOpacity style={styles.tuile} onPress={() => router.push(route)}>
-      <Text style={styles.tuileTitre}>{icone} {titre}</Text>
+    <TouchableOpacity style={styles.tuile} onPress={onPress || (() => router.push(route))}
+      accessibilityRole="button" accessibilityLabel={`${titre}, ${sous}`}>
+      <View style={styles.tuileIcone}>
+        <MaterialCommunityIcons name={ICONES_RACCOURCIS[icone] || 'apps'} size={20} color={colors.primary} />
+      </View>
+      <Text style={styles.tuileTitre}>{titre}</Text>
       <Text style={styles.tuileSous}>{sous}</Text>
     </TouchableOpacity>
   )

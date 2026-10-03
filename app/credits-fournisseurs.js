@@ -679,7 +679,7 @@ ${mouvements.map(m => {
           <View style={{ width: 80 }} />
         </View>
         <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color="#EF9F27" />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       </SafeAreaView>
     )
@@ -789,7 +789,7 @@ ${mouvements.map(m => {
           /* ─── Vue : mouvements du mois (factures + paiements) ─── */
           loadingMois ? (
             <View style={[styles.loadingBox, { paddingVertical: 40 }]}>
-              <ActivityIndicator size="large" color="#EF9F27" />
+              <ActivityIndicator size="large" color={colors.primary} />
             </View>
           ) : (
             <>
@@ -898,7 +898,7 @@ ${mouvements.map(m => {
             </View>
             {peutModifier ? (
               <TouchableOpacity onPress={() => { setRepairCreditDepart(''); setRepairError(null); setShowRepairModal(true) }} disabled={repairing} style={{ width: 60, alignItems: 'flex-end' }}>
-                <Text style={[styles.modalClose, { fontSize: 11, color: repairing ? '#666' : '#EF9F27' }]}>
+                <Text style={[styles.modalClose, { fontSize: 11, color: repairing ? '#666' : colors.primary }]}>
                   {repairing ? '...' : '🔧 Fix'}
                 </Text>
               </TouchableOpacity>
@@ -909,7 +909,7 @@ ${mouvements.map(m => {
 
           {loadingHisto ? (
             <View style={styles.loadingBox}>
-              <ActivityIndicator size="large" color="#EF9F27" />
+              <ActivityIndicator size="large" color={colors.primary} />
             </View>
           ) : (
             <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
@@ -1108,7 +1108,7 @@ ${mouvements.map(m => {
                 <Text style={styles.btnAnnulerTxt}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.btnValider, { flex: 1, backgroundColor: '#EF9F27' }]}
+                style={[styles.btnValider, { flex: 1, backgroundColor: colors.primary }]}
                 onPress={() => {
                   const val = parseFloat(repairCreditDepart.replace(',', '.'))
                   if (isNaN(val)) { setRepairError('Entrez un nombre valide (ex: 0 ou 150000)'); return }
@@ -1151,7 +1151,7 @@ ${mouvements.map(m => {
       {/* ── Modal : Modifier le crédit ── */}
       <Modal visible={showEditCredit} animationType="slide" presentationStyle="formSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-          <View style={[styles.modalHeader, { backgroundColor: '#185FA5' }]}>
+          <View style={[styles.modalHeader, { backgroundColor: colors.headerBg }]}>
             <TouchableOpacity onPress={() => setShowEditCredit(false)}>
               <Text style={[styles.modalClose, { color: '#A8D4F5' }]}>Annuler</Text>
             </TouchableOpacity>
@@ -1223,7 +1223,7 @@ ${mouvements.map(m => {
             </View>
 
             <TouchableOpacity
-              style={[styles.saveBtn, { backgroundColor: '#185FA5' }, saving && { opacity: 0.6 }]}
+              style={[styles.saveBtn, { backgroundColor: colors.primary }, saving && { opacity: 0.6 }]}
               onPress={modifierCredit}
               disabled={saving}
             >
@@ -1236,7 +1236,7 @@ ${mouvements.map(m => {
       {/* ── Modal : Export ── */}
       <Modal visible={showExportModal} animationType="slide" presentationStyle="formSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-          <View style={[styles.modalHeader, { backgroundColor: '#534AB7' }]}>
+          <View style={[styles.modalHeader, { backgroundColor: colors.headerBg }]}>
             <TouchableOpacity onPress={() => setShowExportModal(false)}>
               <Text style={[styles.modalClose, { color: '#CECBF6' }]}>Fermer</Text>
             </TouchableOpacity>
@@ -1350,7 +1350,7 @@ ${mouvements.map(m => {
             />
           )}
           <TouchableOpacity
-            style={{ marginTop: 20, backgroundColor: '#534AB7', borderRadius: 12, paddingHorizontal: 32, paddingVertical: 12 }}
+            style={{ marginTop: 20, backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 32, paddingVertical: 12 }}
             onPress={() => setModalPhotoUri(null)}
           >
             <Text style={{ fontSize: 14, fontWeight: '600', color: '#fff' }}>Fermer</Text>
@@ -1364,14 +1364,20 @@ ${mouvements.map(m => {
 
 function makeStyles(colors) { return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  header: { backgroundColor: '#EF9F27', padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  back: { fontSize: 16, color: '#412402', fontWeight: '500' },
-  headerTitre: { fontSize: 15, fontWeight: '600', color: '#412402' },
-  headerSub: { fontSize: 10, color: '#854F0B', textAlign: 'center' },
-  exportBtn: { backgroundColor: '#BA7517', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  exportBtnTxt: { fontSize: 11, color: '#FAEEDA', fontWeight: '600' },
+  // Couleurs du groupe Trésorerie (thème selon l'écran, lib/groupesAccueil.js).
+  header: {
+    backgroundColor: colors.headerBg, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderBottomLeftRadius: 22, borderBottomRightRadius: 22, zIndex: 2,
+    shadowColor: colors.headerBg, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 14, elevation: 6,
+  },
+  back: { fontSize: 16, color: colors.headerText, fontWeight: '700' },
+  headerTitre: { fontSize: 17, fontWeight: '800', color: colors.headerText },
+  headerSub: { fontSize: 11, color: colors.primaryText, textAlign: 'center', fontWeight: '600' },
+  exportBtn: { backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  exportBtnTxt: { fontSize: 11, color: colors.headerText, fontWeight: '700' },
   fixAllBtn: { backgroundColor: '#EEF3FB', borderBottomWidth: 1, borderBottomColor: colors.border, paddingVertical: 11, alignItems: 'center' },
-  fixAllTxt: { fontSize: 13, fontWeight: '700', color: '#185FA5' },
+  fixAllTxt: { fontSize: 13, fontWeight: '700', color: colors.primary },
   loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   kpiRow: { flexDirection: 'row', backgroundColor: colors.surface, padding: 14, borderBottomWidth: 0.5, borderBottomColor: colors.border },
   kpiBox: { flex: 1, alignItems: 'center' },
@@ -1383,9 +1389,9 @@ function makeStyles(colors) { return StyleSheet.create({
   restoSelectorArrow: { fontSize: 12, color: colors.textMuted },
   moisBar: { flexGrow: 0, backgroundColor: colors.surface, borderBottomWidth: 0.5, borderBottomColor: colors.border, paddingVertical: 8 },
   moisChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 0.5, borderColor: colors.border, backgroundColor: colors.bg },
-  moisChipActive: { backgroundColor: '#EF9F27', borderColor: '#EF9F27' },
+  moisChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   moisChipTxt: { fontSize: 12, fontWeight: '600', color: colors.textMuted },
-  moisChipTxtActive: { color: '#412402', fontWeight: '800' },
+  moisChipTxtActive: { color: '#FFFFFF', fontWeight: '800' },
   moisTotalRow: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 14, borderWidth: 0.5, borderColor: colors.border, paddingVertical: 14, marginBottom: 14 },
   moisTotalBox: { flex: 1, alignItems: 'center' },
   moisCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 0.5, borderColor: colors.border },
@@ -1400,15 +1406,15 @@ function makeStyles(colors) { return StyleSheet.create({
   moisFactureDate: { fontSize: 11, color: colors.textMuted },
   moisFactureMontant: { fontSize: 13, fontWeight: '700', color: colors.text, marginTop: 2 },
   moisFactureVoir: { backgroundColor: '#E6F1FB', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
-  moisFactureVoirTxt: { fontSize: 11, color: '#185FA5', fontWeight: '700' },
+  moisFactureVoirTxt: { fontSize: 11, color: colors.primary, fontWeight: '700' },
   pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   pickerBox: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingTop: 16, paddingBottom: 32 },
   pickerTitre: { fontSize: 13, fontWeight: '600', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, paddingHorizontal: 20, marginBottom: 8 },
   pickerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
   pickerRowActive: { backgroundColor: '#FFF8ED' },
   pickerRowTxt: { flex: 1, fontSize: 15, color: colors.text },
-  pickerRowTxtActive: { color: '#EF9F27', fontWeight: '600' },
-  pickerCheck: { fontSize: 16, color: '#EF9F27', fontWeight: '700' },
+  pickerRowTxtActive: { color: colors.primary, fontWeight: '600' },
+  pickerCheck: { fontSize: 16, color: colors.primary, fontWeight: '700' },
   body: { flex: 1, padding: 12 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   sectionTitre: { fontSize: 12, fontWeight: '700', color: '#A32D2D', textTransform: 'uppercase', letterSpacing: 0.5 },
@@ -1432,7 +1438,7 @@ function makeStyles(colors) { return StyleSheet.create({
   creditLabel: { fontSize: 10, color: colors.textMuted, marginBottom: 4 },
   creditVal: { fontSize: 20, fontWeight: '800' },
   actionBtn: { backgroundColor: '#E6F1FB', borderRadius: 8, padding: 10, alignItems: 'center', marginBottom: 6 },
-  actionBtnTxt: { fontSize: 12, fontWeight: '600', color: '#185FA5' },
+  actionBtnTxt: { fontSize: 12, fontWeight: '600', color: colors.primary },
   histoBtn: { borderRadius: 8, padding: 9, alignItems: 'center', backgroundColor: colors.inputBg, borderWidth: 0.5, borderColor: colors.borderLight },
   histoBtnTxt: { fontSize: 12, color: colors.textMuted, fontWeight: '500' },
   btnAnnuler: { borderRadius: 12, padding: 14, alignItems: 'center', backgroundColor: colors.inputBg, borderWidth: 0.5, borderColor: colors.borderLight },
@@ -1474,9 +1480,9 @@ function makeStyles(colors) { return StyleSheet.create({
   saveBtn: { borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 4 },
   saveBtnTxt: { fontSize: 14, fontWeight: '600', color: '#fff' },
   filterPill: { paddingHorizontal: 14, paddingVertical: 10, marginHorizontal: 2 },
-  filterPillActive: { borderBottomWidth: 2, borderBottomColor: '#EF9F27' },
+  filterPillActive: { borderBottomWidth: 2, borderBottomColor: colors.primary },
   filterTxt: { fontSize: 12, color: colors.textMuted },
-  filterTxtActive: { color: '#EF9F27', fontWeight: '600' },
+  filterTxtActive: { color: colors.primary, fontWeight: '600' },
   exportSection: { fontSize: 11, fontWeight: '600', color: colors.textMuted, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
   histoMvtCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: colors.border },
   histoMvtHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
