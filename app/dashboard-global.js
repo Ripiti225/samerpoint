@@ -20,6 +20,8 @@ import { ecarts as calculerEcarts, formaterEcart, POLARITE, synthese, UNITE } fr
 import { CANAUX, couleurResto, courtNom, detailFondRecu, fmtFCFA, tauxRenta, vueGlobale } from '../lib/dashboardGlobal'
 import { bandeauDeuxPeriodes, estMoisEntier, moisCouverts, periodePrecedente } from '../lib/periodeComparee'
 import { chargerChargesMois } from '../lib/chargesMois'
+import { chargerLitigesRestaurant } from '../lib/litigesGlobal'
+import { resumeLitiges } from '../lib/litigesResume'
 import { fmtCourt, melangerCouleurs } from '../lib/graphiques'
 import { progressionObjectif, variation } from '../lib/objectifs'
 import {
@@ -105,9 +107,12 @@ export default function DashboardGlobalScreen() {
   const [chargementPOS, setChargementPOS] = useState(false)
   // Mois en cours, quelle que soit la période : objectifs et effectifs.
   const [moisEnCours, setMoisEnCours] = useState({ ventes: {}, employes: {} })
-  const [objectifEdite, setObjectifEdite] = useState(null)   // restaurant dont on saisit l'objectif
-  const [objectifSaisi, setObjectifSaisi] = useState('')
+  const [objectifsVisibles, setObjectifsVisibles] = useState(false)   // feuille « Fixer les objectifs »
+  const [objectifsSaisis, setObjectifsSaisis] = useState({})          // { restaurantId: texte }
   const [objectifEnCours, setObjectifEnCours] = useState(false)
+  // Litiges de la période (mêmes calculs que l'écran Litiges), chargés à l'ouverture de l'onglet.
+  const [litigesDash, setLitigesDash] = useState(null)   // { cle, donnees }
+  const [chargementLitiges, setChargementLitiges] = useState(false)
 
   useEffect(() => { chargerRestaurants(); chargerMoisEnCours() }, [])
 
@@ -119,6 +124,21 @@ export default function DashboardGlobalScreen() {
       .then(res => { if (vivant) { setStatsPOS(res); setChargementPOS(false) } })
     return () => { vivant = false }
   }, [rangeCharge, restoFiltre])
+
+  useEffect(() => {
+    if (pilier !== 'litiges' || !rangeCharge?.debut || !rangeCharge?.fin || !restaurants.length) return
+    const cle = `${rangeCharge.debut}|${rangeCharge.fin}|${restoFiltre || 'tous'}`
+    if (litigesDash?.cle === cle) return
+    let vivant = true
+    const cibles = restoFiltre ? restaurants.filter(r => r.id === restoFiltre) : restaurants
+    setChargementLitiges(true)
+    Promise.all(cibles.map(r => chargerLitigesRestaurant(r, rangeCharge.debut, rangeCharge.fin)))
+      .then(donnees => { if (vivant) setLitigesDash({ cle, donnees }) })
+      .catch(e => console.warn('[Dashboard] litiges :', e?.message))
+      .finally(() => { if (vivant) setChargementLitiges(false) })
+    return () => { vivant = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pilier, rangeCharge, restoFiltre, restaurants])
 
   useEffect(() => {
     if (restaurants.length > 0 && periodeKey !== 'custom') {
@@ -164,26 +184,40 @@ export default function DashboardGlobalScreen() {
     setPointsPrec(grouperParResto(data, list))
   }
 
-  async function enregistrerObjectif() {
-    const r = objectifEdite
-    if (!r) return
-    const brut = objectifSaisi.replace(/[\s.]/g, '').trim()
-    const montant = brut === '' ? null : Number(brut)
-    if (montant !== null && (!Number.isFinite(montant) || montant < 0)) {
-      Alert.alert('Montant invalide', 'Saisissez un nombre positif, ou laissez vide pour retirer l\'objectif.')
-      return
+  function ouvrirObjectifs() {
+    setObjectifsSaisis(Object.fromEntries(restaurants.map(r => [r.id, r.objectif_mensuel == null ? '' : String(Math.round(r.objectif_mensuel))])))
+    setObjectifsVisibles(true)
+  }
+
+  // Enregistre les objectifs modifiés (vide = pas d'objectif).
+  async function enregistrerObjectifs() {
+    const changes = []
+    for (const r of restaurants) {
+      const brut = (objectifsSaisis[r.id] || '').replace(/[\s.]/g, '').trim()
+      const montant = brut === '' ? null : Number(brut)
+      if (montant !== null && (!Number.isFinite(montant) || montant < 0)) {
+        Alert.alert('Montant invalide', `${r.nom} : saisissez un nombre positif, ou laissez vide pour retirer l'objectif.`)
+        return
+      }
+      const avant = r.objectif_mensuel == null ? null : Number(r.objectif_mensuel)
+      if (montant !== avant) changes.push({ id: r.id, montant })
     }
+    if (!changes.length) { setObjectifsVisibles(false); return }
     setObjectifEnCours(true)
-    const { error } = await supabase.from('restaurants').update({ objectif_mensuel: montant }).eq('id', r.id)
-    setObjectifEnCours(false)
-    if (error) {
-      Alert.alert('Enregistrement impossible', /objectif_mensuel/.test(error.message)
-        ? "La colonne « objectif_mensuel » n'existe pas encore. Passez le script supabase_rapport_mensuel.sql dans Supabase, puis réessayez."
-        : error.message)
-      return
+    for (const c of changes) {
+      const { error } = await supabase.from('restaurants').update({ objectif_mensuel: c.montant }).eq('id', c.id)
+      if (error) {
+        setObjectifEnCours(false)
+        Alert.alert('Enregistrement impossible', /objectif_mensuel/.test(error.message)
+          ? "La colonne « objectif_mensuel » n'existe pas encore. Passez le script supabase_rapport_mensuel.sql dans Supabase, puis réessayez."
+          : error.message)
+        return
+      }
     }
-    setRestaurants(liste => liste.map(x => (x.id === r.id ? { ...x, objectif_mensuel: montant } : x)))
-    setObjectifEdite(null)
+    const parId = Object.fromEntries(changes.map(c => [c.id, c.montant]))
+    setRestaurants(liste => liste.map(x => (x.id in parId ? { ...x, objectif_mensuel: parId[x.id] } : x)))
+    setObjectifEnCours(false)
+    setObjectifsVisibles(false)
   }
 
   function getDateRange() {
@@ -954,7 +988,70 @@ export default function DashboardGlobalScreen() {
         )}
       </CarteGraphique>
 
-      {titreSection('storefront-outline', 'Les restaurants', `objectifs de ${nomMoisCourant}`)}
+      {/* Objectifs du mois : le groupe, puis chaque restaurant */}
+      {(() => {
+        const lignesObj = restosVus.map(r => {
+          const ventes = moisEnCours.ventes[r.id] || 0
+          return { r, ventes, prog: progressionObjectif({ ventes, objectif: r.objectif_mensuel, jour: aujourdhui.getDate(), joursMois: joursDuMois }) }
+        })
+        const avecObj = lignesObj.filter(l => l.prog)
+        const objGroupe = avecObj.reduce((x, l) => x + Number(l.r.objectif_mensuel || 0), 0)
+        const ventesGroupe = avecObj.reduce((x, l) => x + l.ventes, 0)
+        const progGroupe = progressionObjectif({ ventes: ventesGroupe, objectif: objGroupe, jour: aujourdhui.getDate(), joursMois: joursDuMois })
+        return (
+          <View style={styles.objectifsCarte}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              {pastille('target', '#10B981', 36)}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.objectifsTitre}>Objectifs de {nomMoisCourant}</Text>
+                <Text style={styles.restoSous}>Jour {aujourdhui.getDate()} sur {joursDuMois} · mois en cours, quelle que soit la période</Text>
+              </View>
+              <TouchableOpacity style={styles.objectifsBtn} onPress={ouvrirObjectifs} accessibilityRole="button">
+                <MaterialCommunityIcons name="pencil-outline" size={15} color={colors.primary} />
+                <Text style={styles.objectifsBtnTxt}>Fixer</Text>
+              </TouchableOpacity>
+            </View>
+            {progGroupe ? (
+              <View style={{ marginTop: 14 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                  <Text style={styles.objectifsGrand}>{progGroupe.pct} %</Text>
+                  <Text style={styles.restoSous}>{fmtCourt(ventesGroupe)} sur {fmtCourt(objGroupe)}</Text>
+                </View>
+                <View style={[styles.objectifPiste, { height: 12, borderRadius: 6, marginTop: 6 }]}>
+                  <View style={[styles.objectifRempli, { height: 12, borderRadius: 6, width: `${Math.min(100, progGroupe.pct)}%`, backgroundColor: progGroupe.enAvance ? colors.success : colors.warning }]} />
+                  <View style={[styles.repereJour, { left: `${Math.round((aujourdhui.getDate() / joursDuMois) * 100)}%` }]} />
+                </View>
+                <Text style={[styles.restoSous, { marginTop: 6 }]}>
+                  Au rythme actuel : {fmtCourt(progGroupe.projection)} à la fin du mois ({progGroupe.pctProjete} %). Le trait marque où il faudrait être aujourd'hui.
+                </Text>
+              </View>
+            ) : (
+              <Text style={[styles.restoSous, { marginTop: 10 }]}>Aucun objectif fixé pour {nomMoisCourant}. Appuyez sur « Fixer ».</Text>
+            )}
+            {avecObj.length > 0 && (
+              <View style={{ marginTop: 12, gap: 9 }}>
+                {[...avecObj].sort((a2, b2) => b2.prog.pct - a2.prog.pct).map(({ r, prog }) => (
+                  <View key={r.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={[styles.restoDot, { backgroundColor: couleurResto(r.couleur) }]} />
+                    <Text style={styles.objectifMiniNom} numberOfLines={1}>{courtNom(r.nom)}</Text>
+                    <View style={[styles.objectifPiste, { flex: 1 }]}>
+                      <View style={[styles.objectifRempli, { width: `${Math.min(100, prog.pct)}%`, backgroundColor: prog.enAvance ? colors.success : colors.warning }]} />
+                    </View>
+                    <Text style={[styles.objectifMiniPct, { color: prog.enAvance ? colors.successDark : colors.warningDark }]}>{prog.pct} %</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            {lignesObj.length > avecObj.length && avecObj.length > 0 && (
+              <Text style={[styles.restoSous, { marginTop: 8 }]}>
+                {lignesObj.length - avecObj.length} restaurant{lignesObj.length - avecObj.length > 1 ? 's' : ''} sans objectif.
+              </Text>
+            )}
+          </View>
+        )
+      })()}
+
+      {titreSection('storefront-outline', 'Les restaurants', titrePeriode())}
       {classement.map((r, i) => {
         const resto = restaurants.find(x => x.id === r.id) || {}
         const renta = tauxRenta(r.ventes, r.benefice)
@@ -985,7 +1082,7 @@ export default function DashboardGlobalScreen() {
               <View style={styles.restoChiffre}><Text style={styles.restoChiffreLbl}>Pic</Text><Text style={styles.restoChiffreVal}>{posResto?.pic != null ? `${posResto.pic}h` : '—'}</Text></View>
             </View>
             <TouchableOpacity style={styles.objectif} activeOpacity={0.7}
-              onPress={() => { setObjectifEdite(resto); setObjectifSaisi(resto.objectif_mensuel == null ? '' : String(Math.round(resto.objectif_mensuel))) }}>
+              onPress={ouvrirObjectifs}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: prog ? 6 : 0 }}>
                 <MaterialCommunityIcons name="target" size={15} color={prog ? (prog.enAvance ? colors.successDark : colors.warningDark) : colors.textMuted} />
                 <Text style={styles.objectifTxt} numberOfLines={1}>
@@ -1180,6 +1277,121 @@ export default function DashboardGlobalScreen() {
         {tuile({ icone: 'ticket-percent-outline', couleur: '#0EA5E9', label: 'Remises et promos', valeur: fmtCourt((Number(t.remises) || 0) + (Number(t.promos) || 0)), sous: `${t.nb_remises || 0} remise(s) manuelle(s)` })}
       </View>
       <Text style={styles.noteSource}>Source : caisse POS des restaurants. Les chiffres du haut de l'écran viennent des points validés.</Text>
+    </>)
+  }
+
+  // ── Pilier Litiges (résumé) ──────────────────────────────────────────────
+  function renderLitiges() {
+    const boutonDetail = (
+      <TouchableOpacity style={styles.boutonLarge} onPress={() => router.push('/litiges')}>
+        <MaterialCommunityIcons name="scale-balance" size={18} color="#FFFFFF" />
+        <Text style={styles.boutonPleinTxt}>Voir tout le détail des litiges</Text>
+        <MaterialCommunityIcons name="arrow-right" size={18} color="#FFFFFF" />
+      </TouchableOpacity>
+    )
+    if (!litigesDash) {
+      return (
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingTxt}>Calcul des litiges de la période…</Text>
+        </View>
+      )
+    }
+    const r = resumeLitiges(litigesDash.donnees)
+    const positives = r.categories.filter(c => c.montant > 0)
+    const sommePos = positives.reduce((x, c) => x + c.montant, 0) || 1
+    return (<>
+      {chargementLitiges ? (
+        <View style={styles.bandeauMaj}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.bandeauMajTxt}>Mise à jour pour la nouvelle période…</Text>
+        </View>
+      ) : null}
+      <View style={styles.hero}>
+        <View style={[styles.heroRond, { top: -70, right: -50, width: 190, height: 190 }]} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={styles.heroIcone}><MaterialCommunityIcons name="scale-balance" size={18} color="#FFFFFF" /></View>
+          <Text style={styles.heroLbl} numberOfLines={1}>Litiges · {titrePeriode()}</Text>
+        </View>
+        <Text style={[styles.heroValeur, { marginTop: 10 }]} numberOfLines={1} adjustsFontSizeToFit>{fmt(r.total)}</Text>
+        <Text style={styles.heroSous}>
+          {r.nbConcernes
+            ? `${r.nbConcernes} restaurant${r.nbConcernes > 1 ? 's' : ''} concerné${r.nbConcernes > 1 ? 's' : ''} · montants à la charge des équipes`
+            : 'Aucun litige sur la période'}
+        </Text>
+        {r.categories.length > 0 && (
+          <View style={styles.heroCases}>
+            {r.categories.slice(0, 3).map(c => (
+              <View key={c.cle} style={styles.heroCase}>
+                <Text style={styles.heroCaseLbl} numberOfLines={1}>{c.nom}</Text>
+                <Text style={styles.heroCaseVal} numberOfLines={1} adjustsFontSizeToFit>{fmtCourt(c.montant)}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {r.contactsEnAttente > 0 && (
+        <View style={[styles.alerteCard, { backgroundColor: colors.warningLight }]}>
+          <MaterialCommunityIcons name="timer-sand" size={20} color={colors.warningDark} />
+          <Text style={[styles.alerteMsg, { flex: 1, color: colors.warningDark, fontWeight: '600' }]}>
+            {r.contactsEnAttente} journée{r.contactsEnAttente > 1 ? 's' : ''} : le comptage des contacts du POS n'est pas encore arrivé (rien n'est facturé en attendant).
+          </Text>
+        </View>
+      )}
+
+      {positives.length > 0 && (
+        <CarteGraphique icone="chart-donut" couleur="#DC2626" titre="Par type de litige" sous="D'où viennent les montants">
+          {() => (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+              <Anneau taille={130} epaisseur={18} centreValeur={fmtCourt(r.total)} centreLibelle="à déduire"
+                segments={positives.map(c => ({ nom: c.nom, valeur: c.montant, couleur: c.couleur }))} />
+              {legendeDetaillee(positives.map(c => ({ nom: c.nom, couleur: c.couleur, part: Math.round((c.montant / sommePos) * 100), sous: fmt(c.montant) })))}
+            </View>
+          )}
+        </CarteGraphique>
+      )}
+
+      {r.parResto.length > 0 && !restoFiltre && (
+        <CarteGraphique icone="storefront-outline" couleur="#EA580C" titre="Par restaurant" sous="Du plus touché au moins touché">
+          {() => (
+            <BarresHorizontales rangs format={fmtCourt} donnees={r.parResto.map(x => ({
+              cle: x.id, nom: x.nom, valeur: x.total, couleur: couleurResto(x.couleur), droite: fmt(x.total),
+              couleurValeur: x.total > 0 ? colors.error : colors.successDark,
+              sous: x.principale?.montant > 0 ? `surtout : ${x.principale.nom.toLowerCase()}` : null,
+            }))} />
+          )}
+        </CarteGraphique>
+      )}
+
+      {r.personnes.length > 0 && (
+        <View style={styles.faitsCarte}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 2 }}>
+            {pastille('account-alert-outline', '#DC2626', 34)}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.objectifsTitre}>Personnes les plus concernées</Text>
+              <Text style={styles.restoSous}>Montants imputés sur la période, toutes catégories</Text>
+            </View>
+          </View>
+          {r.personnes.map((p, i) => (
+            <View key={p.nom} style={styles.personneLigne}>
+              <View style={[styles.personneAvatar, { backgroundColor: i === 0 ? colors.errorLight : colors.surfaceAlt }]}>
+                <Text style={[styles.personneInitiales, { color: i === 0 ? colors.errorDark : colors.textSecondary }]}>
+                  {p.nom.split(/\s+/).filter(Boolean).slice(0, 2).map(m => m[0]).join('').toUpperCase()}
+                </Text>
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.personneNom} numberOfLines={1}>{p.nom}</Text>
+                <Text style={styles.restoSous} numberOfLines={1}>{p.restaurant} · {p.nb} ligne{p.nb > 1 ? 's' : ''}</Text>
+              </View>
+              <Text style={[styles.personneMontant, { color: colors.error }]}>{fmt(p.montant)}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {boutonDetail}
+      <Text style={styles.noteSource}>Mêmes calculs que l'écran Litiges : avis, Yango, Glovo, contacts, points non faits, écarts et comptages.</Text>
     </>)
   }
 
@@ -1425,47 +1637,43 @@ export default function DashboardGlobalScreen() {
             </>
           )}
 
-          {/* Pilier Litiges — renvoi vers l'écran dédié */}
-          {pilier === 'litiges' && (
-            <View style={styles.infoCarte}>
-              {pastille('scale-balance', colors.primary, 52)}
-              <Text style={styles.infoTitre}>Litiges et écarts</Text>
-              <Text style={styles.infoTxt}>
-                Avis clients, Yango, Glovo, points non faits et écarts de caisse, pour tous les restaurants,
-                avec filtres par période et export PDF.
-              </Text>
-              <TouchableOpacity style={styles.boutonPlein} onPress={() => router.push('/litiges')}>
-                <Text style={styles.boutonPleinTxt}>Ouvrir les litiges</Text>
-                <MaterialCommunityIcons name="arrow-right" size={18} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          )}
+          {/* Pilier Litiges — résumé, le détail complet est dans l'écran Litiges */}
+          {pilier === 'litiges' && renderLitiges()}
         </ScrollView>
       )}
 
-      {/* Objectif mensuel d'un restaurant (lu aussi par Rapports → Mensuel) */}
-      <Modal visible={!!objectifEdite} transparent animationType="fade" onRequestClose={() => setObjectifEdite(null)}>
+      {/* Objectifs du mois de tous les restaurants (lus aussi par Rapports → Mensuel) */}
+      <Modal visible={objectifsVisibles} transparent animationType="slide" onRequestClose={() => setObjectifsVisibles(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modal}>
+          <View style={[styles.modal, { maxHeight: '88%' }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitre}>Objectif de {nomMoisCourant}</Text>
-              <TouchableOpacity onPress={() => setObjectifEdite(null)} style={styles.fermerBtn} accessibilityLabel="Fermer">
+              <Text style={styles.modalTitre}>Objectifs de {nomMoisCourant}</Text>
+              <TouchableOpacity onPress={() => setObjectifsVisibles(false)} style={styles.fermerBtn} accessibilityLabel="Fermer">
                 <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
-            <Text style={[styles.restoSous, { marginBottom: 10 }]}>
-              {objectifEdite?.nom} · chiffre d'affaires visé pour le mois. Vide = pas d'objectif.
+            <Text style={[styles.restoSous, { marginBottom: 12 }]}>
+              Chiffre d'affaires visé pour le mois, par restaurant. Vide = pas d'objectif. Le rapport mensuel les lit aussi.
             </Text>
-            <TextInput
-              style={styles.input} value={objectifSaisi} onChangeText={setObjectifSaisi}
-              keyboardType="numeric" placeholder="Ex. 15000000" placeholderTextColor={colors.textPlaceholder}
-              autoFocus editable={!objectifEnCours}
-            />
+            <ScrollView keyboardShouldPersistTaps="handled" style={{ flexGrow: 0 }}>
+              {restaurants.map(r => (
+                <View key={r.id} style={styles.objectifLigne}>
+                  <View style={[styles.restoDot, { backgroundColor: couleurResto(r.couleur), width: 10, height: 10, borderRadius: 5 }]} />
+                  <Text style={styles.objectifNom} numberOfLines={1}>{r.nom}</Text>
+                  <TextInput
+                    style={styles.objectifInput} value={objectifsSaisis[r.id] ?? ''}
+                    onChangeText={v => setObjectifsSaisis(o => ({ ...o, [r.id]: v.replace(/[^\d]/g, '') }))}
+                    keyboardType="numeric" placeholder="Aucun" placeholderTextColor={colors.textPlaceholder}
+                    editable={!objectifEnCours}
+                  />
+                </View>
+              ))}
+            </ScrollView>
             <View style={styles.modalBtns}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setObjectifEdite(null)}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setObjectifsVisibles(false)}>
                 <Text style={styles.modalCancelTxt}>Annuler</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalConfirm, objectifEnCours && { opacity: 0.5 }]} onPress={enregistrerObjectif} disabled={objectifEnCours}>
+              <TouchableOpacity style={[styles.modalConfirm, objectifEnCours && { opacity: 0.5 }]} onPress={enregistrerObjectifs} disabled={objectifEnCours}>
                 <Text style={styles.modalConfirmTxt}>{objectifEnCours ? 'Enregistrement…' : 'Enregistrer'}</Text>
               </TouchableOpacity>
             </View>
@@ -1665,6 +1873,35 @@ function makeStyles(colors) { return StyleSheet.create({
   objectifPiste: { height: 8, borderRadius: 4, backgroundColor: colors.surfaceAlt, overflow: 'hidden' },
   objectifRempli: { height: 8, borderRadius: 4 },
 
+  objectifsCarte: {
+    backgroundColor: colors.surface, borderRadius: 20, padding: 16, marginBottom: 14,
+    borderWidth: 1, borderColor: colors.borderLight,
+  },
+  objectifsTitre: { fontSize: 15.5, fontWeight: '800', color: colors.text },
+  objectifsBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.primaryLight, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, minHeight: 36 },
+  objectifsBtnTxt: { fontSize: 13, fontWeight: '800', color: colors.primary },
+  objectifsGrand: { fontSize: 28, fontWeight: '800', color: colors.text, letterSpacing: -0.6 },
+  repereJour: { position: 'absolute', top: -3, bottom: -3, width: 2, borderRadius: 1, backgroundColor: colors.text, opacity: 0.6 },
+  objectifMiniNom: { width: 78, fontSize: 12, fontWeight: '700', color: colors.textSecondary },
+  objectifMiniPct: { width: 44, textAlign: 'right', fontSize: 12, fontWeight: '800' },
+  objectifLigne: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  objectifNom: { flex: 1, fontSize: 14, fontWeight: '700', color: colors.text },
+  objectifInput: {
+    width: 140, backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.inputBorder, borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 9, fontSize: 15, fontWeight: '700', color: colors.text, textAlign: 'right',
+  },
+  boutonLarge: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.primary,
+    borderRadius: 16, paddingVertical: 15, marginBottom: 12, minHeight: 52,
+    shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 3,
+  },
+  bandeauMaj: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.primaryLight, borderRadius: 12, padding: 10, marginBottom: 10 },
+  bandeauMajTxt: { fontSize: 12.5, fontWeight: '700', color: colors.primary },
+  personneLigne: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.borderLight },
+  personneAvatar: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  personneInitiales: { fontSize: 13, fontWeight: '800' },
+  personneNom: { fontSize: 14, fontWeight: '700', color: colors.text },
+  personneMontant: { fontSize: 14, fontWeight: '800', fontVariant: ['tabular-nums'] },
   faitsCarte: { backgroundColor: colors.surface, borderRadius: 20, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: colors.borderLight, gap: 10 },
   fait: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   faitTxt: { flex: 1, fontSize: 13.5, color: colors.text, fontWeight: '600', lineHeight: 19 },
