@@ -109,7 +109,12 @@ function useEtatDuJour(role, userId) {
 export default function AccueilManager({ items, role, userId }) {
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
-  const { favoris, groupes, autres } = useMemo(() => organiserAccueilAdmin(items), [items])
+  // Le RH ne saisit que les charges : sa Trésorerie s'ouvre directement sur « À payer ».
+  const tuiles = useMemo(
+    () => (role === 'rh' ? items.map(t => (t.id === 'tresorerie' ? { ...t, route: '/tresorerie-a-payer' } : t)) : items),
+    [items, role],
+  )
+  const { favoris, groupes, autres } = useMemo(() => organiserAccueilAdmin(tuiles), [tuiles])
   const etat = useEtatDuJour(role, userId)
   const [ouverts, setOuverts] = useState({})
 

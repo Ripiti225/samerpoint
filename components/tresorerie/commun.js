@@ -2,7 +2,7 @@
 // Trésorerie — briques partagées par les trois écrans (vue, banque, à payer).
 // ──────────────────────────────────────────────────────────────────────────────
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
-import { useFocusEffect } from 'expo-router'
+import { router, useFocusEffect } from 'expo-router'
 import { retour } from '../../lib/navigation'
 import { useCallback, useMemo, useState } from 'react'
 import {
@@ -67,12 +67,15 @@ export function useStylesTreso() {
 
 // repli : écran où revenir quand il n'y a pas d'écran précédent (page rechargée).
 // En-tête aux couleurs du groupe (thème), avec l'icône de la bannière d'accueil.
-export function Entete({ titre, sous, droite, repli = '/tresorerie' }) {
+// toujoursRepli : Retour va toujours à `repli`, sans repasser par l'écran
+// précédent (le RH arrive sur « À payer » par une redirection depuis
+// « Trésorerie » : y revenir le renverrait aussitôt sur « À payer »).
+export function Entete({ titre, sous, droite, repli = '/tresorerie', toujoursRepli = false }) {
   const { styles } = useStylesTreso()
   const { groupe } = useTheme()
   return (
     <View style={styles.header}>
-      <TouchableOpacity onPress={() => retour(repli)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      <TouchableOpacity onPress={() => (toujoursRepli ? router.replace(repli) : retour(repli))} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         accessibilityRole="button" accessibilityLabel="Retour" style={styles.retourBtn}>
         <MaterialCommunityIcons name="chevron-left" size={24} color="#FFFFFF" />
       </TouchableOpacity>

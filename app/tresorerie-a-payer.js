@@ -85,7 +85,8 @@ export default function TresorerieAPayerScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Entete titre="À payer" sous={onglet ? LIBELLES_ONGLET[onglet] : null} />
+      <Entete titre="À payer" sous={onglet ? LIBELLES_ONGLET[onglet] : null}
+        repli={niveau === 'saisie_rh' ? '/accueil' : '/tresorerie'} toujoursRepli={niveau === 'saisie_rh'} />
       {bloque ? <EtatEcran {...t} autorise={onglets.length > 0} /> : (
         <>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.ongletsBarre} contentContainerStyle={styles.onglets}>
