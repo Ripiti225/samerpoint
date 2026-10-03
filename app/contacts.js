@@ -16,7 +16,7 @@ import ChampDate from '../components/ChampDate'
 import ResumeContacts from '../components/contacts/ResumeContacts'
 import { Bouton, EnTete, Feuille, Libelle, Puces, Recherche, Vide, teinte, useEcranModerne } from '../components/ui/EcranModerne'
 import { useApp } from '../context/AppContext'
-import { numerosUniques, parJour, parRestaurant, totaux } from '../lib/contactsPeriode'
+import { CANAUX_CONTACT, numerosUniques, parJour, parRestaurant, totaux } from '../lib/contactsPeriode'
 import { chargerContactsPeriode, chargerEquipeEtFournisseurs, dernierNumeroPOS } from '../lib/contactsPeriodeDb'
 import { PERIODES, plageDates, titrePeriode } from '../lib/equipe'
 import { libelleJour, periodePrecedente } from '../lib/periodeComparee'
@@ -45,6 +45,7 @@ export default function ContactsScreen() {
   const [loading, setLoading] = useState(true)
 
   const [recherche, setRecherche] = useState('')
+  const [canal, setCanal] = useState(null) // Clients : null = tous, 'yango', 'glovo', 'autres'
   const [nbAffiches, setNbAffiches] = useState(PAR_PAGE)
   const [selectionnes, setSelectionnes] = useState({})
   const [composeur, setComposeur] = useState(null) // 'sms' | 'whatsapp' | null
@@ -77,7 +78,7 @@ export default function ContactsScreen() {
   }, [plageA, plageB, restoId, isRH])
 
   useEffect(() => { charger() }, [charger])
-  useEffect(() => { setNbAffiches(PAR_PAGE); setSelectionnes({}) }, [onglet, recherche, restoId, plageA])
+  useEffect(() => { setNbAffiches(PAR_PAGE); setSelectionnes({}) }, [onglet, recherche, canal, restoId, plageA])
 
   // ── Résumé ──
   const dans = (l, p) => !!p && l.date >= p.debut && l.date <= p.fin
@@ -93,7 +94,7 @@ export default function ContactsScreen() {
   const q = recherche.trim().toLowerCase()
   const listes = useMemo(() => ({
     Clients: numerosUniques(donnees.commandes.filter(c => dans(c, plageA))).map(c => ({
-      id: c.id, nom: c.numero, numero: c.numero,
+      id: c.id, nom: c.numero, numero: c.numero, canaux: c.canaux,
       detail: `${c.partenaire} · ${c.fois > 1 ? `${c.fois} commandes · ` : ''}dernière le ${libelleJour(c.dernier)}${!restoId && restoParId[c.restaurant_id] ? ` · ${restoParId[c.restaurant_id].nom}` : ''}`,
     })),
     'Équipe': equipe.travailleurs.map(t => ({
@@ -105,7 +106,10 @@ export default function ContactsScreen() {
       detail: `${f.type === 'cotisation' ? 'Cotisation' : 'Fournisseur'}${!restoId && restoParId[f.restaurant_id] ? ` · ${restoParId[f.restaurant_id].nom}` : ''}`,
     })),
   }), [donnees, equipe, plageA, restoId, restoParId])
-  const liste = (listes[onglet] || []).filter(c => !q || c.nom.toLowerCase().includes(q) || c.detail.toLowerCase().includes(q) || String(c.numero).includes(q))
+  const trouves = (listes[onglet] || []).filter(c => !q || c.nom.toLowerCase().includes(q) || c.detail.toLowerCase().includes(q) || String(c.numero).includes(q))
+  // Filtre par type (Clients seulement) : un client passé par Yango puis par Glovo apparaît sous les deux.
+  const liste = onglet === 'Clients' && canal ? trouves.filter(c => c.canaux?.includes(canal)) : trouves
+  const parCanal = cle => (cle ? trouves.filter(c => c.canaux?.includes(cle)).length : trouves.length)
   const affiches = liste.slice(0, nbAffiches)
 
   const nbSelectionnes = Object.values(selectionnes).filter(Boolean).length
@@ -202,6 +206,10 @@ export default function ContactsScreen() {
           <View style={{ marginHorizontal: -14 }}>
             <Recherche value={recherche} onChange={setRecherche} styles={styles} colors={colors}
               placeholder={onglet === 'Clients' ? '🔍 Rechercher un numéro…' : '🔍 Rechercher un nom, un numéro…'} />
+            {onglet === 'Clients' && (
+              <Puces ligne petit styles={styles} actif={canal} onChoisir={setCanal}
+                elements={CANAUX_CONTACT.map(c => ({ cle: c.cle, label: `${c.label} (${parCanal(c.cle).toLocaleString('fr-FR')})` }))} />
+            )}
           </View>
 
           {liste.length > 0 && (
@@ -218,7 +226,7 @@ export default function ContactsScreen() {
 
           {liste.length === 0 ? (
             <Vide styles={styles} icone={onglet === 'Clients' ? '🛵' : onglet === 'Équipe' ? '👥' : '🧾'}
-              texte={onglet === 'Clients' ? 'Aucun numéro sur cette période' : 'Aucun contact'}
+              texte={onglet === 'Clients' ? (canal ? `Aucun client ${CANAUX_CONTACT.find(c => c.cle === canal).label} sur cette période` : 'Aucun numéro sur cette période') : 'Aucun contact'}
               sous={onglet === 'Clients' ? 'Les numéros viennent des commandes Yango / Glovo (POS et Samtrackly).' : 'Ajoutez des numéros dans Paramètres.'} />
           ) : affiches.map(c => {
             const sel = !!selectionnes[c.id]
