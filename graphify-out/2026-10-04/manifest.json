@@ -54,9 +54,9 @@
     "semantic_hash": ""
   },
   "app/accueil.js": {
-    "mtime": 1791101323.8177862,
-    "seen": 1791101364.578206,
-    "ast_hash": "525d4945d02e7977439c9b1585d0e67a",
+    "mtime": 1791107432.5805273,
+    "seen": 1791107478.1773272,
+    "ast_hash": "9aeb52d69974ef6e573f3c34f3cf8868",
     "semantic_hash": ""
   },
   "app/brouillons-fournisseurs.js": {
@@ -204,9 +204,9 @@
     "semantic_hash": ""
   },
   "app/litiges.js": {
-    "mtime": 1791052340.125475,
-    "seen": 1791052373.554445,
-    "ast_hash": "abbba02460cdc855b78e4734610070fc",
+    "mtime": 1791105972.7243853,
+    "seen": 1791107478.177342,
+    "ast_hash": "c5bd130cc63832ee075cfd77614dc32f",
     "semantic_hash": ""
   },
   "app/livraisons.js": {
@@ -612,9 +612,9 @@
     "semantic_hash": ""
   },
   "lib/menus.js": {
-    "mtime": 1791064036.5339878,
-    "seen": 1791064099.2407198,
-    "ast_hash": "b1737c5fc557ed99e36e6f492cef3092",
+    "mtime": 1791127152.4013233,
+    "seen": 1791127173.408416,
+    "ast_hash": "08284d61f57b9a1d1d32406f984beeba",
     "semantic_hash": ""
   },
   "lib/networkStatus.js": {
@@ -1236,9 +1236,9 @@
     "semantic_hash": ""
   },
   "app/avis-plateformes.js": {
-    "mtime": 1791101279.2608182,
-    "seen": 1791101364.578207,
-    "ast_hash": "867e19290a80c1e74e3e8a90f258a628",
+    "mtime": 1791104309.2162807,
+    "seen": 1791107478.1773272,
+    "ast_hash": "390b50faedf0b792aeb59a4062c37d3a",
     "semantic_hash": ""
   },
   "lib/avisPlateformes.js": {
@@ -1254,15 +1254,15 @@
     "semantic_hash": ""
   },
   "lib/avisPlateformesDb.js": {
-    "mtime": 1791101279.2610497,
-    "seen": 1791101364.57827,
-    "ast_hash": "362240120f10389b23da31ac4a36140e",
+    "mtime": 1791104224.732743,
+    "seen": 1791107478.1773992,
+    "ast_hash": "1165e2030f20e9b463a97c7fb5405d7c",
     "semantic_hash": ""
   },
   "supabase/functions/ingest-reviews/index.ts": {
-    "mtime": 1791101062.3800197,
-    "seen": 1791101364.578343,
-    "ast_hash": "b829dbdf5fe979408d0d6e29b8141629",
+    "mtime": 1791104109.4539807,
+    "seen": 1791107478.177475,
+    "ast_hash": "2d8ef023999241d19528890b48dcba4f",
     "semantic_hash": ""
   },
   "supabase_avis_mapping_boutiques.sql": {
@@ -1278,9 +1278,9 @@
     "semantic_hash": ""
   },
   "doc/avis-plateformes.md": {
-    "mtime": 1791101352.4474127,
-    "seen": 1791101364.578376,
-    "ast_hash": "1434853305d04390ca88a4cb221429f1",
+    "mtime": 1791104356.1726015,
+    "seen": 1791107478.177509,
+    "ast_hash": "c65ccef90252f60b7efd349494135e90",
     "semantic_hash": ""
   },
   "supabase_restaurant_identite.sql": {
@@ -1950,21 +1950,21 @@
     "semantic_hash": ""
   },
   "lib/groupesAccueil.js": {
-    "mtime": 1791064031.4132895,
-    "seen": 1791064099.240713,
-    "ast_hash": "38d77d54aee45da51bdbe8533fd42d5b",
+    "mtime": 1791127152.40155,
+    "seen": 1791127173.408405,
+    "ast_hash": "d5752561d7b7353f722d81771c17525a",
     "semantic_hash": ""
   },
   "lib/groupesAccueil.test.mjs": {
-    "mtime": 1791042746.2253938,
-    "seen": 1791042808.216627,
-    "ast_hash": "9889b8f8241799186dda86b0305b2f9f",
+    "mtime": 1791107299.319572,
+    "seen": 1791107478.177433,
+    "ast_hash": "ed2f6c3bbe5e2a618867fc5836424a97",
     "semantic_hash": ""
   },
   "components/accueil/AccueilManager.js": {
-    "mtime": 1791066923.6190085,
-    "seen": 1791066964.414189,
-    "ast_hash": "0672edc0f151994d972b301508ebd996",
+    "mtime": 1791107416.6992822,
+    "seen": 1791107478.1773639,
+    "ast_hash": "35b45a606aee40860980939549d1b3b5",
     "semantic_hash": ""
   },
   "components/ui/Survol.js": {
@@ -2070,9 +2070,9 @@
     "semantic_hash": ""
   },
   "lib/noteCaissierDb.js": {
-    "mtime": 1791053152.880369,
-    "seen": 1791053356.594831,
-    "ast_hash": "99d16150ecb51f5804376eae1c63f1c0",
+    "mtime": 1791104339.2028115,
+    "seen": 1791107478.177444,
+    "ast_hash": "d2f1cffda90c1e0018091900ffebc9d5",
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-10-03-note-caissiers-design.md": {
@@ -2088,9 +2088,9 @@
     "semantic_hash": ""
   },
   "lib/attributionAvis.test.mjs": {
-    "mtime": 1791052287.5713792,
-    "seen": 1791052373.554484,
-    "ast_hash": "8bc5d906aa9d25c04ace9ad03df4f406",
+    "mtime": 1791104084.0379074,
+    "seen": 1791107478.177397,
+    "ast_hash": "2751620442bb9e3328f830c3cbc8e7da",
     "semantic_hash": ""
   },
   "supabase_avis_heure.sql": {
@@ -2328,9 +2328,9 @@
     "semantic_hash": ""
   },
   "app/bouton-avis.js": {
-    "mtime": 1791101243.1668015,
-    "seen": 1791101364.578208,
-    "ast_hash": "e29c15d04c90f5b3bb9461423da18dab",
+    "mtime": 1791102011.0109818,
+    "seen": 1791107478.177328,
+    "ast_hash": "84111a410ff1ca0af4c8a356403d1379",
     "semantic_hash": ""
   },
   "lib/boutonAvis.js": {
@@ -2340,27 +2340,27 @@
     "semantic_hash": ""
   },
   "lib/boutonAvis.test.mjs": {
-    "mtime": 1791101214.370252,
-    "seen": 1791101364.578272,
-    "ast_hash": "b9ec1c2b4ca8b949875a1ab197bb3a82",
+    "mtime": 1791104133.1586995,
+    "seen": 1791107478.177402,
+    "ast_hash": "17432978e932383b2ebaeac639078844",
     "semantic_hash": ""
   },
   "lib/envoiAvis.test.mjs": {
-    "mtime": 1791101156.1628609,
-    "seen": 1791101364.578294,
-    "ast_hash": "44bc88f40b984c8ff40c6f54df0ac341",
+    "mtime": 1791104133.159084,
+    "seen": 1791107478.177425,
+    "ast_hash": "1f9e56a797e789cf4ce04e9bf0f3263d",
     "semantic_hash": ""
   },
   "public/bouton-avis.js": {
-    "mtime": 1791101139.5456493,
-    "seen": 1791101364.578339,
-    "ast_hash": "5dcc22b48704158eb510963af025a526",
+    "mtime": 1791104154.228393,
+    "seen": 1791107478.17747,
+    "ast_hash": "0c6ea2f411c819a9ecaf0d3c88c35937",
     "semantic_hash": ""
   },
   "public/envoi-avis.js": {
-    "mtime": 1791101175.575297,
-    "seen": 1791101364.578339,
-    "ast_hash": "92ee8c625b09bd4ee85a132b064388ed",
+    "mtime": 1791104154.2285202,
+    "seen": 1791107478.177471,
+    "ast_hash": "bf1264defee29f883eb3879be96957f4",
     "semantic_hash": ""
   },
   "supabase_avis_litige_motif.sql": {
@@ -2376,15 +2376,105 @@
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-10-04-bouton-avis-design.md": {
-    "mtime": 1791101352.4478416,
-    "seen": 1791101364.578389,
-    "ast_hash": "3431ee10b0a20e92b051d4aa92eb48ee",
+    "mtime": 1791102370.5031552,
+    "seen": 1791107478.177523,
+    "ast_hash": "da73c5a335316278c599ae7241c21969",
     "semantic_hash": ""
   },
   "public/envoi-avis.html": {
     "mtime": 1791101176.606033,
     "seen": 1791101364.578393,
     "ast_hash": "2fe89f7a2917a84e3eaa9884a6ea8900",
+    "semantic_hash": ""
+  },
+  "components/accueil/BandeauGerant.js": {
+    "mtime": 1791107373.003164,
+    "seen": 1791107478.177365,
+    "ast_hash": "83070a42eec98e56cf5051a8ab01996f",
+    "semantic_hash": ""
+  },
+  "components/accueil/Indicateur.js": {
+    "mtime": 1791107358.56878,
+    "seen": 1791107478.177366,
+    "ast_hash": "0c0bdb60ac7b30bb7c04570f732ede2a",
+    "semantic_hash": ""
+  },
+  "components/avis/ResumeAvis.js": {
+    "mtime": 1791104255.4787924,
+    "seen": 1791107478.177367,
+    "ast_hash": "55b464f286924590283654dd04ae327e",
+    "semantic_hash": ""
+  },
+  "lib/accueilGerant.js": {
+    "mtime": 1791107344.6444504,
+    "seen": 1791107478.177391,
+    "ast_hash": "8335add40d118cf39e3b788d3af99ab3",
+    "semantic_hash": ""
+  },
+  "lib/accueilGerant.test.mjs": {
+    "mtime": 1791107332.4617653,
+    "seen": 1791107478.1773922,
+    "ast_hash": "aa0751c2fb98b8eed8213473ec91b439",
+    "semantic_hash": ""
+  },
+  "lib/avisResume.js": {
+    "mtime": 1791105737.5602121,
+    "seen": 1791107478.1773992,
+    "ast_hash": "62fe7b8e69c9ef3197f444c04f60723f",
+    "semantic_hash": ""
+  },
+  "lib/avisResume.test.mjs": {
+    "mtime": 1791105737.5604675,
+    "seen": 1791107478.1774,
+    "ast_hash": "88b54c84dfd836fb11c8ef503364c6a7",
+    "semantic_hash": ""
+  },
+  "lib/hierAccueil.js": {
+    "mtime": 1791107344.641626,
+    "seen": 1791107478.177433,
+    "ast_hash": "fd5d4ff0aba5a2f0e8dbae5c68ead8b7",
+    "semantic_hash": ""
+  },
+  "lib/hierAccueil.test.mjs": {
+    "mtime": 1791107332.4584985,
+    "seen": 1791107478.177433,
+    "ast_hash": "c079dfd52ec26132307c056310255f0e",
+    "semantic_hash": ""
+  },
+  "supabase/functions/ingest-reviews/attributionAvis.js": {
+    "mtime": 1791104084.1807787,
+    "seen": 1791107478.177474,
+    "ast_hash": "f1a6bd5d8796a8ab507eb509533dd490",
+    "semantic_hash": ""
+  },
+  "supabase_avis_commande_le.sql": {
+    "mtime": 1791104108.3390076,
+    "seen": 1791107478.1774778,
+    "ast_hash": "25e22a806af2ee60c97c665879a31947",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-04-accueil-gerant.md": {
+    "mtime": 1791107256.3076673,
+    "seen": 1791107478.177516,
+    "ast_hash": "5d32de4d100a3cf109bce427e00a4e52",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-04-avis-caissiers-resume.md": {
+    "mtime": 1791104033.4908633,
+    "seen": 1791107478.177516,
+    "ast_hash": "6db28a27e554043b7d57742b65383db9",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-04-accueil-gerant-design.md": {
+    "mtime": 1791107256.3072722,
+    "seen": 1791107478.177522,
+    "ast_hash": "c4db05dc7b0a6cd663a6e0db16ca18a4",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-04-avis-caissiers-resume-design.md": {
+    "mtime": 1791103700.244038,
+    "seen": 1791107478.177522,
+    "ast_hash": "bc5a7f2bb9d098b7851afaabef829530",
     "semantic_hash": ""
   }
 }
