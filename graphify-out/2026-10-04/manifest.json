@@ -1962,9 +1962,9 @@
     "semantic_hash": ""
   },
   "components/accueil/AccueilManager.js": {
-    "mtime": 1791107416.6992822,
-    "seen": 1791107478.1773639,
-    "ast_hash": "35b45a606aee40860980939549d1b3b5",
+    "mtime": 1791128285.63047,
+    "seen": 1791128304.3297338,
+    "ast_hash": "b61365ac24634b00d9c46ed2c450d9f0",
     "semantic_hash": ""
   },
   "components/ui/Survol.js": {
@@ -2388,9 +2388,9 @@
     "semantic_hash": ""
   },
   "components/accueil/BandeauGerant.js": {
-    "mtime": 1791107373.003164,
-    "seen": 1791107478.177365,
-    "ast_hash": "83070a42eec98e56cf5051a8ab01996f",
+    "mtime": 1791128285.6307375,
+    "seen": 1791128304.3297348,
+    "ast_hash": "a2b96e0f800c5f73dcde151287ab5bea",
     "semantic_hash": ""
   },
   "components/accueil/Indicateur.js": {
@@ -2406,15 +2406,15 @@
     "semantic_hash": ""
   },
   "lib/accueilGerant.js": {
-    "mtime": 1791107344.6444504,
-    "seen": 1791107478.177391,
-    "ast_hash": "8335add40d118cf39e3b788d3af99ab3",
+    "mtime": 1791128269.4047518,
+    "seen": 1791128304.329758,
+    "ast_hash": "ac860c97924fc279048c42b2cac7dfe9",
     "semantic_hash": ""
   },
   "lib/accueilGerant.test.mjs": {
-    "mtime": 1791107332.4617653,
-    "seen": 1791107478.1773922,
-    "ast_hash": "aa0751c2fb98b8eed8213473ec91b439",
+    "mtime": 1791128261.9206703,
+    "seen": 1791128304.329758,
+    "ast_hash": "8ff90206f94811e720d8352fab5f26d1",
     "semantic_hash": ""
   },
   "lib/avisResume.js": {
