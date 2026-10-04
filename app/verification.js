@@ -1552,9 +1552,12 @@ export default function VerificationScreen() {
   // ─── Vignette photo ──────────────────────────────────────────
   // Bloc « corriger la facture » — affiché uniquement sur une VRAIE
   // transaction_fournisseurs (pas les entrées draft/historique du gérant).
+  // Une facture à 0 n'est corrigeable que si sa photo est consultable : c'est
+  // elle qui donne le vrai montant.
   function LigneCorrigerFacture({ f }) {
     const estTransaction = !!f?.id && (detailPoint?.fournisseurs || []).some(tx => tx.id === f.id)
-    if (!estTransaction || (parseFloat(f.facture) || 0) <= 0) return null
+    if (!estTransaction) return null
+    if ((parseFloat(f.facture) || 0) <= 0 && !photoConsultable(f.photo_url)) return null
     const corrige = !!f.facture_corrigee_at
     return (
       <View style={{ marginTop: 5 }}>
