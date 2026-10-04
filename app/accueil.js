@@ -18,7 +18,6 @@ import {
   pushSupporte, etatPermissionPush, synchroniserWebPush, activerNotificationsPush, iPhoneHorsApplication, iPhoneTropAncien,
 } from '../lib/webPush'
 import SignatureFooter from '../components/SignatureFooter'
-import { supabase } from '../lib/supabase'
 import { SPRINGS, staggerDelay } from '../lib/animations'
 import AccueilManager from '../components/accueil/AccueilManager'
 import { tuilesPourRole, chargerAccesConfig, ACCES_DEFAUT } from '../lib/menus'
@@ -65,7 +64,6 @@ export default function AccueilScreen() {
     pointValide, estBloque, roleActif, deconnecter,
     userId, restaurantId,
   } = useApp()
-  const [nbCorrections, setNbCorrections] = useState(0)
   const [pushEtat, setPushEtat] = useState('unsupported')
   const [pushMsg, setPushMsg] = useState('')
 
@@ -124,18 +122,6 @@ export default function AccueilScreen() {
     }
   }
 
-  // Gérant : charger les corrections en attente
-  useEffect(() => {
-    if (roleEffectif === 'gerant' && restaurantId) {
-      supabase
-        .from('deverouillages_points')
-        .select('id', { count: 'exact', head: true })
-        .eq('restaurant_id', restaurantId)
-        .eq('statut', 'ouvert')
-        .then(({ count }) => setNbCorrections(count || 0))
-    }
-  }, [roleEffectif, restaurantId])
-
   const isManager = roleEffectif === 'manager'
   const isDirecteur = roleEffectif === 'directeur'
   const isGerant = roleEffectif === 'gerant'
@@ -178,7 +164,7 @@ export default function AccueilScreen() {
   }
 
   function getHeaderColor() {
-    if (isManager || isDirecteur) return '#534AB7'
+    if (isManager || isDirecteur || isGerant) return '#534AB7'
     if (isRH) return '#185FA5'
     return '#EF9F27'
   }
@@ -192,19 +178,19 @@ export default function AccueilScreen() {
   }
 
   function getRoleBadgeBg() {
-    if (isManager || isDirecteur) return '#3C3489'
+    if (isManager || isDirecteur || isGerant) return '#3C3489'
     if (isRH) return '#0F4880'
     return '#BA7517'
   }
 
   function getRoleBadgeText() {
-    if (isManager || isDirecteur) return '#CECBF6'
+    if (isManager || isDirecteur || isGerant) return '#CECBF6'
     if (isRH) return '#B8D4F5'
     return '#FAEEDA'
   }
 
   function getHeaderTextColor() {
-    if (isManager || isDirecteur || isRH) return '#fff'
+    if (isManager || isDirecteur || isRH || isGerant) return '#fff'
     return '#412402'
   }
 
@@ -302,15 +288,6 @@ export default function AccueilScreen() {
         </View>
       )}
 
-      {isGerant && nbCorrections > 0 && (
-        <TouchableOpacity style={styles.correctionBanner} onPress={() => router.push('/correction-point')}>
-          <Text style={styles.correctionBannerTxt}>
-            ⚠️ {nbCorrections} correction(s) demandée(s) par le manager
-          </Text>
-          <Text style={styles.correctionBannerSub}>Appuyer pour voir et corriger ›</Text>
-        </TouchableOpacity>
-      )}
-
       {isManager && (
         <View style={styles.managerBanner}>
           <Text style={styles.managerTxt}>👑 Accès total — toutes modifications autorisées</Text>
@@ -343,8 +320,8 @@ export default function AccueilScreen() {
 
         {/* Menu construit depuis le catalogue central + config par rôle.
             Manager & directeur : accès total. RH/gérant/caissier : configurable. */}
-        {(isManager || isDirecteur || isRH)
-          ? <AccueilManager items={menuItems} role={roleEffectif} userId={userId} />
+        {(isManager || isDirecteur || isRH || isGerant)
+          ? <AccueilManager items={menuItems} role={roleEffectif} userId={userId} restaurantId={restaurantId} />
           : renderMenu(menuItems, isCaissier ? 'Mon point du jour' : null)}
 
         {/* Mode sombre */}
@@ -512,12 +489,6 @@ function makeStyles(colors) { return StyleSheet.create({
     borderBottomWidth: 0.5, borderBottomColor: '#A8E8CC',
   },
   valideTxt: { fontSize: 12, color: '#157548', fontWeight: '600' },
-  correctionBanner: {
-    backgroundColor: '#FEF0DA', padding: 12, alignItems: 'center',
-    borderBottomWidth: 1.5, borderBottomColor: '#F0A020',
-  },
-  correctionBannerTxt: { fontSize: 13, color: '#7A4800', fontWeight: '700' },
-  correctionBannerSub: { fontSize: 11, color: '#7A4800', marginTop: 3 },
   pushBanner: {
     backgroundColor: '#E8F0FE', padding: 12, alignItems: 'center',
     borderBottomWidth: 1, borderBottomColor: '#AFC8F5',

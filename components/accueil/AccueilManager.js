@@ -24,10 +24,12 @@ import Jauge from '../ui/Jauge'
 import Indicateur from './Indicateur'
 import Survol from '../ui/Survol'
 import { chargerContactsPeriode } from '../../lib/contactsPeriodeDb'
-import { texteHier, totalParJour } from '../../lib/hierAccueil'
+import { evolutionsHierDetail, texteHier, totalParJour } from '../../lib/hierAccueil'
+import { etatPointHier, texteDemandes } from '../../lib/accueilGerant'
+import BandeauGerant from './BandeauGerant'
 import { resumeContrats } from '../../lib/contrats'
 import {
-  ICONES_TUILES, etatPointsDuJour, groupeDeTuile, messagesTresorerie, nbAVerifier, organiserAccueilAdmin,
+  ICONES_TUILES, etatPointsDuJour, groupeDeTuile, messagesTresorerie, nbAVerifier, organiserAccueil,
 } from '../../lib/groupesAccueil'
 import { supabase } from '../../lib/supabase'
 import { CATEGORIES_SERIE, fmt, niveauTresorerie, peut } from '../../lib/tresorerie'
@@ -37,6 +39,7 @@ const TRANSITION_WEB = Platform.OS === 'web'
   ? { transitionProperty: 'transform, border-color, box-shadow', transitionDuration: '160ms', transitionTimingFunction: 'ease-out' }
   : null
 const VERT_HERO = '#047857' // fond de la carte Trésorerie : blanc lisible dessus (≥ 4,5:1)
+const ORANGE_HERO = '#C2570C' // grande tuile du gérant (Saisir les ventes) : orange vif, blanc lisible dessus
 
 const ECART_JAUGES = 6
 
@@ -93,7 +96,7 @@ async function chargerContrats(jour) {
 
 // Points des 7 derniers jours, restaurants, demandes en attente, messages
 // Trésorerie et contrats. null tant que rien n'est chargé (ou hors ligne) : pas de bandeau.
-function useEtatDuJour(role, userId) {
+function useEtatDuJour(role, userId, restaurantId) {
   const [etat, setEtat] = useState(null)
   const charger = useCallback(async () => {
     try {
@@ -103,6 +106,49 @@ function useEtatDuJour(role, userId) {
       const depuis = new Date(auj); depuis.setDate(auj.getDate() - 7)
       const avantHier = new Date(auj); avantHier.setDate(auj.getDate() - 2)
       const semainePrec = new Date(auj); semainePrec.setDate(auj.getDate() - 8)
+
+      // Gérant : son restaurant seulement (point d'hier, ventes, demandes, avis, contacts).
+      if (role === 'gerant') {
+        if (!restaurantId) return
+        const dates = [isoLocal(hier), isoLocal(avantHier), isoLocal(semainePrec)]
+        const nbAvisResto = jour => supabase.from('platform_reviews').select('id', { count: 'exact', head: true })
+          .eq('restaurant_id', restaurantId).eq('review_date', isoLocal(jour)).then(x => (x.error ? 0 : x.count || 0))
+        const [pts, corr, dem, expl, aH, aAH, aSP, contactsJours] = await Promise.all([
+          supabase.from('points').select('date, valide, verifie, vente_total').eq('restaurant_id', restaurantId).in('date', dates),
+          supabase.from('deverouillages_points').select('id', { count: 'exact', head: true })
+            .eq('restaurant_id', restaurantId).eq('statut', 'ouvert'),
+          supabase.from('demandes').select('id', { count: 'exact', head: true })
+            .eq('restaurant_id', restaurantId).eq('statut', 'en_attente'),
+          supabase.from('demandes_explication').select('id', { count: 'exact', head: true })
+            .eq('restaurant_id', restaurantId).in('statut', ['en_attente_acceptation', 'acceptee', 'envoyee']),
+          nbAvisResto(hier), nbAvisResto(avantHier), nbAvisResto(semainePrec),
+          chargerContactsPeriode({ debut: isoLocal(semainePrec), fin: isoLocal(hier), restoId: restaurantId })
+            .then(c => totalParJour(c.lignes, 'contacts')).catch(() => null),
+        ])
+        if (pts.error) return
+        const parDate = Object.fromEntries((pts.data || []).map(x => [x.date, x]))
+        const vente = d => (parDate[d] ? Number(parDate[d].vente_total) || 0 : 0)
+        const nbDem = dem.error ? 0 : dem.count || 0
+        const nbExpl = expl.error ? 0 : expl.count || 0
+        setEtat({
+          hier,
+          gerant: {
+            hier,
+            point: etatPointHier({ point: parDate[dates[0]] || null, nbCorrections: corr.error ? 0 : corr.count || 0 }),
+            ventes: parDate[dates[0]] ? vente(dates[0]) : null,
+            ventesEvo: parDate[dates[0]]
+              ? evolutionsHierDetail({ hier: vente(dates[0]), avantHier: vente(dates[1]), semainePrec: vente(dates[2]) }, dates[0])
+              : [],
+            demandes: texteDemandes({ demandes: nbDem, explications: nbExpl }),
+            nbDemandes: nbDem + nbExpl,
+          },
+          avisHier: texteHier({ hier: aH, avantHier: aAH, semainePrec: aSP }, dates[0]),
+          contactsHier: contactsJours === null ? null : texteHier({
+            hier: contactsJours[dates[0]] || 0, avantHier: contactsJours[dates[1]] || 0, semainePrec: contactsJours[dates[2]] || 0,
+          }, dates[0], ['contact', 'contacts']),
+        })
+        return
+      }
       // Avis Glovo/Yango reçus un jour donné (date de l'avis), sans les charger.
       const nbAvis = jour => supabase.from('platform_reviews').select('id', { count: 'exact', head: true })
         .eq('review_date', isoLocal(jour)).then(x => (x.error ? null : x.count || 0))
@@ -138,12 +184,12 @@ function useEtatDuJour(role, userId) {
           }, isoLocal(hier), ['contact', 'contacts']),
       })
     } catch (_) { /* hors ligne : pas de bandeau */ }
-  }, [role, userId])
+  }, [role, userId, restaurantId])
   useFocusEffect(useCallback(() => { charger() }, [charger]))
   return etat
 }
 
-export default function AccueilManager({ items, role, userId }) {
+export default function AccueilManager({ items, role, userId, restaurantId }) {
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
   // Le RH ne saisit que les charges : sa Trésorerie s'ouvre directement sur « À payer ».
@@ -151,14 +197,14 @@ export default function AccueilManager({ items, role, userId }) {
     () => (role === 'rh' ? items.map(t => (t.id === 'tresorerie' ? { ...t, route: '/tresorerie-a-payer' } : t)) : items),
     [items, role],
   )
-  const etat = useEtatDuJour(role, userId)
+  const etat = useEtatDuJour(role, userId, restaurantId)
   // Sous-titres vivants : les lignes « Avis clients » et « Contacts » donnent
   // le chiffre d'hier et son évolution.
   const tuilesVivantes = useMemo(() => {
     const vivants = { 'avis-plateformes': etat?.avisHier, contacts: etat?.contactsHier }
     return tuiles.map(t => (vivants[t.id] ? { ...t, sous: vivants[t.id] } : t))
   }, [tuiles, etat?.avisHier, etat?.contactsHier])
-  const { favoris, groupes, autres } = useMemo(() => organiserAccueilAdmin(tuilesVivantes), [tuilesVivantes])
+  const { favoris, groupes, autres } = useMemo(() => organiserAccueil(tuilesVivantes, role), [tuilesVivantes, role])
   const [ouverts, setOuverts] = useState({})
 
   // Bannières ouvertes : gardées d'une visite à l'autre sur ce téléphone.
@@ -190,9 +236,11 @@ export default function AccueilManager({ items, role, userId }) {
 
   return (
     <View>
-      {etat && (role === 'rh'
-        ? <BandeauRH etat={etat} styles={styles} colors={colors} />
-        : <BandeauPoints etat={etat} styles={styles} colors={colors} />)}
+      {etat && (role === 'gerant'
+        ? (etat.gerant ? <BandeauGerant etat={etat.gerant} styles={styles} colors={colors} /> : null)
+        : role === 'rh'
+          ? <BandeauRH etat={etat} styles={styles} colors={colors} />
+          : <BandeauPoints etat={etat} styles={styles} colors={colors} />)}
 
       {favoris.length > 0 && (
         <View style={styles.section}>
@@ -202,14 +250,15 @@ export default function AccueilManager({ items, role, userId }) {
               <Survol
                 onPress={() => !hero.bloque && router.push(hero.route)}
                 accessibilityRole="button" accessibilityLabel={`${hero.titre}, ${hero.sous}`}
-                style={styles.hero} echelle={1.02} styleSurvol={styles.heroSurvol}
+                style={[styles.hero, role === 'gerant' && { backgroundColor: ORANGE_HERO, shadowColor: ORANGE_HERO }, hero.bloque && { opacity: 0.55 }]}
+                echelle={1.02} styleSurvol={styles.heroSurvol}
               >
                 <View style={styles.heroIcone}>
                   <MaterialCommunityIcons name={ICONES_TUILES[hero.id] || 'apps'} size={30} color="#FFFFFF" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.heroTitre}>{hero.titre}</Text>
-                  <Text style={styles.heroSous} numberOfLines={2}>{hero.sous}</Text>
+                  <Text style={styles.heroSous} numberOfLines={2}>{hero.bloque ? '🔒 Verrouillé : point du jour validé' : hero.sous}</Text>
                 </View>
                 <MaterialCommunityIcons name="chevron-right" size={26} color="#FFFFFF" />
               </Survol>
@@ -217,7 +266,7 @@ export default function AccueilManager({ items, role, userId }) {
           )}
           <View style={styles.rangee}>
             {secondaires.map((t, i) => {
-              const { couleur: c, fonce } = groupeDeTuile(t.id)
+              const { couleur: c, fonce } = groupeDeTuile(t.id, role)
               return (
                 <Animated.View key={t.id} style={{ flex: 1 }} entering={FadeInDown.delay(120 + i * 60).springify().damping(18)}>
                   <Survol
