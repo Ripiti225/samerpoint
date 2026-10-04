@@ -873,8 +873,8 @@ export default function VerificationScreen() {
   }
 
   // Décision en un appui depuis la liste Stock : « Valider » accepte la
-  // quantité expliquée par le caissier. « Modifier la décision » rouvre la
-  // fenêtre pour ajuster la quantité.
+  // quantité expliquée par le caissier (sans quantité, la fenêtre s'ouvre).
+  // « Modifier la décision » rouvre la fenêtre pour ajuster la quantité.
   async function deciderEcartInv(e, statut, quantite) {
     if (!e || decisionSaving) return
     const ecartAbs = Math.abs(e.ecart || 0)
@@ -887,6 +887,7 @@ export default function VerificationScreen() {
     setDecisionEnCours(e.id)
     try {
       await deciderEcartInventaire({
+        statutActuel: e.explication_statut,
         ligneId: e.id,
         inventaireId: e.inventaireId,
         pointId: pointSelectionne?.id,
@@ -3556,7 +3557,11 @@ export default function VerificationScreen() {
                                         <Text style={styles.ecBtnTxt}>❌</Text>
                                       </TouchableOpacity>
                                       <TouchableOpacity style={[styles.ecBtn, styles.ecBtnValider, decisionSaving && { opacity: 0.4 }]}
-                                        onPress={() => deciderEcartInv(e, 'validee', e.nombreExplique || 0)} disabled={decisionSaving}>
+                                        onPress={() => (e.nombreExplique > 0
+                                          ? deciderEcartInv(e, 'validee', e.nombreExplique)
+                                          // Sans quantité expliquée, valider en un appui accepterait 0 :
+                                          // la fenêtre demande combien accepter.
+                                          : ouvrirDecisionInv(e))} disabled={decisionSaving}>
                                         <Text style={styles.ecBtnTxt}>✅</Text>
                                       </TouchableOpacity>
                                     </>
