@@ -216,9 +216,9 @@
     "semantic_hash": ""
   },
   "app/login.js": {
-    "mtime": 1791130332.9310865,
-    "seen": 1791130356.1774888,
-    "ast_hash": "387b15f47fa79f988779377e67d478b9",
+    "mtime": 1791131826.7207968,
+    "seen": 1791131860.104706,
+    "ast_hash": "107e1ed5f15599a251b31736100734f2",
     "semantic_hash": ""
   },
   "app/modal.tsx": {
@@ -2493,6 +2493,72 @@
     "mtime": 1791130300.8464277,
     "seen": 1791130356.177551,
     "ast_hash": "82bcd7cb1969f462da9ee32f4c1af6ea",
+    "semantic_hash": ""
+  },
+  "components/login/AccueilLogin.js": {
+    "mtime": 1791131800.4087968,
+    "seen": 1791131860.104737,
+    "ast_hash": "4899cbd42735e07eace5460d107862f9",
+    "semantic_hash": ""
+  },
+  "components/login/ActivationFaceID.js": {
+    "mtime": 1791131808.4751244,
+    "seen": 1791131860.104738,
+    "ast_hash": "814f8aefadd526334051a4ef74754ecb",
+    "semantic_hash": ""
+  },
+  "components/login/CadreLogin.js": {
+    "mtime": 1791131800.4086123,
+    "seen": 1791131860.1047392,
+    "ast_hash": "40e914f765da6013126c4f0ecc489272",
+    "semantic_hash": ""
+  },
+  "components/login/ClavierCode.js": {
+    "mtime": 1791131800.4090788,
+    "seen": 1791131860.1047392,
+    "ast_hash": "b888f2b08aa640bafca41e58e42d0c6e",
+    "semantic_hash": ""
+  },
+  "components/login/QuiEtesVous.js": {
+    "mtime": 1791131800.4089472,
+    "seen": 1791131860.1047392,
+    "ast_hash": "5416a9eb4ab23bceb6861721794d20cb",
+    "semantic_hash": ""
+  },
+  "components/login/themeLogin.js": {
+    "mtime": 1791131800.4078357,
+    "seen": 1791131860.1047401,
+    "ast_hash": "a350b33cfd39d491a0ce16edaed787fb",
+    "semantic_hash": ""
+  },
+  "lib/restosReconnus.js": {
+    "mtime": 1791131791.8597014,
+    "seen": 1791131860.104821,
+    "ast_hash": "732c24cb42d1e4c35adf5d78d3260db5",
+    "semantic_hash": ""
+  },
+  "lib/restosReconnus.test.mjs": {
+    "mtime": 1791131786.6071482,
+    "seen": 1791131860.104821,
+    "ast_hash": "eb2e16a0ff50ba90bf9d9a06005a009d",
+    "semantic_hash": ""
+  },
+  "lib/restosReconnusStockage.js": {
+    "mtime": 1791131786.6072502,
+    "seen": 1791131860.104822,
+    "ast_hash": "100035ab01cc80f705ae8cf5731cd84f",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-04-login-moderne.md": {
+    "mtime": 1791131750.9038432,
+    "seen": 1791131860.104882,
+    "ast_hash": "6d900df053df4020cd5475f4915af375",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-04-login-moderne-design.md": {
+    "mtime": 1791131458.5609105,
+    "seen": 1791131860.10489,
+    "ast_hash": "86dac63c2fadeada62ade854c57163a8",
     "semantic_hash": ""
   }
 }
