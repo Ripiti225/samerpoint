@@ -125,6 +125,14 @@ Chrome** cliqué par un humain déjà connecté aux portails.
 - **Nouvelle boutique Glovo** : l'ajouter à `NOMS_GLOVO` dans
   `public/bouton-avis.js`, publier, réinstaller le bouton.
 
+- **Heure de commande et caissier** : le bouton lit aussi l'heure de chaque
+  commande (détail de commande Glovo / Yango). Le litige est daté du jour de
+  la commande et attribué au caissier présent (règle de
+  `lib/attributionAvis.js`, copiée dans la fonction — un test vérifie la
+  copie). Un clic complète l'heure des avis déjà reçus de la fenêtre relue.
+  Les bons avis comptent dans la note du caissier (+0,5). Migration :
+  `supabase_avis_commande_le.sql` — à passer AVANT de publier l'app.
+
 Code : `public/bouton-avis.js` (moteur), `public/envoi-avis.{html,js}`
 (relais), `app/bouton-avis.js` (installation), tests
 `lib/boutonAvis.test.mjs` et `lib/envoiAvis.test.mjs`.
