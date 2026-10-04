@@ -22,7 +22,8 @@ import Animated, {
 import { useTheme } from '../../context/ThemeContext'
 import Jauge from '../ui/Jauge'
 import Survol from '../ui/Survol'
-import { texteAvisHier } from '../../lib/avisResume'
+import { chargerContactsPeriode } from '../../lib/contactsPeriodeDb'
+import { texteHier, totalParJour } from '../../lib/hierAccueil'
 import { resumeContrats } from '../../lib/contrats'
 import {
   ICONES_TUILES, etatPointsDuJour, groupeDeTuile, messagesTresorerie, nbAVerifier, organiserAccueilAdmin,
@@ -104,7 +105,7 @@ function useEtatDuJour(role, userId) {
       // Avis Glovo/Yango reçus un jour donné (date de l'avis), sans les charger.
       const nbAvis = jour => supabase.from('platform_reviews').select('id', { count: 'exact', head: true })
         .eq('review_date', isoLocal(jour)).then(x => (x.error ? null : x.count || 0))
-      const [p, r, d, treso, contrats, avisHier, avisAvantHier, avisSemainePrec] = await Promise.all([
+      const [p, r, d, treso, contrats, avisHier, avisAvantHier, avisSemainePrec, contactsJours] = await Promise.all([
         supabase.from('points').select('restaurant_id, date, valide, verifie')
           .gte('date', isoLocal(depuis)).lte('date', isoLocal(auj)).order('date').range(0, 999),
         supabase.from('restaurants').select('id, nom').order('nom'),
@@ -114,6 +115,9 @@ function useEtatDuJour(role, userId) {
         nbAvis(hier).catch(() => null),
         nbAvis(avantHier).catch(() => null),
         nbAvis(semainePrec).catch(() => null),
+        // Contacts comptés comme l'écran Contacts (compteurs POS par shift).
+        chargerContactsPeriode({ debut: isoLocal(semainePrec), fin: isoLocal(hier), restoId: null })
+          .then(c => totalParJour(c.lignes, 'contacts')).catch(() => null),
       ])
       if (p.error || r.error) return
       setEtat({
@@ -124,7 +128,13 @@ function useEtatDuJour(role, userId) {
         treso,
         contrats,
         avisHier: avisHier === null ? null
-          : texteAvisHier({ hier: avisHier, avantHier: avisAvantHier || 0, semainePrec: avisSemainePrec || 0 }, isoLocal(hier)),
+          : texteHier({ hier: avisHier, avantHier: avisAvantHier || 0, semainePrec: avisSemainePrec || 0 }, isoLocal(hier)),
+        contactsHier: contactsJours === null ? null
+          : texteHier({
+            hier: contactsJours[isoLocal(hier)] || 0,
+            avantHier: contactsJours[isoLocal(avantHier)] || 0,
+            semainePrec: contactsJours[isoLocal(semainePrec)] || 0,
+          }, isoLocal(hier), ['contact', 'contacts']),
       })
     } catch (_) { /* hors ligne : pas de bandeau */ }
   }, [role, userId])
@@ -141,11 +151,12 @@ export default function AccueilManager({ items, role, userId }) {
     [items, role],
   )
   const etat = useEtatDuJour(role, userId)
-  // Sous-titres vivants : la ligne « Avis clients » donne les avis d'hier.
-  const tuilesVivantes = useMemo(
-    () => tuiles.map(t => (t.id === 'avis-plateformes' && etat?.avisHier ? { ...t, sous: etat.avisHier } : t)),
-    [tuiles, etat?.avisHier],
-  )
+  // Sous-titres vivants : les lignes « Avis clients » et « Contacts » donnent
+  // le chiffre d'hier et son évolution.
+  const tuilesVivantes = useMemo(() => {
+    const vivants = { 'avis-plateformes': etat?.avisHier, contacts: etat?.contactsHier }
+    return tuiles.map(t => (vivants[t.id] ? { ...t, sous: vivants[t.id] } : t))
+  }, [tuiles, etat?.avisHier, etat?.contactsHier])
   const { favoris, groupes, autres } = useMemo(() => organiserAccueilAdmin(tuilesVivantes), [tuilesVivantes])
   const [ouverts, setOuverts] = useState({})
 
@@ -487,7 +498,7 @@ function Banniere({ g, index, ouvert, onBasculer, badge, badges, styles, colors 
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.ligneTitre}>{t.titre}</Text>
-                <Text style={styles.ligneSous} numberOfLines={t.id === 'avis-plateformes' ? 2 : 1}>{t.bloque ? 'Verrouillé' : t.sous}</Text>
+                <Text style={styles.ligneSous} numberOfLines={['avis-plateformes', 'contacts'].includes(t.id) ? 2 : 1}>{t.bloque ? 'Verrouillé' : t.sous}</Text>
               </View>
               {badges[t.id] && <View style={[styles.pastille, { backgroundColor: g.fonce }]}><Text style={styles.pastilleTxt}>{badges[t.id]}</Text></View>}
               <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
