@@ -24,6 +24,7 @@ export default function BoutonAvis() {
   const [secret, setSecret] = useState('')
   const [source, setSource] = useState(null)
   const [erreur, setErreur] = useState(null)
+  const [aideClic, setAideClic] = useState(false)
   const lienRef = useRef(null)
 
   useEffect(() => {
@@ -93,12 +94,12 @@ export default function BoutonAvis() {
             ) : null}
             {erreur ? <Text style={styles.erreur}>{erreur}</Text> : null}
 
-            <Text style={styles.etape}>2. Glissez ce bouton dans la barre de favoris de Chrome</Text>
+            <Text style={styles.etape}>2. Glissez ce bouton dans la barre de favoris de Chrome (ne cliquez pas dessus ici)</Text>
             {favori ? (
               <a
                 ref={lienRef}
                 draggable
-                onClick={e => e.preventDefault()}
+                onClick={e => { e.preventDefault(); setAideClic(true) }}
                 style={{
                   display: 'inline-block', alignSelf: 'flex-start', padding: '12px 18px', borderRadius: 10,
                   background: colors.primary, color: '#FFFFFF', fontWeight: 700, fontSize: 15,
@@ -110,6 +111,13 @@ export default function BoutonAvis() {
             ) : (
               <Text style={styles.aide}>Le bouton apparaît dès que le secret est collé.</Text>
             )}
+            {aideClic ? (
+              <Text style={styles.avertissement}>
+                Ce bouton ne se clique pas ici. Maintenez-le enfoncé et faites-le glisser jusque dans la barre de
+                favoris de Chrome (sous la barre d'adresse). Ensuite, cliquez dessus depuis le portail Glovo ou la
+                page Avis de Yango.
+              </Text>
+            ) : null}
             <Text style={styles.aide}>
               Barre de favoris cachée : Cmd + Maj + B (Mac) ou Ctrl + Maj + B (Windows).
             </Text>
@@ -142,4 +150,5 @@ function makeStyles(colors) { return StyleSheet.create({
   texte: { fontSize: 14, color: colors.text, lineHeight: 22 },
   champ: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 14, minHeight: 48, color: colors.text, fontSize: 14 },
   erreur: { fontSize: 13, color: colors.errorDark, marginTop: 8 },
+  avertissement: { fontSize: 14, color: '#8A4B00', backgroundColor: '#FFF3E0', borderRadius: 10, padding: 12, marginBottom: 8, lineHeight: 21, fontWeight: '600' },
 }) }
