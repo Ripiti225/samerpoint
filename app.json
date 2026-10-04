@@ -61,7 +61,13 @@
           "color": "#EF9F27"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Samtrackly utilise Face ID pour vous connecter sans taper vos codes."
+        }
+      ]
     ],
     "extra": {
       "router": {},

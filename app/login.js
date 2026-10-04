@@ -11,7 +11,7 @@ import { controlerEnrolement, peutProposerActivation } from '../lib/biometrie'
 import {
   activer, aRefuse, estSupportee, lireEnrolements, messageErreur,
   noterRefus, oublierEnrolement, signature, verifier,
-} from '../lib/biometrieWeb'
+} from '../lib/biometrieAppareil'
 import {
   ajouterReconnu, ecranDeDepart, estReconnu, nettoyerReconnus, trierRestaurants,
 } from '../lib/restosReconnus'
@@ -41,9 +41,10 @@ export default function LoginScreen() {
   const [bloqueJusquaResto, setBloqueJusquaResto] = useState(null)
   const [bloqueJusquaUser, setBloqueJusquaUser] = useState(null)
   const [secondesRestantes, setSecondesRestantes] = useState(0)
-  // Face ID / empreinte (web uniquement — cf. lib/biometrieWeb.js)
+  // Face ID / empreinte (web, ou appli installée avec le module natif —
+  // cf. lib/biometrieAppareil.js)
   const [bioSupportee, setBioSupportee] = useState(false)
-  const [enrolements, setEnrolements] = useState(() => lireEnrolements())
+  const [enrolements, setEnrolements] = useState([])
   const [bioEnCours, setBioEnCours] = useState(false)
   const [bioMessage, setBioMessage] = useState('')
   const [activationEnAttente, setActivationEnAttente] = useState(null)
@@ -76,7 +77,10 @@ export default function LoginScreen() {
   }, [bloqueJusquaResto, bloqueJusquaUser])
 
   useEffect(() => { fetchRestaurants() }, [])
-  useEffect(() => { estSupportee().then(setBioSupportee) }, [])
+  useEffect(() => {
+    estSupportee().then(setBioSupportee)
+    lireEnrolements().then(setEnrolements)
+  }, [])
 
   async function fetchRestaurants() {
     setLoadingRestos(true)
@@ -95,7 +99,7 @@ export default function LoginScreen() {
     }
     const depart = ecranDeDepart({
       valides: data.filter(r => estReconnu(nette, r)),
-      enrolements: lireEnrolements(),
+      enrolements: await lireEnrolements(),
       verrouille: false,
     })
     if (depart.ecran === 'quiEtesVous') {
@@ -255,8 +259,8 @@ export default function LoginScreen() {
     // le gérant venant de prouver qui il est.
     const dejaActive = enrolementsDe(selected, selectedResto).length > 0
     if (peutProposerActivation({
-      estWeb: Platform.OS === 'web', supporte: bioSupportee, role: selected.role,
-      dejaActive, refuse: aRefuse(selected.id),
+      supporte: bioSupportee, role: selected.role,
+      dejaActive, refuse: await aRefuse(selected.id),
     })) {
       setBioMessage('')
       setActivationEnAttente({ utilisateur: selected, restaurant: selectedResto })
@@ -309,7 +313,7 @@ export default function LoginScreen() {
       const sig = user && (resto || global) ? await signature(user, resto) : null
       const controle = controlerEnrolement(enrolement, { utilisateur: user, restaurant: resto, signature: sig })
       if (!controle.ok) {
-        if (controle.oublier) setEnrolements(oublierEnrolement(enrolement.credentialId))
+        if (controle.oublier) setEnrolements(await oublierEnrolement(enrolement.credentialId))
         setBioMessage(controle.message)
         return
       }
@@ -330,7 +334,7 @@ export default function LoginScreen() {
       [
         { text: 'Annuler', style: 'cancel' },
         { text: 'Retirer', style: 'destructive', onPress: () => {
-          setEnrolements(oublierEnrolement(enrolement.credentialId))
+          oublierEnrolement(enrolement.credentialId).then(setEnrolements)
           setBioMessage('')
         } },
       ],
