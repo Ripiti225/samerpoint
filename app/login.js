@@ -1,34 +1,9 @@
 import { router } from 'expo-router'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  Platform,
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
-} from 'react-native'
-import Animated, {
-  FadeIn,
-  FadeInDown,
-  FadeInUp,
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
-  withSequence,
-} from 'react-native-reanimated'
-import SignatureFooter from '../components/SignatureFooter'
+import { useEffect, useState } from 'react'
+import { Alert, Platform } from 'react-native'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { getRestaurants, getUtilisateurs, getUtilisateursGlobaux } from '../lib/api'
-import { SPRINGS } from '../lib/animations'
 import { ROLES_GLOBAUX } from '../lib/constants'
 import { separerComptesPOS } from '../lib/sourcePoint'
 import { destinationApresDeverrouillage } from '../lib/inactivityLock'
@@ -37,262 +12,21 @@ import {
   activer, aRefuse, estSupportee, lireEnrolements, messageErreur,
   noterRefus, oublierEnrolement, signature, verifier,
 } from '../lib/biometrieWeb'
+import {
+  ajouterReconnu, ecranDeDepart, estReconnu, nettoyerReconnus, trierRestaurants,
+} from '../lib/restosReconnus'
+import { ecrireReconnus, lireReconnus } from '../lib/restosReconnusStockage'
+import AccueilLogin from '../components/login/AccueilLogin'
+import QuiEtesVous from '../components/login/QuiEtesVous'
+import ClavierCode from '../components/login/ClavierCode'
+import ActivationFaceID from '../components/login/ActivationFaceID'
+import { couleurResto, couleurRole, initiales, libelleRole, themeLogin } from '../components/login/themeLogin'
 import '../lib/webAlert'   // remplace Alert.alert par les dialogues du navigateur
-
-// ─── Bouton PIN animé ────────────────────────────────────────
-function PinButton({ label, onPress, disabled, colors }) {
-  const scale = useSharedValue(1)
-  const bg = useSharedValue(0)
-  const aStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-    backgroundColor: bg.value === 1
-      ? colors.surfaceAlt
-      : colors.surface,
-  }))
-
-  if (label === '') return <View style={styles.pinBtnEmpty} />
-
-  return (
-    <Animated.View style={[styles.pinBtn, aStyle, disabled && styles.pinBtnBloque]}>
-      <Pressable
-        onPressIn={() => {
-          if (disabled) return
-          scale.value = withSpring(0.85, SPRINGS.bouncy)
-          bg.value = withTiming(1, { duration: 80 })
-        }}
-        onPressOut={() => {
-          scale.value = withSpring(1, SPRINGS.snappy)
-          bg.value = withTiming(0, { duration: 150 })
-        }}
-        onPress={() => { if (!disabled && label !== '') onPress(label) }}
-        style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}
-      >
-        <Text style={[styles.pinBtnText, disabled && { color: '#555' }]}>{label}</Text>
-      </Pressable>
-    </Animated.View>
-  )
-}
-
-// ─── Dot PIN animé ───────────────────────────────────────────
-function PinDot({ filled, error, couleur }) {
-  const scale = useSharedValue(1)
-  const prevFilled = useRef(false)
-
-  useEffect(() => {
-    if (filled && !prevFilled.current) {
-      scale.value = withSequence(
-        withSpring(1.4, SPRINGS.bouncy),
-        withSpring(1, SPRINGS.snappy),
-      )
-    }
-    prevFilled.current = filled
-  }, [filled])
-
-  const aStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }))
-
-  return (
-    <Animated.View style={[
-      styles.dot,
-      aStyle,
-      filled && { backgroundColor: error ? '#EE6060' : couleur },
-      { borderColor: error ? '#EE6060' : couleur },
-      error && styles.dotError,
-    ]} />
-  )
-}
-
-// ─── Composant PinPad ────────────────────────────────────────
-function PinPadModule({
-  pin, pinError, secondesRestantes,
-  supprimer, appuyerChiffre,
-  titre, sousTitre, couleur, bloque, colors,
-}) {
-  const shakeX = useSharedValue(0)
-
-  useEffect(() => {
-    if (pinError) {
-      shakeX.value = withSequence(
-        withTiming(-12, { duration: 50 }),
-        withTiming( 12, { duration: 55 }),
-        withTiming(-10, { duration: 50 }),
-        withTiming( 10, { duration: 50 }),
-        withTiming( -5, { duration: 45 }),
-        withTiming(  0, { duration: 45 }),
-      )
-    }
-  }, [pinError])
-
-  const shakeStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: shakeX.value }],
-  }))
-
-  // Web : permettre de taper le code au clavier physique (chiffres + retour arrière)
-  // sans avoir à cliquer sur les boutons à l'écran.
-  useEffect(() => {
-    if (Platform.OS !== 'web' || bloque) return
-    function onKey(e) {
-      if (e.metaKey || e.ctrlKey || e.altKey) return
-      if (e.key >= '0' && e.key <= '9') {
-        appuyerChiffre(e.key)
-        e.preventDefault()
-      } else if (e.key === 'Backspace' || e.key === 'Delete') {
-        supprimer()
-        e.preventDefault()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [bloque, appuyerChiffre, supprimer])
-
-  return (
-    <View style={styles.pinContainer}>
-      <Text style={styles.pinTitre}>{titre}</Text>
-      <Text style={styles.pinSousTitre}>{sousTitre}</Text>
-
-      <Animated.View style={[styles.dots, shakeStyle]}>
-        {[0,1,2,3].map(i => (
-          <PinDot
-            key={i}
-            filled={pin.length > i}
-            error={pinError || !!bloque}
-            couleur={couleur}
-          />
-        ))}
-      </Animated.View>
-
-      {bloque ? (
-        <Text style={styles.pinErrorTxt}>🔒 Trop de tentatives — réessayez dans {secondesRestantes}s</Text>
-      ) : pinError ? (
-        <Text style={styles.pinErrorTxt}>❌ Code incorrect, réessayez</Text>
-      ) : (
-        <View style={{ height: 22 }} />
-      )}
-
-      <View style={styles.pinpad}>
-        {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((k, i) => (
-          <PinButton
-            key={i}
-            label={k}
-            disabled={!!bloque}
-            colors={colors}
-            onPress={(val) => val === '⌫' ? supprimer() : appuyerChiffre(val)}
-          />
-        ))}
-      </View>
-    </View>
-  )
-}
-
-// ─── Carte Restaurant ────────────────────────────────────────
-function RestoCard({ item, index, onPress }) {
-  const scale = useSharedValue(1)
-  const aStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }))
-  const couleur = item.couleur === 'vert' ? '#1FAD6B' : '#F0A020'
-  const initiales = item.nom.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-
-  return (
-    <Animated.View
-      entering={FadeInUp.delay(index * 90).springify().damping(18).stiffness(200)}
-      style={[{ width: '48%' }, aStyle]}
-    >
-      <Pressable
-        onPressIn={() => { scale.value = withSpring(0.94, SPRINGS.snappy) }}
-        onPressOut={() => { scale.value = withSpring(1, SPRINGS.gentle) }}
-        onPress={onPress}
-        style={styles.restoBadge}
-      >
-        {item.photo_url ? (
-          <Image source={{ uri: item.photo_url }} style={styles.restoBadgePhoto} />
-        ) : (
-          <View style={[styles.restoBadgeInitials, { backgroundColor: couleur }]}>
-            <Text style={styles.restoBadgeInitialsTxt}>{initiales}</Text>
-          </View>
-        )}
-        <Text style={styles.restoBadgeNom} numberOfLines={2}>{item.nom}</Text>
-        <Text style={styles.restoBadgeLoc} numberOfLines={1}>{item.localisation || 'Abidjan'}</Text>
-        <View style={[styles.restoBadgeDot, { backgroundColor: couleur }]} />
-      </Pressable>
-    </Animated.View>
-  )
-}
-
-// ─── Carte Utilisateur ───────────────────────────────────────
-function UserCard({ item, index, onPress, getRoleCouleur, getRoleBg, getRoleLabel, modeGlobal }) {
-  const scale = useSharedValue(1)
-  const aStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }))
-  const couleur = getRoleCouleur(item.role)
-
-  return (
-    <Animated.View
-      entering={FadeInDown.delay(index * 70).springify().damping(18).stiffness(180)}
-      style={aStyle}
-    >
-      <Pressable
-        onPressIn={() => { scale.value = withSpring(0.97, SPRINGS.snappy) }}
-        onPressOut={() => { scale.value = withSpring(1, SPRINGS.gentle) }}
-        onPress={onPress}
-        style={styles.userItem}
-      >
-        <View style={[styles.avatar, { backgroundColor: couleur }]}>
-          <Text style={styles.avatarText}>
-            {item.nom.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-          </Text>
-        </View>
-        <View style={styles.userInfo}>
-          <Text style={styles.userName}>{item.nom}</Text>
-          <View style={styles.userRoleRow}>
-            <View style={[styles.roleBadge, { backgroundColor: getRoleBg(item.role) }]}>
-              <Text style={[styles.roleBadgeTxt, { color: couleur }]}>
-                {getRoleLabel(item.role)}
-              </Text>
-            </View>
-            {modeGlobal && <Text style={styles.globalTxt}>Accès global</Text>}
-          </View>
-        </View>
-        <Text style={styles.arrow}>›</Text>
-      </Pressable>
-    </Animated.View>
-  )
-}
-
-// ─── Boutons Face ID / empreinte (un par compte activé) ──────
-function BoutonsBiometrie({ enrolements, enCours, message, onPress, onRetirer, colors }) {
-  if (enrolements.length === 0) return null
-  return (
-    <Animated.View entering={FadeInDown.delay(120).springify().damping(18)} style={styles.bioWrap}>
-      {enrolements.map(e => (
-        <View key={e.credentialId} style={styles.bioLigne}>
-          <TouchableOpacity
-            style={[styles.bioBtn, enCours && { opacity: 0.6 }]}
-            onPress={() => onPress(e)}
-            disabled={enCours}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.bioIcone}>🔐</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.bioTitre}>{enCours ? 'Vérification…' : 'Entrer avec Face ID / empreinte'}</Text>
-              <Text style={styles.bioSous}>{e.userNom} · {e.restaurantNom}</Text>
-            </View>
-          </TouchableOpacity>
-          {onRetirer && (
-            <TouchableOpacity onPress={() => onRetirer(e)} style={styles.bioRetirer}>
-              <Text style={[styles.bioRetirerTxt, { color: colors.textMuted }]}>
-                Retirer Face ID de ce téléphone{enrolements.length > 1 ? ` (${e.restaurantNom})` : ''}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      ))}
-      {!!message && <Text style={styles.bioErreur}>{message}</Text>}
-    </Animated.View>
-  )
-}
 
 // ─── Écran principal ─────────────────────────────────────────
 export default function LoginScreen() {
-  const { colors } = useTheme()
+  const { isDark } = useTheme()
+  const t = themeLogin(isDark)
   const [etape, setEtape] = useState(1)
   const [restaurants, setRestaurants] = useState([])
   const [utilisateurs, setUtilisateurs] = useState([])
@@ -313,6 +47,8 @@ export default function LoginScreen() {
   const [bioEnCours, setBioEnCours] = useState(false)
   const [bioMessage, setBioMessage] = useState('')
   const [activationEnAttente, setActivationEnAttente] = useState(null)
+  // Restaurants dont ce téléphone connaît déjà le code (lib/restosReconnus.js)
+  const [reconnus, setReconnus] = useState([])
 
   const {
     setRoleActif, resetJour, setLastRoute,
@@ -344,23 +80,41 @@ export default function LoginScreen() {
 
   async function fetchRestaurants() {
     setLoadingRestos(true)
-    const data = await getRestaurants()
-    setRestaurants(data)
+    const [data, liste] = await Promise.all([getRestaurants(), lireReconnus()])
+    // Un code restaurant modifié fait oublier le restaurant sur ce téléphone.
+    const nette = nettoyerReconnus(liste, data)
+    if (nette.length !== liste.length) ecrireReconnus(nette)
+    setReconnus(nette)
+    setRestaurants(trierRestaurants(data, nette))
     setLoadingRestos(false)
     if (sessionVerrouille) {
       const resto = data.find(r => r.id === restaurantIdEnSession)
-      if (resto) choisirRestaurant(resto)
+      if (resto) choisirRestaurant(resto, nette)
       else chargerUtilisateursGlobaux()
+      return
+    }
+    const depart = ecranDeDepart({
+      valides: data.filter(r => estReconnu(nette, r)),
+      enrolements: lireEnrolements(),
+      verrouille: false,
+    })
+    if (depart.ecran === 'quiEtesVous') {
+      setSelectedResto(depart.restaurant)
+      chargerUtilisateurs(depart.restaurant)
     }
   }
 
-  function choisirRestaurant(resto) {
+  function choisirRestaurant(resto, liste = reconnus) {
     setSelectedResto(resto)
     setBioMessage('')
     setPin('')
     setPinError(false)
     setTentativesResto(0)
     setBloqueJusquaResto(null)
+    if (estReconnu(liste, resto)) {
+      chargerUtilisateurs(resto)
+      return
+    }
     if (Platform.OS === 'web') {
       try {
         const stored = localStorage.getItem(`sam_lockout_resto_${resto.id}`)
@@ -384,7 +138,10 @@ export default function LoginScreen() {
       if (Platform.OS === 'web') {
         try { localStorage.removeItem(`sam_lockout_resto_${selectedResto.id}`) } catch {}
       }
-      chargerUtilisateurs()
+      const liste = ajouterReconnu(reconnus, selectedResto)
+      setReconnus(liste)
+      ecrireReconnus(liste)
+      chargerUtilisateurs(selectedResto)
     } else {
       const nouvellesTentatives = tentativesResto + 1
       setTentativesResto(nouvellesTentatives)
@@ -401,10 +158,10 @@ export default function LoginScreen() {
     }
   }
 
-  async function chargerUtilisateurs() {
+  async function chargerUtilisateurs(resto) {
     setLoadingUsers(true)
     setEtape(3)
-    const data = await getUtilisateurs(selectedResto.id)
+    const data = await getUtilisateurs(resto.id)
     setUtilisateurs(data)
     setLoadingUsers(false)
     if (sessionVerrouille) {
@@ -427,6 +184,7 @@ export default function LoginScreen() {
   }
 
   function choisirUtilisateur(user) {
+    setBioMessage('')
     setSelected(user)
     setPin('')
     setPinError(false)
@@ -443,6 +201,14 @@ export default function LoginScreen() {
       } catch {}
     }
     setEtape(4)
+  }
+
+  // Avatar 🔐 : Face ID part tout de suite (dans l'appui, exigence Safari) ;
+  // en cas d'annulation on reste sur le clavier, touche 🔐 disponible.
+  function toucherAvatar(user) {
+    choisirUtilisateur(user)
+    const e = enrolementsDe(user, selectedResto)[0]
+    if (bioSupportee && e) entrerAvecBiometrie(e)
   }
 
   function appuyerChiffre(chiffre) {
@@ -617,153 +383,54 @@ export default function LoginScreen() {
     }
   }
 
-  function getRoleLabel(role) {
-    if (role === 'manager') return '👑 Manager'
-    if (role === 'rh') return '🧑‍💼 RH'
-    if (role === 'directeur') return '🏛️ Directeur'
-    if (role === 'verificateur') return '🔍 Vérificateur'
-    if (role === 'gerant') return '🔑 Gérant'
-    return '💼 Caissier'
-  }
+  const enrolementsAffiches = bioSupportee ? enrolements : []
 
-  function getRoleCouleur(role) {
-    if (role === 'manager') return '#5B52C8'
-    if (role === 'rh') return '#185FA5'
-    if (role === 'verificateur') return '#0E8A6B'
-    if (role === 'gerant') return '#F0A020'
-    return '#888'
-  }
-
-  function getRoleBg(role) {
-    if (role === 'manager') return '#ECEAFF'
-    if (role === 'rh') return '#E6F1FB'
-    if (role === 'verificateur') return '#DEF3EC'
-    if (role === 'gerant') return '#FEF0DA'
-    return '#f5f5f5'
-  }
-
-  // ─── ETAPE 1 — Choix du restaurant ─────────────────────────
   if (etape === 1) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
-        <Animated.View entering={FadeInDown.delay(0).springify().damping(20).stiffness(160)} style={styles.logoWrap}>
-          <Image source={require('../assets/icon.png')} style={styles.logoImage} resizeMode="contain" />
-          <Text style={[styles.appSub, { color: colors.textMuted }]}>Gestion de restaurant</Text>
-        </Animated.View>
-
-        {bioSupportee && !loadingRestos && (
-          <BoutonsBiometrie
-            enrolements={enrolements} enCours={bioEnCours} message={bioMessage}
-            onPress={entrerAvecBiometrie} onRetirer={retirerBiometrie} colors={colors}
-          />
-        )}
-        {bioSupportee && enrolements.length === 0 && !!bioMessage && (
-          <Text style={[styles.bioErreur, { width: '90%' }]}>{bioMessage}</Text>
-        )}
-
-        <Animated.Text
-          entering={FadeIn.delay(200).duration(400)}
-          style={[styles.question, { color: colors.textSecondary }]}
-        >
-          Choisissez votre restaurant
-        </Animated.Text>
-
-        {loadingRestos ? (
-          <ActivityIndicator size="large" color="#F0A020" style={{ marginTop: 40 }} />
-        ) : restaurants.length === 0 ? (
-          <Text style={[styles.empty, { color: colors.textMuted }]}>Aucun restaurant trouvé</Text>
-        ) : (
-          <FlatList
-            key="restos-2col"
-            data={restaurants}
-            keyExtractor={item => item.id}
-            numColumns={2}
-            style={styles.list}
-            contentContainerStyle={[styles.restoGrid, { paddingBottom: 60 }]}
-            columnWrapperStyle={styles.restoGridRow}
-            renderItem={({ item, index }) => (
-              <RestoCard
-                item={item}
-                index={index}
-                onPress={() => choisirRestaurant(item)}
-              />
-            )}
-            ListFooterComponent={
-              <Animated.View entering={FadeInUp.delay(300).springify().damping(20)}>
-                <TouchableOpacity
-                  style={[styles.globalBtn, { backgroundColor: colors.primaryLight, borderColor: colors.primaryText }]}
-                  onPress={chargerUtilisateursGlobaux}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.globalBtnIcon}>👑</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.globalBtnTxt, { color: colors.primaryDark }]}>Accès Manager / RH</Text>
-                    <Text style={[styles.globalBtnSub, { color: colors.primary }]}>Administration & ressources humaines</Text>
-                  </View>
-                  <Text style={[styles.globalBtnArrow, { color: colors.primary }]}>›</Text>
-                </TouchableOpacity>
-              </Animated.View>
-            }
-          />
-        )}
-        <SignatureFooter />
-      </SafeAreaView>
+      <AccueilLogin
+        t={t}
+        restaurants={restaurants}
+        chargement={loadingRestos}
+        reconnusIds={restaurants.filter(r => estReconnu(reconnus, r)).map(r => r.id)}
+        enrolements={enrolementsAffiches}
+        bioSupportee={bioSupportee}
+        bioEnCours={bioEnCours}
+        bioMessage={bioMessage}
+        onFaceID={entrerAvecBiometrie}
+        onRetirerFaceID={retirerBiometrie}
+        onResto={(r) => choisirRestaurant(r)}
+        onGlobal={chargerUtilisateursGlobaux}
+      />
     )
   }
 
-  // ─── ETAPE 2 — PIN restaurant ───────────────────────────────
   if (etape === 2) {
-    const couleur = selectedResto?.couleur === 'vert' ? '#1FAD6B' : '#F0A020'
+    const ici = enrolementsAffiches.filter(e => e.restaurantId === selectedResto?.id)
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
-        <TouchableOpacity
-          onPress={() => { setEtape(1); setPin(''); setPinError(false) }}
-          style={styles.backBtn}
-        >
-          <Text style={styles.backTxt}>‹ Changer de restaurant</Text>
-        </TouchableOpacity>
-        <ScrollView
-          style={{ width: '100%' }}
-          contentContainerStyle={styles.pinScrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <Animated.View entering={FadeInDown.springify().damping(20)} style={styles.logoWrapSm}>
-            <Image source={require('../assets/icon.png')} style={styles.logoImageSm} resizeMode="contain" />
-          </Animated.View>
-          <Animated.View entering={FadeInDown.delay(80).springify().damping(18)}>
-            <Text style={[styles.restoHeaderNom, { color: colors.text }]}>{selectedResto?.nom}</Text>
-            <Text style={[styles.restoHeaderLoc, { color: colors.textMuted }]}>{selectedResto?.localisation || 'Abidjan'}</Text>
-          </Animated.View>
-          {bioSupportee && (
-            <BoutonsBiometrie
-              enrolements={enrolements.filter(e => e.restaurantId === selectedResto?.id)}
-              enCours={bioEnCours} message={bioMessage}
-              onPress={entrerAvecBiometrie} colors={colors}
-            />
-          )}
-          <Animated.View entering={FadeInUp.delay(150).springify().damping(18)} style={{ width: '100%' }}>
-            <PinPadModule
-              pin={pin} pinError={pinError} secondesRestantes={secondesRestantes}
-              supprimer={supprimer} appuyerChiffre={appuyerChiffre}
-              titre="Code d'accès du restaurant"
-              sousTitre="Entrez le code PIN du restaurant"
-              couleur={couleur}
-              bloque={!!(bloqueJusquaResto && Date.now() < bloqueJusquaResto)}
-              colors={colors}
-            />
-          </Animated.View>
-        </ScrollView>
-        <SignatureFooter />
-      </SafeAreaView>
+      <ClavierCode
+        t={t}
+        entete={{
+          initialesTexte: initiales(selectedResto?.nom),
+          couleur: couleurResto(selectedResto),
+          titre: selectedResto?.nom,
+          sousTitre: selectedResto?.localisation || 'Abidjan',
+        }}
+        consigne="Code du restaurant"
+        pin={pin} pinError={pinError} secondesRestantes={secondesRestantes}
+        bloque={!!(bloqueJusquaResto && Date.now() < bloqueJusquaResto)}
+        couleur={couleurResto(selectedResto)}
+        appuyerChiffre={appuyerChiffre} supprimer={supprimer}
+        toucheFaceID={ici.length === 1}
+        onFaceID={() => entrerAvecBiometrie(ici[0])}
+        bioEnCours={bioEnCours} bioMessage={bioMessage}
+        lienBas={{ texte: 'Changer de restaurant', onPress: () => { setEtape(1); setPin(''); setPinError(false) } }}
+      />
     )
   }
 
-  // ─── ETAPE 3 — Choix de l'utilisateur ──────────────────────
   if (etape === 3) {
-    const couleur = selectedResto?.couleur === 'vert' ? '#1FAD6B' : '#F0A020'
-    const globaux = utilisateurs.filter(u => ROLES_GLOBAUX.includes(u.role))
     const modeGlobal = !selectedResto
+    const globaux = utilisateurs.filter(u => ROLES_GLOBAUX.includes(u.role))
     // Sur un site passé au POS, les caissiers ne saisissent plus ici : leurs
     // comptes sortent de la liste (jamais désactivés — un UPDATE sur
     // restaurants.source_point les fait revenir au prochain chargement).
@@ -771,337 +438,60 @@ export default function LoginScreen() {
       selectedResto,
       utilisateurs.filter(u => !ROLES_GLOBAUX.includes(u.role)),
     )
-
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
-        <TouchableOpacity
-          onPress={() => { setPin(''); setPinError(false); if (selectedResto) setEtape(2); else setEtape(1) }}
-          style={styles.backBtn}
-        >
-          <Text style={styles.backTxt}>‹ Retour</Text>
-        </TouchableOpacity>
-
-        <Animated.View entering={FadeInDown.springify().damping(20)} style={{ width: '90%' }}>
-          {modeGlobal ? (
-            <View style={[styles.restoHeader, { backgroundColor: colors.primaryLight, borderColor: colors.primaryText, borderWidth: 1 }]}>
-              <Text style={{ fontSize: 18 }}>👑</Text>
-              <Text style={[styles.restoHeaderNom2, { color: colors.primaryDark }]}>Accès global</Text>
-            </View>
-          ) : (
-            <View style={[styles.restoHeader, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
-              <View style={[styles.restoDot, { backgroundColor: couleur }]} />
-              <Text style={[styles.restoHeaderNom2, { color: colors.text }]}>{selectedResto?.nom}</Text>
-            </View>
-          )}
-        </Animated.View>
-
-        <Animated.Text
-          entering={FadeIn.delay(100).duration(350)}
-          style={[styles.question, { color: colors.textSecondary }]}
-        >
-          Qui êtes-vous ?
-        </Animated.Text>
-
-        {loadingUsers ? (
-          <ActivityIndicator size="large" color="#F0A020" style={{ marginTop: 40 }} />
-        ) : (
-          <FlatList
-            key="users-1col"
-            data={modeGlobal ? globaux : specifiques}
-            keyExtractor={(item) => item.id}
-            style={styles.list}
-            contentContainerStyle={{ paddingBottom: 60 }}
-            renderItem={({ item, index }) => (
-              <UserCard
-                item={item}
-                index={index}
-                onPress={() => choisirUtilisateur(item)}
-                getRoleCouleur={getRoleCouleur}
-                getRoleBg={getRoleBg}
-                getRoleLabel={getRoleLabel}
-                modeGlobal={modeGlobal}
-              />
-            )}
-            ListEmptyComponent={
-              reprisParLePOS.length > 0 ? null : (
-                <Text style={[styles.empty, { color: colors.textMuted }]}>Aucun utilisateur pour ce restaurant</Text>
-              )
-            }
-            ListFooterComponent={
-              reprisParLePOS.length > 0 ? (
-                // Un compte qui disparaît sans un mot déclenche un appel au
-                // support : on explique l'absence là où elle se constate.
-                <View style={[styles.posCard, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
-                  <Text style={styles.posCardIcone}>🖥️</Text>
-                  <Text style={[styles.posCardTitre, { color: colors.textSecondary }]}>
-                    {reprisParLePOS.length > 1 ? 'Les caissières se connectent sur la caisse' : 'La caissière se connecte sur la caisse'}
-                  </Text>
-                  <Text style={[styles.posCardTexte, { color: colors.textMuted }]}>
-                    Ce restaurant est équipé du POS. Le point de shift, les dépenses et
-                    l'inventaire s'y font, et arrivent ici automatiquement.
-                  </Text>
-                  <Text style={[styles.posCardTexte, { color: colors.textMuted, marginTop: 8 }]}>
-                    Manager : en cas de panne de la caisse, rétablissez la saisie depuis
-                    Paramètres → Restaurants. Les comptes sont intacts.
-                  </Text>
-                </View>
-              ) : null
-            }
-          />
-        )}
-        <SignatureFooter />
-      </SafeAreaView>
+      <QuiEtesVous
+        t={t}
+        restaurant={selectedResto}
+        utilisateurs={modeGlobal ? globaux : specifiques}
+        chargement={loadingUsers}
+        reconnu={estReconnu(reconnus, selectedResto)}
+        idsFaceID={enrolementsAffiches
+          .filter(e => e.restaurantId === (selectedResto?.id ?? null))
+          .map(e => e.userId)}
+        reprisParLePOS={modeGlobal ? [] : reprisParLePOS}
+        onChoisir={toucherAvatar}
+        onRetour={() => { setPin(''); setPinError(false); setBioMessage(''); setEtape(1) }}
+      />
     )
   }
 
-  // ─── ETAPE 5 — Proposer Face ID (codes justes, gérant, web) ─
   if (etape === 5 && activationEnAttente) {
     const { utilisateur, restaurant } = activationEnAttente
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
-        <ScrollView
-          style={{ width: '100%' }}
-          contentContainerStyle={[styles.pinScrollContent, { paddingTop: 40 }]}
-          showsVerticalScrollIndicator={false}
-        >
-          <Animated.View entering={FadeInDown.springify().damping(20)} style={styles.activCarte}>
-            <Text style={styles.activIcone}>🔐</Text>
-            <Text style={[styles.activTitre, { color: colors.text }]}>Entrer plus vite la prochaine fois ?</Text>
-            <Text style={[styles.activTexte, { color: colors.textSecondary }]}>
-              {restaurant
-                ? `Activez Face ID ou l’empreinte sur ce téléphone : vous entrerez directement dans ${restaurant.nom}, sans taper vos deux codes.`
-                : 'Activez Face ID ou l’empreinte sur ce téléphone : vous entrerez directement dans l’administration, sans taper votre code.'}
-            </Text>
-            <Text style={[styles.activAvert, { color: colors.textMuted }]}>
-              ⚠️ À faire seulement sur VOTRE téléphone. Toute personne dont le visage ou le doigt est enregistré sur ce téléphone pourra entrer avec votre compte.
-            </Text>
-
-            <TouchableOpacity
-              style={[styles.activBtn, bioEnCours && { opacity: 0.6 }]}
-              onPress={activerBiometrie}
-              disabled={bioEnCours}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.activBtnTxt}>{bioEnCours ? 'Vérification…' : 'Activer sur ce téléphone'}</Text>
-            </TouchableOpacity>
-            {!!bioMessage && <Text style={styles.bioErreur}>{bioMessage}</Text>}
-
-            <TouchableOpacity style={styles.activSecondaire} onPress={() => passerActivation(false)} disabled={bioEnCours}>
-              <Text style={[styles.activSecondaireTxt, { color: colors.textSecondary }]}>Plus tard</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.activSecondaire} onPress={() => passerActivation(true)} disabled={bioEnCours}>
-              <Text style={[styles.activSecondaireTxt, { color: colors.textMuted }]}>Ne plus me demander sur ce téléphone ({utilisateur?.nom})</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </ScrollView>
-        <SignatureFooter />
-      </SafeAreaView>
+      <ActivationFaceID
+        t={t}
+        utilisateur={utilisateur}
+        restaurant={restaurant}
+        enCours={bioEnCours}
+        message={bioMessage}
+        onActiver={activerBiometrie}
+        onPlusTard={() => passerActivation(false)}
+        onJamais={() => passerActivation(true)}
+      />
     )
   }
 
-  // ─── ETAPE 4 — PIN utilisateur ──────────────────────────────
-  const couleur = getRoleCouleur(selected?.role)
+  const ici = enrolementsDe(selected, selectedResto)
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
-      <TouchableOpacity
-        onPress={() => { setEtape(3); setPin(''); setPinError(false) }}
-        style={styles.backBtn}
-      >
-        <Text style={styles.backTxt}>{'‹ Changer d\'utilisateur'}</Text>
-      </TouchableOpacity>
-
-      <ScrollView
-        style={{ width: '100%' }}
-        contentContainerStyle={styles.pinScrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <Animated.View entering={FadeInDown.springify().damping(20)} style={styles.logoWrapSm}>
-          <Image source={require('../assets/icon.png')} style={styles.logoImageSm} resizeMode="contain" />
-        </Animated.View>
-
-        <Animated.View
-          entering={FadeInDown.delay(80).springify().damping(18)}
-          style={[styles.whoBox, { backgroundColor: colors.surfaceAlt, borderColor: couleur }]}
-        >
-          <View style={[styles.avatar, { backgroundColor: couleur }]}>
-            <Text style={styles.avatarText}>
-              {selected?.nom.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-            </Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.userName, { color: colors.text }]}>{selected?.nom}</Text>
-            <Text style={[styles.userSubtitle, { color: colors.textMuted }]}>
-              {ROLES_GLOBAUX.includes(selected?.role)
-                ? 'Accès global — tous les restaurants'
-                : `${selectedResto?.nom} — ${selected?.role}`}
-            </Text>
-          </View>
-        </Animated.View>
-
-        {/* Écran verrouillé d'un compte administration : on arrive ici directement. */}
-        {bioSupportee && (
-          <BoutonsBiometrie
-            enrolements={enrolementsDe(selected, selectedResto)}
-            enCours={bioEnCours} message={bioMessage}
-            onPress={entrerAvecBiometrie} colors={colors}
-          />
-        )}
-
-        <Animated.View entering={FadeInUp.delay(150).springify().damping(18)} style={{ width: '100%' }}>
-          <PinPadModule
-            pin={pin} pinError={pinError} secondesRestantes={secondesRestantes}
-            supprimer={supprimer} appuyerChiffre={appuyerChiffre}
-            titre="Code PIN personnel"
-            sousTitre="Entrez votre code PIN"
-            couleur={couleur}
-            bloque={!!(bloqueJusquaUser && Date.now() < bloqueJusquaUser)}
-            colors={colors}
-          />
-        </Animated.View>
-      </ScrollView>
-      <SignatureFooter />
-    </SafeAreaView>
+    <ClavierCode
+      t={t}
+      entete={{
+        initialesTexte: initiales(selected?.nom),
+        couleur: couleurRole(selected?.role),
+        titre: selected?.nom,
+        sousTitre: ROLES_GLOBAUX.includes(selected?.role)
+          ? `${libelleRole(selected?.role)} · tous les restaurants`
+          : `${selectedResto?.nom} · ${libelleRole(selected?.role)}`,
+      }}
+      consigne="Votre code personnel"
+      pin={pin} pinError={pinError} secondesRestantes={secondesRestantes}
+      bloque={!!(bloqueJusquaUser && Date.now() < bloqueJusquaUser)}
+      couleur={couleurRole(selected?.role)}
+      appuyerChiffre={appuyerChiffre} supprimer={supprimer}
+      toucheFaceID={bioSupportee && ici.length > 0}
+      onFaceID={() => entrerAvecBiometrie(ici[0])}
+      bioEnCours={bioEnCours} bioMessage={bioMessage}
+      lienBas={{ texte: 'Ce n’est pas moi', onPress: () => { setEtape(3); setPin(''); setPinError(false); setBioMessage('') } }}
+    />
   )
 }
-
-// ─── Styles statiques (sans couleurs dynamiques) ─────────────
-const styles = StyleSheet.create({
-  container:          { flex: 1, alignItems: 'center', paddingTop: 20 },
-  logoWrap:           { alignItems: 'center', marginBottom: 8 },
-  logoWrapSm:         { alignItems: 'center', marginBottom: 12 },
-  logoImage:          { width: 210, height: 126, marginBottom: 6 },
-  logoImageSm:        { width: 150, height: 90, marginBottom: 4 },
-  appSub:             { fontSize: 13, marginBottom: 28, letterSpacing: 0.3 },
-  question:           { fontSize: 14, marginBottom: 14, fontWeight: '500' },
-  list:               { width: '100%', paddingHorizontal: 20 },
-  // Restaurant grid
-  restoGrid:          { paddingHorizontal: 16, paddingBottom: 30, paddingTop: 8 },
-  restoGridRow:       { justifyContent: 'space-between', marginBottom: 16 },
-  restoBadge: {
-    borderRadius: 20, alignItems: 'center',
-    padding: 18,
-    backgroundColor: '#FFF',
-    shadowColor: '#18182E', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.09, shadowRadius: 12, elevation: 5,
-    borderWidth: 1, borderColor: 'rgba(91,82,200,0.1)',
-  },
-  restoBadgePhoto:       { width: 88, height: 88, borderRadius: 16, marginBottom: 12 },
-  restoBadgeInitials: {
-    width: 88, height: 88, borderRadius: 16, marginBottom: 12,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  restoBadgeInitialsTxt: { fontSize: 30, fontWeight: '800', color: '#fff', letterSpacing: -1 },
-  restoBadgeNom: {
-    fontSize: 14, fontWeight: '700', textAlign: 'center',
-    marginBottom: 4, color: '#18182E', letterSpacing: -0.2,
-  },
-  restoBadgeLoc:  { fontSize: 11, color: '#8888AA', textAlign: 'center' },
-  restoBadgeDot:  { width: 8, height: 8, borderRadius: 4, marginTop: 10 },
-  // Manager global
-  globalBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    borderRadius: 18, padding: 18, marginTop: 8,
-    borderWidth: 1.5,
-  },
-  globalBtnIcon:  { fontSize: 30 },
-  globalBtnTxt:   { fontSize: 14, fontWeight: '700' },
-  globalBtnSub:   { fontSize: 11, marginTop: 3 },
-  globalBtnArrow: { fontSize: 22, marginLeft: 'auto' },
-  // User list
-  userItem: {
-    flexDirection: 'row', alignItems: 'center', padding: 16,
-    borderRadius: 16, marginBottom: 10,
-    backgroundColor: '#FFF',
-    shadowColor: '#18182E', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.07, shadowRadius: 8, elevation: 3,
-    borderWidth: 0.5, borderColor: 'rgba(91,82,200,0.1)',
-    overflow: 'hidden',
-  },
-  avatar: {
-    width: 50, height: 50, borderRadius: 25,
-    alignItems: 'center', justifyContent: 'center', marginRight: 14,
-  },
-  avatarText:   { fontSize: 16, fontWeight: '700', color: '#fff' },
-  userInfo:     { flex: 1 },
-  userName:     { fontSize: 15, fontWeight: '600', letterSpacing: -0.2 },
-  userRoleRow:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5 },
-  roleBadge:    { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 10 },
-  roleBadgeTxt: { fontSize: 11, fontWeight: '600' },
-  globalTxt:    { fontSize: 10, color: '#8888AA' },
-  arrow:        { fontSize: 20, color: '#DDDDF0' },
-  restoDot:     { width: 14, height: 14, borderRadius: 7, marginRight: 0 },
-  restoHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderRadius: 14, marginBottom: 10, borderWidth: 1,
-  },
-  restoHeaderNom:  { fontSize: 22, fontWeight: '700', marginBottom: 4, textAlign: 'center' },
-  restoHeaderLoc:  { fontSize: 12, marginBottom: 24, textAlign: 'center' },
-  restoHeaderNom2: { fontSize: 14, fontWeight: '600' },
-  // Who box
-  whoBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    padding: 16, borderRadius: 18, marginVertical: 16,
-    width: '90%', borderWidth: 2,
-  },
-  userSubtitle: { fontSize: 12, marginTop: 3 },
-  // Misc
-  empty:   { textAlign: 'center', marginTop: 40, fontSize: 14 },
-  // Encart « les caissiers sont sur la caisse » (site passé au POS)
-  posCard:      { marginTop: 16, borderRadius: 14, borderWidth: 1, borderStyle: 'dashed', padding: 16, alignItems: 'center' },
-  posCardIcone: { fontSize: 22, marginBottom: 6 },
-  posCardTitre: { fontSize: 14, fontWeight: '700', textAlign: 'center', marginBottom: 6 },
-  posCardTexte: { fontSize: 12.5, lineHeight: 18, textAlign: 'center' },
-  backBtn: { alignSelf: 'flex-start', paddingHorizontal: 20, paddingVertical: 10 },
-  backTxt: { fontSize: 15, color: '#F0A020', fontWeight: '600' },
-  pinScrollContent: { alignItems: 'center', paddingBottom: 40, paddingTop: 8, width: '100%' },
-  // Face ID / empreinte
-  bioWrap:       { width: '90%', alignItems: 'center', marginBottom: 16 },
-  bioLigne:      { width: '100%', alignItems: 'center', marginBottom: 4 },
-  bioBtn: {
-    width: '100%', minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 14,
-    paddingHorizontal: 18, paddingVertical: 14, borderRadius: 18, backgroundColor: '#F0A020',
-  },
-  bioIcone:      { fontSize: 28 },
-  bioTitre:      { fontSize: 16, fontWeight: '700', color: '#fff' },
-  bioSous:       { fontSize: 12, color: '#FFF4E0', marginTop: 3 },
-  bioErreur:     { fontSize: 13, color: '#EE6060', fontWeight: '600', textAlign: 'center', marginTop: 10 },
-  bioRetirer:    { paddingVertical: 10, paddingHorizontal: 12 },
-  bioRetirerTxt: { fontSize: 12, textDecorationLine: 'underline' },
-  activCarte:    { width: '90%', maxWidth: 420, alignItems: 'center' },
-  activIcone:    { fontSize: 54, marginBottom: 14 },
-  activTitre:    { fontSize: 20, fontWeight: '700', textAlign: 'center', marginBottom: 10 },
-  activTexte:    { fontSize: 14, lineHeight: 20, textAlign: 'center', marginBottom: 14 },
-  activAvert:    { fontSize: 12.5, lineHeight: 18, textAlign: 'center', marginBottom: 24 },
-  activBtn: {
-    width: '100%', minHeight: 56, borderRadius: 16, backgroundColor: '#F0A020',
-    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16,
-  },
-  activBtnTxt:        { fontSize: 16, fontWeight: '700', color: '#fff' },
-  activSecondaire:    { paddingVertical: 14, paddingHorizontal: 12, minHeight: 48, justifyContent: 'center' },
-  activSecondaireTxt: { fontSize: 14, textAlign: 'center' },
-  // PIN
-  pinContainer:  { alignItems: 'center', width: '100%', paddingHorizontal: 20, paddingBottom: 24 },
-  pinTitre:      { fontSize: 17, fontWeight: '700', color: '#18182E', marginBottom: 6, letterSpacing: -0.3 },
-  pinSousTitre:  { fontSize: 13, color: '#8888AA', marginBottom: 24 },
-  dots:          { flexDirection: 'row', gap: 18, marginBottom: 16 },
-  dot: {
-    width: 18, height: 18, borderRadius: 9,
-    borderWidth: 2.5, borderColor: '#F0A020',
-  },
-  dotError: { borderColor: '#EE6060', backgroundColor: '#FDEBEB' },
-  pinErrorTxt:   { fontSize: 13, color: '#EE6060', marginBottom: 18, fontWeight: '600' },
-  pinpad:        { flexDirection: 'row', flexWrap: 'wrap', width: 270, gap: 12, marginTop: 12 },
-  pinBtn: {
-    width: 78, height: 78, borderRadius: 39,
-    alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#FFF', overflow: 'hidden',
-    shadowColor: '#18182E', shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1, shadowRadius: 8, elevation: 4,
-    borderWidth: 1, borderColor: 'rgba(91,82,200,0.12)',
-  },
-  pinBtnEmpty:  { width: 78, height: 78 },
-  pinBtnBloque: { opacity: 0.35 },
-  pinBtnText:   { fontSize: 26, fontWeight: '400', color: '#18182E', letterSpacing: -0.5 },
-})
