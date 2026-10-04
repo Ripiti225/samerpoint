@@ -430,6 +430,8 @@ export default function BandeauGerant({ etat, styles, colors }) {
 
 - [ ] **Step 3: `app/accueil.js`.** Remplacer `(isManager || isDirecteur || isRH)` par `(isManager || isDirecteur || isRH || isGerant)` et passer `restaurantId={restaurantId}` à `AccueilManager` ; supprimer le bloc `{isGerant && nbCorrections > 0 && (…)}`, l'état `nbCorrections` et l'effet « Gérant : charger les corrections en attente » (repris dans le bandeau) ; retirer les styles `correctionBanner*` s'ils ne servent plus.
 
+- [ ] **Step 3b: Couleurs.** Dans `app/accueil.js`, le gérant prend les couleurs du manager : `getHeaderColor`, `getRoleBadgeBg`, `getRoleBadgeText` et `getHeaderTextColor` traitent `isGerant` comme `isManager || isDirecteur` (violet `#534AB7`, texte blanc) ; le caissier garde l'orange. Dans `AccueilManager.js`, ajouter `const ORANGE_HERO = '#F47B0F'` à côté de `VERT_HERO` et, pour le gérant, surcharger la grande tuile : `style={[styles.hero, role === 'gerant' && { backgroundColor: ORANGE_HERO, shadowColor: ORANGE_HERO }]}`.
+
 - [ ] **Step 4:** `npm run lint` (0 erreur), tous les tests, `npx expo export -p web` OK.
 - [ ] **Step 5: Commit** — `feat(accueil): le gérant a l'accueil modernisé — bandeau de son restaurant, accès directs, bandeaux`.
 

@@ -61,6 +61,13 @@ Bandeaux ouverts mémorisés sur le téléphone, comme pour le manager. Dans
 **Clients**, les lignes Avis et Contacts affichent « Hier : … » pour **son**
 restaurant (mêmes calculs que le manager, filtrés).
 
+## Couleurs
+
+Violet Samtrackly, comme l'accueil manager : en-tête et pastille de rôle du
+gérant en violet (`#534AB7`, texte blanc) au lieu de l'orange actuel. Accent
+**orange vif** (`#F47B0F`) pour la grande tuile « Saisir les ventes ». Hausse en
+vert, baisse en rouge. Le caissier garde son en-tête orange.
+
 ## 4. Technique
 
 - `lib/groupesAccueil.js` : `FAVORIS_GERANT`, `GROUPES_GERANT` (couleurs et
