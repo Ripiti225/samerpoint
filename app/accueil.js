@@ -12,6 +12,7 @@ import Animated, {
 import { useApp } from '../context/AppContext'
 import { useNotifications } from '../context/NotificationsContext'
 import { useTheme } from '../context/ThemeContext'
+import { texteRetard } from '../lib/avisPlateformes'
 import { enregistrerTokenDirecteur } from '../lib/notifications'
 import {
   pushSupporte, etatPermissionPush, synchroniserWebPush, activerNotificationsPush, iPhoneHorsApplication, iPhoneTropAncien,
@@ -71,9 +72,9 @@ export default function AccueilScreen() {
   const { colors, isDark, toggleTheme } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
   const {
-    notifications, explicationsEnRetard, nonLues, panelVisible,
+    notifications, explicationsEnRetard, avisEnRetard, nonLues, panelVisible,
     ouvrirPanel, fermerPanel,
-    supprimerUne, supprimerTout, naviguerDepuisNotif, ouvrirExplicationEnRetard,
+    supprimerUne, supprimerTout, naviguerDepuisNotif, ouvrirExplicationEnRetard, ouvrirAvisEnRetard,
   } = useNotifications()
 
   const roleEffectif = role || roleActif
@@ -387,7 +388,7 @@ export default function AccueilScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-            {notifications.length === 0 && explicationsEnRetard.length === 0 ? (
+            {notifications.length === 0 && explicationsEnRetard.length === 0 && avisEnRetard.length === 0 ? (
               <View style={styles.notifEmpty}>
                 <Text style={styles.notifEmptyTxt}>Aucune notification</Text>
               </View>
@@ -396,34 +397,61 @@ export default function AccueilScreen() {
                 data={notifications}
                 keyExtractor={n => n.id}
                 contentContainerStyle={{ padding: 14, paddingBottom: 30 }}
-                ListHeaderComponent={explicationsEnRetard.length > 0 ? (
+                ListHeaderComponent={explicationsEnRetard.length > 0 || avisEnRetard.length > 0 ? (
                   <View style={{ marginBottom: 6 }}>
-                    <Text style={styles.notifSection}>
-                      ⏰ Explications sans réponse ({explicationsEnRetard.length})
-                    </Text>
-                    {explicationsEnRetard.map(d => (
-                      <TouchableOpacity
-                        key={d.id}
-                        activeOpacity={0.75}
-                        onPress={() => ouvrirExplicationEnRetard(d)}
-                        style={[styles.notifCard, styles.notifCardRetard]}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Explication de ${d.travailleur_nom || 'travailleur'} sans réponse depuis ${d.joursDepuisEnvoi} jours`}
-                      >
-                        <Text style={styles.notifCardTitre}>
-                          {d.travailleur_nom || 'Travailleur'}{d.numero > 1 ? ' · relance' : ''}
+                    {avisEnRetard.length > 0 ? (
+                      <>
+                        <Text style={styles.notifSection}>⭐ Avis à envoyer ({avisEnRetard.length})</Text>
+                        {avisEnRetard.map(a => (
+                          <TouchableOpacity
+                            key={a.platform}
+                            activeOpacity={0.75}
+                            onPress={ouvrirAvisEnRetard}
+                            style={[styles.notifCard, styles.notifCardRetard]}
+                            accessibilityRole="button"
+                            accessibilityLabel={texteRetard(a)}
+                          >
+                            <Text style={styles.notifCardTitre}>{texteRetard(a)}</Text>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                              <Text style={[styles.notifCardDate, styles.notifRetardTxt]}>
+                                Cliquez sur le bouton avis depuis le portail {a.label}
+                              </Text>
+                              <Text style={styles.notifVoir}>Voir ›</Text>
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                      </>
+                    ) : null}
+                    {explicationsEnRetard.length > 0 ? (
+                      <>
+                        <Text style={styles.notifSection}>
+                          ⏰ Explications sans réponse ({explicationsEnRetard.length})
                         </Text>
-                        <Text style={styles.notifCardMsg}>
-                          {d.motif}{d.restaurant_nom ? ` — ${d.restaurant_nom}` : ''}
-                        </Text>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
-                          <Text style={[styles.notifCardDate, styles.notifRetardTxt]}>
-                            Envoyée il y a {d.joursDepuisEnvoi} jours · jour de réponse dépassé
-                          </Text>
-                          <Text style={styles.notifVoir}>Voir ›</Text>
-                        </View>
-                      </TouchableOpacity>
-                    ))}
+                        {explicationsEnRetard.map(d => (
+                          <TouchableOpacity
+                            key={d.id}
+                            activeOpacity={0.75}
+                            onPress={() => ouvrirExplicationEnRetard(d)}
+                            style={[styles.notifCard, styles.notifCardRetard]}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Explication de ${d.travailleur_nom || 'travailleur'} sans réponse depuis ${d.joursDepuisEnvoi} jours`}
+                          >
+                            <Text style={styles.notifCardTitre}>
+                              {d.travailleur_nom || 'Travailleur'}{d.numero > 1 ? ' · relance' : ''}
+                            </Text>
+                            <Text style={styles.notifCardMsg}>
+                              {d.motif}{d.restaurant_nom ? ` — ${d.restaurant_nom}` : ''}
+                            </Text>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                              <Text style={[styles.notifCardDate, styles.notifRetardTxt]}>
+                                Envoyée il y a {d.joursDepuisEnvoi} jours · jour de réponse dépassé
+                              </Text>
+                              <Text style={styles.notifVoir}>Voir ›</Text>
+                            </View>
+                          </TouchableOpacity>
+                        ))}
+                      </>
+                    ) : null}
                     {notifications.length > 0 && <Text style={styles.notifSection}>Notifications</Text>}
                   </View>
                 ) : null}

@@ -1,6 +1,8 @@
 import * as Haptics from 'expo-haptics'
 import { router } from 'expo-router'
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { plateformesEnRetard } from '../lib/avisPlateformes'
+import { dernierAvisRecu } from '../lib/avisPlateformesDb'
 import { explicationsSansReponse, seuilRetard } from '../lib/demandes'
 import { supabase } from '../lib/supabase'
 import {
@@ -12,6 +14,7 @@ import { useApp } from './AppContext'
 const NotificationsContext = createContext({
   notifications: [],
   explicationsEnRetard: [],
+  avisEnRetard: [],
   nonLues: 0,
   panelVisible: false,
   ouvrirPanel: () => {},
@@ -36,6 +39,9 @@ const ROUTE_MAP = {
 // Rôles qui suivent les demandes d'explication restées sans réponse.
 const ROLES_SUIVI_EXPLICATIONS = ['manager', 'rh']
 
+// Rôles rappelés quand une plateforme n'a pas reçu d'avis depuis 2 jours.
+const ROLES_RAPPEL_AVIS = ['manager', 'directeur']
+
 export function NotificationsProvider({ children }) {
   const { userId, roleActif, restaurantId } = useApp() ?? {}
   const [notifications, setNotifications] = useState([])
@@ -43,11 +49,14 @@ export function NotificationsProvider({ children }) {
   // à l'affichage et non stockées : elles disparaissent d'elles-mêmes dès que
   // la réponse est récupérée ou la demande relancée.
   const [explicationsEnRetard, setExplicationsEnRetard] = useState([])
+  // Plateformes sans nouvel avis depuis 2 jours (personne n'a cliqué sur le
+  // bouton avis). Calculées à l'affichage, disparaissent après un envoi.
+  const [avisEnRetard, setAvisEnRetard] = useState([])
   const [panelVisible, setPanelVisible] = useState(false)
   const channelRef = useRef(null)
 
   const nonLues = userId
-    ? notifications.filter(n => !n.lu_par?.includes(userId)).length + explicationsEnRetard.length
+    ? notifications.filter(n => !n.lu_par?.includes(userId)).length + explicationsEnRetard.length + avisEnRetard.length
     : 0
 
   useEffect(() => {
@@ -63,6 +72,7 @@ export function NotificationsProvider({ children }) {
     const data = await chargerNotifications(userId, roleActif, restaurantId)
     setNotifications(data)
     chargerExplicationsEnRetard()
+    chargerAvisEnRetard()
   }
 
   async function chargerExplicationsEnRetard() {
@@ -102,9 +112,19 @@ export function NotificationsProvider({ children }) {
       .subscribe()
   }
 
+  async function chargerAvisEnRetard() {
+    if (!ROLES_RAPPEL_AVIS.includes(roleActif)) { setAvisEnRetard([]); return }
+    try {
+      setAvisEnRetard(plateformesEnRetard(await dernierAvisRecu()))
+    } catch {
+      setAvisEnRetard([])
+    }
+  }
+
   async function ouvrirPanel() {
     setPanelVisible(true)
     chargerExplicationsEnRetard()
+    chargerAvisEnRetard()
     const ids = notifications.filter(n => !n.lu_par?.includes(userId)).map(n => n.id)
     if (ids.length > 0) {
       await marquerToutLu(ids, userId)
@@ -173,12 +193,17 @@ export function NotificationsProvider({ children }) {
     router.push({ pathname: '/demandes-explication-admin', params: { onglet, etape: 'attente' } })
   }
 
+  function ouvrirAvisEnRetard() {
+    fermerPanel()
+    router.push('/avis-plateformes')
+  }
+
   return (
     <NotificationsContext.Provider value={{
-      notifications, explicationsEnRetard, nonLues, panelVisible,
+      notifications, explicationsEnRetard, avisEnRetard, nonLues, panelVisible,
       ouvrirPanel, fermerPanel,
       marquerUneCommeLue, supprimerUne, supprimerTout,
-      naviguerDepuisNotif, ouvrirExplicationEnRetard,
+      naviguerDepuisNotif, ouvrirExplicationEnRetard, ouvrirAvisEnRetard,
     }}>
       {children}
     </NotificationsContext.Provider>
