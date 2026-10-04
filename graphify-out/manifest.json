@@ -612,9 +612,9 @@
     "semantic_hash": ""
   },
   "lib/menus.js": {
-    "mtime": 1791064036.5339878,
-    "seen": 1791064099.2407198,
-    "ast_hash": "b1737c5fc557ed99e36e6f492cef3092",
+    "mtime": 1791127152.4013233,
+    "seen": 1791127173.408416,
+    "ast_hash": "08284d61f57b9a1d1d32406f984beeba",
     "semantic_hash": ""
   },
   "lib/networkStatus.js": {
@@ -1950,9 +1950,9 @@
     "semantic_hash": ""
   },
   "lib/groupesAccueil.js": {
-    "mtime": 1791107318.0391243,
-    "seen": 1791107478.177432,
-    "ast_hash": "66de89d8e2c50bb77a06b95b476a850c",
+    "mtime": 1791127152.40155,
+    "seen": 1791127173.408405,
+    "ast_hash": "d5752561d7b7353f722d81771c17525a",
     "semantic_hash": ""
   },
   "lib/groupesAccueil.test.mjs": {
