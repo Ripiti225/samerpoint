@@ -12,6 +12,7 @@
 //  avis n'entrent dans aucun total — c'est la file de travail à vider.
 // ──────────────────────────────────────────────────────────────────────────────
 import { retour } from '../lib/navigation'
+import { router } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator, Alert, Modal, RefreshControl, SafeAreaView,
@@ -24,9 +25,10 @@ import { journaliser } from '../lib/journal'
 import {
   CLASSIFICATIONS, PLATEFORMES, boutiquesARattacher, classifierAvis,
   kpisAvis, kpisParPlateforme, kpisParRestaurant, noteSur5, plateforme,
+  plateformesEnRetard, texteRetard,
 } from '../lib/avisPlateformes'
 import {
-  chargerAvis, chargerAvisNonRattaches, dernierRun, rattacherBoutique,
+  chargerAvis, chargerAvisNonRattaches, dernierAvisRecu, dernierRun, rattacherBoutique,
 } from '../lib/avisPlateformesDb'
 
 const TODAY = new Date().toISOString().split('T')[0]
@@ -70,7 +72,7 @@ function etoiles(note) {
 export default function AvisPlateformes() {
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
-  const { userId, userNom } = useApp()
+  const { userId, userNom, roleActif } = useApp()
 
   const [onglet, setOnglet] = useState('avis')          // 'avis' | 'rattacher'
   const [periodeKey, setPeriodeKey] = useState('mois')
@@ -83,6 +85,7 @@ export default function AvisPlateformes() {
   const [avis, setAvis] = useState([])
   const [orphelins, setOrphelins] = useState([])
   const [run, setRun] = useState(null)
+  const [retards, setRetards] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [erreur, setErreur] = useState(null)
@@ -105,14 +108,16 @@ export default function AvisPlateformes() {
     setErreur(null)
     try {
       const { debut, fin } = periode.plage()
-      const [lignes, sansResto, dernier] = await Promise.all([
+      const [lignes, sansResto, dernier, derniersEnvois] = await Promise.all([
         chargerAvis({ debut, fin, restaurantId: restoFilter, platform: platformFilter, classification: classFilter }),
         chargerAvisNonRattaches(),
         dernierRun().catch(() => null),
+        dernierAvisRecu().catch(() => null),
       ])
       setAvis(lignes)
       setOrphelins(sansResto)
       setRun(dernier)
+      setRetards(derniersEnvois ? plateformesEnRetard(derniersEnvois) : [])
       setVisible(PAR_PAGE)
     } catch (e) {
       // Message en français : la cause la plus probable est que la migration
@@ -170,6 +175,11 @@ export default function AvisPlateformes() {
         </TouchableOpacity>
         <Text style={styles.headerTitre}>Avis clients</Text>
         <Text style={styles.headerSub}>Yango & Glovo · notes et commentaires</Text>
+        {roleActif === 'manager' ? (
+          <TouchableOpacity onPress={() => router.push('/bouton-avis')} style={styles.lienBouton}>
+            <Text style={styles.lienBoutonTxt}>🔖 Installer le bouton avis</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {/* Onglets */}
@@ -285,6 +295,14 @@ export default function AvisPlateformes() {
               </TouchableOpacity>
             ))}
           </View>
+
+          {retards.map(r => (
+            <View key={r.platform} style={styles.rappelBox}>
+              <Text style={styles.rappelTxt}>
+                ⏰ {texteRetard(r)} — ouvrez le portail {r.label}{r.platform === 'yango' ? ' (page Avis)' : ''} et cliquez sur le bouton avis.
+              </Text>
+            </View>
+          ))}
 
           {erreur ? (
             <View style={styles.erreurBox}><Text style={styles.erreurTxt}>{erreur}</Text></View>
@@ -468,6 +486,10 @@ function makeStyles(colors) { return StyleSheet.create({
 
   erreurBox: { backgroundColor: colors.errorLight, borderRadius: 10, padding: 12, marginBottom: 12 },
   erreurTxt: { fontSize: 13, color: colors.errorDark, lineHeight: 19 },
+  rappelBox: { backgroundColor: '#FFF3E0', borderRadius: 10, borderWidth: 1, borderColor: '#EF9F27', padding: 12, marginBottom: 12 },
+  rappelTxt: { fontSize: 13, color: '#8A4B00', lineHeight: 19, fontWeight: '600' },
+  lienBouton: { marginTop: 10, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, minHeight: 36, justifyContent: 'center' },
+  lienBoutonTxt: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
 
   kpiRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
   kpiCard: { flex: 1, backgroundColor: colors.primary, borderRadius: 12, padding: 12, alignItems: 'center' },
