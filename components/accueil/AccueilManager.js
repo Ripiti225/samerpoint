@@ -25,7 +25,7 @@ import Indicateur from './Indicateur'
 import Survol from '../ui/Survol'
 import { chargerContactsPeriode } from '../../lib/contactsPeriodeDb'
 import { evolutionsHierDetail, texteHier, totalParJour } from '../../lib/hierAccueil'
-import { etatPointHier, texteDemandes } from '../../lib/accueilGerant'
+import { etatPointHier, lignesCaissiersHier, texteDemandes } from '../../lib/accueilGerant'
 import BandeauGerant from './BandeauGerant'
 import { resumeContrats } from '../../lib/contrats'
 import {
@@ -113,7 +113,7 @@ function useEtatDuJour(role, userId, restaurantId) {
         const dates = [isoLocal(hier), isoLocal(avantHier), isoLocal(semainePrec)]
         const nbAvisResto = jour => supabase.from('platform_reviews').select('id', { count: 'exact', head: true })
           .eq('restaurant_id', restaurantId).eq('review_date', isoLocal(jour)).then(x => (x.error ? 0 : x.count || 0))
-        const [pts, corr, dem, expl, aH, aAH, aSP, contactsJours] = await Promise.all([
+        const [pts, corr, dem, expl, aH, aAH, aSP, contactsJours, shiftsHier] = await Promise.all([
           supabase.from('points').select('date, valide, verifie, vente_total').eq('restaurant_id', restaurantId).in('date', dates),
           supabase.from('deverouillages_points').select('id', { count: 'exact', head: true })
             .eq('restaurant_id', restaurantId).eq('statut', 'ouvert'),
@@ -124,6 +124,9 @@ function useEtatDuJour(role, userId, restaurantId) {
           nbAvisResto(hier), nbAvisResto(avantHier), nbAvisResto(semainePrec),
           chargerContactsPeriode({ debut: isoLocal(semainePrec), fin: isoLocal(hier), restoId: restaurantId })
             .then(c => totalParJour(c.lignes, 'contacts')).catch(() => null),
+          supabase.from('points_shifts')
+            .select('id, caissier_nom, heure_debut, heure_fin, vente_shift, ecart_pos, explication_ecart')
+            .eq('restaurant_id', restaurantId).eq('date', dates[0]),
         ])
         if (pts.error) return
         const parDate = Object.fromEntries((pts.data || []).map(x => [x.date, x]))
@@ -141,6 +144,7 @@ function useEtatDuJour(role, userId, restaurantId) {
               : [],
             demandes: texteDemandes({ demandes: nbDem, explications: nbExpl }),
             nbDemandes: nbDem + nbExpl,
+            caissiers: shiftsHier.error ? [] : lignesCaissiersHier(shiftsHier.data),
           },
           avisHier: texteHier({ hier: aH, avantHier: aAH, semainePrec: aSP }, dates[0]),
           contactsHier: contactsJours === null ? null : texteHier({
