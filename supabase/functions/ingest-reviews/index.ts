@@ -10,6 +10,9 @@
 //   POST → { reviews: [...], finalize?: bool }
 //          ingère, dédoublonne, crée un litige par NOUVEL avis négatif
 //          qui a un commentaire ou un tag (un négatif muet n'en crée pas) ;
+//          `commande_le` (heure de la commande, lue par le bouton avis) :
+//          enregistrée, complétée sur les avis déjà connus, et utilisée pour
+//          dater le litige et lui attribuer le caissier présent.
 //          si finalize, écrit la ligne ingest_runs du jour.
 //
 // Authentification : en-tête `x-ingest-secret` (secret INGEST_SECRET).
@@ -25,6 +28,7 @@
 // Variable optionnelle : LITIGE_MONTANT_MAUVAIS (défaut 1000 FCFA)
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { caissierAuMoment } from './attributionAvis.js'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -70,6 +74,18 @@ const dateIso = (v: unknown) => {
   if (!s) return null
   return /^\d{4}-\d{2}-\d{2}$/.test(s.slice(0, 10)) ? s.slice(0, 10) : null
 }
+
+// Une date-heure ISO valide → ISO UTC normalisé ; sinon null.
+const dateHeureIso = (v: unknown) => {
+  const s = texte(v)
+  if (!s) return null
+  const t = Date.parse(s)
+  return Number.isFinite(t) ? new Date(t).toISOString() : null
+}
+
+// Abidjan = UTC : jour et heure de la commande, lus directement.
+const jourEtHeure = (iso: string | null) =>
+  iso ? { date: new Date(iso).toISOString().slice(0, 10), heure: new Date(iso).toISOString().slice(11, 16) } : null
 
 // Un avis négatif ne crée un litige que s'il dit pourquoi : un commentaire,
 // ou au moins un tag Yango (raw.tag) / thème Glovo (raw.theme). Miroir exact
@@ -151,6 +167,7 @@ Deno.serve(async (req) => {
       const rating_scale = nombre(r?.rating_scale) || 5
       const comment = texte(r?.comment)
       const review_date = dateIso(r?.review_date)
+      const commande_le = dateHeureIso(r?.commande_le)
 
       // Dédoublonnage prioritaire sur le n° de commande ; repli sur le contenu
       // quand la plateforme ne l'affiche pas.
@@ -181,6 +198,7 @@ Deno.serve(async (req) => {
         comment,
         author: texte(r?.author),
         review_date,
+        commande_le,
         dedup_hash,
         raw: r ?? null,
       })
@@ -188,14 +206,27 @@ Deno.serve(async (req) => {
 
     // Insertion par lots ; ON CONFLICT DO NOTHING sur dedup_hash → seuls les
     // avis réellement nouveaux ressortent, donc seuls eux créent un litige.
-    const inseres: { id: string; classification: string; restaurant_id: string | null; comment: string | null; review_date: string | null; platform: string; external_ref: string | null; external_store_label: string | null; raw: Record<string, unknown> | null }[] = []
+    const inseres: { id: string; classification: string; restaurant_id: string | null; comment: string | null; review_date: string | null; platform: string; external_ref: string | null; external_store_label: string | null; raw: Record<string, unknown> | null; dedup_hash: string; commande_le: string | null }[] = []
     for (let i = 0; i < rows.length; i += LOT) {
       const { data, error } = await supabase
         .from('platform_reviews')
         .upsert(rows.slice(i, i + LOT), { onConflict: 'dedup_hash', ignoreDuplicates: true })
-        .select('id, classification, restaurant_id, comment, review_date, platform, external_ref, external_store_label, raw')
+        .select('id, classification, restaurant_id, comment, review_date, platform, external_ref, external_store_label, raw, dedup_hash, commande_le')
       if (error) throw error
       inseres.push(...(data ?? []))
+    }
+
+    // Avis déjà connus relus avec une heure : on la complète (et celle du
+    // litige lié), sans rien toucher d'autre.
+    const hashesInseres = new Set(inseres.map((x) => x.dedup_hash))
+    const heuresConnues = rows
+      .filter((x) => x.commande_le && !hashesInseres.has(x.dedup_hash as string))
+      .map((x) => ({ dedup_hash: x.dedup_hash, commande_le: x.commande_le }))
+    const completes: string[] = []
+    for (let i = 0; i < heuresConnues.length; i += LOT) {
+      const { data, error } = await supabase.rpc('completer_heures_avis', { p_heures: heuresConnues.slice(i, i + LOT) })
+      if (error) throw error
+      completes.push(...((data ?? []) as unknown[]).map((d) => (typeof d === 'string' ? d : (d as { completer_heures_avis: string }).completer_heures_avis)))
     }
 
     // Boutiques que le mapping n'a pas reconnues, parmi les avis NOUVEAUX :
@@ -219,7 +250,8 @@ Deno.serve(async (req) => {
     for (let i = 0; i < negatifs.length; i += LOT) {
       const lot = negatifs.slice(i, i + LOT).map((x) => ({
         restaurant_id: x.restaurant_id,
-        date: x.review_date ?? aujourdhui(),
+        date: jourEtHeure(x.commande_le)?.date ?? x.review_date ?? aujourdhui(),
+        heure_commande: jourEtHeure(x.commande_le)?.heure ?? null,
         numero_commande: x.external_ref,
         notes: x.comment || 'Avis négatif sans commentaire',
         type: 'mauvais',
@@ -237,6 +269,41 @@ Deno.serve(async (req) => {
       litiges_crees += data?.length ?? 0
     }
 
+    // ── Responsable des litiges dont l'heure est connue ──────────────
+    // Caissier présent à l'heure de la commande (lib/attributionAvis.js,
+    // copie exacte). Jamais d'écrasement d'un responsable déjà renseigné ;
+    // shift pas encore saisi → le bouton « Attribuer » de Litiges rattrapera.
+    const avisAvecHeure = [...inseres.filter((x) => x.commande_le).map((x) => x.id), ...completes]
+    let litiges_attribues = 0
+    const aAttribuer: { id: string; restaurant_id: string; date: string; heure_commande: string }[] = []
+    for (let i = 0; i < avisAvecHeure.length; i += 150) {
+      const { data, error } = await supabase.from('litiges_avis_clients')
+        .select('id, restaurant_id, date, heure_commande')
+        .in('review_id', avisAvecHeure.slice(i, i + 150))
+        .is('responsable_id', null).is('responsable_nom', null)
+        .not('heure_commande', 'is', null)
+      if (error) throw error
+      aAttribuer.push(...(data ?? []))
+    }
+    if (aAttribuer.length) {
+      const dates = aAttribuer.map((l) => l.date).sort()
+      const veille = new Date(Date.parse(`${dates[0]}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
+      const { data: shifts, error } = await supabase.from('points_shifts')
+        .select('restaurant_id, date, caissier_id, caissier_nom, heure_debut, heure_fin')
+        .in('restaurant_id', [...new Set(aAttribuer.map((l) => l.restaurant_id))])
+        .gte('date', veille).lte('date', dates[dates.length - 1])
+        .range(0, 4999)
+      if (error) throw error
+      for (const l of aAttribuer) {
+        const r = caissierAuMoment(shifts ?? [], { restaurantId: l.restaurant_id, date: l.date, heure: String(l.heure_commande).slice(0, 5) })
+        if (!r.caissier_id && !r.caissier_nom) continue
+        const { error: e } = await supabase.from('litiges_avis_clients')
+          .update({ responsable_id: r.caissier_id || null, responsable_nom: r.caissier_nom || null })
+          .eq('id', l.id).is('responsable_id', null).is('responsable_nom', null)
+        if (!e) litiges_attribues++
+      }
+    }
+
     const resume = {
       received: reviews.length,
       inserted: inseres.length,
@@ -245,6 +312,8 @@ Deno.serve(async (req) => {
       unmapped: orphelins.length,
       litiges_crees,
       litiges_ignores_sans_motif,
+      heures_ajoutees: inseres.filter((x) => x.commande_le).length + completes.length,
+      litiges_attribues,
       labels_a_rattacher: [...labels_non_mappes],
     }
 
