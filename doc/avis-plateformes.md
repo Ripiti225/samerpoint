@@ -105,45 +105,29 @@ nouvelle, soit envoyée avec un libellé qui ne correspond pas — voir ci-desso
 Le rattachement manuel reste disponible : il reprend les avis déjà reçus et
 crée les litiges des négatifs concernés.
 
-## Extraction quotidienne (Cowork + Chrome)
+## Envoi des avis : le bouton « ⭐ Avis → Samtrackly »
 
-Trois créneaux le même jour : **11h**, **12h**, **13h**.
+Les tâches Claude planifiées (11h/12h/13h) ont échoué à chaque exécution :
+elles tournaient dans le cloud, sans Chrome ni accès aux portails. Elles sont
+en pause depuis le 04/10/2026. Les avis arrivent désormais par un **favori
+Chrome** cliqué par un humain déjà connecté aux portails.
 
-1. `GET` sur l'endpoint → si `done_today: true`, **s'arrêter** (le créneau
-   précédent a réussi).
-2. Extraire Glovo (`portal.glovoapp.com/reviews`) et Yango
-   (`vendor.yango.com/feedback/places?from=J-3&to=aujourd'hui&period=day&service=all`)
-   sur une **fenêtre de 72 h** — une journée entièrement ratée est ainsi
-   rattrapée au prochain run, sans risque de doublon.
-3. `POST` avec `{ "reviews": [...], "finalize": true }` — `finalize` uniquement
-   sur l'envoi final, celui qui contient Glovo **et** Yango.
+- **Installation** (manager) : Avis clients → « 🔖 Installer le bouton avis »,
+  coller le secret d'ingestion, glisser le bouton dans la barre de favoris.
+- **Glovo** : clic sur le bouton depuis n'importe quelle page du portail.
+- **Yango** : clic depuis la page **Avis** (filtre « Tous les restaurants »).
+- Le bouton relit depuis le dernier avis reçu moins 3 jours (45 jours au
+  plus) ; le dédoublonnage absorbe les répétitions. Une petite fenêtre
+  (`/envoi-avis.html`) envoie les avis et affiche le résultat.
+- **Rappel** : sans envoi depuis 2 jours sur une plateforme, bandeau dans
+  l'écran Avis clients et ligne dans la cloche (manager, directeur).
+- **Secret changé** (`INGEST_SECRET`) → chaque utilisateur réinstalle le bouton.
+- **Nouvelle boutique Glovo** : l'ajouter à `NOMS_GLOVO` dans
+  `public/bouton-avis.js`, publier, réinstaller le bouton.
 
-Champs par avis :
-
-| Champ | Yango | Glovo |
-|---|---|---|
-| `platform` | `"yango"` | `"glovo"` |
-| `external_store_label` | **nom + adresse**, tels qu'affichés | nom de la boutique, tel qu'affiché |
-| `external_ref` | n° de commande (`260901-CI6438910`) | n° de commande (`101760937850`) |
-| `rating_raw` / `rating_scale` | étoiles 1-5 / 5 | absent |
-| `classification` | déduit (< 3 → négatif) | **obligatoire** : `bon` / `negatif` |
-| `comment`, `review_date`, `raw` | oui | oui |
-
-> ⚠️ **Le libellé Yango doit inclure l'adresse.** Le nom seul est ambigu :
-> `Al Kayan (Abidjan, Côte d’Ivoire, )` est **Al Kayan KMS**, tandis que
-> `Al Kayan (Abidjan, Rue S95, )` est **Al Kayan Yop**. Même chose pour
-> `Al Kayan Pizza` et pour les trois `Chez Samer`. Copier le libellé complet
-> tel qu'affiché par le portail, parenthèses comprises. Un libellé tronqué ne
-> matche rien : l'avis part dans « À rattacher » plutôt que d'être attribué au
-> hasard, mais il faut alors le rattacher à la main.
->
-> Les écarts inoffensifs sont absorbés : espaces en trop, majuscules/minuscules.
-> Les accents et la ponctuation, non.
-
-Sans `external_ref`, le dédoublonnage retombe sur le contenu de l'avis
-(plateforme + boutique + date + note + commentaire) : moins fiable, un même
-commentaire reposté le lendemain passerait deux fois. Toujours extraire le
-numéro de commande quand il est affiché.
+Code : `public/bouton-avis.js` (moteur), `public/envoi-avis.{html,js}`
+(relais), `app/bouton-avis.js` (installation), tests
+`lib/boutonAvis.test.mjs` et `lib/envoiAvis.test.mjs`.
 
 ## Lire les résultats
 

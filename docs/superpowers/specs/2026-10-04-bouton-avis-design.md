@@ -29,7 +29,7 @@ n'a cliqué depuis 2 jours.
    `vendor.yango.com`. Ailleurs : message « Ouvre le portail Glovo ou la page
    Avis de Yango, puis clique à nouveau ».
 2. **Immédiatement** (encore dans le geste de clic, sinon Chrome bloque la
-   fenêtre), le bouton ouvre `<origine Samtrackly>/envoi-avis` en petite
+   fenêtre), le bouton ouvre `<origine Samtrackly>/envoi-avis.html` en petite
    fenêtre.
 3. La fenêtre relais répond `pret` au portail (`postMessage` vers
    `window.opener`). Elle interroge `GET ingest-reviews` pour connaître la date
@@ -79,10 +79,11 @@ transmet pas), `raw.tag` = `predefined_comments`, `raw.yango_place_id`.
 
 ## 3. Page relais, installation, sécurité
 
-- **`app/envoi-avis.js`** : route publique (ajoutée aux routes que
-  `SessionGuard` laisse passer — la fenêtre s'ouvre sans session). N'accepte
-  un message que si son origine est exactement `https://portal.glovoapp.com`
-  ou `https://vendor.yango.com`. Elle ne stocke rien.
+- **`public/envoi-avis.html` + `public/envoi-avis.js`** : page statique, hors
+  de l'app (les gardes de session de l'app redirigeraient la fenêtre vers la
+  connexion ou le dernier écran). N'accepte un message que si son origine est
+  exactement `https://portal.glovoapp.com` ou `https://vendor.yango.com`.
+  Elle ne stocke rien.
 - **`app/bouton-avis.js`** (manager uniquement, lien depuis l'écran Avis
   clients) : le manager colle **une fois** le secret d'ingestion (pris dans
   son gestionnaire de mots de passe) ; l'écran génère le favori à glisser
