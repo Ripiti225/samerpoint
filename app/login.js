@@ -2,6 +2,7 @@ import { router } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   Platform,
@@ -31,6 +32,12 @@ import { SPRINGS } from '../lib/animations'
 import { ROLES_GLOBAUX } from '../lib/constants'
 import { separerComptesPOS } from '../lib/sourcePoint'
 import { destinationApresDeverrouillage } from '../lib/inactivityLock'
+import { controlerEnrolement, peutProposerActivation } from '../lib/biometrie'
+import {
+  activer, aRefuse, estSupportee, lireEnrolement, messageErreur,
+  noterRefus, oublierEnrolement, signature, verifier,
+} from '../lib/biometrieWeb'
+import '../lib/webAlert'   // remplace Alert.alert par les dialogues du navigateur
 
 // ─── Bouton PIN animé ────────────────────────────────────────
 function PinButton({ label, onPress, disabled, colors }) {
@@ -250,6 +257,32 @@ function UserCard({ item, index, onPress, getRoleCouleur, getRoleBg, getRoleLabe
   )
 }
 
+// ─── Bouton Face ID / empreinte ──────────────────────────────
+function BoutonBiometrie({ enrolement, enCours, message, onPress, onRetirer, colors }) {
+  return (
+    <Animated.View entering={FadeInDown.delay(120).springify().damping(18)} style={styles.bioWrap}>
+      <TouchableOpacity
+        style={[styles.bioBtn, enCours && { opacity: 0.6 }]}
+        onPress={onPress}
+        disabled={enCours}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.bioIcone}>🔐</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.bioTitre}>{enCours ? 'Vérification…' : 'Entrer avec Face ID / empreinte'}</Text>
+          <Text style={styles.bioSous}>{enrolement.userNom} · {enrolement.restaurantNom}</Text>
+        </View>
+      </TouchableOpacity>
+      {!!message && <Text style={styles.bioErreur}>{message}</Text>}
+      {onRetirer && (
+        <TouchableOpacity onPress={onRetirer} style={styles.bioRetirer}>
+          <Text style={[styles.bioRetirerTxt, { color: colors.textMuted }]}>Retirer Face ID de ce téléphone</Text>
+        </TouchableOpacity>
+      )}
+    </Animated.View>
+  )
+}
+
 // ─── Écran principal ─────────────────────────────────────────
 export default function LoginScreen() {
   const { colors } = useTheme()
@@ -267,6 +300,12 @@ export default function LoginScreen() {
   const [bloqueJusquaResto, setBloqueJusquaResto] = useState(null)
   const [bloqueJusquaUser, setBloqueJusquaUser] = useState(null)
   const [secondesRestantes, setSecondesRestantes] = useState(0)
+  // Face ID / empreinte (web uniquement — cf. lib/biometrieWeb.js)
+  const [bioSupportee, setBioSupportee] = useState(false)
+  const [enrolement, setEnrolement] = useState(() => lireEnrolement())
+  const [bioEnCours, setBioEnCours] = useState(false)
+  const [bioMessage, setBioMessage] = useState('')
+  const [activationEnAttente, setActivationEnAttente] = useState(null)
 
   const {
     setRoleActif, resetJour, setLastRoute,
@@ -294,6 +333,7 @@ export default function LoginScreen() {
   }, [bloqueJusquaResto, bloqueJusquaUser])
 
   useEffect(() => { fetchRestaurants() }, [])
+  useEffect(() => { estSupportee().then(setBioSupportee) }, [])
 
   async function fetchRestaurants() {
     setLoadingRestos(true)
@@ -309,6 +349,7 @@ export default function LoginScreen() {
 
   function choisirRestaurant(resto) {
     setSelectedResto(resto)
+    setBioMessage('')
     setPin('')
     setPinError(false)
     setTentativesResto(0)
@@ -437,20 +478,110 @@ export default function LoginScreen() {
     }
     setPinError(false)
 
-    const memeUtilisateur = userIdEnSession === selected.id
+    // Codes justes : c'est le seul moment où l'on peut proposer Face ID,
+    // le gérant venant de prouver qui il est.
+    const dejaActive = enrolement?.userId === selected.id && enrolement?.restaurantId === selectedResto?.id
+    if (peutProposerActivation({
+      estWeb: Platform.OS === 'web', supporte: bioSupportee, role: selected.role,
+      dejaActive, refuse: aRefuse(selected.id),
+    })) {
+      setBioMessage('')
+      setActivationEnAttente({ utilisateur: selected, restaurant: selectedResto })
+      setEtape(5)
+      return
+    }
+    ouvrirSession(selected, selectedResto)
+  }
+
+  async function activerBiometrie() {
+    if (bioEnCours || !activationEnAttente) return
+    const { utilisateur, restaurant } = activationEnAttente
+    setBioEnCours(true)
+    setBioMessage('')
+    try {
+      setEnrolement(await activer(utilisateur, restaurant))
+      ouvrirSession(utilisateur, restaurant)
+    } catch (err) {
+      setBioMessage(messageErreur(err))
+    } finally {
+      setBioEnCours(false)
+    }
+  }
+
+  function passerActivation(definitivement) {
+    const { utilisateur, restaurant } = activationEnAttente
+    if (definitivement) noterRefus(utilisateur.id)
+    ouvrirSession(utilisateur, restaurant)
+  }
+
+  // navigator.credentials.get part en premier, directement depuis l'appui :
+  // Safari refuse Face ID si un chargement réseau le précède.
+  async function entrerAvecBiometrie() {
+    if (!enrolement || bioEnCours) return
+    setBioEnCours(true)
+    setBioMessage('')
+    try {
+      await verifier(enrolement)
+    } catch (err) {
+      setBioMessage(messageErreur(err))
+      setBioEnCours(false)
+      return
+    }
+    try {
+      const resto = restaurants.find(r => r.id === enrolement.restaurantId) || null
+      const users = resto ? await getUtilisateurs(resto.id) : []
+      const user = users.find(u => u.id === enrolement.userId) || null
+      const sig = resto && user ? await signature(user, resto) : null
+      const controle = controlerEnrolement(enrolement, { utilisateur: user, restaurant: resto, signature: sig })
+      if (!controle.ok) {
+        if (controle.oublier) {
+          oublierEnrolement()
+          setEnrolement(null)
+        }
+        setBioMessage(controle.message)
+        return
+      }
+      setSelectedResto(resto)
+      setSelected(user)
+      ouvrirSession(user, resto)
+    } catch {
+      setBioMessage('Connexion impossible pour le moment. Entrez vos codes.')
+    } finally {
+      setBioEnCours(false)
+    }
+  }
+
+  function retirerBiometrie() {
+    Alert.alert(
+      'Retirer Face ID de ce téléphone ?',
+      'Vous devrez entrer vos codes à la prochaine connexion. Vous pourrez le réactiver ensuite.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Retirer', style: 'destructive', onPress: () => {
+          oublierEnrolement()
+          setEnrolement(null)
+          setBioMessage('')
+        } },
+      ],
+    )
+  }
+
+  // Ouverture commune aux deux chemins : codes PIN ou Face ID.
+  function ouvrirSession(utilisateur, resto) {
+    const memeUtilisateur = userIdEnSession === utilisateur.id
     if (!memeUtilisateur) {
       resetJour()
-    } else if (!sessionVerrouille && (selected.role === 'caissier' || selected.role === 'gerant')) {
+    } else if (!sessionVerrouille && (utilisateur.role === 'caissier' || utilisateur.role === 'gerant')) {
       setLastRoute(null)
     }
 
-    setRoleActif(selected.role)
-    setUserId(selected.id)
-    setUserNom(selected.nom)
+    setRoleActif(utilisateur.role)
+    setUserId(utilisateur.id)
+    setUserNom(utilisateur.nom)
 
-    const estGlobal = ROLES_GLOBAUX.includes(selected.role)
-    const restoId = estGlobal ? null : selectedResto?.id
-    const restoNom = estGlobal ? null : selectedResto?.nom
+    const estGlobal = ROLES_GLOBAUX.includes(utilisateur.role)
+    const restoId = estGlobal ? null : resto?.id
+    const restoNom = estGlobal ? null : resto?.nom
     setRestaurantId(restoId)
     setRestaurantNom(restoNom)
 
@@ -463,16 +594,16 @@ export default function LoginScreen() {
       }
     }
 
-    if (selected.role === 'manager' || selected.role === 'directeur') {
-      router.replace({ pathname: '/accueil', params: { userId: selected.id, nom: selected.nom, role: selected.role } })
-    } else if (selected.role === 'rh') {
-      router.replace({ pathname: '/accueil', params: { userId: selected.id, nom: selected.nom, role: selected.role } })
-    } else if (selected.role === 'verificateur') {
-      router.replace({ pathname: '/verificateur', params: { userId: selected.id, nom: selected.nom, role: selected.role } })
-    } else if (selected.role === 'gerant') {
-      router.replace({ pathname: '/choix-date', params: { userId: selected.id, nom: selected.nom, role: selected.role } })
+    if (utilisateur.role === 'manager' || utilisateur.role === 'directeur') {
+      router.replace({ pathname: '/accueil', params: { userId: utilisateur.id, nom: utilisateur.nom, role: utilisateur.role } })
+    } else if (utilisateur.role === 'rh') {
+      router.replace({ pathname: '/accueil', params: { userId: utilisateur.id, nom: utilisateur.nom, role: utilisateur.role } })
+    } else if (utilisateur.role === 'verificateur') {
+      router.replace({ pathname: '/verificateur', params: { userId: utilisateur.id, nom: utilisateur.nom, role: utilisateur.role } })
+    } else if (utilisateur.role === 'gerant') {
+      router.replace({ pathname: '/choix-date', params: { userId: utilisateur.id, nom: utilisateur.nom, role: utilisateur.role } })
     } else {
-      router.replace({ pathname: '/selectionner-journee', params: { userId: selected.id, nom: selected.nom, role: selected.role, restoId } })
+      router.replace({ pathname: '/selectionner-journee', params: { userId: utilisateur.id, nom: utilisateur.nom, role: utilisateur.role, restoId } })
     }
   }
 
@@ -509,6 +640,16 @@ export default function LoginScreen() {
           <Image source={require('../assets/icon.png')} style={styles.logoImage} resizeMode="contain" />
           <Text style={[styles.appSub, { color: colors.textMuted }]}>Gestion de restaurant</Text>
         </Animated.View>
+
+        {bioSupportee && enrolement && !loadingRestos && (
+          <BoutonBiometrie
+            enrolement={enrolement} enCours={bioEnCours} message={bioMessage}
+            onPress={entrerAvecBiometrie} onRetirer={retirerBiometrie} colors={colors}
+          />
+        )}
+        {bioSupportee && !enrolement && !!bioMessage && (
+          <Text style={[styles.bioErreur, { width: '90%' }]}>{bioMessage}</Text>
+        )}
 
         <Animated.Text
           entering={FadeIn.delay(200).duration(400)}
@@ -584,6 +725,12 @@ export default function LoginScreen() {
             <Text style={[styles.restoHeaderNom, { color: colors.text }]}>{selectedResto?.nom}</Text>
             <Text style={[styles.restoHeaderLoc, { color: colors.textMuted }]}>{selectedResto?.localisation || 'Abidjan'}</Text>
           </Animated.View>
+          {bioSupportee && enrolement && enrolement.restaurantId === selectedResto?.id && (
+            <BoutonBiometrie
+              enrolement={enrolement} enCours={bioEnCours} message={bioMessage}
+              onPress={entrerAvecBiometrie} colors={colors}
+            />
+          )}
           <Animated.View entering={FadeInUp.delay(150).springify().damping(18)} style={{ width: '100%' }}>
             <PinPadModule
               pin={pin} pinError={pinError} secondesRestantes={secondesRestantes}
@@ -691,6 +838,49 @@ export default function LoginScreen() {
             }
           />
         )}
+        <SignatureFooter />
+      </SafeAreaView>
+    )
+  }
+
+  // ─── ETAPE 5 — Proposer Face ID (codes justes, gérant, web) ─
+  if (etape === 5 && activationEnAttente) {
+    const { utilisateur, restaurant } = activationEnAttente
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
+        <ScrollView
+          style={{ width: '100%' }}
+          contentContainerStyle={[styles.pinScrollContent, { paddingTop: 40 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View entering={FadeInDown.springify().damping(20)} style={styles.activCarte}>
+            <Text style={styles.activIcone}>🔐</Text>
+            <Text style={[styles.activTitre, { color: colors.text }]}>Entrer plus vite la prochaine fois ?</Text>
+            <Text style={[styles.activTexte, { color: colors.textSecondary }]}>
+              Activez Face ID ou l’empreinte sur ce téléphone : vous entrerez directement dans {restaurant?.nom}, sans taper vos deux codes.
+            </Text>
+            <Text style={[styles.activAvert, { color: colors.textMuted }]}>
+              ⚠️ À faire seulement sur VOTRE téléphone. Toute personne dont le visage ou le doigt est enregistré sur ce téléphone pourra entrer avec votre compte.
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.activBtn, bioEnCours && { opacity: 0.6 }]}
+              onPress={activerBiometrie}
+              disabled={bioEnCours}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.activBtnTxt}>{bioEnCours ? 'Vérification…' : 'Activer sur ce téléphone'}</Text>
+            </TouchableOpacity>
+            {!!bioMessage && <Text style={styles.bioErreur}>{bioMessage}</Text>}
+
+            <TouchableOpacity style={styles.activSecondaire} onPress={() => passerActivation(false)} disabled={bioEnCours}>
+              <Text style={[styles.activSecondaireTxt, { color: colors.textSecondary }]}>Plus tard</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.activSecondaire} onPress={() => passerActivation(true)} disabled={bioEnCours}>
+              <Text style={[styles.activSecondaireTxt, { color: colors.textMuted }]}>Ne plus me demander sur ce téléphone ({utilisateur?.nom})</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </ScrollView>
         <SignatureFooter />
       </SafeAreaView>
     )
@@ -844,6 +1034,30 @@ const styles = StyleSheet.create({
   backBtn: { alignSelf: 'flex-start', paddingHorizontal: 20, paddingVertical: 10 },
   backTxt: { fontSize: 15, color: '#F0A020', fontWeight: '600' },
   pinScrollContent: { alignItems: 'center', paddingBottom: 40, paddingTop: 8, width: '100%' },
+  // Face ID / empreinte
+  bioWrap:       { width: '90%', alignItems: 'center', marginBottom: 16 },
+  bioBtn: {
+    width: '100%', minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 14,
+    paddingHorizontal: 18, paddingVertical: 14, borderRadius: 18, backgroundColor: '#F0A020',
+  },
+  bioIcone:      { fontSize: 28 },
+  bioTitre:      { fontSize: 16, fontWeight: '700', color: '#fff' },
+  bioSous:       { fontSize: 12, color: '#FFF4E0', marginTop: 3 },
+  bioErreur:     { fontSize: 13, color: '#EE6060', fontWeight: '600', textAlign: 'center', marginTop: 10 },
+  bioRetirer:    { paddingVertical: 10, paddingHorizontal: 12 },
+  bioRetirerTxt: { fontSize: 12, textDecorationLine: 'underline' },
+  activCarte:    { width: '90%', maxWidth: 420, alignItems: 'center' },
+  activIcone:    { fontSize: 54, marginBottom: 14 },
+  activTitre:    { fontSize: 20, fontWeight: '700', textAlign: 'center', marginBottom: 10 },
+  activTexte:    { fontSize: 14, lineHeight: 20, textAlign: 'center', marginBottom: 14 },
+  activAvert:    { fontSize: 12.5, lineHeight: 18, textAlign: 'center', marginBottom: 24 },
+  activBtn: {
+    width: '100%', minHeight: 56, borderRadius: 16, backgroundColor: '#F0A020',
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16,
+  },
+  activBtnTxt:        { fontSize: 16, fontWeight: '700', color: '#fff' },
+  activSecondaire:    { paddingVertical: 14, paddingHorizontal: 12, minHeight: 48, justifyContent: 'center' },
+  activSecondaireTxt: { fontSize: 14, textAlign: 'center' },
   // PIN
   pinContainer:  { alignItems: 'center', width: '100%', paddingHorizontal: 20, paddingBottom: 24 },
   pinTitre:      { fontSize: 17, fontWeight: '700', color: '#18182E', marginBottom: 6, letterSpacing: -0.3 },
