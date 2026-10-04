@@ -21,6 +21,7 @@ import Animated, {
 
 import { useTheme } from '../../context/ThemeContext'
 import Jauge from '../ui/Jauge'
+import Indicateur from './Indicateur'
 import Survol from '../ui/Survol'
 import { chargerContactsPeriode } from '../../lib/contactsPeriodeDb'
 import { texteHier, totalParJour } from '../../lib/hierAccueil'
@@ -426,15 +427,6 @@ function BlocContrats({ resume: r, styles, colors }) {
           <MaterialCommunityIcons name="chevron-right" size={16} color={colors.textMuted} />
         </Survol>
       ))}
-    </View>
-  )
-}
-
-function Indicateur({ icone, couleur, texte, styles }) {
-  return (
-    <View style={styles.indicateur}>
-      <MaterialCommunityIcons name={icone} size={15} color={couleur} />
-      <Text style={[styles.indicateurTxt, { color: couleur }]}>{texte}</Text>
     </View>
   )
 }
