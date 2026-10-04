@@ -480,7 +480,7 @@ export default function LoginScreen() {
 
     // Codes justes : c'est le seul moment où l'on peut proposer Face ID,
     // le gérant venant de prouver qui il est.
-    const dejaActive = enrolement?.userId === selected.id && enrolement?.restaurantId === selectedResto?.id
+    const dejaActive = enrolement?.userId === selected.id && enrolement?.restaurantId === (selectedResto?.id ?? null)
     if (peutProposerActivation({
       estWeb: Platform.OS === 'web', supporte: bioSupportee, role: selected.role,
       dejaActive, refuse: aRefuse(selected.id),
@@ -528,10 +528,12 @@ export default function LoginScreen() {
       return
     }
     try {
-      const resto = restaurants.find(r => r.id === enrolement.restaurantId) || null
-      const users = resto ? await getUtilisateurs(resto.id) : []
+      // restaurantId null = compte administration (manager, directeur, RH)
+      const global = !enrolement.restaurantId
+      const resto = global ? null : restaurants.find(r => r.id === enrolement.restaurantId) || null
+      const users = global ? await getUtilisateursGlobaux() : resto ? await getUtilisateurs(resto.id) : []
       const user = users.find(u => u.id === enrolement.userId) || null
-      const sig = resto && user ? await signature(user, resto) : null
+      const sig = user && (resto || global) ? await signature(user, resto) : null
       const controle = controlerEnrolement(enrolement, { utilisateur: user, restaurant: resto, signature: sig })
       if (!controle.ok) {
         if (controle.oublier) {
@@ -857,7 +859,9 @@ export default function LoginScreen() {
             <Text style={styles.activIcone}>🔐</Text>
             <Text style={[styles.activTitre, { color: colors.text }]}>Entrer plus vite la prochaine fois ?</Text>
             <Text style={[styles.activTexte, { color: colors.textSecondary }]}>
-              Activez Face ID ou l’empreinte sur ce téléphone : vous entrerez directement dans {restaurant?.nom}, sans taper vos deux codes.
+              {restaurant
+                ? `Activez Face ID ou l’empreinte sur ce téléphone : vous entrerez directement dans ${restaurant.nom}, sans taper vos deux codes.`
+                : 'Activez Face ID ou l’empreinte sur ce téléphone : vous entrerez directement dans l’administration, sans taper votre code.'}
             </Text>
             <Text style={[styles.activAvert, { color: colors.textMuted }]}>
               ⚠️ À faire seulement sur VOTRE téléphone. Toute personne dont le visage ou le doigt est enregistré sur ce téléphone pourra entrer avec votre compte.
@@ -925,6 +929,15 @@ export default function LoginScreen() {
             </Text>
           </View>
         </Animated.View>
+
+        {/* Écran verrouillé d'un compte administration : on arrive ici directement. */}
+        {bioSupportee && enrolement && enrolement.userId === selected?.id
+          && enrolement.restaurantId === (selectedResto?.id ?? null) && (
+          <BoutonBiometrie
+            enrolement={enrolement} enCours={bioEnCours} message={bioMessage}
+            onPress={entrerAvecBiometrie} colors={colors}
+          />
+        )}
 
         <Animated.View entering={FadeInUp.delay(150).springify().damping(18)} style={{ width: '100%' }}>
           <PinPadModule
