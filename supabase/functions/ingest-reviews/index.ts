@@ -7,7 +7,8 @@
 //   GET  → { done_today: bool }   le créneau de retry appelle ça d'abord et
 //                                 s'arrête si l'extraction du jour a réussi.
 //   POST → { reviews: [...], finalize?: bool }
-//          ingère, dédoublonne, crée un litige par NOUVEL avis négatif ;
+//          ingère, dédoublonne, crée un litige par NOUVEL avis négatif
+//          qui a un commentaire ou un tag (un négatif muet n'en crée pas) ;
 //          si finalize, écrit la ligne ingest_runs du jour.
 //
 // Authentification : en-tête `x-ingest-secret` (secret INGEST_SECRET).
@@ -67,6 +68,17 @@ const dateIso = (v: unknown) => {
   const s = texte(v)
   if (!s) return null
   return /^\d{4}-\d{2}-\d{2}$/.test(s.slice(0, 10)) ? s.slice(0, 10) : null
+}
+
+// Un avis négatif ne crée un litige que s'il dit pourquoi : un commentaire,
+// ou au moins un tag Yango (raw.tag) / thème Glovo (raw.theme). Miroir exact
+// de aUnMotif (lib/avisPlateformes.js) et de avis_a_un_motif() en SQL.
+// deno-lint-ignore no-explicit-any
+const aUnMotif = (avis: any) => {
+  const plein = (v: unknown) => typeof v === 'string' ? v.trim() !== '' : v != null && v !== ''
+  if (plein(avis?.comment)) return true
+  const raw = avis?.raw || {}
+  return [raw.tag, raw.theme].some((v) => Array.isArray(v) ? v.some(plein) : plein(v))
 }
 
 Deno.serve(async (req) => {
@@ -152,12 +164,12 @@ Deno.serve(async (req) => {
 
     // Insertion par lots ; ON CONFLICT DO NOTHING sur dedup_hash → seuls les
     // avis réellement nouveaux ressortent, donc seuls eux créent un litige.
-    const inseres: { id: string; classification: string; restaurant_id: string | null; comment: string | null; review_date: string | null; platform: string; external_ref: string | null; external_store_label: string | null }[] = []
+    const inseres: { id: string; classification: string; restaurant_id: string | null; comment: string | null; review_date: string | null; platform: string; external_ref: string | null; external_store_label: string | null; raw: Record<string, unknown> | null }[] = []
     for (let i = 0; i < rows.length; i += LOT) {
       const { data, error } = await supabase
         .from('platform_reviews')
         .upsert(rows.slice(i, i + LOT), { onConflict: 'dedup_hash', ignoreDuplicates: true })
-        .select('id, classification, restaurant_id, comment, review_date, platform, external_ref, external_store_label')
+        .select('id, classification, restaurant_id, comment, review_date, platform, external_ref, external_store_label, raw')
       if (error) throw error
       inseres.push(...(data ?? []))
     }
@@ -173,8 +185,12 @@ Deno.serve(async (req) => {
     // Table réelle : litiges_avis_clients (type 'mauvais' = 1000 FCFA à la
     // charge du restaurant, canal = plateforme). Les avis dont la boutique
     // n'est pas reconnue sont laissés de côté : leur litige est créé au
-    // rattachement (fonction SQL rattacher_avis).
-    const negatifs = inseres.filter((x) => x.classification === 'negatif' && x.restaurant_id)
+    // rattachement (fonction SQL rattacher_avis). Un négatif muet (ni
+    // commentaire, ni tag, ni thème) reste un avis mais pas un litige.
+    // `raw` est l'avis tel qu'envoyé : ses tags sont dans raw.raw.
+    const negatifsTous = inseres.filter((x) => x.classification === 'negatif' && x.restaurant_id)
+    const negatifs = negatifsTous.filter((x) => aUnMotif({ comment: x.comment, raw: x.raw?.raw }))
+    const litiges_ignores_sans_motif = negatifsTous.length - negatifs.length
     let litiges_crees = 0
     for (let i = 0; i < negatifs.length; i += LOT) {
       const lot = negatifs.slice(i, i + LOT).map((x) => ({
@@ -204,6 +220,7 @@ Deno.serve(async (req) => {
       rejected: rejetes,
       unmapped: orphelins.length,
       litiges_crees,
+      litiges_ignores_sans_motif,
       labels_a_rattacher: [...labels_non_mappes],
     }
 
