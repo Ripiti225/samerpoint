@@ -4,8 +4,9 @@
 // (pouce 👍/👎), extraits par Cowork + Chrome (voir docs/AVIS_PLATEFORMES.md).
 //
 // Routage par méthode :
-//   GET  → { done_today: bool }   le créneau de retry appelle ça d'abord et
-//                                 s'arrête si l'extraction du jour a réussi.
+//   GET  → { done_today, finished_at, derniers }   `derniers` donne, par
+//          plateforme, le dernier review_date et le dernier ingested_at
+//          (période relue par le bouton avis, rappel côté app).
 //   POST → { reviews: [...], finalize?: bool }
 //          ingère, dédoublonne, crée un litige par NOUVEL avis négatif
 //          qui a un commentaire ou un tag (un négatif muet n'en crée pas) ;
@@ -81,6 +82,26 @@ const aUnMotif = (avis: any) => {
   return [raw.tag, raw.theme].some((v) => Array.isArray(v) ? v.some(plein) : plein(v))
 }
 
+// Dernier avis connu par plateforme : `review_date` sert au bouton avis à
+// choisir la période à relire, `ingested_at` au rappel côté app.
+async function derniersParPlateforme() {
+  const out: Record<string, { review_date: string | null; ingested_at: string | null }> = {}
+  for (const p of PLATEFORMES) {
+    const [rd, ia] = await Promise.all([
+      supabase.from('platform_reviews').select('review_date')
+        .eq('platform', p).not('review_date', 'is', null)
+        .order('review_date', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('platform_reviews').select('ingested_at')
+        .eq('platform', p)
+        .order('ingested_at', { ascending: false }).limit(1).maybeSingle(),
+    ])
+    if (rd.error) throw rd.error
+    if (ia.error) throw ia.error
+    out[p] = { review_date: rd.data?.review_date ?? null, ingested_at: ia.data?.ingested_at ?? null }
+  }
+  return out
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
@@ -92,14 +113,17 @@ Deno.serve(async (req) => {
   try {
     // ── STATUT : l'extraction du jour a-t-elle déjà réussi ? ──────────
     if (req.method === 'GET') {
-      const { data, error } = await supabase
-        .from('ingest_runs')
-        .select('run_date, finished_at')
-        .eq('run_date', aujourdhui())
-        .eq('status', 'ok')
-        .maybeSingle()
+      const [{ data, error }, derniers] = await Promise.all([
+        supabase
+          .from('ingest_runs')
+          .select('run_date, finished_at')
+          .eq('run_date', aujourdhui())
+          .eq('status', 'ok')
+          .maybeSingle(),
+        derniersParPlateforme(),
+      ])
       if (error) throw error
-      return json({ done_today: !!data, finished_at: data?.finished_at ?? null })
+      return json({ done_today: !!data, finished_at: data?.finished_at ?? null, derniers })
     }
 
     if (req.method !== 'POST') return json({ error: 'Méthode non supportée' }, 405)
