@@ -106,6 +106,8 @@ export default function VerificationScreen() {
   const [decisionInv, setDecisionInv] = useState(null)  // { ...ligneEcart } ou null
   const [qteAcceptee, setQteAcceptee] = useState('')
   const [decisionSaving, setDecisionSaving] = useState(false)
+  const [decisionEnCours, setDecisionEnCours] = useState(null)  // id de la ligne en cours de décision
+  const [ecartDeplie, setEcartDeplie] = useState(null)  // ligne d'écart dépliée dans la liste Stock
   const [loadingInventaire, setLoadingInventaire] = useState(false)
   // Montants issus des comptages du vérificateur, en attente de décision
   const [deducVerif, setDeducVerif] = useState([])
@@ -769,16 +771,23 @@ export default function VerificationScreen() {
     setQteAcceptee(defaut ? String(defaut) : '')
   }
 
-  async function enregistrerDecisionInv(statut) {
-    const e = decisionInv
+  function enregistrerDecisionInv(statut) {
+    return deciderEcartInv(decisionInv, statut, parseFloat(qteAcceptee) || 0)
+  }
+
+  // Décision en un appui depuis la liste Stock : « Valider » accepte la
+  // quantité expliquée par le caissier. « Modifier la décision » rouvre la
+  // fenêtre pour ajuster la quantité.
+  async function deciderEcartInv(e, statut, quantite) {
     if (!e || decisionSaving) return
     const ecartAbs = Math.abs(e.ecart || 0)
     const prix = e.prix || 0
     const qAcc = statut === 'validee'
-      ? Math.max(0, Math.min(ecartAbs, parseFloat(qteAcceptee) || 0))
+      ? Math.max(0, Math.min(ecartAbs, quantite || 0))
       : 0
     const nouveauMontant = Math.round(Math.max(0, ecartAbs - qAcc) * prix)
     setDecisionSaving(true)
+    setDecisionEnCours(e.id)
     try {
       await deciderEcartInventaire({
         ligneId: e.id,
@@ -807,6 +816,7 @@ export default function VerificationScreen() {
       Alert.alert('Erreur', err?.message || 'Décision impossible')
     } finally {
       setDecisionSaving(false)
+      setDecisionEnCours(null)
     }
   }
 
@@ -3385,122 +3395,133 @@ export default function VerificationScreen() {
                   )
                 })}
 
-                {/* ══ SECTION 2 : Produits avec écarts (manager/directeur) ══ */}
-                {peutVoirEcarts && nbAvecEcart > 0 && (
+                {/* ══ SECTION 2 : Produits avec écarts (manager/directeur) ══
+                    Une ligne par produit ; ✅ / ❌ décident en un appui, un appui
+                    sur la ligne déplie le détail. */}
+                {peutVoirEcarts && nbAvecEcart > 0 && (() => {
+                  const nb = v => (v % 1 !== 0 ? v.toFixed(2) : String(v))
+                  return (
                   <>
                     <Text style={styles.sectionTitre}>Produits avec écarts ({nbAvecEcart})</Text>
-                    {toutesLignesEcart.map((e, i) => {
-                      const stockTheo = (e.stock_initial || 0) + (e.entrees || 0) - (e.sorties || 0)
-                      const ecartExplique = e.diffInexpliquee <= 0.01
-                      return (
-                        <View key={i} style={[styles.invFicheCard, { borderColor: ecartExplique ? '#B8D4F5' : '#F09595' }]}>
-                          <View style={styles.invFicheHeader}>
-                            <Text style={styles.invFicheNom}>{e.produit_nom}</Text>
-                            <View style={[styles.invFicheStatut, { backgroundColor: ecartExplique ? '#E6F1FB' : '#FCEBEB' }]}>
-                              <Text style={[styles.invFicheStatutTxt, { color: ecartExplique ? '#185FA5' : '#A32D2D' }]}>
-                                {ecartExplique ? '✅ Expliqué' : '❌ Non expliqué'}
-                              </Text>
-                            </View>
-                          </View>
-
-                          {[
-                            { label: 'Stock théorique', val: stockTheo % 1 !== 0 ? stockTheo.toFixed(2) : String(stockTheo) },
-                            { label: 'Stock réel constaté', val: e.stock_reel != null ? (e.stock_reel % 1 !== 0 ? e.stock_reel.toFixed(2) : String(e.stock_reel)) : '—' },
-                            { label: 'Écart', val: `${e.ecart >= 0 ? '+' : ''}${e.ecart.toFixed(2)}`, color: e.ecart < 0 ? '#A32D2D' : '#EF9F27', bold: true },
-                            { label: 'Nombre à expliquer', val: e.nombreExplique > 0 ? (e.nombreExplique % 1 !== 0 ? e.nombreExplique.toFixed(2) : String(e.nombreExplique)) : '—' },
-                          ].map((r, j) => (
-                            <View key={j} style={styles.ecartRow}>
-                              <Text style={styles.ecartLabel}>{r.label}</Text>
-                              <Text style={[styles.ecartVal, r.color && { color: r.color }, r.bold && { fontWeight: '700' }]}>{r.val}</Text>
-                            </View>
-                          ))}
-
-                          {!!e.explication && (
-                            <View style={styles.invFicheExplication}>
-                              <Text style={styles.invFicheExplicationLabel}>💬 Explication</Text>
-                              <Text style={styles.invFicheExplicationTxt}>"{e.explication}"</Text>
-                            </View>
-                          )}
-
-                          <View style={[styles.ecartRow, { borderTopWidth: 1, borderTopColor: '#f0f0f0', marginTop: 4, paddingTop: 8 }]}>
-                            <Text style={styles.ecartLabel}>Diff. inexpliquée</Text>
-                            <Text style={[styles.ecartVal, { color: e.diffInexpliquee > 0.01 ? '#A32D2D' : '#3B6D11', fontWeight: '700' }]}>
-                              {e.diffInexpliquee > 0.01 ? e.diffInexpliquee.toFixed(2) : '✅ 0'}
-                            </Text>
-                          </View>
-                          <View style={styles.ecartRow}>
-                            <Text style={styles.ecartLabel}>Prix unitaire</Text>
-                            <Text style={styles.ecartVal}>{e.prix > 0 ? fmt(e.prix) : '—'}</Text>
-                          </View>
-                          <View style={[styles.ecartRow, { borderBottomWidth: 0, backgroundColor: e.montantDeduit > 0 ? '#FFF0F0' : '#F0FFF4', borderRadius: 6, paddingHorizontal: 8, marginTop: 2 }]}>
-                            <Text style={[styles.ecartLabel, { fontWeight: '700' }]}>Montant à déduire</Text>
-                            <Text style={[styles.ecartVal, { color: e.montantDeduit > 0 ? '#A32D2D' : '#3B6D11', fontWeight: '700', fontSize: 14 }]}>
-                              {e.montantDeduit > 0 ? fmt(e.montantDeduit) : '0 FCFA ✅'}
-                            </Text>
-                          </View>
-
-                          {e.explication_statut ? (
-                            <View style={styles.decisionInvBox}>
-                              {e.explication_statut === 'en_attente' ? (
-                                <>
-                                  <Text style={styles.decisionInvPending}>⏳ Explication en attente de votre décision</Text>
-                                  {peutVoirEcarts && e.id && (
-                                    <TouchableOpacity style={styles.decisionInvBtn} onPress={() => ouvrirDecisionInv(e)}>
-                                      <Text style={styles.decisionInvBtnTxt}>⚖️ Valider / Refuser l'explication</Text>
-                                    </TouchableOpacity>
+                    <View style={styles.ecTable}>
+                      <View style={styles.ecTete}>
+                        <Text style={[styles.ecTeteTxt, { flex: 1 }]}>Produit</Text>
+                        <Text style={[styles.ecTeteTxt, styles.ecColEcart]}>Écart</Text>
+                        <Text style={[styles.ecTeteTxt, styles.ecColMontant]}>À déduire</Text>
+                        <View style={styles.ecColActions} />
+                      </View>
+                      {toutesLignesEcart.map((e, i) => {
+                        const cle = e.id || `${e.inventaireId}-${e.produit_id}-${i}`
+                        const deplie = ecartDeplie === cle
+                        const stockTheo = (e.stock_initial || 0) + (e.entrees || 0) - (e.sorties || 0)
+                        const enAttente = e.explication_statut === 'en_attente'
+                        const peutDecider = enAttente && !!e.id
+                        const enCours = decisionEnCours === e.id
+                        return (
+                          <View key={cle} style={[styles.ecLigne, i === toutesLignesEcart.length - 1 && { borderBottomWidth: 0 }]}>
+                            <View style={styles.ecLigneHaut}>
+                              <TouchableOpacity style={styles.ecLigneInfos} onPress={() => setEcartDeplie(deplie ? null : cle)} activeOpacity={0.7}>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={styles.ecNom} numberOfLines={deplie ? undefined : 1}>{deplie ? '▾ ' : '▸ '}{e.produit_nom}</Text>
+                                  {!!e.explication && !deplie && (
+                                    <Text style={styles.ecExplCourte} numberOfLines={1}>💬 {e.explication}</Text>
                                   )}
-                                </>
-                              ) : e.explication_statut === 'validee' ? (
-                                <>
-                                  <Text style={[styles.decisionInvStatut, { color: '#3B6D11' }]}>
+                                </View>
+                                <Text style={[styles.ecColEcart, styles.ecVal, { color: e.ecart < 0 ? '#A32D2D' : '#EF9F27' }]}>
+                                  {e.ecart >= 0 ? '+' : ''}{nb(e.ecart)}
+                                </Text>
+                                <Text style={[styles.ecColMontant, styles.ecVal, { color: e.montantDeduit > 0 ? '#A32D2D' : '#3B6D11' }]}>
+                                  {e.montantDeduit > 0 ? fmtCourt(e.montantDeduit) : '0 ✅'}
+                                </Text>
+                              </TouchableOpacity>
+                              <View style={styles.ecColActions}>
+                                {peutDecider ? (
+                                  enCours ? (
+                                    <ActivityIndicator color={colors.primary} />
+                                  ) : (
+                                    <>
+                                      <TouchableOpacity style={[styles.ecBtn, styles.ecBtnRefuser, decisionSaving && { opacity: 0.4 }]}
+                                        onPress={() => deciderEcartInv(e, 'refusee')} disabled={decisionSaving}>
+                                        <Text style={styles.ecBtnTxt}>❌</Text>
+                                      </TouchableOpacity>
+                                      <TouchableOpacity style={[styles.ecBtn, styles.ecBtnValider, decisionSaving && { opacity: 0.4 }]}
+                                        onPress={() => deciderEcartInv(e, 'validee', e.nombreExplique || 0)} disabled={decisionSaving}>
+                                        <Text style={styles.ecBtnTxt}>✅</Text>
+                                      </TouchableOpacity>
+                                    </>
+                                  )
+                                ) : e.explication_statut === 'validee' ? (
+                                  <Text style={[styles.ecStatut, { color: '#3B6D11' }]}>Validé</Text>
+                                ) : e.explication_statut === 'refusee' ? (
+                                  <Text style={[styles.ecStatut, { color: '#A32D2D' }]}>Refusé</Text>
+                                ) : enAttente ? (
+                                  <Text style={[styles.ecStatut, { color: '#854F0B' }]}>À décider</Text>
+                                ) : (
+                                  <Text style={[styles.ecStatut, { color: e.diffInexpliquee <= 0.01 ? '#185FA5' : colors.textMuted }]}>
+                                    {e.diffInexpliquee <= 0.01 ? 'Expliqué' : 'Sans explication'}
+                                  </Text>
+                                )}
+                              </View>
+                            </View>
+
+                            {deplie && (
+                              <View style={styles.ecDetail}>
+                                <Text style={styles.ecDetailTxt}>
+                                  {`Théorique ${nb(stockTheo)} · Réel ${e.stock_reel != null ? nb(e.stock_reel) : '—'} · Expliqué ${e.nombreExplique > 0 ? nb(e.nombreExplique) : '—'} · Inexpliqué ${e.diffInexpliquee > 0.01 ? e.diffInexpliquee.toFixed(2) : '0'} · Prix ${e.prix > 0 ? fmt(e.prix) : '—'}`}
+                                </Text>
+                                {!!e.explication && (
+                                  <View style={styles.invFicheExplication}>
+                                    <Text style={styles.invFicheExplicationTxt}>"{e.explication}"</Text>
+                                  </View>
+                                )}
+                                {(e.caissierNom || e.heureDebut) && (
+                                  <Text style={styles.ecDetailTxt}>
+                                    {[e.caissierNom && `👤 ${e.caissierNom}`, e.heureDebut && `⏰ ${e.shiftLabel} · ${e.heureDebut} → ${e.heureFin}`].filter(Boolean).join('   ')}
+                                  </Text>
+                                )}
+                                {e.explication_statut === 'validee' && (
+                                  <Text style={[styles.ecDetailTxt, { color: '#3B6D11', fontWeight: '700' }]}>
                                     ✅ Explication validée{e.quantite_acceptee != null ? ` · accepté ${e.quantite_acceptee}` : ''} · déduit {fmt(e.montantDeduit)}
                                   </Text>
-                                  {peutVoirEcarts && e.id && (
-                                    <TouchableOpacity onPress={() => ouvrirDecisionInv(e)}><Text style={styles.decisionInvModifier}>✏️ Modifier la décision</Text></TouchableOpacity>
-                                  )}
-                                </>
-                              ) : (
-                                <>
-                                  <Text style={[styles.decisionInvStatut, { color: '#A32D2D' }]}>
+                                )}
+                                {e.explication_statut === 'refusee' && (
+                                  <Text style={[styles.ecDetailTxt, { color: '#A32D2D', fontWeight: '700' }]}>
                                     ❌ Explication refusée · déduction pleine {fmt(e.montantDeduit)}
                                   </Text>
-                                  {peutVoirEcarts && e.id && (
-                                    <TouchableOpacity onPress={() => ouvrirDecisionInv(e)}><Text style={styles.decisionInvModifier}>✏️ Modifier la décision</Text></TouchableOpacity>
-                                  )}
-                                </>
-                              )}
-                            </View>
-                          ) : e.deduction_annulee ? (
-                            <View style={styles.deducAnnuleeBadge}>
-                              <Text style={styles.deducAnnuleeTxt}>
-                                🚫 Déduction annulée{e.montant_deduit_annule > 0 ? ` (${fmt(e.montant_deduit_annule)})` : ''}
-                              </Text>
-                            </View>
-                          ) : (e.montantDeduit > 0 && e.id && (
-                            <TouchableOpacity
-                              style={[styles.annulDeducBtn, annulDeducSaving === e.id && { opacity: 0.6 }]}
-                              onPress={() => confirmerAnnulationDeduction(e)}
-                              disabled={!!annulDeducSaving}
-                            >
-                              {annulDeducSaving === e.id
-                                ? <ActivityIndicator color="#A32D2D" size="small" />
-                                : <Text style={styles.annulDeducBtnTxt}>🚫 Annuler la déduction de ce produit</Text>}
-                            </TouchableOpacity>
-                          ))}
-
-                          {(e.caissierNom || e.heureDebut) && (
-                            <View style={styles.invFicheCaissier}>
-                              {e.caissierNom && <Text style={styles.invFicheCaissierTxt}>👤 {e.caissierNom}</Text>}
-                              {e.heureDebut && (
-                                <Text style={styles.invFicheCaissierTxt}>⏰ {e.shiftLabel} · {e.heureDebut} → {e.heureFin}</Text>
-                              )}
-                            </View>
-                          )}
-                        </View>
-                      )
-                    })}
+                                )}
+                                {e.explication_statut && e.id && (
+                                  <TouchableOpacity onPress={() => ouvrirDecisionInv(e)}>
+                                    <Text style={styles.decisionInvModifier}>
+                                      {enAttente ? '✏️ Valider une autre quantité' : '✏️ Modifier la décision'}
+                                    </Text>
+                                  </TouchableOpacity>
+                                )}
+                                {!e.explication_statut && (e.deduction_annulee ? (
+                                  <View style={styles.deducAnnuleeBadge}>
+                                    <Text style={styles.deducAnnuleeTxt}>
+                                      🚫 Déduction annulée{e.montant_deduit_annule > 0 ? ` (${fmt(e.montant_deduit_annule)})` : ''}
+                                    </Text>
+                                  </View>
+                                ) : (e.montantDeduit > 0 && e.id && (
+                                  <TouchableOpacity
+                                    style={[styles.annulDeducBtn, annulDeducSaving === e.id && { opacity: 0.6 }]}
+                                    onPress={() => confirmerAnnulationDeduction(e)}
+                                    disabled={!!annulDeducSaving}
+                                  >
+                                    {annulDeducSaving === e.id
+                                      ? <ActivityIndicator color="#A32D2D" size="small" />
+                                      : <Text style={styles.annulDeducBtnTxt}>🚫 Annuler la déduction de ce produit</Text>}
+                                  </TouchableOpacity>
+                                )))}
+                              </View>
+                            )}
+                          </View>
+                        )
+                      })}
+                    </View>
                   </>
-                )}
+                  )
+                })()}
 
                 {/* ══ SECTION 3 : Bilan financier (manager/directeur) ══ */}
                 {peutVoirEcarts && (
@@ -4655,6 +4676,25 @@ function makeStyles(colors) { return StyleSheet.create({
   annulDeducBtnTxt: { color: '#A32D2D', fontWeight: '700', fontSize: 13 },
   deducAnnuleeBadge: { marginTop: 10, backgroundColor: '#EFEFEF', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
   deducAnnuleeTxt: { color: colors.textMuted, fontWeight: '600', fontSize: 12, textDecorationLine: 'line-through' },
+  ecTable: { backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, marginBottom: 14, overflow: 'hidden' },
+  ecTete: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.surfaceAlt, borderBottomWidth: 1, borderBottomColor: colors.border },
+  ecTeteTxt: { fontSize: 11, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase' },
+  ecLigne: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+  ecLigneHaut: { flexDirection: 'row', alignItems: 'center', paddingRight: 8 },
+  ecLigneInfos: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingLeft: 12, paddingVertical: 10, minHeight: 52 },
+  ecNom: { fontSize: 13, fontWeight: '700', color: colors.text },
+  ecExplCourte: { fontSize: 11, color: colors.textMuted, fontStyle: 'italic', marginTop: 2 },
+  ecColEcart: { width: 54, textAlign: 'right' },
+  ecColMontant: { width: 82, textAlign: 'right' },
+  ecColActions: { width: 100, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 6 },
+  ecVal: { fontSize: 13, fontWeight: '700' },
+  ecBtn: { width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  ecBtnRefuser: { backgroundColor: '#FCEBEB', borderWidth: 1, borderColor: '#F09595' },
+  ecBtnValider: { backgroundColor: '#E8F5E9', borderWidth: 1, borderColor: '#9CCC9F' },
+  ecBtnTxt: { fontSize: 18 },
+  ecStatut: { fontSize: 11, fontWeight: '700', textAlign: 'right' },
+  ecDetail: { paddingHorizontal: 12, paddingBottom: 12, gap: 6 },
+  ecDetailTxt: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
   decisionInvBox: { marginTop: 10, backgroundColor: '#FFF9EC', borderWidth: 1, borderColor: '#F0D28A', borderRadius: 8, padding: 10 },
   decisionInvPending: { color: '#854F0B', fontWeight: '700', fontSize: 12, textAlign: 'center', marginBottom: 8 },
   decisionInvBtn: { backgroundColor: '#EF9F27', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
