@@ -24,34 +24,17 @@ import { supabase } from '../lib/supabase'
 import { journaliser } from '../lib/journal'
 import {
   CLASSIFICATIONS, PLATEFORMES, boutiquesARattacher, classifierAvis,
-  kpisAvis, kpisParPlateforme, kpisParRestaurant, noteSur5, plateforme,
+  kpisParPlateforme, kpisParRestaurant, noteSur5, plateforme,
   plateformesEnRetard, texteRetard,
 } from '../lib/avisPlateformes'
 import {
-  chargerAvis, chargerAvisNonRattaches, dernierAvisRecu, dernierRun, rattacherBoutique,
+  chargerAvis, chargerAvisNonRattaches, chargerLitigesDesAvis, chargerShifts, dernierAvisRecu, dernierRun, rattacherBoutique,
 } from '../lib/avisPlateformesDb'
-
-const TODAY = new Date().toISOString().split('T')[0]
-
-function ilYA(jours) {
-  const d = new Date()
-  d.setDate(d.getDate() - jours)
-  return d.toISOString().split('T')[0]
-}
-
-const PERIODES = [
-  { key: 'jour', label: "Aujourd'hui", plage: () => ({ debut: TODAY, fin: TODAY }) },
-  { key: 'semaine', label: '7 jours', plage: () => ({ debut: ilYA(6), fin: TODAY }) },
-  { key: 'mois', label: '30 jours', plage: () => ({ debut: ilYA(29), fin: TODAY }) },
-  {
-    key: 'mois_calendaire',
-    label: 'Ce mois',
-    plage: () => {
-      const n = new Date()
-      return { debut: `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-01`, fin: TODAY }
-    },
-  },
-]
+import ResumeAvis from '../components/avis/ResumeAvis'
+import { ChampDates, EnTete, Puces, useEcranModerne } from '../components/ui/EcranModerne'
+import {
+  PERIODES_AVIS, caissierDeLAvis, classementCaissiers, periodePrecedente, plagePeriode, resumeChiffres, topMotifs,
+} from '../lib/avisResume'
 
 // Au-delà, on n'affiche pas tout d'un coup : un mois d'avis sur 7 restaurants
 // fige la page sur un iPhone.
@@ -74,8 +57,15 @@ export default function AvisPlateformes() {
   const styles = useMemo(() => makeStyles(colors), [colors])
   const { userId, userNom, roleActif } = useApp()
 
-  const [onglet, setOnglet] = useState('avis')          // 'avis' | 'rattacher'
+  const [onglet, setOnglet] = useState('resume')        // 'resume' | 'avis' | 'rattacher'
   const [periodeKey, setPeriodeKey] = useState('mois')
+  const [perso, setPerso] = useState({ debut: null, fin: null })
+  const [champDate, setChampDate] = useState(null)
+  const [avisPrec, setAvisPrec] = useState([])
+  const [litiges, setLitiges] = useState([])
+  const [litigesPrec, setLitigesPrec] = useState([])
+  const [shifts, setShifts] = useState([])
+  const em = useEcranModerne('orange')
   const [restoFilter, setRestoFilter] = useState(null)
   const [platformFilter, setPlatformFilter] = useState(null)
   const [classFilter, setClassFilter] = useState(null)
@@ -94,27 +84,40 @@ export default function AvisPlateformes() {
   // Boutique en cours de rattachement : { platform, label }
   const [aRattacher, setARattacher] = useState(null)
 
-  const periode = PERIODES.find(p => p.key === periodeKey) || PERIODES[2]
+  const aujourdhui = new Date().toISOString().slice(0, 10)
+  const plage = plagePeriode(periodeKey, aujourdhui, perso)
 
   useEffect(() => {
     supabase.from('restaurants').select('id, nom').order('nom')
       .then(({ data }) => setRestaurants(data || []))
   }, [])
 
-  useEffect(() => { charger() }, [periodeKey, restoFilter, platformFilter, classFilter])
+  useEffect(() => { charger() }, [periodeKey, perso.debut, perso.fin, restoFilter, platformFilter, classFilter])
 
   async function charger() {
     setLoading(true)
     setErreur(null)
     try {
-      const { debut, fin } = periode.plage()
-      const [lignes, sansResto, dernier, derniersEnvois] = await Promise.all([
-        chargerAvis({ debut, fin, restaurantId: restoFilter, platform: platformFilter, classification: classFilter }),
+      if (!plage) { setLoading(false); return }   // dates au choix incomplètes
+      const prec = periodePrecedente(plage)
+      const filtres = { restaurantId: restoFilter, platform: platformFilter, classification: classFilter }
+      const [lignes, lignesPrec, sansResto, dernier, derniersEnvois, sh] = await Promise.all([
+        chargerAvis({ debut: plage.debut, fin: plage.fin, ...filtres }),
+        chargerAvis({ debut: prec.debut, fin: prec.fin, ...filtres }),
         chargerAvisNonRattaches(),
         dernierRun().catch(() => null),
         dernierAvisRecu().catch(() => null),
+        chargerShifts({ restaurantId: restoFilter, debut: plage.debut, fin: plage.fin }).catch(() => []),
+      ])
+      const [lit, litPrec] = await Promise.all([
+        chargerLitigesDesAvis(lignes.map(a => a.id)).catch(() => []),
+        chargerLitigesDesAvis(lignesPrec.map(a => a.id)).catch(() => []),
       ])
       setAvis(lignes)
+      setAvisPrec(lignesPrec)
+      setLitiges(lit)
+      setLitigesPrec(litPrec)
+      setShifts(sh)
       setOrphelins(sansResto)
       setRun(dernier)
       setRetards(derniersEnvois ? plateformesEnRetard(derniersEnvois) : [])
@@ -143,10 +146,17 @@ export default function AvisPlateformes() {
     return m
   }, [restaurants])
 
-  const kpis = useMemo(() => kpisAvis(avis), [avis])
   const parPlateforme = useMemo(() => kpisParPlateforme(avis), [avis])
   const parResto = useMemo(() => kpisParRestaurant(avis, nomsParId), [avis, nomsParId])
   const boutiques = useMemo(() => boutiquesARattacher(orphelins), [orphelins])
+  const caissierPar = useMemo(() => {
+    const litigeParReview = Object.fromEntries(litiges.map(l => [l.review_id, l]))
+    return Object.fromEntries(avis.map(a => [a.id, caissierDeLAvis(a, { shifts, litigeParReview })]))
+  }, [avis, litiges, shifts])
+  const chiffres = useMemo(() => resumeChiffres(avis, litiges), [avis, litiges])
+  const chiffresPrec = useMemo(() => resumeChiffres(avisPrec, litigesPrec), [avisPrec, litigesPrec])
+  const caissiers = useMemo(() => classementCaissiers(avis, caissierPar), [avis, caissierPar])
+  const motifs = useMemo(() => topMotifs(avis), [avis])
 
   async function confirmerRattachement(restaurant) {
     const { platform, label } = aRattacher
@@ -169,39 +179,64 @@ export default function AvisPlateformes() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => retour()} style={styles.backBtn}>
-          <Text style={styles.backTxt}>← Retour</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitre}>Avis clients</Text>
-        <Text style={styles.headerSub}>Yango & Glovo · notes et commentaires</Text>
-        {roleActif === 'manager' ? (
-          <TouchableOpacity onPress={() => router.push('/bouton-avis')} style={styles.lienBouton}>
-            <Text style={styles.lienBoutonTxt}>🔖 Installer le bouton avis</Text>
-          </TouchableOpacity>
+      <EnTete titre="⭐ Avis clients" sous="Yango & Glovo" onRetour={() => retour()} styles={em.styles} />
+
+      <View style={styles.hautFixe}>
+        <Puces ligne elements={PERIODES_AVIS} actif={periodeKey} onChoisir={setPeriodeKey} styles={em.styles} />
+        {periodeKey === 'perso' ? (
+          <View style={{ paddingHorizontal: 14, paddingTop: 10 }}>
+            <ChampDates debut={perso.debut} fin={perso.fin}
+              setDebut={d => setPerso(p => ({ ...p, debut: d }))} setFin={d => setPerso(p => ({ ...p, fin: d }))}
+              champ={champDate} setChamp={setChampDate} styles={em.styles} colors={em.colors} accent={em.accent} couleur={em.principale} />
+          </View>
         ) : null}
+        <View style={styles.ligneOutils}>
+          <TouchableOpacity style={[styles.selecteur, { flex: 1, marginBottom: 0 }]} onPress={() => setShowRestoPicker(true)}>
+            <Text style={styles.selecteurTxt}>🏪 {restoNom}</Text>
+            <Text style={styles.selecteurChevron}>▾</Text>
+          </TouchableOpacity>
+          {roleActif === 'manager' ? (
+            <TouchableOpacity onPress={() => router.push('/bouton-avis')} style={styles.lienBouton}>
+              <Text style={styles.lienBoutonTxt}>🔖 Bouton avis</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
 
-      {/* Onglets */}
       <View style={styles.ongletsBar}>
-        <TouchableOpacity
-          style={[styles.ongletBtn, onglet === 'avis' && styles.ongletBtnActif]}
-          onPress={() => setOnglet('avis')}
-        >
-          <Text style={[styles.ongletTxt, onglet === 'avis' && styles.ongletTxtActif]}>Avis</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.ongletBtn, onglet === 'rattacher' && styles.ongletBtnActif]}
-          onPress={() => setOnglet('rattacher')}
-        >
-          <Text style={[styles.ongletTxt, onglet === 'rattacher' && styles.ongletTxtActif]}>
-            À rattacher{boutiques.length ? ` (${boutiques.length})` : ''}
-          </Text>
-        </TouchableOpacity>
+        {[['resume', 'Résumé'], ['avis', 'Avis'], ['rattacher', `À rattacher${boutiques.length ? ` (${boutiques.length})` : ''}`]].map(([cle, label]) => (
+          <TouchableOpacity key={cle} style={[styles.ongletBtn, onglet === cle && styles.ongletBtnActif]} onPress={() => setOnglet(cle)}>
+            <Text style={[styles.ongletTxt, onglet === cle && styles.ongletTxtActif]}>{label}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {loading ? (
         <View style={styles.centre}><ActivityIndicator size="large" color={colors.primary} /></View>
+      ) : !plage ? (
+        <View style={styles.centre}><Text style={styles.emptyTxt}>Choisissez une date de début et une date de fin.</Text></View>
+      ) : onglet === 'resume' ? (
+        <ScrollView
+          style={styles.body}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+        >
+          {retards.map(r => (
+            <View key={r.platform} style={styles.rappelBox}>
+              <Text style={styles.rappelTxt}>
+                ⏰ {texteRetard(r)} — ouvrez le portail {r.label}{r.platform === 'yango' ? ' (page Avis)' : ''} et cliquez sur le bouton avis.
+              </Text>
+            </View>
+          ))}
+          {erreur ? <View style={styles.erreurBox}><Text style={styles.erreurTxt}>{erreur}</Text></View> : null}
+          <ResumeAvis chiffres={chiffres} chiffresPrec={chiffresPrec} parPlateforme={parPlateforme}
+            parResto={parResto} caissiers={caissiers} motifs={motifs} colors={colors} />
+          {run ? (
+            <Text style={styles.pied}>
+              Dernier envoi complet : {fmtDate(run.run_date)} · {run.inserted} nouvel{run.inserted > 1 ? 's' : ''} avis
+            </Text>
+          ) : null}
+          <View style={{ height: 40 }} />
+        </ScrollView>
       ) : onglet === 'rattacher' ? (
         <ScrollView
           style={styles.body}
@@ -240,25 +275,6 @@ export default function AvisPlateformes() {
           style={styles.body}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         >
-          {/* Période */}
-          <View style={styles.chipsRow}>
-            {PERIODES.map(p => (
-              <TouchableOpacity
-                key={p.key}
-                style={[styles.chip, periodeKey === p.key && styles.chipActif]}
-                onPress={() => setPeriodeKey(p.key)}
-              >
-                <Text style={[styles.chipTxt, periodeKey === p.key && styles.chipTxtActif]}>{p.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Restaurant */}
-          <TouchableOpacity style={styles.selecteur} onPress={() => setShowRestoPicker(true)}>
-            <Text style={styles.selecteurTxt}>🏪 {restoNom}</Text>
-            <Text style={styles.selecteurChevron}>▾</Text>
-          </TouchableOpacity>
-
           {/* Plateforme + classification */}
           <View style={styles.chipsRow}>
             <TouchableOpacity
@@ -296,66 +312,8 @@ export default function AvisPlateformes() {
             ))}
           </View>
 
-          {retards.map(r => (
-            <View key={r.platform} style={styles.rappelBox}>
-              <Text style={styles.rappelTxt}>
-                ⏰ {texteRetard(r)} — ouvrez le portail {r.label}{r.platform === 'yango' ? ' (page Avis)' : ''} et cliquez sur le bouton avis.
-              </Text>
-            </View>
-          ))}
-
           {erreur ? (
             <View style={styles.erreurBox}><Text style={styles.erreurTxt}>{erreur}</Text></View>
-          ) : null}
-
-          {/* KPI */}
-          <View style={styles.kpiRow}>
-            <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>Note moyenne</Text>
-              <Text style={styles.kpiVal}>{kpis.noteMoyenne != null ? `${kpis.noteMoyenne} / 5` : '—'}</Text>
-              <Text style={styles.kpiSous}>{kpis.nbNotes} avis notés</Text>
-            </View>
-            <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>Avis reçus</Text>
-              <Text style={styles.kpiVal}>{kpis.nb}</Text>
-              <Text style={styles.kpiSous}>{kpis.nbBons} bons</Text>
-            </View>
-            <View style={[styles.kpiCard, kpis.pctNegatifs > 20 && { backgroundColor: '#C62828' }]}>
-              <Text style={styles.kpiLabel}>Négatifs</Text>
-              <Text style={styles.kpiVal}>{kpis.pctNegatifs} %</Text>
-              <Text style={styles.kpiSous}>{kpis.nbNegatifs} avis</Text>
-            </View>
-          </View>
-
-          {/* Par plateforme */}
-          <View style={styles.blocSection}>
-            {PLATEFORMES.map(p => {
-              const k = parPlateforme[p.key]
-              return (
-                <View key={p.key} style={styles.ligneSimple}>
-                  <Badge texte={p.label} couleur={p.couleur} />
-                  <Text style={styles.ligneVal}>
-                    {k.nb} avis{k.noteMoyenne != null ? ` · ${k.noteMoyenne}/5` : ''}
-                    {k.nb ? ` · ${k.pctNegatifs} % négatifs` : ''}
-                  </Text>
-                </View>
-              )
-            })}
-          </View>
-
-          {/* Par restaurant (masqué si un seul restaurant est filtré) */}
-          {!restoFilter && parResto.length > 1 ? (
-            <View style={styles.blocSection}>
-              <Text style={styles.blocTitre}>Par restaurant</Text>
-              {parResto.map(r => (
-                <View key={r.restaurant_id || 'orphelins'} style={styles.ligneSimple}>
-                  <Text style={styles.ligneNom} numberOfLines={1}>{r.nom}</Text>
-                  <Text style={[styles.ligneVal, r.pctNegatifs > 20 && { color: '#C62828', fontWeight: '700' }]}>
-                    {r.nb} avis{r.noteMoyenne != null ? ` · ${r.noteMoyenne}/5` : ''} · {r.pctNegatifs} % nég.
-                  </Text>
-                </View>
-              ))}
-            </View>
           ) : null}
 
           {/* Liste des avis */}
@@ -383,6 +341,10 @@ export default function AvisPlateformes() {
                 {note != null ? <Text style={styles.note}>{etoiles(note)} {note}/5</Text> : null}
                 {a.comment ? <Text style={styles.commentaire}>« {a.comment} »</Text> : null}
                 {a.external_ref ? <Text style={styles.ligneSous}>Commande {a.external_ref}</Text> : null}
+                <Text style={styles.ligneSous}>
+                  {a.commande_le ? `Commande à ${new Date(a.commande_le).toISOString().slice(11, 16)} · ` : 'Heure de commande inconnue · '}
+                  {caissierPar[a.id]?.caissier_nom ? `Caissier : ${caissierPar[a.id].caissier_nom}` : 'Caissier : non trouvé'}
+                </Text>
               </View>
             )
           })}
@@ -391,15 +353,6 @@ export default function AvisPlateformes() {
             <TouchableOpacity style={styles.btnSecondaire} onPress={() => setVisible(v => v + PAR_PAGE)}>
               <Text style={styles.btnSecondaireTxt}>Afficher {Math.min(PAR_PAGE, avis.length - visible)} avis de plus</Text>
             </TouchableOpacity>
-          ) : null}
-
-          {/* État de la dernière extraction */}
-          {run ? (
-            <Text style={styles.pied}>
-              Dernière extraction : {fmtDate(run.run_date)} · {run.inserted} nouvel{run.inserted > 1 ? 's' : ''} avis ·
-              {' '}{run.litiges_crees} litige{run.litiges_crees > 1 ? 's' : ''} créé{run.litiges_crees > 1 ? 's' : ''}
-              {run.unmapped ? ` · ${run.unmapped} à rattacher` : ''}
-            </Text>
           ) : null}
 
           <View style={{ height: 40 }} />
@@ -459,11 +412,6 @@ function makeStyles(colors) { return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   centre: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  header: { backgroundColor: colors.headerBg, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 },
-  backBtn: { marginBottom: 8 },
-  backTxt: { color: colors.primaryText, fontSize: 14 },
-  headerTitre: { fontSize: 22, fontWeight: '700', color: '#FFFFFF' },
-  headerSub: { fontSize: 13, color: colors.primaryText, marginTop: 3 },
 
   ongletsBar: { flexDirection: 'row', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   ongletBtn: { flex: 1, paddingVertical: 13, alignItems: 'center' },
@@ -488,14 +436,11 @@ function makeStyles(colors) { return StyleSheet.create({
   erreurTxt: { fontSize: 13, color: colors.errorDark, lineHeight: 19 },
   rappelBox: { backgroundColor: '#FFF3E0', borderRadius: 10, borderWidth: 1, borderColor: '#EF9F27', padding: 12, marginBottom: 12 },
   rappelTxt: { fontSize: 13, color: '#8A4B00', lineHeight: 19, fontWeight: '600' },
-  lienBouton: { marginTop: 10, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, minHeight: 36, justifyContent: 'center' },
-  lienBoutonTxt: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  lienBouton: { backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, minHeight: 48, justifyContent: 'center' },
+  lienBoutonTxt: { color: colors.text, fontSize: 13, fontWeight: '700' },
+  hautFixe: { paddingBottom: 10 },
+  ligneOutils: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingTop: 10, alignItems: 'center' },
 
-  kpiRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  kpiCard: { flex: 1, backgroundColor: colors.primary, borderRadius: 12, padding: 12, alignItems: 'center' },
-  kpiLabel: { fontSize: 10, color: colors.primaryText, marginBottom: 4 },
-  kpiVal: { fontSize: 17, fontWeight: '700', color: '#FFFFFF' },
-  kpiSous: { fontSize: 10, color: colors.primaryText, marginTop: 3 },
 
   blocSection: { backgroundColor: colors.surface, borderRadius: 12, padding: 12, marginBottom: 14 },
   blocTitre: { fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: 8 },
