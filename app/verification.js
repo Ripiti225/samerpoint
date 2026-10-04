@@ -7,7 +7,7 @@ import {
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { router, useLocalSearchParams } from 'expo-router'
 import { supabase } from '../lib/supabase'
-import { annulerDeductionInventaire, deciderEcartInventaire } from '../lib/api'
+import { annulerDeductionInventaire, corrigerEntreeInventaire, deciderEcartInventaire } from '../lib/api'
 import { useApp } from '../context/AppContext'
 import { genererPdfPoint, genererPdfEcarts } from '../lib/generatePdf'
 import { CATEGORIES_INVENTAIRE } from '../lib/constants'
@@ -108,6 +108,12 @@ export default function VerificationScreen() {
   const [decisionSaving, setDecisionSaving] = useState(false)
   const [decisionEnCours, setDecisionEnCours] = useState(null)  // id de la ligne en cours de décision
   const [ecartDeplie, setEcartDeplie] = useState(null)  // ligne d'écart dépliée dans la liste Stock
+  // Correction d'une entrée de stock mal saisie (10 déclarés, 20 sur le reçu)
+  const [corrEntree, setCorrEntree] = useState(null)  // produit de « Entrées du jour » ou null
+  const [corrEntreeQte, setCorrEntreeQte] = useState('')
+  const [corrEntreeRaison, setCorrEntreeRaison] = useState('')
+  const [corrEntreeErreur, setCorrEntreeErreur] = useState('')
+  const [corrEntreeSaving, setCorrEntreeSaving] = useState(false)
   const [loadingInventaire, setLoadingInventaire] = useState(false)
   // Montants issus des comptages du vérificateur, en attente de décision
   const [deducVerif, setDeducVerif] = useState([])
@@ -226,6 +232,98 @@ export default function VerificationScreen() {
     await chargerPointsResto(resto.id)
   }
 
+  // Réceptions du POS + corrections du vérificateur. Les corrections vivent à
+  // part : un rejeu du POS réécrit entrees_shift mais pas corrections_entrees.
+  async function lireEntreesPOS(inventairesPOS) {
+    if (inventairesPOS.length === 0) return { entrees: [], corrections: [] }
+    const ids = inventairesPOS.map(inv => inv.id)
+    const [{ data: entrees }, { data: corrections }] = await Promise.all([
+      supabase.from('entrees_shift')
+        .select('inventaire_id, produit_id, produit_nom, quantite, fournisseur_nom')
+        .in('inventaire_id', ids)
+        .order('fournisseur_nom'),
+      // Table absente tant que le script n'est pas passé : on affiche sans.
+      supabase.from('corrections_entrees')
+        .select('inventaire_id, produit_id, fournisseur_nom, ancienne_quantite, nouvelle_quantite, delta, raison, par, created_at')
+        .in('inventaire_id', ids),
+    ])
+    return { entrees: entrees || [], corrections: corrections || [] }
+  }
+
+  async function rechargerEntreesPOS() {
+    const point = pointSelectionne
+    if (!point) return
+    const { data: invs } = await supabase.from('inventaires_shifts')
+      .select('id, caissier_id, type_shift, pos_service_id')
+      .eq('point_id', point.id)
+      .order('created_at')
+    const inventairesPOS = (invs || []).filter(inv => inv.pos_service_id)
+    const { entrees, corrections } = await lireEntreesPOS(inventairesPOS)
+    setDetailPoint(prev => prev && prev.point?.id === point.id ? {
+      ...prev,
+      entreesVerification: preparerEntreesVerification({
+        inventaires: inventairesPOS,
+        entrees,
+        shifts: prev.shifts || [],
+        historiqueDisponible: prev.entreesVerification?.source === 'HISTORIQUE',
+        corrections,
+      }),
+    } : prev)
+  }
+
+  // ── Correction d'une entrée de stock ─────────────────────────────────
+  function ouvrirCorrectionEntree(produit) {
+    setCorrEntree(produit)
+    setCorrEntreeQte('')
+    setCorrEntreeRaison('')
+    setCorrEntreeErreur('')
+  }
+
+  async function sauvegarderCorrectionEntree() {
+    const p = corrEntree
+    if (!p || corrEntreeSaving) return
+    const brut = String(corrEntreeQte).replace(',', '.').trim()
+    const nouvelle = parseFloat(brut)
+    if (brut === '' || !Number.isFinite(nouvelle) || nouvelle < 0) { setCorrEntreeErreur('Saisissez la quantité du reçu.'); return }
+    if (nouvelle === p.quantite) { setCorrEntreeErreur('La nouvelle quantité est identique à l’actuelle.'); return }
+    if (!corrEntreeRaison.trim()) { setCorrEntreeErreur('Le motif est obligatoire.'); return }
+    setCorrEntreeSaving(true)
+    setCorrEntreeErreur('')
+    try {
+      const r = await corrigerEntreeInventaire({
+        inventaireId: p.inventaireId,
+        produitId: p.produitId,
+        produitNom: p.nom,
+        fournisseurNom: p.fournisseurNom,
+        nouvelle,
+        prix: getPrixProduit(p.produitId),
+        raison: corrEntreeRaison.trim(),
+        par: userNom || roleActif || 'Vérificateur',
+      })
+      const effet = !r.ligneTrouvee
+        ? 'Produit non compté dans l’inventaire : aucune déduction à recalculer.'
+        : r.nouveauMontant === r.ancienMontant
+          ? `Déduction inchangée : ${fmt(r.nouveauMontant)}.`
+          : `Déduction : ${fmt(r.ancienMontant)} → ${fmt(r.nouveauMontant)}.`
+      creerNotification({
+        type: 'entree_stock_corrigee',
+        titre: '✏️ Entrée de stock corrigée',
+        message: `${p.nom} (${p.shift || 'shift'}, ${p.auteur}) : entrée ${nb(r.ancienne)} → ${nb(nouvelle)}. ${effet} Motif : ${corrEntreeRaison.trim()}`,
+        restaurant_id: pointSelectionne?.restaurant_id,
+        cible_role: ['gerant'],
+        created_by: userId || null,
+        screen: null,
+      }).catch(() => {})
+      setCorrEntree(null)
+      await Promise.all([rechargerEntreesPOS(), chargerInventaire(pointSelectionne)])
+      Alert.alert('✅ Entrée corrigée', `${p.nom} : ${nb(r.ancienne)} → ${nb(nouvelle)}.\n${effet}\nLe gérant a été notifié.`)
+    } catch (e) {
+      setCorrEntreeErreur(e?.message || 'Correction impossible.')
+    } finally {
+      setCorrEntreeSaving(false)
+    }
+  }
+
   async function ouvrirPoint(point) {
     setPointSelectionne(point)
     setOngletFiche('ventes')
@@ -273,15 +371,7 @@ export default function VerificationScreen() {
     // d'inventaire. On ne les charge que pour les inventaires réellement issus
     // du POS ; le reste de l'écran conserve l'ancien format comme historique.
     const inventairesPOS = (inventairesPosRaw || []).filter(inv => inv.pos_service_id)
-    let entreesPosRaw = []
-    if (inventairesPOS.length > 0) {
-      const { data } = await supabase
-        .from('entrees_shift')
-        .select('inventaire_id, produit_nom, quantite, fournisseur_nom')
-        .in('inventaire_id', inventairesPOS.map(inv => inv.id))
-        .order('fournisseur_nom')
-      entreesPosRaw = data || []
-    }
+    const { entrees: entreesPosRaw, corrections: correctionsEntrees } = await lireEntreesPOS(inventairesPOS)
 
     // Contacts uniques par partenaire
     const contactsParPartenaire = {}
@@ -361,6 +451,7 @@ export default function VerificationScreen() {
       entrees: entreesPosRaw,
       shifts: shifts || [],
       historiqueDisponible: historiqueEntreesDisponible,
+      corrections: correctionsEntrees,
     })
 
     setDetailPoint({
@@ -454,6 +545,12 @@ export default function VerificationScreen() {
   }
 
   // « 412 500 F »
+  // Quantité de stock lisible : 20 · 2,5 · 0,35
+  function nb(v) {
+    const x = Number(v) || 0
+    return x % 1 !== 0 ? String(Math.round(x * 100) / 100).replace('.', ',') : String(x)
+  }
+
   function fmtCourt(n) {
     return `${Math.round(Number(n) || 0).toLocaleString('fr-FR').replace(/[\u00a0\u202f]/g, ' ')} F`
   }
@@ -2890,7 +2987,7 @@ export default function VerificationScreen() {
                           <Text style={[styles.entreeFournNom, { marginBottom: 6 }]}>🏭 {groupe.fournisseur}</Text>
                           {groupe.produits.map(produit => (
                             <View
-                              key={`${produit.nom}|${produit.auteur}|${produit.shift}`}
+                              key={`${produit.inventaireId}|${produit.produitId}|${produit.fournisseurNom || ''}`}
                               style={styles.entreeProdRow}
                             >
                               <View style={{ flex: 1, paddingRight: 10 }}>
@@ -2898,10 +2995,25 @@ export default function VerificationScreen() {
                                 <Text style={styles.entreeProdMeta} numberOfLines={1}>
                                   👤 {produit.auteur}{produit.shift ? ` · ${produit.shift}` : ''}
                                 </Text>
+                                {produit.correction && (
+                                  <Text style={styles.entreeProdMeta} numberOfLines={2}>
+                                    {`✏️ ${produit.correction.par || 'Vérificateur'} : ${produit.correction.raison}`}
+                                  </Text>
+                                )}
                               </View>
-                              <Text style={styles.entreeProdQte}>
-                                +{Number(produit.quantite).toLocaleString('fr-FR')}
-                              </Text>
+                              <View style={{ alignItems: 'flex-end' }}>
+                                <Text style={styles.entreeProdQte}>
+                                  +{Number(produit.quantite).toLocaleString('fr-FR')}
+                                </Text>
+                                {produit.correction && (
+                                  <Text style={styles.entreeCorrigee}>
+                                    corrigé (était {Number(produit.correction.depuis).toLocaleString('fr-FR')})
+                                  </Text>
+                                )}
+                              </View>
+                              <TouchableOpacity style={styles.entreeCorrBtn} onPress={() => ouvrirCorrectionEntree(produit)} activeOpacity={0.7}>
+                                <Text style={styles.entreeCorrBtnTxt}>✏️</Text>
+                              </TouchableOpacity>
                             </View>
                           ))}
                         </View>
@@ -3399,7 +3511,6 @@ export default function VerificationScreen() {
                     Une ligne par produit ; ✅ / ❌ décident en un appui, un appui
                     sur la ligne déplie le détail. */}
                 {peutVoirEcarts && nbAvecEcart > 0 && (() => {
-                  const nb = v => (v % 1 !== 0 ? v.toFixed(2) : String(v))
                   return (
                   <>
                     <Text style={styles.sectionTitre}>Produits avec écarts ({nbAvecEcart})</Text>
@@ -3980,6 +4091,59 @@ export default function VerificationScreen() {
       </Modal>
 
       {/* ══════════════════════════════════════════
+          MODAL CORRECTION D'UNE ENTRÉE DE STOCK
+      ══════════════════════════════════════════ */}
+      <Modal visible={corrEntree != null} animationType="fade" transparent onRequestClose={() => setCorrEntree(null)}>
+        <View style={styles.annulerOverlay}>
+          <View style={styles.annulerCard}>
+            <Text style={styles.annulerTitre}>✏️ Corriger l'entrée</Text>
+            {corrEntree && (
+              <>
+                <Text style={styles.decisionModalNom}>{corrEntree.nom}</Text>
+                <View style={styles.decisionModalInfo}>
+                  <Text style={styles.decisionModalInfoTxt}>
+                    {`🏭 ${corrEntree.fournisseurNom || 'Sans fournisseur'} · 👤 ${corrEntree.auteur}${corrEntree.shift ? ` · ${corrEntree.shift}` : ''}`}
+                  </Text>
+                  <Text style={styles.decisionModalInfoTxt}>
+                    {`Entrée actuelle : ${nb(corrEntree.quantite)}${corrEntree.correction ? ` (déclarée par le caissier : ${nb(corrEntree.correction.depuis)})` : ''}`}
+                  </Text>
+                </View>
+
+                <Text style={styles.annulerLabel}>Quantité sur le reçu</Text>
+                <TextInput
+                  style={styles.annulerInput}
+                  keyboardType="decimal-pad"
+                  value={corrEntreeQte}
+                  onChangeText={setCorrEntreeQte}
+                  placeholder={nb(corrEntree.quantite)}
+                  placeholderTextColor="#bbb"
+                />
+                <Text style={[styles.annulerLabel, { marginTop: 14 }]}>Motif (obligatoire)</Text>
+                <TextInput
+                  style={[styles.annulerInput, { fontSize: 14, fontWeight: '500', textAlign: 'left' }]}
+                  value={corrEntreeRaison}
+                  onChangeText={setCorrEntreeRaison}
+                  placeholder="Ex : le reçu montre 20 pains"
+                  placeholderTextColor="#bbb"
+                />
+                <Text style={styles.annulerHint}>L'écart et la déduction de ce produit seront recalculés. Une décision déjà prise sur l'explication est gardée.</Text>
+                {corrEntreeErreur ? <Text style={styles.corrError}>{corrEntreeErreur}</Text> : null}
+
+                <View style={styles.annulerBtnRow}>
+                  <TouchableOpacity style={[styles.annulerBtn, styles.annulerBtnCancel]} onPress={() => setCorrEntree(null)} disabled={corrEntreeSaving}>
+                    <Text style={styles.annulerBtnCancelTxt}>Retour</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.annulerBtn, styles.annulerBtnJustifier, corrEntreeSaving && { opacity: 0.5 }]} onPress={sauvegarderCorrectionEntree} disabled={corrEntreeSaving}>
+                    <Text style={styles.annulerBtnConfirmTxt}>{corrEntreeSaving ? '...' : '✅ Corriger'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ══════════════════════════════════════════
           MODAL DÉCISION ÉCART INVENTAIRE (valider/refuser explication)
       ══════════════════════════════════════════ */}
       <Modal visible={decisionInv != null} animationType="fade" transparent onRequestClose={() => setDecisionInv(null)}>
@@ -4524,6 +4688,9 @@ function makeStyles(colors) { return StyleSheet.create({
   entreeProdNom: { fontSize: 12, color: colors.textSecondary, flex: 1 },
   entreeProdMeta: { marginTop: 2, fontSize: 10, color: colors.textMuted },
   entreeProdQte: { fontSize: 12, fontWeight: '700', color: '#3B6D11' },
+  entreeCorrigee: { fontSize: 10, color: '#854F0B', fontWeight: '600', marginTop: 1 },
+  entreeCorrBtn: { width: 44, height: 44, marginLeft: 8, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border },
+  entreeCorrBtnTxt: { fontSize: 16 },
   // ─── Onglets ───
   // Points / Inventaire : un sélecteur à deux positions sous l'en-tête.
   // ─── Boutons ───
