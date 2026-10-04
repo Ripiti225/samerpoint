@@ -33,9 +33,14 @@ function fmt(n) { return Math.round(n || 0).toLocaleString('fr-FR') + ' FCFA' }
 function fmtShort(n) { return Math.round(n || 0).toLocaleString('fr-FR') }
 
 const TODAY = new Date().toISOString().split('T')[0]
+const HIER = new Date(Date.now() - 86_400_000).toISOString().split('T')[0]
+
+// « 1 jour » et « Hier » portent sur une seule journée : même affichage détaillé.
+const unSeulJour = periodeKey => periodeKey === '1jour' || periodeKey === 'hier'
 
 const PERIODES = [
   { key: '1jour', label: '1 jour' },
+  { key: 'hier', label: 'Hier' },
   { key: 'semaine', label: '7 jours' },
   { key: 'mois', label: 'Ce mois' },
   { key: 'mois_prec', label: 'Mois préc.' },
@@ -98,6 +103,7 @@ const SHIFT_LABELS = {
 
 function getPlage(periodeKey, dateUnique, dateDebut, dateFin) {
   if (periodeKey === '1jour') return { debut: dateUnique, fin: dateUnique }
+  if (periodeKey === 'hier') return { debut: HIER, fin: HIER }
   if (periodeKey === 'semaine') {
     const d = new Date()
     d.setDate(d.getDate() - 6)
@@ -121,6 +127,7 @@ function getPlage(periodeKey, dateUnique, dateDebut, dateFin) {
 }
 
 function formDateDefaut(periodeKey, dateUnique) {
+  if (periodeKey === 'hier') return HIER
   return periodeKey === '1jour' ? dateUnique : TODAY
 }
 
@@ -1434,7 +1441,7 @@ export default function LitigesScreen() {
   }
 
   // ── Helpers UI ───────────────────────────────────────────────
-  const multiJour = periodeKey !== '1jour'
+  const multiJour = !unSeulJour(periodeKey)
 
   function ouvrirAddAvis() {
     setSaving(false)
@@ -2149,7 +2156,7 @@ export default function LitigesScreen() {
   }
 
   function renderEcartContacts() {
-    const multiJour = periodeKey !== '1jour'
+    const multiJour = !unSeulJour(periodeKey)
     return (
       <View style={styles.section}>
         {totalContact > 0 && (
@@ -2263,6 +2270,7 @@ export default function LitigesScreen() {
   // ── Label plage affichée ─────────────────────────────────────
   function plageLabel() {
     if (periodeKey === '1jour') return dateUnique
+    if (periodeKey === 'hier') return HIER
     return `${plage.debut} → ${plage.fin}`
   }
 
@@ -2348,7 +2356,7 @@ export default function LitigesScreen() {
             ) : (
               <View style={[styles.datePill, styles.datePillFixe]}>
                 <MaterialCommunityIcons name="calendar-range" size={16} color={colors.textSecondary} />
-                <Text style={[styles.datePillTxt, { color: colors.textSecondary }]}>{plage.debut} → {plage.fin}</Text>
+                <Text style={[styles.datePillTxt, { color: colors.textSecondary }]}>{plage.debut === plage.fin ? plage.debut : `${plage.debut} → ${plage.fin}`}</Text>
               </View>
             )}
           </View>
