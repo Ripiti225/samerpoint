@@ -54,9 +54,9 @@
     "semantic_hash": ""
   },
   "app/accueil.js": {
-    "mtime": 1791070471.6715357,
-    "seen": 1791070511.7208629,
-    "ast_hash": "5388f14a97df6b3d43e2adf39d9b9728",
+    "mtime": 1791101323.8177862,
+    "seen": 1791101364.578206,
+    "ast_hash": "525d4945d02e7977439c9b1585d0e67a",
     "semantic_hash": ""
   },
   "app/brouillons-fournisseurs.js": {
@@ -432,9 +432,9 @@
     "semantic_hash": ""
   },
   "context/NotificationsContext.js": {
-    "mtime": 1791070453.0130389,
-    "seen": 1791070511.720917,
-    "ast_hash": "2058989db5300c250aeb67e11f9bf847",
+    "mtime": 1791101308.3502645,
+    "seen": 1791101364.57826,
+    "ast_hash": "b1d9d55fd2c1fe85af7fc246aa5288cb",
     "semantic_hash": ""
   },
   "context/ThemeContext.js": {
@@ -1236,33 +1236,33 @@
     "semantic_hash": ""
   },
   "app/avis-plateformes.js": {
-    "mtime": 1790827178.7465014,
-    "seen": 1790827220.273844,
-    "ast_hash": "e191ad20c93f2c2585a4cd82a8848cc2",
+    "mtime": 1791101279.2608182,
+    "seen": 1791101364.578207,
+    "ast_hash": "867e19290a80c1e74e3e8a90f258a628",
     "semantic_hash": ""
   },
   "lib/avisPlateformes.js": {
-    "mtime": 1788454332.9289505,
-    "seen": 1788454354.111344,
-    "ast_hash": "e2d066838ace1428f284dcc86fbac131",
+    "mtime": 1791101047.956898,
+    "seen": 1791101364.578269,
+    "ast_hash": "a5c6111501fa6e5bd1608b7c448b6a16",
     "semantic_hash": ""
   },
   "lib/avisPlateformes.test.mjs": {
-    "mtime": 1788454332.929193,
-    "seen": 1788454354.1113448,
-    "ast_hash": "7e2a89215c90c6858508a7d8e96fe181",
+    "mtime": 1791101041.6454887,
+    "seen": 1791101364.57827,
+    "ast_hash": "a39ad18e327e3ad6d15a44e2f4304917",
     "semantic_hash": ""
   },
   "lib/avisPlateformesDb.js": {
-    "mtime": 1788454332.929806,
-    "seen": 1788454354.1113448,
-    "ast_hash": "8e38eb9aa261b510c1aea1ae5f40c8f1",
+    "mtime": 1791101279.2610497,
+    "seen": 1791101364.57827,
+    "ast_hash": "362240120f10389b23da31ac4a36140e",
     "semantic_hash": ""
   },
   "supabase/functions/ingest-reviews/index.ts": {
-    "mtime": 1788454339.5226586,
-    "seen": 1788454354.1113658,
-    "ast_hash": "71ccfbb5da9f80f78e177696b81f23d3",
+    "mtime": 1791101062.3800197,
+    "seen": 1791101364.578343,
+    "ast_hash": "b829dbdf5fe979408d0d6e29b8141629",
     "semantic_hash": ""
   },
   "supabase_avis_mapping_boutiques.sql": {
@@ -1278,9 +1278,9 @@
     "semantic_hash": ""
   },
   "doc/avis-plateformes.md": {
-    "mtime": 1788454339.5396237,
-    "seen": 1788454354.111386,
-    "ast_hash": "3e5dd8c1c4bf27e41a62af1211072b0a",
+    "mtime": 1791101352.4474127,
+    "seen": 1791101364.578376,
+    "ast_hash": "1434853305d04390ca88a4cb221429f1",
     "semantic_hash": ""
   },
   "supabase_restaurant_identite.sql": {
@@ -2325,6 +2325,66 @@
     "mtime": 1791068744.5085487,
     "seen": 1791069043.969932,
     "ast_hash": "add9def1812a3d4784d756c25af5ed8a",
+    "semantic_hash": ""
+  },
+  "app/bouton-avis.js": {
+    "mtime": 1791101243.1668015,
+    "seen": 1791101364.578208,
+    "ast_hash": "e29c15d04c90f5b3bb9461423da18dab",
+    "semantic_hash": ""
+  },
+  "lib/boutonAvis.js": {
+    "mtime": 1791101220.4364808,
+    "seen": 1791101364.578272,
+    "ast_hash": "647f38b77e362317f067690e959f4dd1",
+    "semantic_hash": ""
+  },
+  "lib/boutonAvis.test.mjs": {
+    "mtime": 1791101214.370252,
+    "seen": 1791101364.578272,
+    "ast_hash": "b9ec1c2b4ca8b949875a1ab197bb3a82",
+    "semantic_hash": ""
+  },
+  "lib/envoiAvis.test.mjs": {
+    "mtime": 1791101156.1628609,
+    "seen": 1791101364.578294,
+    "ast_hash": "44bc88f40b984c8ff40c6f54df0ac341",
+    "semantic_hash": ""
+  },
+  "public/bouton-avis.js": {
+    "mtime": 1791101139.5456493,
+    "seen": 1791101364.578339,
+    "ast_hash": "5dcc22b48704158eb510963af025a526",
+    "semantic_hash": ""
+  },
+  "public/envoi-avis.js": {
+    "mtime": 1791101175.575297,
+    "seen": 1791101364.578339,
+    "ast_hash": "92ee8c625b09bd4ee85a132b064388ed",
+    "semantic_hash": ""
+  },
+  "supabase_avis_litige_motif.sql": {
+    "mtime": 1791098341.1457577,
+    "seen": 1791101364.578346,
+    "ast_hash": "c73511624af867f75f39cd45f6d9ca17",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-04-bouton-avis.md": {
+    "mtime": 1791100959.4410973,
+    "seen": 1791101364.5783832,
+    "ast_hash": "67afca7bc09e7c8af3da84ce95eaeffc",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-04-bouton-avis-design.md": {
+    "mtime": 1791101352.4478416,
+    "seen": 1791101364.578389,
+    "ast_hash": "3431ee10b0a20e92b051d4aa92eb48ee",
+    "semantic_hash": ""
+  },
+  "public/envoi-avis.html": {
+    "mtime": 1791101176.606033,
+    "seen": 1791101364.578393,
+    "ast_hash": "2fe89f7a2917a84e3eaa9884a6ea8900",
     "semantic_hash": ""
   }
 }
