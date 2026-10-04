@@ -27,6 +27,7 @@ function moteurRelais() {
     if (!r.inserted) return nom + ' : aucun nouvel avis depuis le dernier envoi.'
     const parties = [pluriel(r.inserted, 'nouvel avis', 'nouveaux avis'), pluriel(r.litiges_crees || 0, 'litige créé', 'litiges créés')]
     if (r.unmapped) parties.push(r.unmapped + ' à rattacher')
+    if (r.litiges_attribues) parties.push(r.litiges_attribues + ' attribué' + (r.litiges_attribues > 1 ? 's' : '') + ' à un caissier')
     return nom + ' : ' + parties.join(' · ')
   }
 

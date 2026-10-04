@@ -107,6 +107,34 @@ function moteurAvis() {
     return null
   }
 
+  function isoValide(v) {
+    const t = Date.parse(v)
+    return v && Number.isFinite(t) ? new Date(t).toISOString() : null
+  }
+
+  function heureGlovo(json) {
+    const o = json && json.data && json.data.orders && json.data.orders.order && json.data.orders.order.order
+    return o ? isoValide(o.placedTimestamp) : null
+  }
+
+  function heureYango(json) {
+    return json ? isoValide(json.created_at) : null
+  }
+
+  // Applique fn à chaque élément, n à la fois, en gardant l'ordre.
+  async function enParallele(elements, n, fn) {
+    const resultats = new Array(elements.length)
+    let suivant = 0
+    async function ouvrier() {
+      while (suivant < elements.length) {
+        const i = suivant++
+        resultats[i] = await fn(elements[i], i)
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(n, elements.length) }, ouvrier))
+    return resultats
+  }
+
   // ── Exécution sur le portail ─────────────────────────────────────────────
   function erreurFr(message) { let e = new Error(message); e.messageFr = message; return e }
 
@@ -231,7 +259,52 @@ function moteurAvis() {
       if (!lot.length || !j.cursor) break
       curseur = j.cursor
     }
+    tous.modele = modele
     return tous
+  }
+
+  const URL_GLOVO_COMMANDE = 'https://vagw-api.eu.prd.portal.restaurant/query'
+  const REQUETE_GLOVO = 'query GetOrderDetails($params: OrderReq!) { orders { order(input: $params) { order { orderId placedTimestamp } } } }'
+
+  function lecteurHeureGlovo() {
+    const jeton = jetonGlovo()
+    return async function (avis) {
+      const vendeur = String(avis.external_store_label).split(';')
+      const r = await fetch(URL_GLOVO_COMMANDE, {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + jeton },
+        body: JSON.stringify({
+          operationName: 'GetOrderDetails',
+          variables: { params: { orderId: avis.external_ref, GlobalVendorCode: { globalEntityId: vendeur[0], vendorId: vendeur[1] },
+            isBillingDataFlagEnabled: false, useRefundStreamIssueSource: false } },
+          query: REQUETE_GLOVO,
+        }),
+      })
+      return r.ok ? heureGlovo(await r.json()) : null
+    }
+  }
+
+  function lecteurHeureYango(modele) {
+    return async function (avis) {
+      const u = new URL('/4.0/restapp-front/eats-restapp-orders/v1/order', location.origin)
+      u.searchParams.set('order_nr', avis.external_ref)
+      const r = await fetch(new Request(u.toString(), { method: 'GET', headers: modele.headers, credentials: 'include' }))
+      return r.ok ? heureYango(await r.json()) : null
+    }
+  }
+
+  async function ajouterHeures(avis, lireHeure, info, nom) {
+    let faits = 0
+    let introuvables = 0
+    await enParallele(avis, 4, async function (a) {
+      let iso = null
+      try { iso = await lireHeure(a) } catch (_e) { iso = null }
+      if (iso) a.commande_le = iso
+      else introuvables++
+      faits++
+      if (faits % 10 === 0 || faits === avis.length) info('Heures de commande ' + nom + ' : ' + faits + '/' + avis.length)
+    })
+    return introuvables
   }
 
   async function lancer(cfg) {
@@ -257,8 +330,12 @@ function moteurAvis() {
       let periode = periodeLecture(dernier ? dernier.review_date : null, Date.now(), PLAFOND_JOURS[plateforme])
       info('Lecture des avis ' + nom + ' du ' + frDate(periode.debut) + ' au ' + frDate(periode.fin) + '…')
       let avis = plateforme === 'glovo' ? await lireGlovo(periode, info) : await lireYango(periode, info)
-      fen.postMessage({ type: 'avis', reviews: avis }, cfg.origine)
-      info(avis.length + ' avis ' + nom + ' transmis : le résultat s’affiche dans la petite fenêtre.', 10000)
+      const lireHeure = plateforme === 'glovo' ? lecteurHeureGlovo() : lecteurHeureYango(avis.modele)
+      const introuvables = await ajouterHeures(avis, lireHeure, info, nom)
+      fen.postMessage({ type: 'avis', reviews: Array.prototype.slice.call(avis) }, cfg.origine)
+      info(avis.length + ' avis ' + nom + ' transmis'
+        + (introuvables ? ' (' + introuvables + ' heure' + (introuvables > 1 ? 's' : '') + ' introuvable' + (introuvables > 1 ? 's' : '') + ')' : '')
+        + ' : le résultat s’affiche dans la petite fenêtre.', 10000)
     } catch (e) {
       let message = e && e.messageFr ? e.messageFr
         : "La lecture des avis n'a pas abouti, rien n'est perdu : clique à nouveau dans quelques minutes."
@@ -272,6 +349,9 @@ function moteurAvis() {
     convertirGlovo: convertirGlovo,
     convertirYango: convertirYango,
     plateformeDuSite: plateformeDuSite,
+    heureGlovo: heureGlovo,
+    heureYango: heureYango,
+    enParallele: enParallele,
     lancer: lancer,
   }
 }
