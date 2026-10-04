@@ -124,7 +124,7 @@ export default function AccueilLogin({
 
 const styles = StyleSheet.create({
   scroll:      { paddingBottom: 30 },
-  corps:       { paddingHorizontal: 16, marginTop: -26, width: '100%', maxWidth: 560, alignSelf: 'center' },
+  corps:       { paddingHorizontal: 16, marginTop: 4, width: '100%', maxWidth: 560, alignSelf: 'center' },
   label:       { fontSize: 11, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', marginTop: 18, marginBottom: 10, marginLeft: 4 },
   ligne:       { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingHorizontal: 14, paddingVertical: 10,
                  borderRadius: 18, borderWidth: 1, marginBottom: 8,

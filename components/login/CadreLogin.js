@@ -4,16 +4,18 @@
 import { Image, Platform, SafeAreaView, StyleSheet, Text, View } from 'react-native'
 import { DEGRADE_BANDEAU, DEGRADE_SOMBRE } from './themeLogin'
 
+// Toujours poser OU retirer : le thème arrive après le premier rendu
+// (préférence lue dans AsyncStorage), un dégradé clair resterait sinon en sombre.
 function poserDegrade(degrade) {
   return (el) => {
-    if (Platform.OS === 'web' && el?.style) el.style.backgroundImage = degrade
+    if (Platform.OS === 'web' && el?.style) el.style.backgroundImage = degrade || ''
   }
 }
 
 export function FondLogin({ t, children }) {
   return (
     <SafeAreaView
-      ref={t.sombre ? poserDegrade(DEGRADE_SOMBRE) : undefined}
+      ref={poserDegrade(t.sombre ? DEGRADE_SOMBRE : null)}
       style={[styles.fond, { backgroundColor: t.fond }]}
     >
       {children}
@@ -24,7 +26,7 @@ export function FondLogin({ t, children }) {
 export function EnteteLogin({ t, sousTitre, compact }) {
   return (
     <View
-      ref={t.sombre ? undefined : poserDegrade(DEGRADE_BANDEAU)}
+      ref={poserDegrade(t.sombre ? null : DEGRADE_BANDEAU)}
       style={[
         styles.bandeau,
         compact && styles.bandeauCompact,
