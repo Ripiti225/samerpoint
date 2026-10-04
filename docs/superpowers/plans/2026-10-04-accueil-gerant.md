@@ -36,7 +36,7 @@ Spec : `docs/superpowers/specs/2026-10-04-accueil-gerant-design.md`
 
 ### Task 1: Configuration gérant (`lib/groupesAccueil.js`)
 
-**Produces:** `FAVORIS_GERANT = ['ventes', 'dashboard', 'livraisons']` ; `GROUPES_GERANT` (journee, depenses, equipe, clients) ; `organiserAccueil(tuiles, role) → { favoris, groupes, autres }` ; `organiserAccueilAdmin(tuiles)` = `organiserAccueil(tuiles, 'manager')` (gardé) ; `groupeDeTuile(id, role = 'manager')`.
+**Produces:** `FAVORIS_GERANT = ['ventes', 'deductions-gerant', 'credits-fournisseurs']` ; `GROUPES_GERANT` (journee, depenses, equipe, clients) ; `organiserAccueil(tuiles, role) → { favoris, groupes, autres }` ; `organiserAccueilAdmin(tuiles)` = `organiserAccueil(tuiles, 'manager')` (gardé) ; `groupeDeTuile(id, role = 'manager')`.
 
 - [ ] **Step 1: Tests (échec attendu)** — ajouter à `lib/groupesAccueil.test.mjs` (et `organiserAccueil` à l'import) :
 
@@ -44,8 +44,8 @@ Spec : `docs/superpowers/specs/2026-10-04-accueil-gerant-design.md`
 describe('organiserAccueil — gérant', () => {
   const t = ids => ids.map(id => ({ id }))
   test('accès directs dans l’ordre, seulement ceux de sa liste', () => {
-    const r = organiserAccueil(t(['livraisons', 'contacts', 'ventes']), 'gerant')
-    assert.deepEqual(r.favoris.map(x => x.id), ['ventes', 'livraisons'])
+    const r = organiserAccueil(t(['credits-fournisseurs', 'contacts', 'ventes']), 'gerant')
+    assert.deepEqual(r.favoris.map(x => x.id), ['ventes', 'credits-fournisseurs'])
   })
   test('bandeaux dans l’ordre, vides retirés, écran inconnu dans « Autres »', () => {
     const r = organiserAccueil(t(['documents', 'contacts', 'ventes', 'demandes', 'nouvel-ecran']), 'gerant')
@@ -67,11 +67,12 @@ Run: `node --test lib/groupesAccueil.test.mjs` → FAIL.
 ```js
 // Accueil gérant : son restaurant, ses écrans du jour (liste réglée dans
 // Paramètres ; seuls ceux qu'il a s'affichent).
-export const FAVORIS_GERANT = ['ventes', 'dashboard', 'livraisons']
+// Le Tableau de bord n'est pas accessible aux gérants.
+export const FAVORIS_GERANT = ['ventes', 'deductions-gerant', 'credits-fournisseurs']
 
 export const GROUPES_GERANT = [
   { id: 'journee', icone: 'calendar-today', couleur: '#E07B00', fonce: '#B45309', titre: 'Journée',
-    tuiles: ['ventes', 'dashboard', 'livraisons', 'point-caissier', 'gerant-caissier'] },
+    tuiles: ['ventes', 'livraisons', 'point-caissier', 'gerant-caissier'] },
   { id: 'depenses', icone: 'cash-minus', couleur: '#0E9F6E', fonce: '#047857', titre: 'Dépenses',
     tuiles: ['deductions-gerant', 'credits-fournisseurs', 'depenses', 'fournisseurs'] },
   { id: 'equipe', icone: 'account-group', couleur: '#2F7FD8', fonce: '#1D5FB0', titre: 'Équipe',
@@ -135,12 +136,18 @@ export const organiserAccueilAdmin = tuiles => organiserAccueil(tuiles, 'manager
 
 ### Task 2: Calculs du bandeau gérant
 
-**Produces:** `evolutionsHier({ hier, avantHier, semainePrec }, dateHier) → string` (`lib/hierAccueil.js`) ; `etatPointHier({ point, nbCorrections }) → { cle: 'corrections'|'verifie'|'valide'|'en_attente'|'absent', texte }` ; `texteDemandes({ demandes, explications }) → string` (`lib/accueilGerant.js`).
+**Produces:** `evolutionsHierDetail({ hier, avantHier, semainePrec }, dateHier) → Array<{ texte, sens: 'hausse'|'baisse'|'egal' }>` et `evolutionsHier(...) → string` (`lib/hierAccueil.js`) ; `etatPointHier({ point, nbCorrections }) → { cle: 'corrections'|'verifie'|'valide'|'en_attente'|'absent', texte }` ; `texteDemandes({ demandes, explications }) → string` (`lib/accueilGerant.js`).
 
 - [ ] **Step 1: Tests (échec attendu)** — dans `lib/hierAccueil.test.mjs`, ajouter `evolutionsHier` à l'import et :
 
 ```js
 describe('evolutionsHier — les flèches seules (ventes du gérant)', () => {
+  test('détail : le sens de chaque comparaison, pour la couleur', () => {
+    assert.deepEqual(evolutionsHierDetail({ hier: 108, avantHier: 100, semainePrec: 120 }, '2026-10-03'), [
+      { texte: '↑ 8 % vs avant-hier', sens: 'hausse' },
+      { texte: '↓ 10 % vs sam. dernier', sens: 'baisse' },
+    ])
+  })
   test('deux comparaisons', () => {
     assert.equal(evolutionsHier({ hier: 108, avantHier: 100, semainePrec: 120 }, '2026-10-03'),
       '↑ 8 % vs avant-hier · ↓ 10 % vs sam. dernier')
@@ -184,20 +191,29 @@ describe('texteDemandes', () => {
 })
 ```
 
+(Ajouter aussi `evolutionsHierDetail` à l'import.)
+
 Run: `node --test lib/hierAccueil.test.mjs lib/accueilGerant.test.mjs` → FAIL.
 
 - [ ] **Step 2: `evolutionsHier`** — dans `lib/hierAccueil.js`, remplacer le corps de `texteHier` par l'utilisation d'une nouvelle fonction :
 
 ```js
-/** « ↑ 8 % vs avant-hier · ↓ 10 % vs sam. dernier » ; '' s'il n'y a rien à comparer. */
-export function evolutionsHier({ hier, avantHier, semainePrec }, dateHier) {
+const sens = p => (p > 0 ? 'hausse' : p < 0 ? 'baisse' : 'egal')
+
+/** Chaque comparaison avec son sens (hausse en vert, baisse en rouge à l'affichage). */
+export function evolutionsHierDetail({ hier, avantHier, semainePrec }, dateHier) {
   const jour = JOURS_COURTS[new Date(`${dateHier}T12:00:00Z`).getUTCDay()]
   const parts = []
   const a = pctEvolution(hier, avantHier)
   const s = pctEvolution(hier, semainePrec)
-  if (a !== null && (avantHier || hier)) parts.push(`${fleche(a)} vs avant-hier`)
-  if (s !== null && (semainePrec || hier)) parts.push(`${fleche(s)} vs ${jour} dernier`)
-  return parts.join(' · ')
+  if (a !== null && (avantHier || hier)) parts.push({ texte: `${fleche(a)} vs avant-hier`, sens: sens(a) })
+  if (s !== null && (semainePrec || hier)) parts.push({ texte: `${fleche(s)} vs ${jour} dernier`, sens: sens(s) })
+  return parts
+}
+
+/** « ↑ 8 % vs avant-hier · ↓ 10 % vs sam. dernier » ; '' s'il n'y a rien à comparer. */
+export function evolutionsHier(valeurs, dateHier) {
+  return evolutionsHierDetail(valeurs, dateHier).map(x => x.texte).join(' · ')
 }
 
 export function texteHier(valeurs, dateHier, [un, plusieurs] = ['avis', 'avis']) {
@@ -243,7 +259,7 @@ export function texteDemandes({ demandes = 0, explications = 0 }) {
 
 ### Task 3: Bandeau gérant + Indicateur partagé
 
-**Produces:** `components/accueil/Indicateur.js` (export default `Indicateur({ icone, couleur, texte, styles })`) ; `components/accueil/BandeauGerant.js` (export default `BandeauGerant({ etat, styles, colors })`, `etat` = `{ hier: Date, point: {cle, texte}, ventes: number|null, ventesEvo: string, demandes: string, nbDemandes: number }`).
+**Produces:** `components/accueil/Indicateur.js` (export default `Indicateur({ icone, couleur, texte, styles })`) ; `components/accueil/BandeauGerant.js` (export default `BandeauGerant({ etat, styles, colors })`, `etat` = `{ hier: Date, point: {cle, texte}, ventes: number|null, ventesEvo: Array<{texte, sens}>, demandes: string, nbDemandes: number }`).
 
 - [ ] **Step 1: Indicateur** — créer `components/accueil/Indicateur.js` en déplaçant la fonction `Indicateur` d'`AccueilManager.js` :
 
@@ -306,7 +322,15 @@ export default function BandeauGerant({ etat, styles, colors }) {
                   <Text style={[styles.bandeauGrand, { color: colors.text }]}>{fcfa(ventes)}</Text>
                   <Text style={styles.bandeauUnite}>F de ventes</Text>
                 </View>
-                {ventesEvo ? <Text style={styles.bandeauUnite}>{ventesEvo}</Text> : null}
+                {ventesEvo.length ? (
+                  <Text style={styles.bandeauUnite}>
+                    {ventesEvo.map((e, i) => (
+                      <Text key={e.texte} style={{ fontWeight: '700', color: e.sens === 'hausse' ? colors.success : e.sens === 'baisse' ? colors.error : colors.textMuted }}>
+                        {i ? ' · ' : ''}{e.texte}
+                      </Text>
+                    ))}
+                  </Text>
+                ) : null}
               </>
             ) : (
               <Text style={styles.bandeauUnite}>Pas encore de ventes pour hier</Text>
@@ -347,7 +371,7 @@ export default function BandeauGerant({ etat, styles, colors }) {
 
 ### Task 4: Brancher dans l'accueil
 
-**Consumes:** Tasks 1–3, `texteHier`, `evolutionsHier`, `chargerContactsPeriode`, `totalParJour`.
+**Consumes:** Tasks 1–3, `texteHier`, `evolutionsHierDetail`, `chargerContactsPeriode`, `totalParJour`.
 
 - [ ] **Step 1: `AccueilManager.js` — chargement gérant.** `useEtatDuJour(role, userId, restaurantId)` ; dans `charger`, **au début** du `try` (après le calcul de `hier`, `avantHier`, `semainePrec`), si `role === 'gerant'` : charger et `setEtat` puis `return` :
 
@@ -378,7 +402,7 @@ export default function BandeauGerant({ etat, styles, colors }) {
             hier,
             point: etatPointHier({ point: parDate[dates[0]] || null, nbCorrections: corr.error ? 0 : corr.count || 0 }),
             ventes: parDate[dates[0]] ? vente(dates[0]) : null,
-            ventesEvo: parDate[dates[0]] ? evolutionsHier({ hier: vente(dates[0]), avantHier: vente(dates[1]), semainePrec: vente(dates[2]) }, dates[0]) : '',
+            ventesEvo: parDate[dates[0]] ? evolutionsHierDetail({ hier: vente(dates[0]), avantHier: vente(dates[1]), semainePrec: vente(dates[2]) }, dates[0]) : [],
             demandes: texteDemandes({ demandes: nbDem, explications: nbExpl }),
             nbDemandes: nbDem + nbExpl,
           },
@@ -392,7 +416,7 @@ export default function BandeauGerant({ etat, styles, colors }) {
 ```
 
   (Déplacer les déclarations de `avantHier` et `semainePrec` avant ce bloc ; ajouter `restaurantId` aux dépendances du `useCallback`.)
-  Imports : `etatPointHier, texteDemandes` de `../../lib/accueilGerant`, `evolutionsHier` à côté de `texteHier`, `BandeauGerant` de `./BandeauGerant`, `organiserAccueil` à la place de `organiserAccueilAdmin`.
+  Imports : `etatPointHier, texteDemandes` de `../../lib/accueilGerant`, `evolutionsHierDetail` à côté de `texteHier`, `BandeauGerant` de `./BandeauGerant`, `organiserAccueil` à la place de `organiserAccueilAdmin`.
 
 - [ ] **Step 2: `AccueilManager.js` — rendu.** Signature `AccueilManager({ items, role, userId, restaurantId })` ; `useEtatDuJour(role, userId, restaurantId)` ; `organiserAccueil(tuilesVivantes, role)` ; `groupeDeTuile(t.id, role)` ; bandeau :
 
@@ -413,6 +437,6 @@ export default function BandeauGerant({ etat, styles, colors }) {
 
 ### Task 5: Vérification avec Ange (localhost)
 
-- [ ] Se connecter en **gérant** sur `http://localhost:8081` : bandeau (point d'hier, ventes + flèches, demandes), accès directs, bandeaux Journée / Dépenses / Équipe / Clients (lignes Avis et Contacts du restaurant), écrans verrouillés si point validé.
+- [ ] Se connecter en **gérant** sur `http://localhost:8081` : bandeau (point d'hier, ventes + flèches vertes/rouges, demandes), accès directs, bandeaux Journée / Dépenses / Équipe / Clients (lignes Avis et Contacts du restaurant), écrans verrouillés si point validé.
 - [ ] Se connecter en **manager** : accueil inchangé.
 - [ ] `graphify update .`, commit `chore(graphify): graphe à jour`, push ; résumé en français simple.

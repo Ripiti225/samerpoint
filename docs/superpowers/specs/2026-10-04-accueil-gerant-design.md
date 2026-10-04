@@ -31,7 +31,8 @@ de `app/accueil.js`. Titre : « Hier · samedi 3 octobre ».
   - « Point d'hier pas encore saisi » s'il n'existe pas.
 - **Ventes d'hier** en grand : `points.vente_total` du point d'hier (FCFA),
   avec « ↑ 8 % vs avant-hier · ↓ 3 % vs sam. dernier » (même calcul que les
-  lignes Avis/Contacts, `lib/hierAccueil.js`). Absent si pas de point.
+  lignes Avis/Contacts, `lib/hierAccueil.js`) : **une hausse en vert, une
+  baisse en rouge**, chaque comparaison colorée séparément. Absent si pas de point.
 - **Demandes** : « N demande(s) en attente · M explication(s) en cours » —
   `demandes` du restaurant au statut `en_attente`, `demandes_explication` du
   restaurant aux statuts `en_attente_acceptation`, `acceptee`, `envoyee`.
@@ -41,15 +42,16 @@ Lecture hors ligne ou en erreur : pas de bandeau (comme le manager).
 
 ## 2. Accès direct
 
-Saisir les ventes (grande tuile), Tableau de bord, Livraisons — seulement
-celles que le gérant a dans sa liste. Les écrans verrouillés après validation
+Saisir les ventes (grande tuile), Déductions gérant, Crédits fournisseurs —
+seulement celles que le gérant a dans sa liste (le Tableau de bord ne lui est
+pas accessible). Les écrans verrouillés après validation
 du point (`verrouSiPointValide`) restent verrouillés.
 
 ## 3. Bandeaux dépliants
 
 | Bandeau | Écrans (dans cet ordre, s'ils sont dans sa liste) |
 |---|---|
-| Journée | Saisir les ventes, Tableau de bord, Livraisons, Point caissier, Espace caissier |
+| Journée | Saisir les ventes, Livraisons, Point caissier, Espace caissier |
 | Dépenses | Déductions gérant, Crédits fournisseurs, Dépenses, Fournisseurs |
 | Équipe | Demandes, Demandes d'explication, Présences, Documents |
 | Clients | Contacts, Avis clients |
