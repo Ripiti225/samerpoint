@@ -41,8 +41,9 @@ n'a cliqué depuis 2 jours.
    2 boutiques à rattacher ») et se ferme seule après 8 s.
 
 **Période lue** : du dernier `review_date` reçu pour cette plateforme moins
-3 jours (notes tardives) jusqu'à aujourd'hui, plafonnée à 45 jours. Aucun avis
-reçu → 45 jours. Les doublons sont absorbés par le dédoublonnage existant
+3 jours (notes tardives) jusqu'à aujourd'hui, plafonnée à 45 jours pour Glovo
+et 30 jours pour Yango (au-delà de 5 semaines, Yango répond « invalid_period »).
+Aucun avis reçu → le plafond. Les doublons sont absorbés par le dédoublonnage existant
 (`dedup_hash` sur le n° de commande).
 
 ## 2. Lecture des avis sur chaque portail

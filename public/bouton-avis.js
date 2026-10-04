@@ -17,7 +17,9 @@
 function moteurAvis() {
   let JOUR = 86400000
   let MARGE_JOURS = 3
-  let PLAFOND_JOURS = 45
+  // Jours relus au plus. Yango refuse une période de plus de 5 semaines
+  // (« invalid_period », constaté le 04/10/2026) : 30 jours pour lui.
+  const PLAFOND_JOURS = { glovo: 45, yango: 30 }
   let PAR_PAGE = 50
   let URL_GLOVO = 'https://vrs-api.eu.prd.portal.restaurant/v1/reviews'
 
@@ -52,8 +54,8 @@ function moteurAvis() {
 
   function jourIso(ms) { return new Date(ms).toISOString().slice(0, 10) }
 
-  function periodeLecture(derniereDate, maintenant) {
-    let plancher = jourIso(maintenant - PLAFOND_JOURS * JOUR)
+  function periodeLecture(derniereDate, maintenant, plafondJours = PLAFOND_JOURS.glovo) {
+    let plancher = jourIso(maintenant - plafondJours * JOUR)
     let debut = plancher
     if (derniereDate) {
       let d = jourIso(Date.parse(derniereDate + 'T00:00:00Z') - MARGE_JOURS * JOUR)
@@ -252,7 +254,7 @@ function moteurAvis() {
       let reponse = await attendreMessage(fen, cfg.origine, 'derniers', 20000)
       if (reponse.erreur) throw erreurFr(reponse.erreur)
       let dernier = reponse.derniers && reponse.derniers[plateforme]
-      let periode = periodeLecture(dernier ? dernier.review_date : null, Date.now())
+      let periode = periodeLecture(dernier ? dernier.review_date : null, Date.now(), PLAFOND_JOURS[plateforme])
       info('Lecture des avis ' + nom + ' du ' + frDate(periode.debut) + ' au ' + frDate(periode.fin) + '…')
       let avis = plateforme === 'glovo' ? await lireGlovo(periode, info) : await lireYango(periode, info)
       fen.postMessage({ type: 'avis', reviews: avis }, cfg.origine)

@@ -116,8 +116,8 @@ Chrome** cliqué par un humain déjà connecté aux portails.
   coller le secret d'ingestion, glisser le bouton dans la barre de favoris.
 - **Glovo** : clic sur le bouton depuis n'importe quelle page du portail.
 - **Yango** : clic depuis la page **Avis** (filtre « Tous les restaurants »).
-- Le bouton relit depuis le dernier avis reçu moins 3 jours (45 jours au
-  plus) ; le dédoublonnage absorbe les répétitions. Une petite fenêtre
+- Le bouton relit depuis le dernier avis reçu moins 3 jours (au plus
+  45 jours pour Glovo, 30 pour Yango qui refuse plus de 5 semaines) ; le dédoublonnage absorbe les répétitions. Une petite fenêtre
   (`/envoi-avis.html`) envoie les avis et affiche le résultat.
 - **Rappel** : sans envoi depuis 2 jours sur une plateforme, bandeau dans
   l'écran Avis clients et ligne dans la cloche (manager, directeur).
