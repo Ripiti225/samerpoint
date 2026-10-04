@@ -34,7 +34,7 @@ import { separerComptesPOS } from '../lib/sourcePoint'
 import { destinationApresDeverrouillage } from '../lib/inactivityLock'
 import { controlerEnrolement, peutProposerActivation } from '../lib/biometrie'
 import {
-  activer, aRefuse, estSupportee, lireEnrolement, messageErreur,
+  activer, aRefuse, estSupportee, lireEnrolements, messageErreur,
   noterRefus, oublierEnrolement, signature, verifier,
 } from '../lib/biometrieWeb'
 import '../lib/webAlert'   // remplace Alert.alert par les dialogues du navigateur
@@ -257,28 +257,35 @@ function UserCard({ item, index, onPress, getRoleCouleur, getRoleBg, getRoleLabe
   )
 }
 
-// ─── Bouton Face ID / empreinte ──────────────────────────────
-function BoutonBiometrie({ enrolement, enCours, message, onPress, onRetirer, colors }) {
+// ─── Boutons Face ID / empreinte (un par compte activé) ──────
+function BoutonsBiometrie({ enrolements, enCours, message, onPress, onRetirer, colors }) {
+  if (enrolements.length === 0) return null
   return (
     <Animated.View entering={FadeInDown.delay(120).springify().damping(18)} style={styles.bioWrap}>
-      <TouchableOpacity
-        style={[styles.bioBtn, enCours && { opacity: 0.6 }]}
-        onPress={onPress}
-        disabled={enCours}
-        activeOpacity={0.85}
-      >
-        <Text style={styles.bioIcone}>🔐</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.bioTitre}>{enCours ? 'Vérification…' : 'Entrer avec Face ID / empreinte'}</Text>
-          <Text style={styles.bioSous}>{enrolement.userNom} · {enrolement.restaurantNom}</Text>
+      {enrolements.map(e => (
+        <View key={e.credentialId} style={styles.bioLigne}>
+          <TouchableOpacity
+            style={[styles.bioBtn, enCours && { opacity: 0.6 }]}
+            onPress={() => onPress(e)}
+            disabled={enCours}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.bioIcone}>🔐</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.bioTitre}>{enCours ? 'Vérification…' : 'Entrer avec Face ID / empreinte'}</Text>
+              <Text style={styles.bioSous}>{e.userNom} · {e.restaurantNom}</Text>
+            </View>
+          </TouchableOpacity>
+          {onRetirer && (
+            <TouchableOpacity onPress={() => onRetirer(e)} style={styles.bioRetirer}>
+              <Text style={[styles.bioRetirerTxt, { color: colors.textMuted }]}>
+                Retirer Face ID de ce téléphone{enrolements.length > 1 ? ` (${e.restaurantNom})` : ''}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
-      </TouchableOpacity>
+      ))}
       {!!message && <Text style={styles.bioErreur}>{message}</Text>}
-      {onRetirer && (
-        <TouchableOpacity onPress={onRetirer} style={styles.bioRetirer}>
-          <Text style={[styles.bioRetirerTxt, { color: colors.textMuted }]}>Retirer Face ID de ce téléphone</Text>
-        </TouchableOpacity>
-      )}
     </Animated.View>
   )
 }
@@ -302,7 +309,7 @@ export default function LoginScreen() {
   const [secondesRestantes, setSecondesRestantes] = useState(0)
   // Face ID / empreinte (web uniquement — cf. lib/biometrieWeb.js)
   const [bioSupportee, setBioSupportee] = useState(false)
-  const [enrolement, setEnrolement] = useState(() => lireEnrolement())
+  const [enrolements, setEnrolements] = useState(() => lireEnrolements())
   const [bioEnCours, setBioEnCours] = useState(false)
   const [bioMessage, setBioMessage] = useState('')
   const [activationEnAttente, setActivationEnAttente] = useState(null)
@@ -480,7 +487,7 @@ export default function LoginScreen() {
 
     // Codes justes : c'est le seul moment où l'on peut proposer Face ID,
     // le gérant venant de prouver qui il est.
-    const dejaActive = enrolement?.userId === selected.id && enrolement?.restaurantId === (selectedResto?.id ?? null)
+    const dejaActive = enrolementsDe(selected, selectedResto).length > 0
     if (peutProposerActivation({
       estWeb: Platform.OS === 'web', supporte: bioSupportee, role: selected.role,
       dejaActive, refuse: aRefuse(selected.id),
@@ -499,7 +506,7 @@ export default function LoginScreen() {
     setBioEnCours(true)
     setBioMessage('')
     try {
-      setEnrolement(await activer(utilisateur, restaurant))
+      setEnrolements(await activer(utilisateur, restaurant))
       ouvrirSession(utilisateur, restaurant)
     } catch (err) {
       setBioMessage(messageErreur(err))
@@ -516,7 +523,7 @@ export default function LoginScreen() {
 
   // navigator.credentials.get part en premier, directement depuis l'appui :
   // Safari refuse Face ID si un chargement réseau le précède.
-  async function entrerAvecBiometrie() {
+  async function entrerAvecBiometrie(enrolement) {
     if (!enrolement || bioEnCours) return
     setBioEnCours(true)
     setBioMessage('')
@@ -536,10 +543,7 @@ export default function LoginScreen() {
       const sig = user && (resto || global) ? await signature(user, resto) : null
       const controle = controlerEnrolement(enrolement, { utilisateur: user, restaurant: resto, signature: sig })
       if (!controle.ok) {
-        if (controle.oublier) {
-          oublierEnrolement()
-          setEnrolement(null)
-        }
+        if (controle.oublier) setEnrolements(oublierEnrolement(enrolement.credentialId))
         setBioMessage(controle.message)
         return
       }
@@ -553,19 +557,23 @@ export default function LoginScreen() {
     }
   }
 
-  function retirerBiometrie() {
+  function retirerBiometrie(enrolement) {
     Alert.alert(
-      'Retirer Face ID de ce téléphone ?',
+      `Retirer Face ID de ce téléphone pour ${enrolement.userNom} (${enrolement.restaurantNom}) ?`,
       'Vous devrez entrer vos codes à la prochaine connexion. Vous pourrez le réactiver ensuite.',
       [
         { text: 'Annuler', style: 'cancel' },
         { text: 'Retirer', style: 'destructive', onPress: () => {
-          oublierEnrolement()
-          setEnrolement(null)
+          setEnrolements(oublierEnrolement(enrolement.credentialId))
           setBioMessage('')
         } },
       ],
     )
+  }
+
+  // Comptes activés pour cet utilisateur à cet endroit (null = administration).
+  function enrolementsDe(utilisateur, resto) {
+    return enrolements.filter(e => e.userId === utilisateur?.id && e.restaurantId === (resto?.id ?? null))
   }
 
   // Ouverture commune aux deux chemins : codes PIN ou Face ID.
@@ -643,13 +651,13 @@ export default function LoginScreen() {
           <Text style={[styles.appSub, { color: colors.textMuted }]}>Gestion de restaurant</Text>
         </Animated.View>
 
-        {bioSupportee && enrolement && !loadingRestos && (
-          <BoutonBiometrie
-            enrolement={enrolement} enCours={bioEnCours} message={bioMessage}
+        {bioSupportee && !loadingRestos && (
+          <BoutonsBiometrie
+            enrolements={enrolements} enCours={bioEnCours} message={bioMessage}
             onPress={entrerAvecBiometrie} onRetirer={retirerBiometrie} colors={colors}
           />
         )}
-        {bioSupportee && !enrolement && !!bioMessage && (
+        {bioSupportee && enrolements.length === 0 && !!bioMessage && (
           <Text style={[styles.bioErreur, { width: '90%' }]}>{bioMessage}</Text>
         )}
 
@@ -727,9 +735,10 @@ export default function LoginScreen() {
             <Text style={[styles.restoHeaderNom, { color: colors.text }]}>{selectedResto?.nom}</Text>
             <Text style={[styles.restoHeaderLoc, { color: colors.textMuted }]}>{selectedResto?.localisation || 'Abidjan'}</Text>
           </Animated.View>
-          {bioSupportee && enrolement && enrolement.restaurantId === selectedResto?.id && (
-            <BoutonBiometrie
-              enrolement={enrolement} enCours={bioEnCours} message={bioMessage}
+          {bioSupportee && (
+            <BoutonsBiometrie
+              enrolements={enrolements.filter(e => e.restaurantId === selectedResto?.id)}
+              enCours={bioEnCours} message={bioMessage}
               onPress={entrerAvecBiometrie} colors={colors}
             />
           )}
@@ -931,10 +940,10 @@ export default function LoginScreen() {
         </Animated.View>
 
         {/* Écran verrouillé d'un compte administration : on arrive ici directement. */}
-        {bioSupportee && enrolement && enrolement.userId === selected?.id
-          && enrolement.restaurantId === (selectedResto?.id ?? null) && (
-          <BoutonBiometrie
-            enrolement={enrolement} enCours={bioEnCours} message={bioMessage}
+        {bioSupportee && (
+          <BoutonsBiometrie
+            enrolements={enrolementsDe(selected, selectedResto)}
+            enCours={bioEnCours} message={bioMessage}
             onPress={entrerAvecBiometrie} colors={colors}
           />
         )}
@@ -1049,6 +1058,7 @@ const styles = StyleSheet.create({
   pinScrollContent: { alignItems: 'center', paddingBottom: 40, paddingTop: 8, width: '100%' },
   // Face ID / empreinte
   bioWrap:       { width: '90%', alignItems: 'center', marginBottom: 16 },
+  bioLigne:      { width: '100%', alignItems: 'center', marginBottom: 4 },
   bioBtn: {
     width: '100%', minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 14,
     paddingHorizontal: 18, paddingVertical: 14, borderRadius: 18, backgroundColor: '#F0A020',
