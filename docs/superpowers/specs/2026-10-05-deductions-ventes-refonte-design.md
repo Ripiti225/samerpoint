@@ -74,6 +74,11 @@ Maquettes : `.superpowers/brainstorm/69933-1791237180/content/` (`style-visuel.h
 
 - `progressionFournisseur({ creditVeille, facture, paye })` → `{ du, paye, reste, ratio (0–1), avance: bool }` avec `du = creditVeille + facture`, `reste = du − paye`. Cas `du ≤ 0` : ratio 1, affichage « Avance ».
 
+### Résumé des onglets — `lib/manquantsSaisie.js`
+
+- `resumeDeductions(depenses, fournisseurs, paies)` → nombre de lignes et montant de chaque onglet (affichés « n · montant » sous chaque onglet).
+- La carte « Statut photos » de l'ancienne étape 2 des ventes disparaît : la barre « Il manque » du bas la remplace.
+
 ## Tests
 
 - `lib/manquantsSaisie.test.mjs` (`node:test`) : facture avec/sans photo ; écart nul / manquant / surplus ; explication courte ; répartition incomplète ou complète ; site POS (rien demandé) ; manager (vide) ; photos TAB ; progression avec avance, dû nul, paiement supérieur au dû.
