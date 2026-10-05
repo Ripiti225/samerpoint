@@ -75,6 +75,10 @@ const STATUT_MACHINE = {
   },
 }
 
+// Fournisseur payé par le gérant : 'gerant' (récap du point) ou 'gerant_caissier'
+// (écran Déductions gérant). Les deux vont dans « Déductions Gérant ».
+const estTransactionGerant = f => f?.saisi_par === 'gerant' || f?.saisi_par === 'gerant_caissier'
+
 export default function VerificationScreen() {
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
@@ -2749,11 +2753,17 @@ export default function VerificationScreen() {
                   4. DÉDUCTIONS GÉRANT
               ══════════════════════════════════════ */}
               {(() => {
-                // transactions du point gérant (facture/paye validées via fournisseurs.js)
-                const txGerant = detailPoint.fournisseurs.filter(f => f.saisi_par === 'gerant')
-                // déductions caisse gérant : draft_gerant en priorité (source fiable avec vrais montants + photo)
+                // Transactions du gérant : 'gerant' (récap du point) ET 'gerant_caissier'
+                // (écran Déductions gérant, la seule source depuis la bascule POS).
+                // Ce sont les vraies lignes (avec id) : elles seules sont corrigeables.
+                const txGerant = detailPoint.fournisseurs.filter(estTransactionGerant)
+                const txGerantIds = new Set(txGerant.map(f => f.fournisseur_id))
+                // Brouillon du gérant : seulement en secours, pour un fournisseur sans
+                // transaction enregistrée (le brouillon peut être resté figé avant
+                // les dernières modifications).
                 const draftFourn = pointSelectionne?.draft_gerant?.fournisseurs || {}
                 const draftEntries = Object.entries(draftFourn)
+                  .filter(([id]) => !txGerantIds.has(id))
                   .filter(([_, d]) => (parseFloat(d?.paye) || 0) > 0 || (parseFloat(d?.montant_facture) || 0) > 0)
                   .map(([id, d]) => {
                     const creditV = parseFloat(d.credit_veille) || 0
@@ -2775,9 +2785,7 @@ export default function VerificationScreen() {
                 // histoExtra = dernier recours : uniquement si absent du draft ET absent des transactions (évite les doublons inter-sections)
                 const histoDeductionGerant = detailPoint.historiquesFournisseurs.filter(h => h.source === 'deduction_gerant')
                 const histoExtra = histoDeductionGerant.filter(h => !draftIds.has(h.fournisseur_id) && !allTxIds.has(h.fournisseur_id))
-                // txGerant filtré : on exclut les fournisseurs déjà dans le draft
-                const txGerantFiltered = txGerant.filter(f => !draftIds.has(f.fournisseur_id))
-                const fourGerant = [...txGerantFiltered, ...draftEntries, ...histoExtra]
+                const fourGerant = [...txGerant, ...draftEntries, ...histoExtra]
                 const depGerant = detailPoint.depenses.filter(d => d.saisi_par === 'gerant')
                 const totalFourGerant = fourGerant.reduce((s, f) => s + (f.paye || 0), 0)
                 const totalDepGerant = depGerant.reduce((s, d) => s + (d.montant || 0), 0)
@@ -2876,7 +2884,7 @@ export default function VerificationScreen() {
               ══════════════════════════════════════ */}
               {(() => {
                 // transactions_fournisseurs = source de vérité permanente pour les caissiers
-                const fourCaissier = detailPoint.fournisseurs.filter(f => f.saisi_par !== 'gerant')
+                const fourCaissier = detailPoint.fournisseurs.filter(f => !estTransactionGerant(f))
                 return (
                   <View style={{ marginBottom: 14 }}>
                     <Text style={styles.sectionTitre}>Fournisseurs caissiers ({fourCaissier.length})</Text>
