@@ -18,6 +18,7 @@ import { useTheme } from '../context/ThemeContext'
 import { CATEGORIES_DEPENSES } from '../lib/constants'
 import { facturesGerantSansPhoto } from '../lib/creditsFournisseurs'
 import { chargerDerniersRestes } from '../lib/derniersRestesFournisseurs'
+import { appliquerFacturesMensuelles } from '../lib/facturesMensuelles'
 import { logErreur } from '../lib/logErreur'
 import { estPhotoValide } from '../lib/photoQueue'
 import { supabase } from '../lib/supabase'
@@ -57,6 +58,8 @@ export default function DeductionsGerantScreen() {
 
   async function chargerDonnees() {
     setChargement(true)
+    // Avant toute lecture : la facture mensuelle du 1er doit être dans la chaîne.
+    await appliquerFacturesMensuelles(supabase)
     const [{ data: fours }, { data: travs }] = await Promise.all([
       supabase.from('fournisseurs').select('id, nom, montant_cotise').eq('restaurant_id', restaurantId).order('nom'),
       supabase.from('travailleurs').select('id, nom, poste').eq('restaurant_id', restaurantId).order('nom'),

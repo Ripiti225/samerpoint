@@ -16,6 +16,7 @@ import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { saveOneTransactionFournisseur } from '../lib/api'
 import { chargerDerniersRestes } from '../lib/derniersRestesFournisseurs'
+import { appliquerFacturesMensuelles } from '../lib/facturesMensuelles'
 import { estPhotoEnAttente, estPhotoValide } from '../lib/photoQueue'
 import { usePhoto } from '../lib/usePhoto'
 import { supabase } from '../lib/supabase'
@@ -44,6 +45,8 @@ export default function FournisseursScreen() {
 
   async function chargerFournisseurs() {
     setLoading(true)
+    // Avant toute lecture : la facture mensuelle du 1er doit être dans la chaîne.
+    await appliquerFacturesMensuelles(supabase)
 
     const fournQuery = supabase
       .from('fournisseurs')

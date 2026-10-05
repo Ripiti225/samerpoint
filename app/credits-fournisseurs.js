@@ -28,6 +28,7 @@ import {
   preparerHistoriqueFournisseur,
   restaurerPhotosFacturesDepuisPoints,
 } from '../lib/creditsFournisseurs'
+import { appliquerFacturesMensuelles } from '../lib/facturesMensuelles'
 import { journaliser } from '../lib/journal'
 import { supabase } from '../lib/supabase'
 
@@ -121,6 +122,7 @@ export default function CreditsFournisseursScreen() {
   async function charger() {
     setLoading(true)
     try {
+      await appliquerFacturesMensuelles(supabase)
       let restos = []
       if (peutVoirRestaurants) {
         const { data } = await supabase.from('restaurants').select('id, nom').order('nom')
@@ -166,16 +168,29 @@ export default function CreditsFournisseursScreen() {
       else if (restoFilter) pQ = pQ.eq('restaurant_id', restoFilter)
       const { data: pts } = await pQ
       const pointIds = (pts || []).map(p => p.id)
-      if (pointIds.length === 0) {
+
+      // Factures mensuelles automatiques : sans journée, datées du 1er.
+      let mQ = supabase.from('transactions_fournisseurs')
+        .select('id, point_id, fournisseur_id, fournisseur_nom, facture, paye, photo_url, date_point, created_at, saisi_par, source')
+        .eq('saisi_par', 'mensuel').is('point_id', null)
+        .gte('date_point', debut).lt('date_point', finExcl)
+      if (isGerant) mQ = mQ.eq('restaurant_id', restaurantId)
+      else if (restoFilter) mQ = mQ.eq('restaurant_id', restoFilter)
+      const { data: mensuelles } = await mQ
+
+      if (pointIds.length === 0 && !mensuelles?.length) {
         setMouvMois({ totalFacture: 0, totalPaye: 0, parFourn: [] })
         setLoadingMois(false)
         return
       }
 
-      const { data: trans } = await supabase
-        .from('transactions_fournisseurs')
-        .select('id, point_id, fournisseur_id, fournisseur_nom, facture, paye, photo_url, date_point, created_at, saisi_par, source')
-        .in('point_id', pointIds)
+      const { data: transPoints } = pointIds.length
+        ? await supabase
+          .from('transactions_fournisseurs')
+          .select('id, point_id, fournisseur_id, fournisseur_nom, facture, paye, photo_url, date_point, created_at, saisi_par, source')
+          .in('point_id', pointIds)
+        : { data: [] }
+      const trans = [...(transPoints || []), ...(mensuelles || [])]
 
       const nomById = {}
       fournisseurs.forEach(f => { nomById[f.id] = f.nom })
@@ -253,7 +268,7 @@ export default function CreditsFournisseursScreen() {
   async function recalcChaineFournisseur(fournId, creditDepart) {
     const { data: trans, error: transErr } = await supabase
       .from('transactions_fournisseurs')
-      .select('id, facture, paye, reste, created_at, point_id')
+      .select('id, facture, paye, reste, created_at, point_id, date_point, saisi_par')
       .eq('fournisseur_id', fournId)
     if (transErr) throw transErr
     if (!trans || trans.length === 0) return null
@@ -265,11 +280,17 @@ export default function CreditsFournisseursScreen() {
     const dateByPoint = {}
     ;(points || []).forEach(p => { dateByPoint[p.id] = p.date })
 
-    // Tri par date de journée ASC, puis created_at ASC
+    // Tri par date de journée ASC, puis created_at ASC. Une écriture sans journée
+    // (facture mensuelle, cotisation reçue) est datée par date_point et passe en
+    // tête de son jour — même ordre que supabase_factures_mensuelles.sql.
+    const jour = t => dateByPoint[t.point_id] || t.date_point || String(t.created_at || '').slice(0, 10)
     const sorted = [...trans].sort((a, b) => {
-      const da = dateByPoint[a.point_id] || a.created_at
-      const db = dateByPoint[b.point_id] || b.created_at
+      const da = jour(a)
+      const db = jour(b)
       if (da !== db) return da < db ? -1 : 1
+      const ma = a.point_id ? 1 : 0
+      const mb = b.point_id ? 1 : 0
+      if (ma !== mb) return ma - mb
       return a.created_at < b.created_at ? -1 : 1
     })
 
@@ -963,6 +984,8 @@ ${mouvements.map(m => {
                   gerant: { icon: 'chart-box-outline', label: 'Saisir Ventes', bg: colors.successLight, txt: colors.successDark },
                   gerant_caissier: { icon: 'key-outline', label: 'Gérant Caissier', bg: colors.warningLight, txt: colors.warningDark },
                   deduction_gerant: { icon: 'clipboard-text-outline', label: 'Déduction Gérant', bg: colors.warningLight, txt: colors.warningDark },
+                  facture_mensuelle: { icon: 'calendar-refresh', label: 'Facture mensuelle', bg: colors.primaryLight, txt: colors.primary },
+                  cotisation_remise: { icon: 'bank-transfer-in', label: 'Cotisation reçue (RH)', bg: colors.successLight, txt: colors.successDark },
                 }[src] || { icon: 'pencil-outline', label: src, bg: colors.surfaceAlt, txt: colors.textMuted }
                 const facture = Number(m.facture) || 0
                 const paye = Number(m.paye) || 0

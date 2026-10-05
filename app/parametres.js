@@ -25,6 +25,7 @@ import { useApp } from '../context/AppContext'
 import { creerNotification } from '../lib/notificationsInterne'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
+import { libelleMois, premierDuMois } from '../lib/facturesMensuelles'
 import { connecterOneDrive, deconnecterOneDrive, estatConnecte } from '../lib/onedrive'
 import { ROLES_GLOBAUX } from '../lib/constants'
 import { ACTIONS, journaliser } from '../lib/journal'
@@ -229,6 +230,18 @@ export default function ParametresScreen() {
     return true
   }
 
+  // Colonnes de supabase_factures_mensuelles.sql. Envoyées seulement quand le
+  // champ existe (fiche relue après migration, ou saisi par le manager) : sinon
+  // l'enregistrement d'un fournisseur échouerait tant que la migration n'est pas passée.
+  function champsFactureMensuelle() {
+    if (!isManager || form.facture_mensuelle === undefined || form.facture_mensuelle === null) return {}
+    const montant = Math.round(parseFloat(form.facture_mensuelle) || 0)
+    return {
+      facture_mensuelle: montant,
+      facture_mensuelle_depuis: montant > 0 ? (form.facture_mensuelle_depuis || premierDuMois(0)) : null,
+    }
+  }
+
   async function sauvegarder() {
     const { type, data } = modal
     setLoading(true)
@@ -370,6 +383,10 @@ export default function ParametresScreen() {
           Alert.alert('Erreur', 'Le nom est obligatoire')
           setLoading(false); return
         }
+        if ((parseFloat(form.facture_mensuelle) || 0) < 0) {
+          Alert.alert('Erreur', 'La facture mensuelle ne peut pas être négative.')
+          setLoading(false); return
+        }
         if (data?.id) {
           // Modification d'un fournisseur existant
           if (!form.restaurant_id) {
@@ -383,6 +400,7 @@ export default function ParametresScreen() {
               restaurant_id: form.restaurant_id,
               identifiant: form.identifiant || null,
               contact: form.contact || null,
+              ...champsFactureMensuelle(),
             })
             .eq('id', data.id)
           if (error) throw error
@@ -410,6 +428,7 @@ export default function ParametresScreen() {
                 identifiant: form.identifiant || null,
                 contact: form.contact || null,
                 actif: true,
+                ...champsFactureMensuelle(),
               })
               .select()
             if (error) throw error
@@ -1408,6 +1427,50 @@ export default function ParametresScreen() {
         </View>
 
         {modal.data ? <SelectRestaurant /> : <SelectMultipleRestaurants />}
+
+        {isManager && (() => {
+          const ceMois = premierDuMois(0)
+          const moisProchain = premierDuMois(1)
+          const depuis = form.facture_mensuelle_depuis || ceMois
+          const choix = [...new Set([depuis, ceMois, moisProchain])].sort()
+          const actif = (parseFloat(form.facture_mensuelle) || 0) > 0
+          return (
+            <>
+              <View style={styles.creditSeparateur} />
+              <Text style={styles.modalLabel}>Facture mensuelle automatique</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={form.facture_mensuelle ? String(form.facture_mensuelle) : ''}
+                onChangeText={v => setForm(p => ({ ...p, facture_mensuelle: v.replace(/[^0-9]/g, '') }))}
+                keyboardType="numeric"
+                placeholder="Montant par mois (ex: 20000) — vide = aucune"
+                placeholderTextColor="#bbb"
+              />
+              {actif && (
+                <>
+                  <Text style={styles.modalLabel}>À partir de</Text>
+                  <View style={styles.contratRow}>
+                    {choix.map(m => (
+                      <TouchableOpacity
+                        key={m}
+                        style={[styles.contratBtn, depuis === m && styles.contratBtnSelected]}
+                        onPress={() => setForm(p => ({ ...p, facture_mensuelle_depuis: m }))}
+                      >
+                        <Text style={[styles.contratTxt, depuis === m && styles.contratTxtSelected]}>{libelleMois(m)}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
+              )}
+              <View style={styles.infoBox}>
+                <Text style={styles.infoTxt}>
+                  Le 1er de chaque mois, ce montant s'ajoute au reste dû du fournisseur (une seule fois par mois).
+                  {!modal.data ? ' Même montant pour tous les restaurants cochés : corrigez ensuite la fiche d\'un restaurant dont le montant diffère.' : ''}
+                </Text>
+              </View>
+            </>
+          )
+        })()}
 
         {isManager && modal.data && (
           <>
