@@ -2604,30 +2604,6 @@
       "source_location": "L118"
     },
     {
-      "id": "components_champdate_champdate",
-      "label": "ChampDate()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 105,
-      "community_name": "contacts.js",
-      "file_type": "code",
-      "norm_label": "champdate()",
-      "source_file": "components/ChampDate.js",
-      "source_location": "L36"
-    },
-    {
-      "id": "components_champdate_dateenclair",
-      "label": "dateEnClair()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 105,
-      "community_name": "contacts.js",
-      "file_type": "code",
-      "norm_label": "dateenclair()",
-      "source_file": "components/ChampDate.js",
-      "source_location": "L22"
-    },
-    {
       "id": "lib_contactsperiode_canalcontact",
       "label": "canalContact()",
       "_callable": true,
@@ -2808,18 +2784,6 @@
       "source_location": "L12"
     },
     {
-      "id": "app_dashboard_dashboardscreen_beneficetoday",
-      "label": "beneficeToday()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 106,
-      "community_name": "AppProvider",
-      "file_type": "code",
-      "norm_label": "beneficetoday()",
-      "source_file": "app/dashboard.js",
-      "source_location": "L268"
-    },
-    {
       "id": "app_dashboard_dashboardscreen_depensestoday",
       "label": "depensesToday()",
       "_callable": true,
@@ -2904,18 +2868,6 @@
       "source_location": "L240"
     },
     {
-      "id": "context_appcontext_appprovider_beneficesc",
-      "label": "beneficeSC()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 106,
-      "community_name": "AppProvider",
-      "file_type": "code",
-      "norm_label": "beneficesc()",
-      "source_file": "context/AppContext.js",
-      "source_location": "L226"
-    },
-    {
       "id": "context_appcontext_appprovider_deverrouillersession",
       "label": "deverrouillerSession()",
       "_callable": true,
@@ -2938,18 +2890,6 @@
       "norm_label": "_execresetjour()",
       "source_file": "context/AppContext.js",
       "source_location": "L288"
-    },
-    {
-      "id": "context_appcontext_appprovider_fc",
-      "label": "fc()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 106,
-      "community_name": "AppProvider",
-      "file_type": "code",
-      "norm_label": "fc()",
-      "source_file": "context/AppContext.js",
-      "source_location": "L222"
     },
     {
       "id": "context_appcontext_appprovider_onpagehide",
@@ -2988,18 +2928,6 @@
       "source_location": "L379"
     },
     {
-      "id": "context_appcontext_appprovider_resteespeces",
-      "label": "resteEspeces()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 106,
-      "community_name": "AppProvider",
-      "file_type": "code",
-      "norm_label": "resteespeces()",
-      "source_file": "context/AppContext.js",
-      "source_location": "L206"
-    },
-    {
       "id": "context_appcontext_appprovider_totaldepenses",
       "label": "totalDepenses()",
       "_callable": true,
@@ -3022,18 +2950,6 @@
       "norm_label": "totaldepensescat()",
       "source_file": "context/AppContext.js",
       "source_location": "L183"
-    },
-    {
-      "id": "context_appcontext_appprovider_totaldepensesgerantcaisse",
-      "label": "totalDepensesGerantCaisse()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 106,
-      "community_name": "AppProvider",
-      "file_type": "code",
-      "norm_label": "totaldepensesgerantcaisse()",
-      "source_file": "context/AppContext.js",
-      "source_location": "L197"
     },
     {
       "id": "context_appcontext_appprovider_totalfournisseurs",
@@ -5208,174 +5124,6 @@
       "source_location": "L183"
     },
     {
-      "id": "app_demandes_admin_demandesadminscreen",
-      "label": "DemandesAdminScreen()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 116,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "demandesadminscreen()",
-      "source_file": "app/demandes-admin.js",
-      "source_location": "L16"
-    },
-    {
-      "id": "app_demandes_admin_demandesadminscreen_charger",
-      "label": "charger()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 116,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "charger()",
-      "source_file": "app/demandes-admin.js",
-      "source_location": "L71"
-    },
-    {
-      "id": "app_demandes_admin_demandesadminscreen_chargerrestaurants",
-      "label": "chargerRestaurants()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 116,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "chargerrestaurants()",
-      "source_file": "app/demandes-admin.js",
-      "source_location": "L66"
-    },
-    {
-      "id": "app_demandes_admin_demandesadminscreen_choisirrestocreer",
-      "label": "choisirRestoCreer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 116,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "choisirrestocreer()",
-      "source_file": "app/demandes-admin.js",
-      "source_location": "L201"
-    },
-    {
-      "id": "app_demandes_admin_demandesadminscreen_confirmerannulation",
-      "label": "confirmerAnnulation()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 116,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "confirmerannulation()",
-      "source_file": "app/demandes-admin.js",
-      "source_location": "L165"
-    },
-    {
-      "id": "app_demandes_admin_demandesadminscreen_confirmerdeclin",
-      "label": "confirmerDeclin()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 116,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "confirmerdeclin()",
-      "source_file": "app/demandes-admin.js",
-      "source_location": "L138"
-    },
-    {
-      "id": "app_demandes_admin_demandesadminscreen_confirmervalidation",
-      "label": "confirmerValidation()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 116,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "confirmervalidation()",
-      "source_file": "app/demandes-admin.js",
-      "source_location": "L96"
-    },
-    {
-      "id": "app_demandes_admin_demandesadminscreen_demandervalidation",
-      "label": "demanderValidation()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 116,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "demandervalidation()",
-      "source_file": "app/demandes-admin.js",
-      "source_location": "L85"
-    },
-    {
-      "id": "app_demandes_admin_demandesadminscreen_estfinanciere",
-      "label": "estFinanciere()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 116,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "estfinanciere()",
-      "source_file": "app/demandes-admin.js",
-      "source_location": "L81"
-    },
-    {
-      "id": "app_demandes_admin_demandesadminscreen_executerannulation",
-      "label": "executerAnnulation()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 116,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "executerannulation()",
-      "source_file": "app/demandes-admin.js",
-      "source_location": "L170"
-    },
-    {
-      "id": "app_demandes_admin_demandesadminscreen_ouvrircreer",
-      "label": "ouvrirCreer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 116,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "ouvrircreer()",
-      "source_file": "app/demandes-admin.js",
-      "source_location": "L196"
-    },
-    {
-      "id": "app_demandes_admin_demandesadminscreen_ouvrirdeclin",
-      "label": "ouvrirDeclin()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 116,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "ouvrirdeclin()",
-      "source_file": "app/demandes-admin.js",
-      "source_location": "L132"
-    },
-    {
-      "id": "app_demandes_admin_demandesadminscreen_soumettrecreation",
-      "label": "soumettreCreation()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 116,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "soumettrecreation()",
-      "source_file": "app/demandes-admin.js",
-      "source_location": "L206"
-    },
-    {
-      "id": "app_demandes_admin_demandesadminscreen_valider",
-      "label": "valider()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 116,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "valider()",
-      "source_file": "app/demandes-admin.js",
-      "source_location": "L105"
-    },
-    {
       "id": "app_demandes_demandesscreen",
       "label": "DemandesScreen()",
       "_callable": true,
@@ -5422,6 +5170,78 @@
       "norm_label": "soumettre()",
       "source_file": "app/demandes.js",
       "source_location": "L104"
+    },
+    {
+      "id": "app_demandes_explication_demandesexplicationscreen",
+      "label": "DemandesExplicationScreen()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 116,
+      "community_name": "creerNotification",
+      "file_type": "code",
+      "norm_label": "demandesexplicationscreen()",
+      "source_file": "app/demandes-explication.js",
+      "source_location": "L17"
+    },
+    {
+      "id": "app_demandes_explication_demandesexplicationscreen_charger",
+      "label": "charger()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 116,
+      "community_name": "creerNotification",
+      "file_type": "code",
+      "norm_label": "charger()",
+      "source_file": "app/demandes-explication.js",
+      "source_location": "L42"
+    },
+    {
+      "id": "app_demandes_explication_demandesexplicationscreen_resetform",
+      "label": "resetForm()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 116,
+      "community_name": "creerNotification",
+      "file_type": "code",
+      "norm_label": "resetform()",
+      "source_file": "app/demandes-explication.js",
+      "source_location": "L53"
+    },
+    {
+      "id": "app_demandes_explication_demandesexplicationscreen_soumettre",
+      "label": "soumettre()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 116,
+      "community_name": "creerNotification",
+      "file_type": "code",
+      "norm_label": "soumettre()",
+      "source_file": "app/demandes-explication.js",
+      "source_location": "L59"
+    },
+    {
+      "id": "app_demandes_explication_demandesexplicationscreen_uploaderreponse",
+      "label": "uploaderReponse()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 116,
+      "community_name": "creerNotification",
+      "file_type": "code",
+      "norm_label": "uploaderreponse()",
+      "source_file": "app/demandes-explication.js",
+      "source_location": "L112"
+    },
+    {
+      "id": "app_demandes_explication_demandesexplicationscreen_voirfichier",
+      "label": "voirFichier()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 116,
+      "community_name": "creerNotification",
+      "file_type": "code",
+      "norm_label": "voirfichier()",
+      "source_file": "app/demandes-explication.js",
+      "source_location": "L155"
     },
     {
       "id": "app_verificateur_verificateurscreen_creerdemanderh",
@@ -9669,7 +9489,7 @@
       "file_type": "code",
       "norm_label": "feuilleimport()",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L711"
+      "source_location": "L714"
     },
     {
       "id": "app_tresorerie_partenaires_feuilleimport_choisir",
@@ -9681,7 +9501,7 @@
       "file_type": "code",
       "norm_label": "choisir()",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L755"
+      "source_location": "L758"
     },
     {
       "id": "app_tresorerie_partenaires_feuillepub",
@@ -9693,7 +9513,7 @@
       "file_type": "code",
       "norm_label": "feuillepub()",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L602"
+      "source_location": "L605"
     },
     {
       "id": "app_tresorerie_partenaires_feuillepub_enregistrer",
@@ -9705,7 +9525,7 @@
       "file_type": "code",
       "norm_label": "enregistrer()",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L617"
+      "source_location": "L620"
     },
     {
       "id": "app_tresorerie_partenaires_feuillereception",
@@ -9729,7 +9549,7 @@
       "file_type": "code",
       "norm_label": "enregistrer()",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L455"
+      "source_location": "L457"
     },
     {
       "id": "app_tresorerie_partenaires_feuillereceptiontete",
@@ -9741,7 +9561,7 @@
       "file_type": "code",
       "norm_label": "feuillereceptiontete()",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L501"
+      "source_location": "L504"
     },
     {
       "id": "app_tresorerie_partenaires_feuillereceptiontete_enregistrer",
@@ -9753,7 +9573,7 @@
       "file_type": "code",
       "norm_label": "enregistrer()",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L537"
+      "source_location": "L540"
     },
     {
       "id": "app_tresorerie_partenaires_feuillereglage",
@@ -9765,7 +9585,7 @@
       "file_type": "code",
       "norm_label": "feuillereglage()",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L654"
+      "source_location": "L657"
     },
     {
       "id": "app_tresorerie_partenaires_feuillereglage_enregistrer",
@@ -9777,7 +9597,7 @@
       "file_type": "code",
       "norm_label": "enregistrer()",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L673"
+      "source_location": "L676"
     },
     {
       "id": "app_tresorerie_partenaires_ligneperiode",
@@ -13860,30 +13680,6 @@
       "source_location": "L43"
     },
     {
-      "id": "components_selecteurtravailleur_sansaccents",
-      "label": "sansAccents()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "demandes-admin.js",
-      "file_type": "code",
-      "norm_label": "sansaccents()",
-      "source_file": "components/SelecteurTravailleur.js",
-      "source_location": "L13"
-    },
-    {
-      "id": "components_selecteurtravailleur_selecteurtravailleur",
-      "label": "SelecteurTravailleur()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "demandes-admin.js",
-      "file_type": "code",
-      "norm_label": "selecteurtravailleur()",
-      "source_file": "components/SelecteurTravailleur.js",
-      "source_location": "L15"
-    },
-    {
       "id": "components_ui_ecranmoderne_bouton",
       "label": "Bouton()",
       "_callable": true,
@@ -14050,18 +13846,6 @@
       "norm_label": "usedemandesstyles()",
       "source_file": "components/ui/EcranModerne.js",
       "source_location": "L32"
-    },
-    {
-      "id": "components_ui_ecranmoderne_useecranmoderne",
-      "label": "useEcranModerne()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "demandes-admin.js",
-      "file_type": "code",
-      "norm_label": "useecranmoderne()",
-      "source_file": "components/ui/EcranModerne.js",
-      "source_location": "L23"
     },
     {
       "id": "components_ui_ecranmoderne_vide",
@@ -14592,6 +14376,18 @@
       "source_location": "L229"
     },
     {
+      "id": "app_dashboard_dashboardscreen_ventestoday",
+      "label": "ventesToday()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 25,
+      "community_name": "DashboardScreen",
+      "file_type": "code",
+      "norm_label": "ventestoday()",
+      "source_file": "app/dashboard.js",
+      "source_location": "L258"
+    },
+    {
       "id": "app_dashboard_jaugecout",
       "label": "JaugeCout()",
       "_callable": true,
@@ -14914,6 +14710,174 @@
       "norm_label": "titreperiode()",
       "source_file": "lib/equipe.js",
       "source_location": "L80"
+    },
+    {
+      "id": "app_demandes_admin_demandesadminscreen",
+      "label": "DemandesAdminScreen()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 254,
+      "community_name": "DemandesAdminScreen",
+      "file_type": "code",
+      "norm_label": "demandesadminscreen()",
+      "source_file": "app/demandes-admin.js",
+      "source_location": "L16"
+    },
+    {
+      "id": "app_demandes_admin_demandesadminscreen_charger",
+      "label": "charger()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 254,
+      "community_name": "DemandesAdminScreen",
+      "file_type": "code",
+      "norm_label": "charger()",
+      "source_file": "app/demandes-admin.js",
+      "source_location": "L71"
+    },
+    {
+      "id": "app_demandes_admin_demandesadminscreen_chargerrestaurants",
+      "label": "chargerRestaurants()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 254,
+      "community_name": "DemandesAdminScreen",
+      "file_type": "code",
+      "norm_label": "chargerrestaurants()",
+      "source_file": "app/demandes-admin.js",
+      "source_location": "L66"
+    },
+    {
+      "id": "app_demandes_admin_demandesadminscreen_choisirrestocreer",
+      "label": "choisirRestoCreer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 254,
+      "community_name": "DemandesAdminScreen",
+      "file_type": "code",
+      "norm_label": "choisirrestocreer()",
+      "source_file": "app/demandes-admin.js",
+      "source_location": "L201"
+    },
+    {
+      "id": "app_demandes_admin_demandesadminscreen_confirmerannulation",
+      "label": "confirmerAnnulation()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 254,
+      "community_name": "DemandesAdminScreen",
+      "file_type": "code",
+      "norm_label": "confirmerannulation()",
+      "source_file": "app/demandes-admin.js",
+      "source_location": "L165"
+    },
+    {
+      "id": "app_demandes_admin_demandesadminscreen_confirmerdeclin",
+      "label": "confirmerDeclin()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 254,
+      "community_name": "DemandesAdminScreen",
+      "file_type": "code",
+      "norm_label": "confirmerdeclin()",
+      "source_file": "app/demandes-admin.js",
+      "source_location": "L138"
+    },
+    {
+      "id": "app_demandes_admin_demandesadminscreen_confirmervalidation",
+      "label": "confirmerValidation()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 254,
+      "community_name": "DemandesAdminScreen",
+      "file_type": "code",
+      "norm_label": "confirmervalidation()",
+      "source_file": "app/demandes-admin.js",
+      "source_location": "L96"
+    },
+    {
+      "id": "app_demandes_admin_demandesadminscreen_demandervalidation",
+      "label": "demanderValidation()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 254,
+      "community_name": "DemandesAdminScreen",
+      "file_type": "code",
+      "norm_label": "demandervalidation()",
+      "source_file": "app/demandes-admin.js",
+      "source_location": "L85"
+    },
+    {
+      "id": "app_demandes_admin_demandesadminscreen_estfinanciere",
+      "label": "estFinanciere()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 254,
+      "community_name": "DemandesAdminScreen",
+      "file_type": "code",
+      "norm_label": "estfinanciere()",
+      "source_file": "app/demandes-admin.js",
+      "source_location": "L81"
+    },
+    {
+      "id": "app_demandes_admin_demandesadminscreen_executerannulation",
+      "label": "executerAnnulation()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 254,
+      "community_name": "DemandesAdminScreen",
+      "file_type": "code",
+      "norm_label": "executerannulation()",
+      "source_file": "app/demandes-admin.js",
+      "source_location": "L170"
+    },
+    {
+      "id": "app_demandes_admin_demandesadminscreen_ouvrircreer",
+      "label": "ouvrirCreer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 254,
+      "community_name": "DemandesAdminScreen",
+      "file_type": "code",
+      "norm_label": "ouvrircreer()",
+      "source_file": "app/demandes-admin.js",
+      "source_location": "L196"
+    },
+    {
+      "id": "app_demandes_admin_demandesadminscreen_ouvrirdeclin",
+      "label": "ouvrirDeclin()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 254,
+      "community_name": "DemandesAdminScreen",
+      "file_type": "code",
+      "norm_label": "ouvrirdeclin()",
+      "source_file": "app/demandes-admin.js",
+      "source_location": "L132"
+    },
+    {
+      "id": "app_demandes_admin_demandesadminscreen_soumettrecreation",
+      "label": "soumettreCreation()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 254,
+      "community_name": "DemandesAdminScreen",
+      "file_type": "code",
+      "norm_label": "soumettrecreation()",
+      "source_file": "app/demandes-admin.js",
+      "source_location": "L206"
+    },
+    {
+      "id": "app_demandes_admin_demandesadminscreen_valider",
+      "label": "valider()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 254,
+      "community_name": "DemandesAdminScreen",
+      "file_type": "code",
+      "norm_label": "valider()",
+      "source_file": "app/demandes-admin.js",
+      "source_location": "L105"
     },
     {
       "id": "app_journal_entryrow",
@@ -16020,6 +15984,42 @@
       "source_location": "L36"
     },
     {
+      "id": "app_recap_point_getdatemoisprecedent",
+      "label": "getDateMoisPrecedent()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 278,
+      "community_name": "chargerComparaison",
+      "file_type": "code",
+      "norm_label": "getdatemoisprecedent()",
+      "source_file": "app/recap-point.js",
+      "source_location": "L41"
+    },
+    {
+      "id": "app_recap_point_getdatesemaineprecedente",
+      "label": "getDateSemainePrecedente()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 278,
+      "community_name": "chargerComparaison",
+      "file_type": "code",
+      "norm_label": "getdatesemaineprecedente()",
+      "source_file": "app/recap-point.js",
+      "source_location": "L35"
+    },
+    {
+      "id": "app_recap_point_recappointscreen_chargercomparaison",
+      "label": "chargerComparaison()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 278,
+      "community_name": "chargerComparaison",
+      "file_type": "code",
+      "norm_label": "chargercomparaison()",
+      "source_file": "app/recap-point.js",
+      "source_location": "L174"
+    },
+    {
       "id": "app_verification_verificationscreen_confirmerannulationmachine",
       "label": "confirmerAnnulationMachine()",
       "_callable": true,
@@ -17040,54 +17040,6 @@
       "source_location": "L83"
     },
     {
-      "id": "components_formulairecontrat_debutpardefaut",
-      "label": "debutParDefaut()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 3,
-      "community_name": "app/contrats.js",
-      "file_type": "code",
-      "norm_label": "debutpardefaut()",
-      "source_file": "components/FormulaireContrat.js",
-      "source_location": "L29"
-    },
-    {
-      "id": "components_formulairecontrat_formulairecontrat",
-      "label": "FormulaireContrat()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 3,
-      "community_name": "app/contrats.js",
-      "file_type": "code",
-      "norm_label": "formulairecontrat()",
-      "source_file": "components/FormulaireContrat.js",
-      "source_location": "L38"
-    },
-    {
-      "id": "components_formulairecontrat_formulairecontrat_choisirduree",
-      "label": "choisirDuree()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 3,
-      "community_name": "app/contrats.js",
-      "file_type": "code",
-      "norm_label": "choisirduree()",
-      "source_file": "components/FormulaireContrat.js",
-      "source_location": "L110"
-    },
-    {
-      "id": "components_formulairecontrat_formulairecontrat_enregistrer",
-      "label": "enregistrer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 3,
-      "community_name": "app/contrats.js",
-      "file_type": "code",
-      "norm_label": "enregistrer()",
-      "source_file": "components/FormulaireContrat.js",
-      "source_location": "L142"
-    },
-    {
       "id": "lib_contactsparcaissier_test_jour",
       "label": "jour()",
       "_callable": true,
@@ -17100,18 +17052,6 @@
       "source_location": "L161"
     },
     {
-      "id": "lib_contrats_ajouterjours",
-      "label": "ajouterJours()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 3,
-      "community_name": "app/contrats.js",
-      "file_type": "code",
-      "norm_label": "ajouterjours()",
-      "source_file": "lib/contrats.js",
-      "source_location": "L31"
-    },
-    {
       "id": "lib_contrats_aujourdhuiiso",
       "label": "aujourdhuiISO()",
       "_callable": true,
@@ -17122,18 +17062,6 @@
       "norm_label": "aujourdhuiiso()",
       "source_file": "lib/contrats.js",
       "source_location": "L27"
-    },
-    {
-      "id": "lib_contrats_calculerdatefin",
-      "label": "calculerDateFin()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 3,
-      "community_name": "app/contrats.js",
-      "file_type": "code",
-      "norm_label": "calculerdatefin()",
-      "source_file": "lib/contrats.js",
-      "source_location": "L37"
     },
     {
       "id": "lib_contrats_comptercontrats",
@@ -17326,30 +17254,6 @@
       "norm_label": "validercloture()",
       "source_file": "lib/contrats.js",
       "source_location": "L158"
-    },
-    {
-      "id": "lib_contrats_validerdureelibre",
-      "label": "validerDureeLibre()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 3,
-      "community_name": "app/contrats.js",
-      "file_type": "code",
-      "norm_label": "validerdureelibre()",
-      "source_file": "lib/contrats.js",
-      "source_location": "L173"
-    },
-    {
-      "id": "lib_contrats_validerformulairecontrat",
-      "label": "validerFormulaireContrat()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 3,
-      "community_name": "app/contrats.js",
-      "file_type": "code",
-      "norm_label": "validerformulairecontrat()",
-      "source_file": "lib/contrats.js",
-      "source_location": "L98"
     },
     {
       "id": "lib_contrats_versutc",
@@ -18132,12 +18036,24 @@
       "source_location": "L435"
     },
     {
+      "id": "context_appcontext_appprovider_fournisseursnonenregistres",
+      "label": "fournisseursNonEnregistres()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 33,
+      "community_name": "PointShiftScreen",
+      "file_type": "code",
+      "norm_label": "fournisseursnonenregistres()",
+      "source_file": "context/AppContext.js",
+      "source_location": "L177"
+    },
+    {
       "id": "app_documents_documentsscreen",
       "label": "DocumentsScreen()",
       "_callable": true,
       "_origin": "ast",
       "community": 35,
-      "community_name": "DocumentsScreen",
+      "community_name": "useEcranModerne",
       "file_type": "code",
       "norm_label": "documentsscreen()",
       "source_file": "app/documents.js",
@@ -18149,7 +18065,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 35,
-      "community_name": "DocumentsScreen",
+      "community_name": "useEcranModerne",
       "file_type": "code",
       "norm_label": "chargerdocuments()",
       "source_file": "app/documents.js",
@@ -18161,7 +18077,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 35,
-      "community_name": "DocumentsScreen",
+      "community_name": "useEcranModerne",
       "file_type": "code",
       "norm_label": "choisirpdf()",
       "source_file": "app/documents.js",
@@ -18173,7 +18089,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 35,
-      "community_name": "DocumentsScreen",
+      "community_name": "useEcranModerne",
       "file_type": "code",
       "norm_label": "choisirphoto()",
       "source_file": "app/documents.js",
@@ -18185,7 +18101,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 35,
-      "community_name": "DocumentsScreen",
+      "community_name": "useEcranModerne",
       "file_type": "code",
       "norm_label": "ouvriredition()",
       "source_file": "app/documents.js",
@@ -18197,7 +18113,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 35,
-      "community_name": "DocumentsScreen",
+      "community_name": "useEcranModerne",
       "file_type": "code",
       "norm_label": "prendrephoto()",
       "source_file": "app/documents.js",
@@ -18209,7 +18125,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 35,
-      "community_name": "DocumentsScreen",
+      "community_name": "useEcranModerne",
       "file_type": "code",
       "norm_label": "resetform()",
       "source_file": "app/documents.js",
@@ -18221,7 +18137,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 35,
-      "community_name": "DocumentsScreen",
+      "community_name": "useEcranModerne",
       "file_type": "code",
       "norm_label": "sauvegarder()",
       "source_file": "app/documents.js",
@@ -18233,7 +18149,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 35,
-      "community_name": "DocumentsScreen",
+      "community_name": "useEcranModerne",
       "file_type": "code",
       "norm_label": "supprimerdoc()",
       "source_file": "app/documents.js",
@@ -18245,7 +18161,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 35,
-      "community_name": "DocumentsScreen",
+      "community_name": "useEcranModerne",
       "file_type": "code",
       "norm_label": "vignette()",
       "source_file": "app/documents.js",
@@ -18257,7 +18173,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 35,
-      "community_name": "DocumentsScreen",
+      "community_name": "useEcranModerne",
       "file_type": "code",
       "norm_label": "formatdate()",
       "source_file": "app/documents.js",
@@ -18269,11 +18185,47 @@
       "_callable": true,
       "_origin": "ast",
       "community": 35,
-      "community_name": "DocumentsScreen",
+      "community_name": "useEcranModerne",
       "file_type": "code",
       "norm_label": "sansaccents()",
       "source_file": "app/documents.js",
       "source_location": "L22"
+    },
+    {
+      "id": "components_selecteurtravailleur_sansaccents",
+      "label": "sansAccents()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 35,
+      "community_name": "useEcranModerne",
+      "file_type": "code",
+      "norm_label": "sansaccents()",
+      "source_file": "components/SelecteurTravailleur.js",
+      "source_location": "L13"
+    },
+    {
+      "id": "components_selecteurtravailleur_selecteurtravailleur",
+      "label": "SelecteurTravailleur()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 35,
+      "community_name": "useEcranModerne",
+      "file_type": "code",
+      "norm_label": "selecteurtravailleur()",
+      "source_file": "components/SelecteurTravailleur.js",
+      "source_location": "L15"
+    },
+    {
+      "id": "components_ui_ecranmoderne_useecranmoderne",
+      "label": "useEcranModerne()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 35,
+      "community_name": "useEcranModerne",
+      "file_type": "code",
+      "norm_label": "useecranmoderne()",
+      "source_file": "components/ui/EcranModerne.js",
+      "source_location": "L23"
     },
     {
       "id": "app_dashboard_dashboardscreen_chargercouts",
@@ -18744,6 +18696,18 @@
       "source_location": "L46"
     },
     {
+      "id": "app_dashboard_dashboardscreen_beneficetoday",
+      "label": "beneficeToday()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 40,
+      "community_name": "VentesScreen",
+      "file_type": "code",
+      "norm_label": "beneficetoday()",
+      "source_file": "app/dashboard.js",
+      "source_location": "L268"
+    },
+    {
       "id": "app_ventes_makestyles",
       "label": "makeStyles()",
       "_callable": true,
@@ -18946,6 +18910,42 @@
       "norm_label": "verifierphotosobligatoires()",
       "source_file": "app/ventes.js",
       "source_location": "L282"
+    },
+    {
+      "id": "context_appcontext_appprovider_beneficesc",
+      "label": "beneficeSC()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 40,
+      "community_name": "VentesScreen",
+      "file_type": "code",
+      "norm_label": "beneficesc()",
+      "source_file": "context/AppContext.js",
+      "source_location": "L226"
+    },
+    {
+      "id": "context_appcontext_appprovider_fc",
+      "label": "fc()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 40,
+      "community_name": "VentesScreen",
+      "file_type": "code",
+      "norm_label": "fc()",
+      "source_file": "context/AppContext.js",
+      "source_location": "L222"
+    },
+    {
+      "id": "context_appcontext_appprovider_resteespeces",
+      "label": "resteEspeces()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 40,
+      "community_name": "VentesScreen",
+      "file_type": "code",
+      "norm_label": "resteespeces()",
+      "source_file": "context/AppContext.js",
+      "source_location": "L206"
     },
     {
       "id": "lib_avisresume_bonsavisattribues",
@@ -22104,76 +22104,28 @@
       "source_location": "L28"
     },
     {
-      "id": "app_demandes_explication_demandesexplicationscreen",
-      "label": "DemandesExplicationScreen()",
+      "id": "components_champdate_champdate",
+      "label": "ChampDate()",
       "_callable": true,
       "_origin": "ast",
       "community": 65,
-      "community_name": "DemandesExplicationScreen",
+      "community_name": "FormulaireContrat.js",
       "file_type": "code",
-      "norm_label": "demandesexplicationscreen()",
-      "source_file": "app/demandes-explication.js",
-      "source_location": "L17"
+      "norm_label": "champdate()",
+      "source_file": "components/ChampDate.js",
+      "source_location": "L36"
     },
     {
-      "id": "app_demandes_explication_demandesexplicationscreen_charger",
-      "label": "charger()",
+      "id": "components_champdate_dateenclair",
+      "label": "dateEnClair()",
       "_callable": true,
       "_origin": "ast",
       "community": 65,
-      "community_name": "DemandesExplicationScreen",
+      "community_name": "FormulaireContrat.js",
       "file_type": "code",
-      "norm_label": "charger()",
-      "source_file": "app/demandes-explication.js",
-      "source_location": "L42"
-    },
-    {
-      "id": "app_demandes_explication_demandesexplicationscreen_resetform",
-      "label": "resetForm()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 65,
-      "community_name": "DemandesExplicationScreen",
-      "file_type": "code",
-      "norm_label": "resetform()",
-      "source_file": "app/demandes-explication.js",
-      "source_location": "L53"
-    },
-    {
-      "id": "app_demandes_explication_demandesexplicationscreen_soumettre",
-      "label": "soumettre()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 65,
-      "community_name": "DemandesExplicationScreen",
-      "file_type": "code",
-      "norm_label": "soumettre()",
-      "source_file": "app/demandes-explication.js",
-      "source_location": "L59"
-    },
-    {
-      "id": "app_demandes_explication_demandesexplicationscreen_uploaderreponse",
-      "label": "uploaderReponse()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 65,
-      "community_name": "DemandesExplicationScreen",
-      "file_type": "code",
-      "norm_label": "uploaderreponse()",
-      "source_file": "app/demandes-explication.js",
-      "source_location": "L112"
-    },
-    {
-      "id": "app_demandes_explication_demandesexplicationscreen_voirfichier",
-      "label": "voirFichier()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 65,
-      "community_name": "DemandesExplicationScreen",
-      "file_type": "code",
-      "norm_label": "voirfichier()",
-      "source_file": "app/demandes-explication.js",
-      "source_location": "L155"
+      "norm_label": "dateenclair()",
+      "source_file": "components/ChampDate.js",
+      "source_location": "L22"
     },
     {
       "id": "components_equipe_modales_modalformtravailleur_ajouterpapier",
@@ -22181,11 +22133,59 @@
       "_callable": true,
       "_origin": "ast",
       "community": 65,
-      "community_name": "DemandesExplicationScreen",
+      "community_name": "FormulaireContrat.js",
       "file_type": "code",
       "norm_label": "ajouterpapier()",
       "source_file": "components/equipe/Modales.js",
       "source_location": "L84"
+    },
+    {
+      "id": "components_formulairecontrat_debutpardefaut",
+      "label": "debutParDefaut()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 65,
+      "community_name": "FormulaireContrat.js",
+      "file_type": "code",
+      "norm_label": "debutpardefaut()",
+      "source_file": "components/FormulaireContrat.js",
+      "source_location": "L29"
+    },
+    {
+      "id": "components_formulairecontrat_formulairecontrat",
+      "label": "FormulaireContrat()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 65,
+      "community_name": "FormulaireContrat.js",
+      "file_type": "code",
+      "norm_label": "formulairecontrat()",
+      "source_file": "components/FormulaireContrat.js",
+      "source_location": "L38"
+    },
+    {
+      "id": "components_formulairecontrat_formulairecontrat_choisirduree",
+      "label": "choisirDuree()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 65,
+      "community_name": "FormulaireContrat.js",
+      "file_type": "code",
+      "norm_label": "choisirduree()",
+      "source_file": "components/FormulaireContrat.js",
+      "source_location": "L110"
+    },
+    {
+      "id": "components_formulairecontrat_formulairecontrat_enregistrer",
+      "label": "enregistrer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 65,
+      "community_name": "FormulaireContrat.js",
+      "file_type": "code",
+      "norm_label": "enregistrer()",
+      "source_file": "components/FormulaireContrat.js",
+      "source_location": "L142"
     },
     {
       "id": "components_formulairecontrat_formulairecontrat_prendrepdf",
@@ -22193,7 +22193,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 65,
-      "community_name": "DemandesExplicationScreen",
+      "community_name": "FormulaireContrat.js",
       "file_type": "code",
       "norm_label": "prendrepdf()",
       "source_file": "components/FormulaireContrat.js",
@@ -22205,7 +22205,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 65,
-      "community_name": "DemandesExplicationScreen",
+      "community_name": "FormulaireContrat.js",
       "file_type": "code",
       "norm_label": "prendrephoto()",
       "source_file": "components/FormulaireContrat.js",
@@ -22217,7 +22217,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 65,
-      "community_name": "DemandesExplicationScreen",
+      "community_name": "FormulaireContrat.js",
       "file_type": "code",
       "norm_label": "televerser()",
       "source_file": "components/FormulaireContrat.js",
@@ -22229,11 +22229,59 @@
       "_callable": true,
       "_origin": "ast",
       "community": 65,
-      "community_name": "DemandesExplicationScreen",
+      "community_name": "FormulaireContrat.js",
       "file_type": "code",
       "norm_label": "uploadfichier()",
       "source_file": "lib/api.js",
       "source_location": "L896"
+    },
+    {
+      "id": "lib_contrats_ajouterjours",
+      "label": "ajouterJours()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 65,
+      "community_name": "FormulaireContrat.js",
+      "file_type": "code",
+      "norm_label": "ajouterjours()",
+      "source_file": "lib/contrats.js",
+      "source_location": "L31"
+    },
+    {
+      "id": "lib_contrats_calculerdatefin",
+      "label": "calculerDateFin()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 65,
+      "community_name": "FormulaireContrat.js",
+      "file_type": "code",
+      "norm_label": "calculerdatefin()",
+      "source_file": "lib/contrats.js",
+      "source_location": "L37"
+    },
+    {
+      "id": "lib_contrats_validerdureelibre",
+      "label": "validerDureeLibre()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 65,
+      "community_name": "FormulaireContrat.js",
+      "file_type": "code",
+      "norm_label": "validerdureelibre()",
+      "source_file": "lib/contrats.js",
+      "source_location": "L173"
+    },
+    {
+      "id": "lib_contrats_validerformulairecontrat",
+      "label": "validerFormulaireContrat()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 65,
+      "community_name": "FormulaireContrat.js",
+      "file_type": "code",
+      "norm_label": "validerformulairecontrat()",
+      "source_file": "lib/contrats.js",
+      "source_location": "L98"
     },
     {
       "id": "lib_uploadfichier_uploaderfichier",
@@ -22241,23 +22289,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 65,
-      "community_name": "DemandesExplicationScreen",
+      "community_name": "FormulaireContrat.js",
       "file_type": "code",
       "norm_label": "uploaderfichier()",
       "source_file": "lib/uploadFichier.js",
       "source_location": "L19"
-    },
-    {
-      "id": "app_dashboard_dashboardscreen_ventestoday",
-      "label": "ventesToday()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 68,
-      "community_name": "RecapPointScreen",
-      "file_type": "code",
-      "norm_label": "ventestoday()",
-      "source_file": "app/dashboard.js",
-      "source_location": "L258"
     },
     {
       "id": "app_recap_point_calcvariation",
@@ -22270,30 +22306,6 @@
       "norm_label": "calcvariation()",
       "source_file": "app/recap-point.js",
       "source_location": "L47"
-    },
-    {
-      "id": "app_recap_point_getdatemoisprecedent",
-      "label": "getDateMoisPrecedent()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 68,
-      "community_name": "RecapPointScreen",
-      "file_type": "code",
-      "norm_label": "getdatemoisprecedent()",
-      "source_file": "app/recap-point.js",
-      "source_location": "L41"
-    },
-    {
-      "id": "app_recap_point_getdatesemaineprecedente",
-      "label": "getDateSemainePrecedente()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 68,
-      "community_name": "RecapPointScreen",
-      "file_type": "code",
-      "norm_label": "getdatesemaineprecedente()",
-      "source_file": "app/recap-point.js",
-      "source_location": "L35"
     },
     {
       "id": "app_recap_point_inserersansperte",
@@ -22342,18 +22354,6 @@
       "norm_label": "beneficesccalc()",
       "source_file": "app/recap-point.js",
       "source_location": "L250"
-    },
-    {
-      "id": "app_recap_point_recappointscreen_chargercomparaison",
-      "label": "chargerComparaison()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 68,
-      "community_name": "RecapPointScreen",
-      "file_type": "code",
-      "norm_label": "chargercomparaison()",
-      "source_file": "app/recap-point.js",
-      "source_location": "L174"
     },
     {
       "id": "app_recap_point_recappointscreen_confirmervalider",
@@ -22512,16 +22512,16 @@
       "source_location": "L266"
     },
     {
-      "id": "context_appcontext_appprovider_fournisseursnonenregistres",
-      "label": "fournisseursNonEnregistres()",
+      "id": "context_appcontext_appprovider_totaldepensesgerantcaisse",
+      "label": "totalDepensesGerantCaisse()",
       "_callable": true,
       "_origin": "ast",
       "community": 68,
       "community_name": "RecapPointScreen",
       "file_type": "code",
-      "norm_label": "fournisseursnonenregistres()",
+      "norm_label": "totaldepensesgerantcaisse()",
       "source_file": "context/AppContext.js",
-      "source_location": "L177"
+      "source_location": "L197"
     },
     {
       "id": "context_appcontext_appprovider_totalventes",
@@ -23277,7 +23277,7 @@
       "file_type": "code",
       "norm_label": "confirmer()",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L775"
+      "source_location": "L778"
     },
     {
       "id": "app_tresorerie_partenaires_feuilleperiode",
@@ -25504,17 +25504,6 @@
       "file_type": "code",
       "norm_label": "contacts.js",
       "source_file": "app/contacts.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "components_champdate",
-      "label": "ChampDate.js",
-      "_origin": "ast",
-      "community": 105,
-      "community_name": "contacts.js",
-      "file_type": "code",
-      "norm_label": "champdate.js",
-      "source_file": "components/ChampDate.js",
       "source_location": "L1"
     },
     {
@@ -29050,7 +29039,7 @@
       "file_type": "code",
       "norm_label": "libelles_ecarte",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L881"
+      "source_location": "L884"
     },
     {
       "id": "app_tresorerie_partenaires_libelles_mode",
@@ -33210,17 +33199,6 @@
       "source_location": "L1"
     },
     {
-      "id": "components_selecteurtravailleur",
-      "label": "SelecteurTravailleur.js",
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "demandes-admin.js",
-      "file_type": "code",
-      "norm_label": "selecteurtravailleur.js",
-      "source_file": "components/SelecteurTravailleur.js",
-      "source_location": "L1"
-    },
-    {
       "id": "components_ui_ecranmoderne",
       "label": "EcranModerne.js",
       "_origin": "ast",
@@ -35735,28 +35713,6 @@
       "source_location": "L22"
     },
     {
-      "id": "components_formulairecontrat",
-      "label": "FormulaireContrat.js",
-      "_origin": "ast",
-      "community": 3,
-      "community_name": "app/contrats.js",
-      "file_type": "code",
-      "norm_label": "formulairecontrat.js",
-      "source_file": "components/FormulaireContrat.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "components_formulairecontrat_libelle_duree",
-      "label": "LIBELLE_DUREE",
-      "_origin": "ast",
-      "community": 3,
-      "community_name": "app/contrats.js",
-      "file_type": "code",
-      "norm_label": "libelle_duree",
-      "source_file": "components/FormulaireContrat.js",
-      "source_location": "L25"
-    },
-    {
       "id": "lib_contrats",
       "label": "lib/contrats.js",
       "_origin": "ast",
@@ -36783,6 +36739,17 @@
       "node_kind": "heading",
       "norm_label": "ecran contrats autonome \u2014 design",
       "source_file": "docs/superpowers/specs/2026-08-22-ecran-contrats-design.md",
+      "source_location": "L1"
+    },
+    {
+      "id": "components_selecteurtravailleur",
+      "label": "SelecteurTravailleur.js",
+      "_origin": "ast",
+      "community": 35,
+      "community_name": "useEcranModerne",
+      "file_type": "code",
+      "norm_label": "selecteurtravailleur.js",
+      "source_file": "components/SelecteurTravailleur.js",
       "source_location": "L1"
     },
     {
@@ -40848,11 +40815,44 @@
       "source_location": "L1"
     },
     {
+      "id": "components_champdate",
+      "label": "ChampDate.js",
+      "_origin": "ast",
+      "community": 65,
+      "community_name": "FormulaireContrat.js",
+      "file_type": "code",
+      "norm_label": "champdate.js",
+      "source_file": "components/ChampDate.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "components_formulairecontrat",
+      "label": "FormulaireContrat.js",
+      "_origin": "ast",
+      "community": 65,
+      "community_name": "FormulaireContrat.js",
+      "file_type": "code",
+      "norm_label": "formulairecontrat.js",
+      "source_file": "components/FormulaireContrat.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "components_formulairecontrat_libelle_duree",
+      "label": "LIBELLE_DUREE",
+      "_origin": "ast",
+      "community": 65,
+      "community_name": "FormulaireContrat.js",
+      "file_type": "code",
+      "norm_label": "libelle_duree",
+      "source_file": "components/FormulaireContrat.js",
+      "source_location": "L25"
+    },
+    {
       "id": "lib_uploadfichier",
       "label": "uploadFichier.js",
       "_origin": "ast",
       "community": 65,
-      "community_name": "DemandesExplicationScreen",
+      "community_name": "FormulaireContrat.js",
       "file_type": "code",
       "norm_label": "uploadfichier.js",
       "source_file": "lib/uploadFichier.js",
@@ -59261,7 +59261,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L712",
+      "source_location": "L715",
       "weight": 1.0
     },
     {
@@ -59273,7 +59273,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L730",
+      "source_location": "L733",
       "weight": 1.0
     },
     {
@@ -59285,7 +59285,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L731",
+      "source_location": "L734",
       "weight": 1.0
     },
     {
@@ -59297,7 +59297,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L748",
+      "source_location": "L751",
       "weight": 1.0
     },
     {
@@ -59309,7 +59309,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L748",
+      "source_location": "L751",
       "weight": 1.0
     },
     {
@@ -59321,7 +59321,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L759",
+      "source_location": "L762",
       "weight": 1.0
     },
     {
@@ -59333,7 +59333,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L791",
+      "source_location": "L794",
       "weight": 1.0
     },
     {
@@ -59345,7 +59345,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L792",
+      "source_location": "L795",
       "weight": 1.0
     },
     {
@@ -59357,7 +59357,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L827",
+      "source_location": "L830",
       "weight": 1.0
     },
     {
@@ -59369,7 +59369,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L843",
+      "source_location": "L846",
       "weight": 1.0
     },
     {
@@ -59381,7 +59381,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L856",
+      "source_location": "L859",
       "weight": 1.0
     },
     {
@@ -59393,7 +59393,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L759",
+      "source_location": "L762",
       "weight": 1.0
     },
     {
@@ -59405,7 +59405,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L791",
+      "source_location": "L794",
       "weight": 1.0
     },
     {
@@ -59417,7 +59417,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L792",
+      "source_location": "L795",
       "weight": 1.0
     },
     {
@@ -59597,7 +59597,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L603",
+      "source_location": "L606",
       "weight": 1.0
     },
     {
@@ -59609,7 +59609,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L622",
+      "source_location": "L625",
       "weight": 1.0
     },
     {
@@ -59621,7 +59621,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L633",
+      "source_location": "L636",
       "weight": 1.0
     },
     {
@@ -59633,7 +59633,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L622",
+      "source_location": "L625",
       "weight": 1.0
     },
     {
@@ -59669,7 +59669,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L461",
+      "source_location": "L463",
       "weight": 1.0
     },
     {
@@ -59681,7 +59681,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L464",
+      "source_location": "L466",
       "weight": 1.0
     },
     {
@@ -59693,7 +59693,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L488",
+      "source_location": "L490",
       "weight": 1.0
     },
     {
@@ -59705,7 +59705,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L461",
+      "source_location": "L463",
       "weight": 1.0
     },
     {
@@ -59717,24 +59717,12 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L464",
+      "source_location": "L466",
       "weight": 1.0
     },
     {
       "source": "app_tresorerie_partenaires_feuillereceptiontete",
       "target": "components_tresorerie_commun_usestylestreso",
-      "relation": "calls",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "context": "call",
-      "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L502",
-      "weight": 1.0
-    },
-    {
-      "source": "app_tresorerie_partenaires_feuillereceptiontete",
-      "target": "lib_tresorerie_aujourdhuiiso",
       "relation": "calls",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -59746,6 +59734,18 @@
     },
     {
       "source": "app_tresorerie_partenaires_feuillereceptiontete",
+      "target": "lib_tresorerie_aujourdhuiiso",
+      "relation": "calls",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "context": "call",
+      "source_file": "app/tresorerie-partenaires.js",
+      "source_location": "L508",
+      "weight": 1.0
+    },
+    {
+      "source": "app_tresorerie_partenaires_feuillereceptiontete",
       "target": "lib_tresoreriedb_recevoirdetaille",
       "relation": "calls",
       "_origin": "ast",
@@ -59753,7 +59753,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L544",
+      "source_location": "L547",
       "weight": 1.0
     },
     {
@@ -59765,7 +59765,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L546",
+      "source_location": "L549",
       "weight": 1.0
     },
     {
@@ -59777,7 +59777,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L569",
+      "source_location": "L572",
       "weight": 1.0
     },
     {
@@ -59789,7 +59789,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L544",
+      "source_location": "L547",
       "weight": 1.0
     },
     {
@@ -59801,7 +59801,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L546",
+      "source_location": "L549",
       "weight": 1.0
     },
     {
@@ -59813,7 +59813,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L655",
+      "source_location": "L658",
       "weight": 1.0
     },
     {
@@ -59825,7 +59825,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L663",
+      "source_location": "L666",
       "weight": 1.0
     },
     {
@@ -59837,7 +59837,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L670",
+      "source_location": "L673",
       "weight": 1.0
     },
     {
@@ -59849,7 +59849,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L670",
+      "source_location": "L673",
       "weight": 1.0
     },
     {
@@ -59861,7 +59861,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L677",
+      "source_location": "L680",
       "weight": 1.0
     },
     {
@@ -59873,7 +59873,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L692",
+      "source_location": "L695",
       "weight": 1.0
     },
     {
@@ -59885,7 +59885,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L677",
+      "source_location": "L680",
       "weight": 1.0
     },
     {
@@ -124438,7 +124438,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L501",
+      "source_location": "L504",
       "weight": 1.0
     },
     {
@@ -124449,7 +124449,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L602",
+      "source_location": "L605",
       "weight": 1.0
     },
     {
@@ -124460,7 +124460,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L654",
+      "source_location": "L657",
       "weight": 1.0
     },
     {
@@ -124471,7 +124471,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L711",
+      "source_location": "L714",
       "weight": 1.0
     },
     {
@@ -124482,7 +124482,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L881",
+      "source_location": "L884",
       "weight": 1.0
     },
     {
@@ -124493,7 +124493,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L755",
+      "source_location": "L758",
       "weight": 1.0
     },
     {
@@ -124504,7 +124504,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L775",
+      "source_location": "L778",
       "weight": 1.0
     },
     {
@@ -124526,7 +124526,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L617",
+      "source_location": "L620",
       "weight": 1.0
     },
     {
@@ -124537,7 +124537,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L455",
+      "source_location": "L457",
       "weight": 1.0
     },
     {
@@ -124548,7 +124548,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L537",
+      "source_location": "L540",
       "weight": 1.0
     },
     {
@@ -124559,7 +124559,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L673",
+      "source_location": "L676",
       "weight": 1.0
     },
     {
@@ -150074,5 +150074,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "6fb6a3dabe89dfbb15146a2ac10f0a9f1d7fee44"
+  "built_at_commit": "fdb28da45115c09245c1a72fff39fb1f01c78077"
 }
