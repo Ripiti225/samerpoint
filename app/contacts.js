@@ -6,6 +6,8 @@
 // période : ceux saisis dans Samtrackly avant la bascule POS, et ceux saisis
 // au POS, rapatriés à chaque shift validé (table contacts_clients, fonction
 // import-contacts-pos).
+// Onglet Analyse : les clients de la période en groupes (perdus, une seule
+// commande, fidèles, nouveaux) sur tout l'historique — lib/analyseClients.js.
 // Calculs : lib/contactsPeriode.js — Chargement : lib/contactsPeriodeDb.js
 // ──────────────────────────────────────────────────────────────────────────────
 import { router } from 'expo-router'
@@ -13,11 +15,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Alert, Linking, Platform, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
 
 import ChampDate from '../components/ChampDate'
+import AnalyseClients from '../components/contacts/AnalyseClients'
 import ResumeContacts from '../components/contacts/ResumeContacts'
 import { Bouton, EnTete, Feuille, Libelle, Puces, Recherche, Vide, teinte, useEcranModerne } from '../components/ui/EcranModerne'
 import { useApp } from '../context/AppContext'
+import { GROUPES_CLIENTS, groupesClients, ilYa, profilsClients } from '../lib/analyseClients'
 import { CANAUX_CONTACT, numerosUniques, parJour, parRestaurant, totaux } from '../lib/contactsPeriode'
-import { chargerContactsPeriode, chargerEquipeEtFournisseurs, dernierNumeroPOS } from '../lib/contactsPeriodeDb'
+import { chargerContactsPeriode, chargerEquipeEtFournisseurs, chargerHistoriqueClients, dernierNumeroPOS } from '../lib/contactsPeriodeDb'
+import { aujourdhuiISO } from '../lib/contrats'
 import { PERIODES, plageDates, titrePeriode } from '../lib/equipe'
 import { libelleJour, periodePrecedente } from '../lib/periodeComparee'
 import { supabase } from '../lib/supabase'
@@ -29,7 +34,8 @@ export default function ContactsScreen() {
   const { styles, colors, accent, principale } = useEcranModerne('beige')
   const isGerant = roleActif === 'gerant'
   const isRH = roleActif === 'rh'
-  const onglets = isRH ? ['Équipe', 'Fournisseurs'] : ['Clients', 'Équipe', 'Fournisseurs']
+  const onglets = isRH ? ['Équipe', 'Fournisseurs'] : ['Clients', 'Analyse', 'Équipe', 'Fournisseurs']
+  const avecPeriode = onglet => onglet === 'Clients' || onglet === 'Analyse'
 
   const [restaurants, setRestaurants] = useState([])
   const [restoId, setRestoId] = useState(isGerant ? restaurantId : null) // null = tous
@@ -43,6 +49,9 @@ export default function ContactsScreen() {
   const [equipe, setEquipe] = useState({ travailleurs: [], fournisseurs: [] })
   const [dernierNumero, setDernierNumero] = useState(null)
   const [loading, setLoading] = useState(true)
+  // Analyse : tout l'historique, lu seulement à l'ouverture de l'onglet (une fois par restaurant).
+  const [historique, setHistorique] = useState(null) // { restoId, lignes }
+  const [groupeActif, setGroupeActif] = useState(GROUPES_CLIENTS[0].cle)
 
   const [recherche, setRecherche] = useState('')
   const [canal, setCanal] = useState(null) // Clients : null = tous, 'yango', 'glovo', 'autres'
@@ -78,7 +87,25 @@ export default function ContactsScreen() {
   }, [plageA, plageB, restoId, isRH])
 
   useEffect(() => { charger() }, [charger])
-  useEffect(() => { setNbAffiches(PAR_PAGE); setSelectionnes({}) }, [onglet, recherche, canal, restoId, plageA])
+  useEffect(() => { setNbAffiches(PAR_PAGE); setSelectionnes({}) }, [onglet, recherche, canal, restoId, plageA, groupeActif])
+
+  const historiquePret = historique?.restoId === restoId
+  useEffect(() => {
+    if (onglet !== 'Analyse' || historiquePret) return
+    let annule = false
+    chargerHistoriqueClients(restoId)
+      .then(lignes => { if (!annule) setHistorique({ restoId, lignes }) })
+      .catch(() => {
+        if (annule) return
+        setHistorique({ restoId, lignes: [] }) // pas de roue sans fin ; changer de restaurant relance la lecture
+        Alert.alert('Erreur', "Impossible de charger l'historique des clients. Vérifiez la connexion.")
+      })
+    return () => { annule = true }
+  }, [onglet, restoId, historiquePret])
+
+  const profils = useMemo(() => (historiquePret ? profilsClients(historique.lignes) : []), [historique, historiquePret])
+  const groupes = useMemo(() => (plageA ? groupesClients(profils, { ...plageA, aujourdhui: aujourdhuiISO() }) : null), [profils, plageA])
+  const premiereDate = useMemo(() => profils.reduce((m, p) => (!m || p.premiere < m ? p.premiere : m), ''), [profils])
 
   // ── Résumé ──
   const dans = (l, p) => !!p && l.date >= p.debut && l.date <= p.fin
@@ -97,6 +124,10 @@ export default function ContactsScreen() {
       id: c.id, nom: c.numero, numero: c.numero, canaux: c.canaux,
       detail: `${c.partenaire} · ${c.fois > 1 ? `${c.fois} commandes · ` : ''}dernière le ${libelleJour(c.dernier)}${!restoId && restoParId[c.restaurant_id] ? ` · ${restoParId[c.restaurant_id].nom}` : ''}`,
     })),
+    Analyse: (groupes?.[groupeActif] || []).map(p => ({
+      id: p.id, nom: p.numero, numero: p.numero, canaux: p.canaux,
+      detail: `${p.partenaire} · ${p.fois} commande${p.fois > 1 ? 's' : ''} · dernière le ${libelleJour(p.derniere)} (${ilYa(p.depuis)})${p.fois > 1 ? ` · première le ${libelleJour(p.premiere)}` : ''}${!restoId && restoParId[p.restaurant_id] ? ` · ${restoParId[p.restaurant_id].nom}` : ''}`,
+    })),
     'Équipe': equipe.travailleurs.map(t => ({
       id: t.id, nom: t.nom, numero: t.contact,
       detail: `${t.poste || 'Équipe'}${!restoId && restoParId[t.restaurant_id] ? ` · ${restoParId[t.restaurant_id].nom}` : ''}`,
@@ -105,10 +136,10 @@ export default function ContactsScreen() {
       id: f.id, nom: f.nom, numero: f.contact,
       detail: `${f.type === 'cotisation' ? 'Cotisation' : 'Fournisseur'}${!restoId && restoParId[f.restaurant_id] ? ` · ${restoParId[f.restaurant_id].nom}` : ''}`,
     })),
-  }), [donnees, equipe, plageA, restoId, restoParId])
+  }), [donnees, equipe, plageA, restoId, restoParId, groupes, groupeActif])
   const trouves = (listes[onglet] || []).filter(c => !q || c.nom.toLowerCase().includes(q) || c.detail.toLowerCase().includes(q) || String(c.numero).includes(q))
-  // Filtre par type (Clients seulement) : un client passé par Yango puis par Glovo apparaît sous les deux.
-  const liste = onglet === 'Clients' && canal ? trouves.filter(c => c.canaux?.includes(canal)) : trouves
+  // Filtre par type (Clients et Analyse) : un client passé par Yango puis par Glovo apparaît sous les deux.
+  const liste = avecPeriode(onglet) && canal ? trouves.filter(c => c.canaux?.includes(canal)) : trouves
   const parCanal = cle => (cle ? trouves.filter(c => c.canaux?.includes(cle)).length : trouves.length)
   const affiches = liste.slice(0, nbAffiches)
 
@@ -169,25 +200,36 @@ export default function ContactsScreen() {
         {onglets.map(o => (
           <TouchableOpacity key={o} style={[styles.onglet, onglet === o && styles.ongletActive]} onPress={() => setOnglet(o)}>
             <Text style={[styles.ongletTxt, onglet === o && styles.ongletTxtActive]}>
-              {o}{o !== 'Clients' && listes[o].length ? ` (${listes[o].length})` : ''}
+              {o}{!avecPeriode(o) && listes[o].length ? ` (${listes[o].length})` : ''}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {onglet === 'Clients' && (
+      {avecPeriode(onglet) && (
         <Puces ligne petit styles={styles} actif={periodeKey}
           onChoisir={k => (k === 'custom' ? (setBrouillon({ debut: perso.debut || '', fin: perso.fin || '' }), setFeuillePeriode(true)) : setPeriodeKey(k))}
           elements={PERIODES.map(p => ({ cle: p.key, label: p.key === 'custom' && periodeKey === 'custom' ? `📅 ${titrePeriode('custom', perso)}` : p.label }))} />
       )}
 
-      {loading ? (
+      {loading || (onglet === 'Analyse' && !historiquePret) ? (
         <View style={styles.loadingBox}><ActivityIndicator size="large" color={accent} /></View>
       ) : (
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
           {onglet === 'Clients' && plageA && plageB && (
             <ResumeContacts styles={styles} colors={colors} principale={principale} accent={accent}
               a={totA} b={totB} plageA={plageA} plageB={plageB} jourA={jourA} jourB={jourB} restaurants={classement} />
+          )}
+
+          {onglet === 'Analyse' && groupes && (
+            <AnalyseClients styles={styles} colors={colors} principale={principale} groupes={groupes}
+              actif={groupeActif} onChoisir={setGroupeActif} plage={plageA} depuis={premiereDate ? libelleJour(premiereDate) : ''} />
+          )}
+
+          {onglet === 'Analyse' && (
+            <Text style={[styles.resultat, { marginTop: 4 }]}>
+              {GROUPES_CLIENTS.find(g => g.cle === groupeActif).icone} {GROUPES_CLIENTS.find(g => g.cle === groupeActif).titre}
+            </Text>
           )}
 
           {onglet === 'Clients' && (
@@ -205,8 +247,8 @@ export default function ContactsScreen() {
 
           <View style={{ marginHorizontal: -14 }}>
             <Recherche value={recherche} onChange={setRecherche} styles={styles} colors={colors}
-              placeholder={onglet === 'Clients' ? '🔍 Rechercher un numéro…' : '🔍 Rechercher un nom, un numéro…'} />
-            {onglet === 'Clients' && (
+              placeholder={avecPeriode(onglet) ? '🔍 Rechercher un numéro…' : '🔍 Rechercher un nom, un numéro…'} />
+            {avecPeriode(onglet) && (
               <Puces ligne petit styles={styles} actif={canal} onChoisir={setCanal}
                 elements={CANAUX_CONTACT.map(c => ({ cle: c.cle, label: `${c.label} (${parCanal(c.cle).toLocaleString('fr-FR')})` }))} />
             )}
@@ -225,9 +267,9 @@ export default function ContactsScreen() {
           )}
 
           {liste.length === 0 ? (
-            <Vide styles={styles} icone={onglet === 'Clients' ? '🛵' : onglet === 'Équipe' ? '👥' : '🧾'}
-              texte={onglet === 'Clients' ? (canal ? `Aucun client ${CANAUX_CONTACT.find(c => c.cle === canal).label} sur cette période` : 'Aucun numéro sur cette période') : 'Aucun contact'}
-              sous={onglet === 'Clients' ? 'Les numéros viennent des commandes Yango / Glovo (POS et Samtrackly).' : 'Ajoutez des numéros dans Paramètres.'} />
+            <Vide styles={styles} icone={avecPeriode(onglet) ? '🛵' : onglet === 'Équipe' ? '👥' : '🧾'}
+              texte={onglet === 'Analyse' ? 'Aucun client dans ce groupe' : onglet === 'Clients' ? (canal ? `Aucun client ${CANAUX_CONTACT.find(c => c.cle === canal).label} sur cette période` : 'Aucun numéro sur cette période') : 'Aucun contact'}
+              sous={onglet === 'Analyse' ? 'Changez de période, de restaurant ou de groupe.' : onglet === 'Clients' ? 'Les numéros viennent des commandes Yango / Glovo (POS et Samtrackly).' : 'Ajoutez des numéros dans Paramètres.'} />
           ) : affiches.map(c => {
             const sel = !!selectionnes[c.id]
             return (
