@@ -21,7 +21,7 @@ import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import {
   BLEU, ONGLETS, PERIODES, correspondRecherche, feuillesExcel, lignesPaiesGerant, plageDates, statsGlobales,
-  statsParTravailleur, tauxParRestaurant, titrePeriode,
+  rattacherPaiesGerant, statsParTravailleur, tauxParRestaurant, titrePeriode,
 } from '../lib/equipe'
 import * as db from '../lib/equipeDb'
 import { aujourdhuiISO } from '../lib/contrats'
@@ -122,14 +122,20 @@ export default function EquipeScreen() {
   )
 
   const travParId = useMemo(() => Object.fromEntries(travailleurs.map(t => [t.id, t])), [travailleurs])
+  // Salaires payés par le gérant, rattachés à la fiche de chaque travailleur.
+  const paiesRattachees = useMemo(() => rattacherPaiesGerant(paiesFiltrees, travailleurs), [paiesFiltrees, travailleurs])
   const stats = useMemo(
-    () => statsParTravailleur(travFiltres, presFiltrees).map(s => ({ ...s, photo_url: travParId[s.id]?.photo_url })),
-    [travFiltres, presFiltrees, travParId],
+    () => statsParTravailleur(travFiltres, presFiltrees, paiesRattachees).map(s => ({ ...s, photo_url: travParId[s.id]?.photo_url })),
+    [travFiltres, presFiltrees, paiesRattachees, travParId],
   )
   const statsParId = useMemo(() => Object.fromEntries(stats.map(s => [s.id, s])), [stats])
   const globales = useMemo(() => statsGlobales(travFiltres, presFiltrees, paiesFiltrees), [travFiltres, presFiltrees, paiesFiltrees])
   const tauxRestos = useMemo(() => (tous ? tauxParRestaurant(restaurants, presFiltrees) : []), [tous, restaurants, presFiltrees])
-  const lignesGerant = useMemo(() => lignesPaiesGerant(paiesFiltrees, nomResto), [paiesFiltrees, nomResto])
+  // Seules les paies sans fiche retrouvée restent à part.
+  const lignesGerant = useMemo(
+    () => lignesPaiesGerant(paiesRattachees.filter(d => !d.travailleur_id), nomResto),
+    [paiesRattachees, nomResto],
+  )
 
   // ── Actions ──
   // Depuis une ligne de stats : le travailleur peut être parti (archivé ou
@@ -315,6 +321,7 @@ export default function EquipeScreen() {
           {onglet === 'Présences' && <OngletPresences styles={styles} presences={presFiltrees} tous={tous} restoParId={restoParId} />}
           {onglet === 'Salaires' && (
             <OngletSalaires styles={styles} colors={colors} stats={stats} paiesGerant={lignesGerant} tous={tous}
+              totalGerant={globales.totalPayeGerant}
               titre={titre} restoParId={restoParId} onOuvrir={ouvrirFiche} />
           )}
           {onglet === 'Archivés' && (

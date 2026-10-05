@@ -2,10 +2,13 @@ import { ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import { fmt } from '../../lib/equipe'
 import Avatar from './Avatar'
 
-export default function OngletSalaires({ styles, colors, stats, paiesGerant, tous, titre, restoParId, onOuvrir }) {
+// stats[].totalPaye = présences + paies du gérant rattachées à la fiche ;
+// paiesGerant = seulement les paies du gérant sans fiche retrouvée.
+export default function OngletSalaires({ styles, colors, stats, paiesGerant, totalGerant = 0, tous, titre, restoParId, onOuvrir }) {
   const statsTriees = [...stats].sort((a, b) => b.totalPaye - a.totalPaye)
-  const totalPresences = statsTriees.reduce((sum, t) => sum + t.totalPaye, 0)
-  const totalGerant = paiesGerant.reduce((sum, l) => sum + l.montant, 0)
+  const totalPresences = statsTriees.reduce((sum, t) => sum + (t.totalPayePresences || 0), 0)
+  const totalTravailleurs = statsTriees.reduce((sum, t) => sum + t.totalPaye, 0)
+  const totalNonRattache = paiesGerant.reduce((sum, l) => sum + l.montant, 0)
   const totalGlobal = totalPresences + totalGerant
   const pctDe = v => (totalGlobal > 0 ? (v / totalGlobal) * 100 : 0)
 
@@ -38,7 +41,7 @@ export default function OngletSalaires({ styles, colors, stats, paiesGerant, tou
         <>
           {statsTriees.length > 0 && (
             <>
-              <Text style={styles.sectionTitre}>Paies présences</Text>
+              <Text style={styles.sectionTitre}>Salaires par travailleur</Text>
               <View style={styles.carteListe}>
                 {statsTriees.map(t => {
                   const pct = pctDe(t.totalPaye)
@@ -52,6 +55,9 @@ export default function OngletSalaires({ styles, colors, stats, paiesGerant, tou
                           <Text style={styles.sousNom}>
                             {t.poste || ''}{tous && resto ? ` · ${resto.nom}` : ''} — {t.present}j travaillé(s)
                           </Text>
+                          {t.totalPayeGerant > 0 && (
+                            <Text style={styles.sousNom}>dont {fmt(t.totalPayeGerant)} payés par le gérant</Text>
+                          )}
                           <View style={styles.salaireBarre}>
                             <View style={[styles.salaireBarreFill, { width: `${pct}%` }]} />
                           </View>
@@ -66,7 +72,7 @@ export default function OngletSalaires({ styles, colors, stats, paiesGerant, tou
                 })}
                 <View style={styles.totalRow}>
                   <Text style={styles.totalLabel}>Sous-total</Text>
-                  <Text style={styles.totalVal}>{fmt(totalPresences)}</Text>
+                  <Text style={styles.totalVal}>{fmt(totalTravailleurs)}</Text>
                 </View>
               </View>
             </>
@@ -74,7 +80,7 @@ export default function OngletSalaires({ styles, colors, stats, paiesGerant, tou
 
           {paiesGerant.length > 0 && (
             <>
-              <Text style={styles.sectionTitre}>Paies gérant caisse</Text>
+              <Text style={styles.sectionTitre}>Paies gérant sans fiche retrouvée</Text>
               <View style={styles.carteListe}>
                 {paiesGerant.map(l => {
                   const pct = pctDe(l.montant)
@@ -99,7 +105,7 @@ export default function OngletSalaires({ styles, colors, stats, paiesGerant, tou
                 })}
                 <View style={styles.totalRow}>
                   <Text style={styles.totalLabel}>Sous-total</Text>
-                  <Text style={styles.totalVal}>{fmt(totalGerant)}</Text>
+                  <Text style={styles.totalVal}>{fmt(totalNonRattache)}</Text>
                 </View>
               </View>
             </>

@@ -6,7 +6,7 @@ import {
   BLEU, PERIODES, STATUTS, couleurTaux, fmt, formatDate, friseJours, plageDates, statsTravailleur, titrePeriode,
 } from '../../lib/equipe'
 import { aujourdhuiISO } from '../../lib/contrats'
-import { chargerDocuments, chargerHistoriqueTravailleur, chargerPoints } from '../../lib/equipeDb'
+import { chargerDocuments, chargerHistoriqueTravailleur, chargerPaiesGerantTravailleur, chargerPoints } from '../../lib/equipeDb'
 import { completerPresences, nomJour } from '../../lib/joursRepos'
 import { exporterPdf } from '../../lib/pdfDocuments'
 import Avatar from './Avatar'
@@ -59,6 +59,7 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
   const s2 = useMemo(() => f(colors), [colors])
   const [periode, setPeriode] = useState('month')
   const [presences, setPresences] = useState([])
+  const [paiesGerant, setPaiesGerant] = useState([])  // salaires payés via Déductions gérant
   const [docs, setDocs] = useState([])
   const [loadingPres, setLoadingPres] = useState(false)
   const [loadingDocs, setLoadingDocs] = useState(false)
@@ -83,14 +84,16 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
     Promise.all([
       chargerHistoriqueTravailleur(trav.id, plage),
       trav.restaurant_id ? chargerPoints(plage, trav.restaurant_id) : [],
+      chargerPaiesGerantTravailleur(trav, plage).catch(() => []),
     ])
-      .then(([hist, points]) => {
+      .then(([hist, points, paiesG]) => {
         if (!actif) return
+        setPaiesGerant(paiesG)
         // Jours non pointés : Repos / Absent / Non pointé selon son jour de repos.
         const complet = completerPresences({ presences: hist, travailleurs: [trav], points, aujourdhui: aujourdhuiISO() })
         setPresences(complet.sort((a, b) => b.date.localeCompare(a.date)))
       })
-      .catch(() => { if (actif) setPresences([]) })
+      .catch(() => { if (actif) { setPresences([]); setPaiesGerant([]) } })
       .finally(() => { if (actif) setLoadingPres(false) })
     return () => { actif = false }
   }, [visible, trav?.id, trav?.jour_repos, plage]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -99,6 +102,8 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
   const archive = trav.statut === 'archive'
   const restoNom = resto?.nom || trav.restaurants?.nom || 'SAMER'
   const s = statsTravailleur(presences)
+  const totalGerant = paiesGerant.reduce((sum, d) => sum + (parseFloat(d.montant) || 0), 0)
+  const totalPercu = s.totalPaye + totalGerant
   const frise = plage ? friseJours(presences, plage.fin, Math.min(31, nbJoursEntre(plage.debut, plage.fin))) : []
 
   async function exporter() {
@@ -229,8 +234,11 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
 
               <View style={[styles.heroCard, { paddingVertical: 14 }]}>
                 <Text style={styles.heroTitre}>💰 Total perçu — {titrePeriode(periode, perso)}</Text>
-                <Text style={[styles.heroValeur, { fontSize: 24 }]}>{fmt(s.totalPaye)}</Text>
-                <Text style={styles.heroSub}>Moyenne : {s.present > 0 ? fmt(s.totalPaye / s.present) : '0 FCFA'} / jour</Text>
+                <Text style={[styles.heroValeur, { fontSize: 24 }]}>{fmt(totalPercu)}</Text>
+                {totalGerant > 0 && (
+                  <Text style={styles.heroSub}>{`Présences ${fmt(s.totalPaye)} · payé par le gérant ${fmt(totalGerant)}`}</Text>
+                )}
+                <Text style={styles.heroSub}>Moyenne : {s.present > 0 ? fmt(totalPercu / s.present) : '0 FCFA'} / jour</Text>
               </View>
 
               {frise.length > 0 && (s.total > 0 || s.nonPointe > 0) && (
@@ -252,6 +260,23 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
                     ))}
                   </View>
                 </View>
+              )}
+
+              {paiesGerant.length > 0 && (
+                <>
+                  <Text style={[styles.sectionTitre, { marginTop: 6 }]}>Payé par le gérant ({paiesGerant.length})</Text>
+                  <View style={styles.carteListe}>
+                    {paiesGerant.map((d, i) => (
+                      <View key={d.id} style={[styles.ligne, i === paiesGerant.length - 1 && { borderBottomWidth: 0 }]}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.nom, { fontSize: 13, fontWeight: '600' }]}>{formatDate(d.date)}</Text>
+                          <Text style={styles.shift}>💼 Déductions gérant</Text>
+                        </View>
+                        <Text style={styles.paie}>{fmt(d.montant)}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </>
               )}
 
               <Text style={[styles.sectionTitre, { marginTop: 6 }]}>Historique jour par jour</Text>

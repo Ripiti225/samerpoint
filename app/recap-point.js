@@ -49,6 +49,16 @@ function calcVariation(today, ref) {
   return ((today - ref) / Math.abs(ref)) * 100
 }
 
+// Insère des lignes portant `travailleur_id` ; si la base n'a pas encore la
+// colonne (supabase_paies_gerant_travailleur.sql non passé), renvoie les
+// mêmes lignes sans elle : une dépense du gérant ne doit jamais se perdre.
+async function insererSansPerte(table, lignes) {
+  const { error } = await supabase.from(table).insert(lignes)
+  if (error && /travailleur_id/.test(error.message || '')) {
+    await supabase.from(table).insert(lignes.map(({ travailleur_id: _ignore, ...l }) => l))
+  }
+}
+
 export default function RecapPointScreen() {
   const {
     pointId, dateJour,
@@ -369,7 +379,7 @@ export default function RecapPointScreen() {
       }))
     const toutesLignes = [...lignesCat, ...lignesFour, ...lignesPaies]
     if (toutesLignes.length > 0) {
-      await supabase.from('depenses_gerant_caisse').insert(toutesLignes)
+      await insererSansPerte('depenses_gerant_caisse', toutesLignes)
     }
 
     // Synchroniser dépenses gérant → table depenses (visible dans vérification + modifier-point)
@@ -392,10 +402,13 @@ export default function RecapPointScreen() {
         montant: parseFloat(p.montant) || 0,
         saisi_par: 'gerant',
         caissier_nom: 'Gérant',
+        // Lie la paie à la fiche (Équipe → fiche du travailleur). Colonne
+        // ajoutée par supabase_paies_gerant_travailleur.sql.
+        travailleur_id: p.travailleur_id,
       })),
     ]
     if (depGerantRows.length > 0) {
-      await supabase.from('depenses').insert(depGerantRows)
+      await insererSansPerte('depenses', depGerantRows)
     }
 
     // Synchroniser fournisseurs gérant → transactions_fournisseurs
