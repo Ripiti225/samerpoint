@@ -102,9 +102,9 @@
     "semantic_hash": ""
   },
   "app/credits-fournisseurs.js": {
-    "mtime": 1791044729.4209647,
-    "seen": 1791044758.0716102,
-    "ast_hash": "efeb3a568821e444a3fb1a1337f27607",
+    "mtime": 1791215063.8380406,
+    "seen": 1791215073.501802,
+    "ast_hash": "be84e31f3b08c8c47f8592788020c881",
     "semantic_hash": ""
   },
   "app/dashboard-global.js": {
@@ -120,9 +120,9 @@
     "semantic_hash": ""
   },
   "app/deductions-gerant.js": {
-    "mtime": 1790827178.7468708,
-    "seen": 1790827220.2738502,
-    "ast_hash": "22eb3bd9264cebe599ee8cae0c9d8344",
+    "mtime": 1791214503.2934608,
+    "seen": 1791215073.501804,
+    "ast_hash": "60326095fdb2551848ac9dd68dbab7c6",
     "semantic_hash": ""
   },
   "app/demandes-admin.js": {
@@ -168,9 +168,9 @@
     "semantic_hash": ""
   },
   "app/fournisseurs.js": {
-    "mtime": 1790827163.4637454,
-    "seen": 1790827220.273854,
-    "ast_hash": "6b53cbbc73817e77ea869d1b2e924de6",
+    "mtime": 1791214503.2931535,
+    "seen": 1791215073.5018082,
+    "ast_hash": "82ca66e842421f22f923b4225704c696",
     "semantic_hash": ""
   },
   "app/gerant-caissier.js": {
@@ -240,9 +240,9 @@
     "semantic_hash": ""
   },
   "app/parametres.js": {
-    "mtime": 1791161590.989027,
-    "seen": 1791161680.357582,
-    "ast_hash": "6f1c1c205a74295617748981b275cdba",
+    "mtime": 1791214563.0868673,
+    "seen": 1791215073.5018141,
+    "ast_hash": "8e206a292d90321eedfd687a4d3eebe4",
     "semantic_hash": ""
   },
   "app/point-shift.js": {
@@ -486,9 +486,9 @@
     "semantic_hash": ""
   },
   "lib/api.js": {
-    "mtime": 1791161590.9885716,
-    "seen": 1791161680.357641,
-    "ast_hash": "064462bc2d2005caa93627f367249e35",
+    "mtime": 1791214503.293829,
+    "seen": 1791215073.5018618,
+    "ast_hash": "cf880dea0764c68a20d66c274224b719",
     "semantic_hash": ""
   },
   "lib/basculePOS.js": {
@@ -678,9 +678,9 @@
     "semantic_hash": ""
   },
   "lib/rapportMensuel.js": {
-    "mtime": 1790827001.9487555,
-    "seen": 1790827013.958602,
-    "ast_hash": "242b0f728a61d8f53fd955d4eaa85e72",
+    "mtime": 1791214900.6024492,
+    "seen": 1791215073.501927,
+    "ast_hash": "a79bb433d1dae598a96ef5d48d310e5b",
     "semantic_hash": ""
   },
   "lib/sourcePoint.js": {
@@ -1554,15 +1554,15 @@
     "semantic_hash": ""
   },
   "lib/derniersRestesFournisseurs.js": {
-    "mtime": 1790627221.9942758,
-    "seen": 1790819998.874218,
-    "ast_hash": "e57295c8ada0afc41a8f42e5638d559e",
+    "mtime": 1791215008.9870098,
+    "seen": 1791215073.501889,
+    "ast_hash": "983363735c28d57df34c549bd5489605",
     "semantic_hash": ""
   },
   "lib/derniersRestesFournisseurs.test.mjs": {
-    "mtime": 1790627223.015447,
-    "seen": 1790819998.874218,
-    "ast_hash": "98135ba22af42564eb0b178bb59cfeff",
+    "mtime": 1791215008.98725,
+    "seen": 1791215073.501889,
+    "ast_hash": "1d6668b88185bd15545374dd6c335747",
     "semantic_hash": ""
   },
   "lib/periodeComparee.js": {
@@ -1590,9 +1590,9 @@
     "semantic_hash": ""
   },
   "lib/tresorerieDb.js": {
-    "mtime": 1791062054.513312,
-    "seen": 1791062110.741133,
-    "ast_hash": "098be4668eb1263e7d747daf4ce7e2ab",
+    "mtime": 1791215055.9412136,
+    "seen": 1791215073.5019362,
+    "ast_hash": "25c1aea58460c95caf1d2a9f65bdacd8",
     "semantic_hash": ""
   },
   "supabase_tresorerie.sql": {
@@ -2613,6 +2613,18 @@
     "mtime": 1791209096.952289,
     "seen": 1791210902.921629,
     "ast_hash": "32391c65e686af41a016434116c96926",
+    "semantic_hash": ""
+  },
+  "lib/facturesMensuelles.js": {
+    "mtime": 1791214451.031746,
+    "seen": 1791215073.501898,
+    "ast_hash": "655c4cd203159d99d2e263cb3a420a0c",
+    "semantic_hash": ""
+  },
+  "supabase_factures_mensuelles.sql": {
+    "mtime": 1791214965.5608742,
+    "seen": 1791215073.50196,
+    "ast_hash": "fb899881bf5afa38f778e4925c73a202",
     "semantic_hash": ""
   }
 }
