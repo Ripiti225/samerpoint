@@ -10,7 +10,8 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { router } from 'expo-router'
 import { Text, View } from 'react-native'
 import Animated, { FadeIn } from 'react-native-reanimated'
-import Jauge, { couleurJauge } from '../ui/Jauge'
+import { niveauRythme } from '../../lib/objectifs'
+import Jauge from '../ui/Jauge'
 import Survol from '../ui/Survol'
 import Indicateur from './Indicateur'
 
@@ -119,8 +120,10 @@ export default function BandeauGerant({ etat, styles, colors }) {
 
 // ── Objectif du mois : la barre se colore selon le RYTHME (où il finira le mois),
 // pas selon le remplissage, sinon elle serait rouge chaque début de mois.
+// Vert = objectif tenu (≥ 100 %), orange = presque (90–99 %), rouge = en retard.
 function BlocObjectif({ o, montant, ventesMois, styles, colors }) {
-  const couleur = o.atteint ? colors.success : o.pctProjete == null ? colors.primary : couleurJauge(o.pctProjete)
+  const couleurs = { bon: colors.success, presque: colors.warningDark, retard: colors.error }
+  const couleur = o.atteint ? colors.success : couleurs[niveauRythme(o.pctProjete)] || colors.primary
   return (
     <View style={{ marginBottom: 14, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: colors.border, gap: 6 }}
       accessibilityLabel={`${titreObjectif()} : ${o.pct} % atteint, ${fcfa(ventesMois)} francs sur ${fcfa(montant)}.`}>
