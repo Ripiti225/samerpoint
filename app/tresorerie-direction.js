@@ -14,7 +14,7 @@ import { Alert, Image, SafeAreaView, ScrollView, Text, View } from 'react-native
 
 import {
   Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Hero, HeroCase, ItemIcone, Puces, TitreSection,
-  useStylesTreso, useTresorerie,
+  styleDepense, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import { Badge, FeuilleDetail, FeuillePaiement, FeuillePrevision, couleursStatut } from '../components/tresorerie/du'
 import {
@@ -25,19 +25,6 @@ import {
   aujourdhuiISO, classerTous, fmt, formatDateFR, libelleMois, paiementsParDu, peut, resteDu, totalPaye,
 } from '../lib/tresorerie'
 import { ajouterDepenseDirection, enregistrerDu, supprimerDepenseDirection } from '../lib/tresorerieDb'
-
-// Icône et couleur de chaque catégorie de dépense direction.
-const STYLE_DEPENSE = {
-  fond: { icone: 'cash-refund', couleur: '#0E9F6E' },
-  fond_nature: { icone: 'package-variant-closed', couleur: '#D97706' },
-  reparation: { icone: 'hammer-wrench', couleur: '#DC2626' },
-  materiel: { icone: 'silverware-fork-knife', couleur: '#2563EB' },
-  equipement: { icone: 'stove', couleur: '#7C3AED' },
-  investissement: { icone: 'office-building-cog-outline', couleur: '#0891B2' },
-  retrait_perso: { icone: 'account-arrow-right-outline', couleur: '#64748B' },
-  divers: { icone: 'dots-horizontal-circle-outline', couleur: '#64748B' },
-}
-const styleDepense = id => STYLE_DEPENSE[id] || STYLE_DEPENSE.divers
 
 export default function TresorerieDirectionScreen() {
   const { styles, colors } = useStylesTreso()

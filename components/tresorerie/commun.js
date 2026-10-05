@@ -14,11 +14,11 @@ import { useApp } from '../../context/AppContext'
 import { useTheme } from '../../context/ThemeContext'
 import { isOnlineNow } from '../../lib/networkStatus'
 import { fmt, niveauTresorerie, peut } from '../../lib/tresorerie'
-import { chargerDirection, chargerDroits, chargerPartenaires, chargerTresorerie } from '../../lib/tresorerieDb'
+import { chargerDirection, chargerDroits, chargerPartenaires, chargerPartenairesParResto, chargerTresorerie } from '../../lib/tresorerieDb'
 
 // Charge les données + le niveau d'accès de l'utilisateur. Recharge à chaque
 // retour sur l'écran (une saisie faite ailleurs apparaît tout de suite).
-export function useTresorerie({ creerLoyers = false, avecPartenaires = false, avecDirection = false } = {}) {
+export function useTresorerie({ creerLoyers = false, avecPartenaires = false, avecDirection = false, avecPartenairesParResto = false } = {}) {
   const { roleActif, userId, userNom } = useApp() ?? {}
   const [donnees, setDonnees] = useState(null)
   const [droits, setDroits] = useState([])
@@ -40,18 +40,19 @@ export function useTresorerie({ creerLoyers = false, avecPartenaires = false, av
       setDroits(dr)
       const niv = niveauTresorerie(roleActif, userId, dr)
       if (!niv) { setDonnees(null); return }
-      const [base, partenaires, direction] = await Promise.all([
+      const [base, partenaires, direction, partenairesParResto] = await Promise.all([
         chargerTresorerie({ creerLoyers, user }),
         avecPartenaires && peut(niv, 'voir_partenaires') ? chargerPartenaires() : Promise.resolve(undefined),
         avecDirection && (peut(niv, 'voir_coffre') || peut(niv, 'voir_direction')) ? chargerDirection() : Promise.resolve(undefined),
+        avecPartenairesParResto && peut(niv, 'voir_partenaires') ? chargerPartenairesParResto() : Promise.resolve(undefined),
       ])
-      setDonnees({ ...base, partenaires, direction })
+      setDonnees({ ...base, partenaires, direction, partenairesParResto })
     } catch (e) {
       setErreur(e?.message || 'Chargement impossible.')
     } finally {
       setLoading(false)
     }
-  }, [roleActif, userId, creerLoyers, avecPartenaires, avecDirection, user])
+  }, [roleActif, userId, creerLoyers, avecPartenaires, avecDirection, avecPartenairesParResto, user])
 
   useFocusEffect(useCallback(() => { recharger() }, [recharger]))
 
@@ -246,6 +247,19 @@ export const STYLE_PARTENAIRE = {
   om: { icone: 'cellphone', couleur: '#EA580C' },
   djamo: { icone: 'credit-card-outline', couleur: '#6366F1' },
 }
+
+// Icône et couleur de chaque catégorie de dépense direction.
+export const STYLE_DEPENSE = {
+  fond: { icone: 'cash-refund', couleur: '#0E9F6E' },
+  fond_nature: { icone: 'package-variant-closed', couleur: '#D97706' },
+  reparation: { icone: 'hammer-wrench', couleur: '#DC2626' },
+  materiel: { icone: 'silverware-fork-knife', couleur: '#2563EB' },
+  equipement: { icone: 'stove', couleur: '#7C3AED' },
+  investissement: { icone: 'office-building-cog-outline', couleur: '#0891B2' },
+  retrait_perso: { icone: 'account-arrow-right-outline', couleur: '#64748B' },
+  divers: { icone: 'dots-horizontal-circle-outline', couleur: '#64748B' },
+}
+export const styleDepense = id => STYLE_DEPENSE[id] || STYLE_DEPENSE.divers
 
 // Carré arrondi teinté avec une icône.
 export function Pastille({ icone, couleur, taille = 38, fond }) {
