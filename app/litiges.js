@@ -21,7 +21,7 @@ import {
 import { detailContactsParCaissier, repartirLitigeContacts, totauxLitigeContactsParCaissier } from '../lib/contactsParCaissier'
 import { PLAFOND_COMPTAGE } from '../lib/deductionsVerification'
 import {
-  responsablesEcartPOS, fusionnerResponsablesEcart, SOURCE_DECISION_POS,
+  responsablesEcartPOS, fusionnerResponsablesEcart, SOURCE_DECISION_POS, ecartJourPOS,
 } from '../lib/ecartPOS'
 import { caissierAuMoment, normaliserHeure, phraseAttribution } from '../lib/attributionAvis'
 import { chargerLitigesRestaurant, chargerShiftsEcart } from '../lib/litigesGlobal'
@@ -332,6 +332,13 @@ export default function LitigesScreen() {
       let ecart = ecartBrut
       if (ecartBrut < 0) ecart = Math.min(0, ecartBrut + totalRegul)
       else if (ecartBrut > 0) ecart = Math.max(0, ecartBrut - totalRegul)
+      // Site POS : ce qui reste dû shift par shift après les décisions de
+      // Vérification (même calcul que la liste des responsables). Un surplus
+      // sans aucun manquant garde son affichage d'avant.
+      const ecartPOSJour = ecartJourPOS(shifts, regularisationsPOS)
+      if (ecartPOSJour !== null && (ecartPOSJour > 0 || ecartBrut >= 0)) {
+        ecart = Math.max(0, ecartPOSJour - totalRegul)
+      }
       // Écart annulé dans Vérification → neutralisé (écart 0), quel que soit le mode d'annulation.
       const annule = ['annulee', 'justifiee'].includes(p.explication_machine_statut)
       // Les deux statuts soldent l'écart, mais pas de la même manière : 'annulee'
