@@ -120,9 +120,9 @@
     "semantic_hash": ""
   },
   "app/deductions-gerant.js": {
-    "mtime": 1791214503.2934608,
-    "seen": 1791215073.501804,
-    "ast_hash": "60326095fdb2551848ac9dd68dbab7c6",
+    "mtime": 1791238426.8989894,
+    "seen": 1791238514.840078,
+    "ast_hash": "8d09599f1417f68d7100495b508ca56c",
     "semantic_hash": ""
   },
   "app/demandes-admin.js": {
@@ -294,9 +294,9 @@
     "semantic_hash": ""
   },
   "app/ventes.js": {
-    "mtime": 1791035242.7044628,
-    "seen": 1791035297.329628,
-    "ast_hash": "3718cda0d9020b83ed15d49b1db754e4",
+    "mtime": 1791238456.263276,
+    "seen": 1791238514.8400981,
+    "ast_hash": "f890bb80343528963a818cf8c2fc78f3",
     "semantic_hash": ""
   },
   "app/verificateur.js": {
@@ -612,9 +612,9 @@
     "semantic_hash": ""
   },
   "lib/menus.js": {
-    "mtime": 1791127152.4013233,
-    "seen": 1791127173.408416,
-    "ast_hash": "08284d61f57b9a1d1d32406f984beeba",
+    "mtime": 1791239277.7887752,
+    "seen": 1791239301.3353631,
+    "ast_hash": "19ac880e7e23ab526fd53f1df2eda3b2",
     "semantic_hash": ""
   },
   "lib/networkStatus.js": {
@@ -1950,15 +1950,15 @@
     "semantic_hash": ""
   },
   "lib/groupesAccueil.js": {
-    "mtime": 1791127152.40155,
-    "seen": 1791127173.408405,
-    "ast_hash": "d5752561d7b7353f722d81771c17525a",
+    "mtime": 1791239277.7886262,
+    "seen": 1791239301.3353522,
+    "ast_hash": "813ae0cec470fc07a9e28686f24cc80d",
     "semantic_hash": ""
   },
   "lib/groupesAccueil.test.mjs": {
-    "mtime": 1791107299.319572,
-    "seen": 1791107478.177433,
-    "ast_hash": "ed2f6c3bbe5e2a618867fc5836424a97",
+    "mtime": 1791239288.0486279,
+    "seen": 1791239301.3353531,
+    "ast_hash": "d804420d5aa2a085040e3d5f3c37baa7",
     "semantic_hash": ""
   },
   "components/accueil/AccueilManager.js": {
@@ -2631,6 +2631,72 @@
     "mtime": 1791215739.48167,
     "seen": 1791216264.4613628,
     "ast_hash": "08cab75e1bf05b81bb133ae5b9f26853",
+    "semantic_hash": ""
+  },
+  "components/deductions/OngletDepenses.js": {
+    "mtime": 1791238420.1185732,
+    "seen": 1791238514.84011,
+    "ast_hash": "3225c15420d2205353c162c52db73cff",
+    "semantic_hash": ""
+  },
+  "components/deductions/OngletFournisseurs.js": {
+    "mtime": 1791238420.1184485,
+    "seen": 1791238514.84011,
+    "ast_hash": "e653d65f8cfd9753d9d8fc25781ff1ba",
+    "semantic_hash": ""
+  },
+  "components/deductions/OngletPaies.js": {
+    "mtime": 1791238420.118643,
+    "seen": 1791238514.840111,
+    "ast_hash": "3ad3b24d573fbefe19eec1b8a2adcf9e",
+    "semantic_hash": ""
+  },
+  "components/ui/StyleChaleureux.js": {
+    "mtime": 1791238410.5834181,
+    "seen": 1791238514.840127,
+    "ast_hash": "9b8ff34f558d13d0828d50d595200fe2",
+    "semantic_hash": ""
+  },
+  "components/ventes/EtapeFondBenefice.js": {
+    "mtime": 1791238456.2426753,
+    "seen": 1791238514.84013,
+    "ast_hash": "f0b441319b8d7ebfbf2902d448147e45",
+    "semantic_hash": ""
+  },
+  "components/ventes/EtapeMachineEcart.js": {
+    "mtime": 1791238456.242753,
+    "seen": 1791238514.84013,
+    "ast_hash": "445ff441991bc37e26c37437224fea5c",
+    "semantic_hash": ""
+  },
+  "components/ventes/EtapeTab.js": {
+    "mtime": 1791238456.242588,
+    "seen": 1791238514.840131,
+    "ast_hash": "c4b74576afe0f7fa80912bb553110ccc",
+    "semantic_hash": ""
+  },
+  "lib/manquantsSaisie.js": {
+    "mtime": 1791238400.5665581,
+    "seen": 1791238514.840191,
+    "ast_hash": "03a532a05abccf56c69d8f0d703c86af",
+    "semantic_hash": ""
+  },
+  "lib/manquantsSaisie.test.mjs": {
+    "mtime": 1791238397.1788266,
+    "seen": 1791238514.840191,
+    "ast_hash": "d4612fb43f9f5f6d3a02c242927f7206",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-05-deductions-ventes-refonte.md": {
+    "mtime": 1791238236.920578,
+    "seen": 1791238514.840281,
+    "ast_hash": "39457e8a271b2255b1a9886fc05d9c07",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-05-deductions-ventes-refonte-design.md": {
+    "mtime": 1791238250.1323347,
+    "seen": 1791238514.840289,
+    "ast_hash": "ff2a43942aca4ce9950eb456305419c4",
     "semantic_hash": ""
   }
 }
