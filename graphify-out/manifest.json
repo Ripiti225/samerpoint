@@ -240,9 +240,9 @@
     "semantic_hash": ""
   },
   "app/parametres.js": {
-    "mtime": 1791064045.2679367,
-    "seen": 1791064099.240641,
-    "ast_hash": "b58bac3d922ba8f5e6f646b0d6b69328",
+    "mtime": 1791161590.989027,
+    "seen": 1791161680.357582,
+    "ast_hash": "6f1c1c205a74295617748981b275cdba",
     "semantic_hash": ""
   },
   "app/point-shift.js": {
@@ -486,9 +486,9 @@
     "semantic_hash": ""
   },
   "lib/api.js": {
-    "mtime": 1791158092.802217,
-    "seen": 1791158107.7177742,
-    "ast_hash": "7cc567f6ba039d02749b4875c5219aaa",
+    "mtime": 1791161590.9885716,
+    "seen": 1791161680.357641,
+    "ast_hash": "064462bc2d2005caa93627f367249e35",
     "semantic_hash": ""
   },
   "lib/basculePOS.js": {
@@ -2583,6 +2583,24 @@
     "mtime": 1791158073.9948928,
     "seen": 1791158107.7178738,
     "ast_hash": "d32c5cf2daba87dd6b7eb763fcc37925",
+    "semantic_hash": ""
+  },
+  "lib/comptesTechniques.js": {
+    "mtime": 1791161590.8354852,
+    "seen": 1791161680.357655,
+    "ast_hash": "1487d78728023b8b4b016f5796aa8c17",
+    "semantic_hash": ""
+  },
+  "lib/comptesTechniques.test.mjs": {
+    "mtime": 1791161590.8374863,
+    "seen": 1791161680.357656,
+    "ast_hash": "6996e175a7581baa5eec15ee5fe0079f",
+    "semantic_hash": ""
+  },
+  "supabase_caissiers_sans_compte.sql": {
+    "mtime": 1791161650.579609,
+    "seen": 1791161680.357742,
+    "ast_hash": "c6604b545cd484aeba5d670fcf08d512",
     "semantic_hash": ""
   }
 }
