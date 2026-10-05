@@ -18,7 +18,7 @@ import {
   chargerRestaurantsContact, choisirNombreContacts, contactsViennentDuPOS,
   corrigerNbCommandes, forcerLitigeContact,
 } from '../lib/litigeContacts'
-import { detailContactsParCaissier } from '../lib/contactsParCaissier'
+import { detailContactsParCaissier, repartirLitigeContacts, totauxLitigeContactsParCaissier } from '../lib/contactsParCaissier'
 import { PLAFOND_COMPTAGE } from '../lib/deductionsVerification'
 import {
   responsablesEcartPOS, fusionnerResponsablesEcart, SOURCE_DECISION_POS,
@@ -782,7 +782,9 @@ export default function LitigesScreen() {
             contacts: v.contacts,
             commandes: v.commandes,
           })).sort((a, b) => (b.commandes || 0) - (a.commandes || 0) || b.contacts - a.contacts)
-      return { ...calc, point: p, date: p.date, caissiers, contactsParCaissier }
+      // Qui paie : prorata des contacts oubliés (lib/contactsParCaissier.js).
+      const repartition = repartirLitigeContacts(calc.litige, contactsParCaissier)
+      return { ...calc, point: p, date: p.date, caissiers, contactsParCaissier, repartition }
     }).filter(r => r.nbCommandes > 0 || r.caissiers))
   }
 
@@ -833,6 +835,8 @@ export default function LitigesScreen() {
         const n = (nom || '').trim()
         return n ? ` · 👤 <strong>${n}</strong>` : ''
       }
+      // Noms de caissiers venus du POS : jamais injectés tels quels dans le HTML.
+      const esc = t => String(t || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
 
       for (const d of donneesGlobales) {
         grandTotal += d.total
@@ -929,8 +933,17 @@ export default function LitigesScreen() {
         if (d.contactTotal > 0) {
           html += `<div class="volet"><div class="volet-h"><span>📞 Contacts manquants</span><span class="r">−${Math.round(d.contactTotal).toLocaleString('fr-FR')} FCFA</span></div>`
           d.contacts.forEach(c => {
-            html += `<div class="item">📅 ${c.date} — ${c.ecart} manquant${c.ecart > 1 ? 's' : ''} (${c.nbContacts}/${c.nbCommandes} · ${c.taux}%) <span class="r"><strong>−${Math.round(c.litige).toLocaleString('fr-FR')} FCFA</strong></span></div>`
+            const qui = c.repartition
+              ? [
+                  ...c.repartition.parts.map(x => `${esc(x.nom)} ${Math.round(x.montant).toLocaleString('fr-FR')} F`),
+                  ...(c.repartition.nonAttribue > 0 ? [`<em>non attribué ${Math.round(c.repartition.nonAttribue).toLocaleString('fr-FR')} F</em>`] : []),
+                ].join(' · ')
+              : ''
+            html += `<div class="item">📅 ${c.date} — ${c.ecart} manquant${c.ecart > 1 ? 's' : ''} (${c.nbContacts}/${c.nbCommandes} · ${c.taux}%)${qui ? ` · 👤 ${qui}` : ''} <span class="r"><strong>−${Math.round(c.litige).toLocaleString('fr-FR')} FCFA</strong></span></div>`
           })
+          if (d.contactsTotaux?.parCaissier.length) {
+            html += `<div class="item"><strong>Par caissier :</strong> ${d.contactsTotaux.parCaissier.map(x => `${esc(x.nom)} ${Math.round(x.montant).toLocaleString('fr-FR')} F`).join(' · ')}</div>`
+          }
           html += `</div>`
         }
 
@@ -1227,6 +1240,14 @@ export default function LitigesScreen() {
                         {volet('phone-outline', 'Contacts manquants')}
                         <Text style={[styles.globalVoletVal, { color: colors.error }]}>−{fmtShort(d.contactTotal)}</Text>
                       </View>
+                      {d.contactsTotaux?.parCaissier.length > 0 && (
+                        <View style={styles.globalItem}>
+                          <Text style={[styles.globalItemResp, { flex: 1 }]}>
+                            {`Par caissier : ${d.contactsTotaux.parCaissier.map(x => `${x.nom} ${fmtShort(x.montant)} F`).join(' · ')}`}
+                            {d.contactsTotaux.nonAttribue > 0 ? ` · non attribué ${fmtShort(d.contactsTotaux.nonAttribue)} F` : ''}
+                          </Text>
+                        </View>
+                      )}
                       {d.contacts.map((c, ci) => (
                         <View key={'ct' + ci} style={styles.globalItem}>
                           <View style={{ flex: 1 }}>
@@ -1234,6 +1255,14 @@ export default function LitigesScreen() {
                               {c.date} — {c.ecart} manquant{c.ecart > 1 ? 's' : ''}
                               <Text style={styles.globalItemCmd}> ({c.nbContacts}/{c.nbCommandes} · {c.taux}%)</Text>
                             </Text>
+                            {c.repartition && (c.repartition.parts.length > 0 || c.repartition.nonAttribue > 0) ? (
+                              <Text style={styles.globalItemResp}>
+                                {[
+                                  ...c.repartition.parts.map(x => `${x.nom} ${fmtShort(x.montant)} F (${x.oublies} oublié${x.oublies > 1 ? 's' : ''})`),
+                                  ...(c.repartition.nonAttribue > 0 ? [`non attribué ${fmtShort(c.repartition.nonAttribue)} F`] : []),
+                                ].join(' · ')}
+                              </Text>
+                            ) : null}
                           </View>
                           <Text style={[styles.globalItemMontant, { color: colors.error }]}>−{fmtShort(c.litige)}</Text>
                         </View>
@@ -1270,6 +1299,7 @@ export default function LitigesScreen() {
   const totalYango = litigesYango.reduce((s, x) => s + (x.montant || 0), 0)
   const totalGlovo = litigesGlovo.reduce((s, x) => s + (x.montant || 0), 0)
   const totalContact = ecartContacts.reduce((s, x) => s + x.litige, 0)
+  const totauxContacts = totauxLitigeContactsParCaissier(ecartContacts)
   const totalPointPasFait = litigesPointPasFait.reduce((s, x) => s + (x.montant || 0), 0)
   // Les montants du vérificateur sont déjà plafonnés et répartis à
   // l'enregistrement : on somme simplement les parts encore dues.
@@ -2165,6 +2195,23 @@ export default function LitigesScreen() {
             <Text style={[styles.totalBannerValue, { color: colors.error }]}>{fmt(totalContact)}</Text>
           </View>
         )}
+        {totalContact > 0 && totauxContacts.parCaissier.length > 0 && (
+          <View style={[styles.ligneCard, { flexDirection: 'column', alignItems: 'stretch', gap: 4 }]}>
+            <Text style={[styles.ligneNom, { color: colors.text }]}>Par caissier</Text>
+            {totauxContacts.parCaissier.map(c => (
+              <View key={c.cle} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={styles.ligneSous}>{`${c.nom} · ${c.jours} jour${c.jours > 1 ? 's' : ''}`}</Text>
+                <Text style={[styles.ligneSous, { color: colors.error, fontWeight: '700' }]}>{fmt(c.montant)}</Text>
+              </View>
+            ))}
+            {totauxContacts.nonAttribue > 0 && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={[styles.ligneSous, { color: colors.warningDark }]}>Non attribué</Text>
+                <Text style={[styles.ligneSous, { color: colors.warningDark, fontWeight: '700' }]}>{fmt(totauxContacts.nonAttribue)}</Text>
+              </View>
+            )}
+          </View>
+        )}
         {ecartContacts.length === 0 ? (
           <View style={styles.emptyBox}><Text style={styles.emptyTxt}>Aucune donnée sur cette période</Text></View>
         ) : (
@@ -2205,13 +2252,22 @@ export default function LitigesScreen() {
                     )}
                     {item.contactsParCaissier?.length > 0 && (
                       <View style={{ marginTop: 4, gap: 2 }}>
-                        {item.contactsParCaissier.map((c, ci) => (
-                          <Text key={ci} style={[styles.ligneSous, { color: colors.primary }]}>
-                            {c.nom} : {c.contacts == null
-                              ? 'non transmis'
-                              : `${c.contacts} / ${c.commandes == null ? '—' : c.commandes}`}
+                        {item.contactsParCaissier.map((c, ci) => {
+                          const part = item.repartition?.parts.find(x => x.cle === c.cle)
+                          return (
+                            <Text key={ci} style={[styles.ligneSous, { color: colors.primary }]}>
+                              {c.nom} : {c.contacts == null
+                                ? 'non transmis'
+                                : `${c.contacts} / ${c.commandes == null ? '—' : c.commandes}`}
+                              {part ? <Text style={{ color: colors.error, fontWeight: '700' }}>{`  → ${fmtShort(part.montant)} F`}</Text> : null}
+                            </Text>
+                          )
+                        })}
+                        {item.repartition?.nonAttribue > 0 && (
+                          <Text style={[styles.ligneSous, { color: colors.warningDark }]}>
+                            {`Non attribué : ${fmtShort(item.repartition.nonAttribue)} F (compteurs du POS incomplets)`}
                           </Text>
-                        ))}
+                        )}
                       </View>
                     )}
                     {parfait && !item.forceParManager && <Text style={[styles.statutContact, { color: colors.successDark, backgroundColor: colors.successLight }]}>Parfait</Text>}
