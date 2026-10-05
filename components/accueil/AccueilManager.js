@@ -26,6 +26,7 @@ import Survol from '../ui/Survol'
 import { chargerContactsPeriode } from '../../lib/contactsPeriodeDb'
 import { evolutionsHierDetail, texteHier, totalParJour } from '../../lib/hierAccueil'
 import { etatPointHier, lignesCaissiersHier, texteDemandes } from '../../lib/accueilGerant'
+import { objectifDuMois } from '../../lib/objectifs'
 import BandeauGerant from './BandeauGerant'
 import { resumeContrats } from '../../lib/contrats'
 import {
@@ -113,7 +114,10 @@ function useEtatDuJour(role, userId, restaurantId) {
         const dates = [isoLocal(hier), isoLocal(avantHier), isoLocal(semainePrec)]
         const nbAvisResto = jour => supabase.from('platform_reviews').select('id', { count: 'exact', head: true })
           .eq('restaurant_id', restaurantId).eq('review_date', isoLocal(jour)).then(x => (x.error ? 0 : x.count || 0))
-        const [pts, corr, dem, expl, aH, aAH, aSP, contactsJours, shiftsHier] = await Promise.all([
+        // Objectif du mois : ventes des jours terminés (aujourd'hui exclu).
+        const debutMois = isoLocal(new Date(auj.getFullYear(), auj.getMonth(), 1))
+        const joursMois = new Date(auj.getFullYear(), auj.getMonth() + 1, 0).getDate()
+        const [pts, corr, dem, expl, aH, aAH, aSP, contactsJours, shiftsHier, resto, ptsMois] = await Promise.all([
           supabase.from('points').select('date, valide, verifie, vente_total').eq('restaurant_id', restaurantId).in('date', dates),
           supabase.from('deverouillages_points').select('id', { count: 'exact', head: true })
             .eq('restaurant_id', restaurantId).eq('statut', 'ouvert'),
@@ -127,12 +131,17 @@ function useEtatDuJour(role, userId, restaurantId) {
           supabase.from('points_shifts')
             .select('id, caissier_nom, heure_debut, heure_fin, vente_shift, ecart_pos, explication_ecart')
             .eq('restaurant_id', restaurantId).eq('date', dates[0]),
+          supabase.from('restaurants').select('objectif_mensuel').eq('id', restaurantId).maybeSingle(),
+          supabase.from('points').select('vente_total').eq('restaurant_id', restaurantId)
+            .gte('date', debutMois).lt('date', isoLocal(auj)),
         ])
         if (pts.error) return
         const parDate = Object.fromEntries((pts.data || []).map(x => [x.date, x]))
         const vente = d => (parDate[d] ? Number(parDate[d].vente_total) || 0 : 0)
         const nbDem = dem.error ? 0 : dem.count || 0
         const nbExpl = expl.error ? 0 : expl.count || 0
+        const ventesMois = (ptsMois.data || []).reduce((s, x) => s + (Number(x.vente_total) || 0), 0)
+        const objectifMensuel = Number(resto.data?.objectif_mensuel) || 0
         setEtat({
           hier,
           gerant: {
@@ -145,6 +154,11 @@ function useEtatDuJour(role, userId, restaurantId) {
             demandes: texteDemandes({ demandes: nbDem, explications: nbExpl }),
             nbDemandes: nbDem + nbExpl,
             caissiers: shiftsHier.error ? [] : lignesCaissiersHier(shiftsHier.data),
+            objectif: resto.error || ptsMois.error ? null : objectifDuMois({
+              ventes: ventesMois, objectif: objectifMensuel, joursEcoules: auj.getDate() - 1, joursMois,
+            }),
+            objectifMensuel,
+            ventesMois,
           },
           avisHier: texteHier({ hier: aH, avantHier: aAH, semainePrec: aSP }, dates[0]),
           contactsHier: contactsJours === null ? null : texteHier({

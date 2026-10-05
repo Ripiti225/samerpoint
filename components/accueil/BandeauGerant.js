@@ -1,21 +1,29 @@
 // ──────────────────────────────────────────────────────────────────────────────
 //  Bandeau du jour de l'accueil gérant : son restaurant, la journée d'hier.
-//  Point d'hier (corrections en premier), ventes d'hier et leur évolution
+//  Objectif du mois en tête (jauge + rythme + montant à faire par jour),
+//  point d'hier (corrections en premier), ventes d'hier et leur évolution
 //  (hausse en vert, baisse en rouge), vente, écart et explication de chaque
 //  caissier d'hier, demandes de son équipe.
-//  Textes : lib/accueilGerant.js, lib/hierAccueil.js.
+//  Textes : lib/accueilGerant.js, lib/hierAccueil.js ; objectif : lib/objectifs.js.
 // ──────────────────────────────────────────────────────────────────────────────
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { router } from 'expo-router'
 import { Text, View } from 'react-native'
 import Animated, { FadeIn } from 'react-native-reanimated'
+import Jauge, { couleurJauge } from '../ui/Jauge'
 import Survol from '../ui/Survol'
 import Indicateur from './Indicateur'
 
 const fcfa = n => Math.round(n || 0).toLocaleString('fr-FR')
 
+// « Objectif d'octobre », « Objectif de novembre ».
+function titreObjectif() {
+  const mois = new Date().toLocaleDateString('fr-FR', { month: 'long' })
+  return `Objectif ${/^[aeiouéè]/i.test(mois) ? "d'" : 'de '}${mois}`
+}
+
 export default function BandeauGerant({ etat, styles, colors }) {
-  const { hier, point, ventes, ventesEvo, demandes, nbDemandes, caissiers = [] } = etat
+  const { hier, point, ventes, ventesEvo, demandes, nbDemandes, caissiers = [], objectif, objectifMensuel, ventesMois } = etat
   const pointUi = {
     corrections: { icone: 'pencil-alert', couleur: colors.error, route: '/correction-point' },
     verifie: { icone: 'check-decagram', couleur: colors.success },
@@ -30,6 +38,8 @@ export default function BandeauGerant({ etat, styles, colors }) {
   return (
     <Animated.View entering={FadeIn.duration(300)}>
       <View style={styles.bandeau}>
+        {objectif && <BlocObjectif o={objectif} montant={objectifMensuel} ventesMois={ventesMois} styles={styles} colors={colors} />}
+
         <Text style={styles.bandeauLabel}>
           Hier · {hier.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
         </Text>
@@ -104,5 +114,33 @@ export default function BandeauGerant({ etat, styles, colors }) {
         </View>
       </View>
     </Animated.View>
+  )
+}
+
+// ── Objectif du mois : la barre se colore selon le RYTHME (où il finira le mois),
+// pas selon le remplissage, sinon elle serait rouge chaque début de mois.
+function BlocObjectif({ o, montant, ventesMois, styles, colors }) {
+  const couleur = o.atteint ? colors.success : o.pctProjete == null ? colors.primary : couleurJauge(o.pctProjete)
+  return (
+    <View style={{ marginBottom: 14, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: colors.border, gap: 6 }}
+      accessibilityLabel={`${titreObjectif()} : ${o.pct} % atteint, ${fcfa(ventesMois)} francs sur ${fcfa(montant)}.`}>
+      <Jauge variante="barre" pct={o.pct} couleur={couleur} libelle={`${titreObjectif()} · ${fcfa(montant)} F`} />
+      <Text style={{ fontSize: 13, color: colors.textSecondary }}>
+        <Text style={{ fontWeight: '800', color: colors.text }}>{fcfa(ventesMois)} F</Text> réalisés
+      </Text>
+      {o.atteint ? (
+        <Indicateur icone="trophy" couleur={colors.success}
+          texte={`Objectif atteint ! ${fcfa(ventesMois - montant)} F au-dessus, bravo`} styles={styles} />
+      ) : (
+        <>
+          {o.pctProjete != null && (
+            <Indicateur icone={o.enAvance ? 'trending-up' : 'trending-down'} couleur={couleur}
+              texte={`Au rythme actuel : ${o.pctProjete} % en fin de mois`} styles={styles} />
+          )}
+          <Indicateur icone="flag-checkered" couleur={colors.text}
+            texte={`Il reste ${fcfa(o.reste)} F, soit ${fcfa(o.parJour)} F par jour`} styles={styles} />
+        </>
+      )}
+    </View>
   )
 }

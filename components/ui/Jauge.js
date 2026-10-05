@@ -2,6 +2,8 @@
 //   variante 'demi'  : demi-cercle, le pourcentage au centre (écrans)
 //   variante 'barre' : barre horizontale compacte (bandeau de l'accueil)
 // Couleur selon la valeur : vert ≥ 90 %, orange ≥ 60 %, rouge en dessous.
+// `couleur` l'impose (ex. objectif du mois : couleur du rythme, pas du remplissage).
+// La barre s'arrête à 100 %, le chiffre affiché non (objectif dépassé : 103 %).
 import { Text, View } from 'react-native'
 import Svg, { Path } from 'react-native-svg'
 import { useTheme } from '../../context/ThemeContext'
@@ -10,17 +12,18 @@ export function couleurJauge(pct) {
   return pct >= 90 ? '#3B8D2F' : pct >= 60 ? '#D98A0B' : '#C2462B'
 }
 
-export default function Jauge({ pct = 0, variante = 'demi', taille = 180, epaisseur = 16, libelle }) {
+export default function Jauge({ pct = 0, variante = 'demi', taille = 180, epaisseur = 16, libelle, couleur }) {
   const { colors } = useTheme()
-  const v = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)))
-  const c = couleurJauge(v)
+  const affiche = Math.max(0, Math.round(Number(pct) || 0))
+  const v = Math.min(100, affiche)
+  const c = couleur || couleurJauge(v)
 
   if (variante === 'barre') {
     return (
       <View>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 5 }}>
           {libelle ? <Text style={{ fontSize: 12.5, color: colors.textSecondary, fontWeight: '600' }}>{libelle}</Text> : <View />}
-          <Text style={{ fontSize: 16, fontWeight: '800', color: c }}>{v} %</Text>
+          <Text style={{ fontSize: 16, fontWeight: '800', color: c }}>{affiche} %</Text>
         </View>
         <View style={{ height: 10, borderRadius: 5, backgroundColor: colors.surfaceAlt, overflow: 'hidden' }}>
           <View style={{ height: '100%', width: `${Math.max(v, 1.5)}%`, borderRadius: 5, backgroundColor: c }} />
