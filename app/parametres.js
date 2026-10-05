@@ -1,4 +1,5 @@
 import { router } from 'expo-router'
+import { estCompteTechnique } from '../lib/comptesTechniques'
 import { useEffect, useMemo, useState } from 'react'
 import FormulaireTravailleur from '../components/FormulaireTravailleur'
 import { aujourdhuiISO } from '../lib/contrats'
@@ -192,7 +193,8 @@ export default function ParametresScreen() {
   }
 
   async function ouvrirModal(type, data = null, defaults = {}) {
-    setForm(data ? { ...data } : { ...defaults })
+    // Un compte technique n'a pas de vrai PIN : en donner un en fait un compte normal.
+    setForm(data ? { ...data, ...(estCompteTechnique(data) ? { pin: '' } : {}) } : { ...defaults })
     setModal({ visible: true, type, data })
     setCreditActuel(null)
     setOngletTravailleur('infos')
@@ -980,7 +982,9 @@ export default function ParametresScreen() {
                   </View>
                   <View>
                     <Text style={[styles.itemNom, !u.actif && { color: '#aaa' }]}>{u.nom}</Text>
-                    <Text style={styles.itemSub}>{u.role} — PIN: {u.pin}</Text>
+                    <Text style={styles.itemSub}>
+                      {estCompteTechnique(u) ? `${u.role} — sans connexion (compte du POS)` : `${u.role} — PIN: ${u.pin}`}
+                    </Text>
                   </View>
                 </View>
                 <View style={styles.itemActions}>
