@@ -78,9 +78,9 @@
     "semantic_hash": ""
   },
   "app/contacts.js": {
-    "mtime": 1791069480.744269,
-    "seen": 1791069515.096386,
-    "ast_hash": "96aed3a3d74fdc9e0651dc1a01135914",
+    "mtime": 1791242347.7297947,
+    "seen": 1791242386.178571,
+    "ast_hash": "a5beb9a63bdb97e879c91d2de6c7b25b",
     "semantic_hash": ""
   },
   "app/contrats.js": {
@@ -2298,9 +2298,9 @@
     "semantic_hash": ""
   },
   "lib/contactsPeriodeDb.js": {
-    "mtime": 1791068994.4730034,
-    "seen": 1791069043.9698591,
-    "ast_hash": "51f9df5dea6cba67d3e6726f26f787d5",
+    "mtime": 1791242289.2968516,
+    "seen": 1791242386.178658,
+    "ast_hash": "bec3008e6fa0c3e9f1ae26bdeea4561c",
     "semantic_hash": ""
   },
   "lib/contactsClientsPos.js": {
@@ -2715,6 +2715,24 @@
     "mtime": 1791240246.8899252,
     "seen": 1791240978.338795,
     "ast_hash": "6c8c0a62f5200bb921361caf5f555e25",
+    "semantic_hash": ""
+  },
+  "components/contacts/AnalyseClients.js": {
+    "mtime": 1791242304.8430643,
+    "seen": 1791242386.178605,
+    "ast_hash": "efc5bcba9a5f4065edae705f8bebcf82",
+    "semantic_hash": ""
+  },
+  "lib/analyseClients.js": {
+    "mtime": 1791242247.0619166,
+    "seen": 1791242386.178637,
+    "ast_hash": "6941ab3e1046af464f14803d97d3c5b8",
+    "semantic_hash": ""
+  },
+  "lib/analyseClients.test.mjs": {
+    "mtime": 1791242278.1184373,
+    "seen": 1791242386.178637,
+    "ast_hash": "41e1d3d41e6b3eae9606e3b334ae6af4",
     "semantic_hash": ""
   }
 }
