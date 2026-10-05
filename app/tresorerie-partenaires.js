@@ -441,7 +441,9 @@ function FeuilleReception({ demande, partenaire, periode, donnees, nomResto, use
 
   useEffect(() => {
     if (!demande) return
-    setMontant(demande.attendu > 0 ? String(demande.attendu) : '')
+    // Jamais prérempli avec l'attendu : validé sans y toucher, c'était l'import
+    // (et non ce qui est arrivé sur le relevé) qui entrait en banque.
+    setMontant('')
     setCompte(compteParDefaut || null)
     setDate(aujourdhuiISO())
     setNote('')
@@ -478,7 +480,7 @@ function FeuilleReception({ demande, partenaire, periode, donnees, nomResto, use
       <View style={styles.carte}>
         <Ligne label="Montant attendu" valeur={demande.attendu} fort />
       </View>
-      <ChampMontant label="Montant réellement reçu" valeur={montant} onChange={setMontant} />
+      <ChampMontant label="Montant réellement reçu (celui du relevé)" valeur={montant} onChange={setMontant} />
       <Text style={styles.label}>Arrivé sur</Text>
       <Puces options={donnees.comptes.map(c => ({ valeur: c.id, label: c.nom }))} valeur={compte} onChange={setCompte} />
       <Champ label="Date de réception (AAAA-MM-JJ)" value={date} onChangeText={setDate} autoCapitalize="none" />
@@ -496,8 +498,9 @@ function FeuilleReception({ demande, partenaire, periode, donnees, nomResto, use
 
 // ── Marquer reçu sur la tête de fond (OM, Wave, Djamo) ───────────────────────
 
-// Le reçu de chaque restaurant (prérempli avec l'attendu, il peut le dépasser) ;
-// leur total entre sur la tête de fond en une seule entrée.
+// Le reçu de chaque restaurant (à taper : jamais prérempli avec l'attendu, qui
+// reste affiché à côté ; il peut le dépasser) ; leur total entre sur la tête de
+// fond en une seule entrée.
 function FeuilleReceptionTete({ visible, partenaire, periode, situation, donnees, nomResto, user, onFermer, apres }) {
   const { styles, colors } = useStylesTreso()
   const [valeurs, setValeurs] = useState({})
@@ -520,7 +523,7 @@ function FeuilleReceptionTete({ visible, partenaire, periode, situation, donnees
 
   useEffect(() => {
     if (!visible) return
-    setValeurs(Object.fromEntries(restos.map(r => [r.id, attendus[r.id] > 0 ? String(attendus[r.id]) : ''])))
+    setValeurs(Object.fromEntries(restos.map(r => [r.id, ''])))
     const tete = donnees.comptes.find(c => c.nom === COMPTE_TETE_DE_FOND[partenaire])
     setCompte(tete?.id || null)
     setDate(aujourdhuiISO())
@@ -557,7 +560,7 @@ function FeuilleReceptionTete({ visible, partenaire, periode, situation, donnees
   return (
     <Feuille visible onFermer={onFermer} titre={`${info.nom} reçu · ${libellePeriode(periode)}`}>
       <Text style={[styles.petit, { marginBottom: 10 }]}>
-        Ce que chaque restaurant a réellement versé sur la tête de fond (prérempli avec l'attendu).
+        Tapez ce que chaque restaurant a réellement versé sur la tête de fond (l'attendu est rappelé sous son nom).
       </Text>
       {restos.map(r => {
         const a = attendus[r.id] || 0
