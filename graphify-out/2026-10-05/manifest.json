@@ -1962,9 +1962,9 @@
     "semantic_hash": ""
   },
   "components/accueil/AccueilManager.js": {
-    "mtime": 1791128285.63047,
-    "seen": 1791128304.3297338,
-    "ast_hash": "b61365ac24634b00d9c46ed2c450d9f0",
+    "mtime": 1791240926.5152938,
+    "seen": 1791240978.33866,
+    "ast_hash": "ab447f460997cc564b8495a2d749fb1a",
     "semantic_hash": ""
   },
   "components/ui/Survol.js": {
@@ -2004,15 +2004,15 @@
     "semantic_hash": ""
   },
   "lib/objectifs.js": {
-    "mtime": 1791046232.5932167,
-    "seen": 1791046634.160892,
-    "ast_hash": "ffce174b5b9fabe8426df4c5da140ddb",
+    "mtime": 1791240889.7601986,
+    "seen": 1791240978.338751,
+    "ast_hash": "f4f9dc1a027d50a75591f7b6b7552a1e",
     "semantic_hash": ""
   },
   "lib/objectifs.test.mjs": {
-    "mtime": 1791046233.6207285,
-    "seen": 1791046634.160893,
-    "ast_hash": "c29f343013df6f6fd702ec1a8d175d75",
+    "mtime": 1791240880.1431262,
+    "seen": 1791240978.338752,
+    "ast_hash": "aa3d6dd68839140af9346c3e4034d126",
     "semantic_hash": ""
   },
   "lib/statsPOS.js": {
@@ -2274,9 +2274,9 @@
     "semantic_hash": ""
   },
   "components/ui/Jauge.js": {
-    "mtime": 1791066866.5481997,
-    "seen": 1791066964.414203,
-    "ast_hash": "8e534b0b4cd6985ca3ffa750c8b2b299",
+    "mtime": 1791240917.4261336,
+    "seen": 1791240978.3386822,
+    "ast_hash": "d081a9ec6b11733e0cf83622fc40190e",
     "semantic_hash": ""
   },
   "components/contacts/ResumeContacts.js": {
@@ -2388,9 +2388,9 @@
     "semantic_hash": ""
   },
   "components/accueil/BandeauGerant.js": {
-    "mtime": 1791128285.6307375,
-    "seen": 1791128304.3297348,
-    "ast_hash": "a2b96e0f800c5f73dcde151287ab5bea",
+    "mtime": 1791240941.676681,
+    "seen": 1791240978.3386612,
+    "ast_hash": "e491e014021bc13fa750b251b34ddc70",
     "semantic_hash": ""
   },
   "components/accueil/Indicateur.js": {
@@ -2709,6 +2709,12 @@
     "mtime": 1791240068.0066245,
     "seen": 1791240168.182991,
     "ast_hash": "5c951bbeb4735197649b1c10ed78f9b7",
+    "semantic_hash": ""
+  },
+  "supabase_depense_total_salaires_0510.sql": {
+    "mtime": 1791240246.8899252,
+    "seen": 1791240978.338795,
+    "ast_hash": "6c8c0a62f5200bb921361caf5f555e25",
     "semantic_hash": ""
   }
 }
