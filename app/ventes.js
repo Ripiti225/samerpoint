@@ -10,6 +10,7 @@ import EtapeMachineEcart from '../components/ventes/EtapeMachineEcart'
 import EtapeTab from '../components/ventes/EtapeTab'
 import { useApp } from '../context/AppContext'
 import { cloturesPOS, resumerEcartsGlobaux } from '../lib/cloturesCaisse'
+import { depensesSalairesShift } from '../lib/depensesShift'
 import { manquantsVentes, photosManquantesVentes } from '../lib/manquantsSaisie'
 import { estRempliParLePOS, peutSaisirVenteMachineManuellement, venteMachineEstRecue, venteMachineVientDuPOS } from '../lib/sourcePoint'
 import { useFondTresorerie } from '../lib/useFondTresorerie'
@@ -149,7 +150,7 @@ export default function VentesScreen() {
         om: shifts.reduce((s, sh) => s + (sh.om || 0), 0),
         kdo: shifts.reduce((s, sh) => s + (sh.kdo || 0), 0),
         retour: shifts.reduce((s, sh) => s + (sh.retour || 0), 0),
-        depenses: shifts.reduce((s, sh) => s + (sh.depenses || 0), 0),
+        depenses: shifts.reduce((s, sh) => s + depensesSalairesShift(sh), 0),
         fournisseurs: shifts.reduce((s, sh) => s + (sh.fournisseurs || 0), 0),
         espece: shifts.reduce((s, sh) => s + (sh.espece || 0), 0),
         venteTotal: shifts.reduce((s, sh) => s + (sh.vente_shift || 0), 0),

@@ -18,6 +18,7 @@ import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { savePointShiftData } from '../lib/api'
 import { archiverSuppressionShift, supprimerLignesArchivees } from '../lib/corbeille'
+import { depensesSalairesShift } from '../lib/depensesShift'
 import { chargerDetailShift } from '../lib/detailShift'
 import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifShiftValide } from '../lib/notifications'
@@ -613,7 +614,7 @@ export default function PointShiftScreen() {
 
   function cumulShifts() {
     return {
-      depenses: shiftsGerant.reduce((sum, s) => sum + (s.depenses || 0), 0),
+      depenses: shiftsGerant.reduce((sum, s) => sum + depensesSalairesShift(s), 0),
       fournisseurs: shiftsGerant.reduce((sum, s) => sum + (s.fournisseurs || 0), 0),
       kdo: shiftsGerant.reduce((sum, s) => sum + (s.kdo || 0), 0),
       retour: shiftsGerant.reduce((sum, s) => sum + (s.retour || 0), 0),
@@ -987,7 +988,7 @@ export default function PointShiftScreen() {
                     </View>
                     <View style={styles.shiftDetails}>
                       {[
-                        { label: 'Dépenses + Salaires', val: shift.depenses },
+                        { label: 'Dépenses + Salaires', val: depensesSalairesShift(shift) },
                         { label: 'Fournisseurs', val: shift.fournisseurs },
                         { label: 'KDO', val: shift.kdo },
                         { label: 'Retour', val: shift.retour },

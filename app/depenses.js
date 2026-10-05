@@ -13,6 +13,7 @@ import {
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { saveDepenses } from '../lib/api'
+import { totalDepensesShifts } from '../lib/depensesShift'
 import { supabase } from '../lib/supabase'
 
 const CATEGORIES = ['Marché', 'Légumes', 'Fruits', 'Dépenses annexes']
@@ -53,13 +54,14 @@ export default function DepensesScreen() {
     setLoading(true)
     const { data: shifts } = await supabase
       .from('points_shifts')
-      .select('depenses, fournisseurs')
+      .select('*')
       .eq('point_id', pointId)
 
     if (shifts && shifts.length > 0) {
+      const totaux = totalDepensesShifts(shifts)
       setCumulShifts({
-        depenses: shifts.reduce((sum, s) => sum + (s.depenses || 0), 0),
-        fournisseurs: shifts.reduce((sum, s) => sum + (s.fournisseurs || 0), 0),
+        depenses: totaux.depensesSalaires,
+        fournisseurs: totaux.fournisseurs,
         nbShifts: shifts.length,
       })
     }
@@ -377,8 +379,8 @@ export default function DepensesScreen() {
                   Ces dépenses proviennent des shifts validés — non modifiables
                 </Text>
                 <View style={styles.cumulRow}>
-                  <Text style={styles.cumulLabel}>Dépenses caissiers</Text>
-                  <Text style={styles.cumulVal}>{fmt((cumulShifts.depenses || 0) - (cumulShifts.fournisseurs || 0))}</Text>
+                  <Text style={styles.cumulLabel}>Dépenses + salaires caissiers</Text>
+                  <Text style={styles.cumulVal}>{fmt(cumulShifts.depenses || 0)}</Text>
                 </View>
                 <View style={[styles.cumulRow, { borderBottomWidth: 0 }]}>
                   <Text style={styles.cumulLabel}>Fournisseurs caissiers</Text>
@@ -387,7 +389,7 @@ export default function DepensesScreen() {
                 <View style={styles.cumulTotal}>
                   <Text style={styles.cumulTotalLabel}>Total caissiers</Text>
                   <Text style={styles.cumulTotalVal}>
-                    {fmt(cumulShifts.depenses || 0)}
+                    {fmt((cumulShifts.depenses || 0) + (cumulShifts.fournisseurs || 0))}
                   </Text>
                 </View>
               </View>

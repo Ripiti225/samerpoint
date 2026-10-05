@@ -17,6 +17,7 @@ import { sauvegarderSurOneDrive, estatConnecte } from '../lib/onedrive'
 import { COEFFICIENTS } from '../lib/constants'
 import { facturesGerantSansPhoto } from '../lib/creditsFournisseurs'
 import { cloturesPOS, resumerEcartsGlobaux } from '../lib/cloturesCaisse'
+import { depensesSalairesShift } from '../lib/depensesShift'
 import { venteMachineVientDuPOS } from '../lib/sourcePoint'
 import { rattacherFondAuPoint } from '../lib/fondTresorerieDb'
 import { journaliser } from '../lib/journal'
@@ -140,7 +141,7 @@ export default function RecapPointScreen() {
     // Calculer cumul shifts
     if (shiftsData && shiftsData.length > 0) {
       setCumulShifts({
-        depenses: shiftsData.reduce((sum, s) => sum + (s.depenses || 0), 0),
+        depenses: shiftsData.reduce((sum, s) => sum + depensesSalairesShift(s), 0),
         fournisseurs: shiftsData.reduce((sum, s) => sum + (s.fournisseurs || 0), 0),
         kdo: shiftsData.reduce((sum, s) => sum + (s.kdo || 0), 0),
         retour: shiftsData.reduce((sum, s) => sum + (s.retour || 0), 0),
@@ -220,10 +221,9 @@ export default function RecapPointScreen() {
   function totalDepensesGlobal() {
     const gerantCaisse = totalDepensesGerantCaisse()
     if (cumulShifts) {
-      // cumulShifts.depenses vient de totalDepenses() dans AppContext qui inclut DÉJÀ
-      // totalDepensesCat() + totalPaie() + totalFournisseurs()
-      // → ne PAS ajouter cumulShifts.fournisseurs ni paies (déjà comptés dedans)
-      return cumulShifts.depenses + gerantCaisse
+      // cumulShifts.depenses = dépenses + salaires des caissiers, hors fournisseurs
+      // (voir lib/depensesShift.js : la colonne brute oublie la paie des shifts POS)
+      return cumulShifts.depenses + cumulShifts.fournisseurs + gerantCaisse
     }
     const paies = totalPaiePresences()
     return totalDepensesTable() + totalFournisseursTransactions() + paies + gerantCaisse
@@ -623,7 +623,7 @@ export default function RecapPointScreen() {
                     </View>
                     <View style={styles.shiftDetails}>
                       {[
-                        { label: 'Dépenses', val: shift.depenses },
+                        { label: 'Dépenses + Salaires', val: depensesSalairesShift(shift) },
                         { label: 'Fournisseurs', val: shift.fournisseurs },
                         { label: 'KDO', val: shift.kdo },
                         { label: 'Retour', val: shift.retour },

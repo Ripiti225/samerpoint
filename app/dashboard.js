@@ -16,6 +16,7 @@ import { useTheme } from '../context/ThemeContext'
 import { getDepensesPeriode, getFournisseursPeriodePaye, getPaiesGerantPeriode, getPointsPeriode, getPresencesPeriode } from '../lib/api'
 import { FOURNISSEURS_LABOR, FOURNISSEURS_NON_FOOD } from '../lib/constants'
 import { chargerChargesMois } from '../lib/chargesMois'
+import { depensesSalairesShift } from '../lib/depensesShift'
 import { supabase } from '../lib/supabase'
 
 const { width } = Dimensions.get('window')
@@ -104,7 +105,7 @@ export default function DashboardScreen() {
 
     if (shifts && shifts.length > 0) {
       setCumulShifts({
-        depenses: shifts.reduce((sum, s) => sum + (s.depenses || 0), 0),
+        depenses: shifts.reduce((sum, s) => sum + depensesSalairesShift(s), 0),
         fournisseurs: shifts.reduce((sum, s) => sum + (s.fournisseurs || 0), 0),
         kdo: shifts.reduce((sum, s) => sum + (s.kdo || 0), 0),
         retour: shifts.reduce((sum, s) => sum + (s.retour || 0), 0),
@@ -671,7 +672,7 @@ export default function DashboardScreen() {
                       <Text style={styles.sectionTitre}>⏱️ Cumul {cumulShifts.nbShifts} shift(s)</Text>
                       <View style={styles.resultCard}>
                         {[
-                          { label: 'Dépenses caissiers', val: cumulShifts.depenses },
+                          { label: 'Dépenses + salaires caissiers', val: cumulShifts.depenses },
                           { label: 'Fournisseurs caissiers', val: cumulShifts.fournisseurs },
                           { label: 'KDO', val: cumulShifts.kdo },
                           { label: 'Retour', val: cumulShifts.retour },

@@ -12,7 +12,7 @@ const virgule = n => String(n).replace('.', ',')
 export default function EtapeTab({ ventesJour, setVente, setVentesJour, modifiable, cumulShifts, voitShifts, onPhoto, uploading, fmt }) {
   const { p, styles } = useStyleChaleureux()
   const recap = cumulShifts ? [
-    { label: 'Dépenses + Fournisseurs', val: cumulShifts.depenses + cumulShifts.fournisseurs },
+    { label: 'Dépenses, salaires + fournisseurs', val: cumulShifts.depenses + cumulShifts.fournisseurs },
     { label: 'Yango CSE', val: cumulShifts.yangoCse },
     { label: 'Glovo CSE', val: cumulShifts.glovoCse },
     { label: 'Wave', val: cumulShifts.wave },

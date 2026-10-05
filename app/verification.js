@@ -26,6 +26,7 @@ import { envoyerNotifFactureCorrigee } from '../lib/notifications'
 import PhotoJustificatif, { photoConsultable } from '../components/PhotoJustificatif'
 import { estPhotoEnAttente } from '../lib/photoQueue'
 import { cloturesPOS, resumerEcartsGlobaux } from '../lib/cloturesCaisse'
+import { depensesSalairesShift } from '../lib/depensesShift'
 import { decisionEcartShiftPOS, SOURCE_DECISION_POS } from '../lib/ecartPOS'
 import { preparerEntreesVerification } from '../lib/entreesVerification'
 import { photosCanalDisponibles } from '../lib/photosVerification'
@@ -2725,7 +2726,7 @@ export default function VerificationScreen() {
                       </View>
                       <View style={styles.shiftDonnees}>
                         {[
-                          { label: 'Dépenses', val: shift.depenses },
+                          { label: 'Dépenses + Salaires', val: depensesSalairesShift(shift) },
                           { label: 'Fournisseurs', val: shift.fournisseurs },
                           { label: 'KDO', val: shift.kdo },
                           { label: 'Retour', val: shift.retour },

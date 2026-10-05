@@ -8,6 +8,7 @@
 import { useMemo, useState } from 'react'
 import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { useTheme } from '../context/ThemeContext'
+import { depensesSalairesShift } from '../lib/depensesShift'
 import PhotoJustificatif from './PhotoJustificatif'
 
 const DETAIL_VIDE = { depenses: [], fournisseurs: [], presences: [], inventaire: null, loading: false }
@@ -81,7 +82,7 @@ export default function DetailShiftCaissier({ shift, data = DETAIL_VIDE, onClose
                   { label: 'Glovo CSE', val: shift?.glovo_cse },
                   { label: 'KDO offerts', val: shift?.kdo },
                   { label: 'Retours', val: shift?.retour },
-                  { label: 'Dépenses + Salaires', val: shift?.depenses },
+                  { label: 'Dépenses + Salaires', val: shift ? depensesSalairesShift(shift) : 0 },
                   { label: 'Fournisseurs', val: shift?.fournisseurs },
                 ].filter(r => r.val > 0).map((r, i, arr) => (
                   <View key={i} style={[styles.detailRow, i === arr.length - 1 && !afficherEcartPOS && { borderBottomWidth: 0 }]}>
