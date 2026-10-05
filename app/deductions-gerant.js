@@ -1,32 +1,24 @@
 import { retour } from '../lib/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Alert, Platform, SafeAreaView, ScrollView } from 'react-native'
+import OngletDepenses from '../components/deductions/OngletDepenses'
+import OngletFournisseurs from '../components/deductions/OngletFournisseurs'
+import OngletPaies from '../components/deductions/OngletPaies'
 import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  Platform,
-  SafeAreaView, ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
-} from 'react-native'
-import PhotoJustificatif from '../components/PhotoJustificatif'
+  Bandeau, BarreBas, BoutonDegrade, Choix, EnTete, Feuille, Onglets, Vide, contexteJour, useStyleChaleureux,
+} from '../components/ui/StyleChaleureux'
 import { useApp } from '../context/AppContext'
-import { useTheme } from '../context/ThemeContext'
-import { CATEGORIES_DEPENSES } from '../lib/constants'
 import { facturesGerantSansPhoto } from '../lib/creditsFournisseurs'
 import { chargerDerniersRestes } from '../lib/derniersRestesFournisseurs'
 import { appliquerFacturesMensuelles } from '../lib/facturesMensuelles'
 import { logErreur } from '../lib/logErreur'
-import { estPhotoValide } from '../lib/photoQueue'
+import { manquantsDeductions, resumeDeductions } from '../lib/manquantsSaisie'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
 
 export default function DeductionsGerantScreen() {
   const {
-    restaurantId, pointId, userId, userNom, dateJour,
+    restaurantId, restaurantNom, pointId, userId, userNom, dateJour,
     depensesGerantCaisse, setDepensesGerantCaisse,
     fournisseursGerantCaisse, setFournisseursGerantCaisse,
     paiesGerantCaisse, setPaiesGerantCaisse,
@@ -36,10 +28,10 @@ export default function DeductionsGerantScreen() {
   // pointId peut être null si le gérant n'a pas encore sélectionné de journée
 
   const { prendrePhoto, choisirPhoto } = usePhoto()
-  const { colors } = useTheme()
-  const styles = useMemo(() => makeStyles(colors), [colors])
+  const { p, styles, isDark } = useStyleChaleureux()
 
-  const [sectionsOuvertes, setSectionsOuvertes] = useState(new Set())
+  const [onglet, setOnglet] = useState('fournisseurs')
+  const [fournOuverts, setFournOuverts] = useState(new Set())
   const [fournisseursList, setFournisseursList] = useState([])
   const [travailleurs, setTravailleurs] = useState([])
   const [uploading, setUploading] = useState(false)
@@ -131,7 +123,8 @@ export default function DeductionsGerantScreen() {
     }
     const sansPhoto = facturesGerantSansPhoto(fournisseursGerantCaisse)
     if (sansPhoto.length > 0) {
-      setSectionsOuvertes(prev => new Set([...prev, 'fournisseurs', ...sansPhoto.map(id => `four_${id}`)]))
+      setOnglet('fournisseurs')
+      setFournOuverts(prev => new Set([...prev, ...sansPhoto]))
       Alert.alert('Photo manquante', `Ajoutez une photo de la facture pour :\n${sansPhoto.map(id => `• ${fournisseursGerantCaisse[id]?.nom || fournisseursList.find(f => f.id === id)?.nom || 'Fournisseur'}`).join('\n')}`)
       return
     }
@@ -301,11 +294,11 @@ export default function DeductionsGerantScreen() {
     setPaieEditIndex(null)
   }
 
-  function toggleSection(key) {
-    setSectionsOuvertes(prev => {
+  function basculerFournisseur(id) {
+    setFournOuverts(prev => {
       const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
@@ -381,484 +374,78 @@ export default function DeductionsGerantScreen() {
 
   function fmt(n) { return Math.round(n).toLocaleString('fr-FR') + ' FCFA' }
 
+  const total = totalDepensesGerantCaisse()
+  const resume = resumeDeductions(depensesGerantCaisse, fournisseursGerantCaisse, paiesGerantCaisse)
+  const detail = r => (r.n > 0 ? `${r.n} · ${Math.round(r.total).toLocaleString('fr-FR')}` : '—')
+  const onglets = [
+    { cle: 'fournisseurs', label: 'Fournisseurs', detail: detail(resume.fournisseurs) },
+    { cle: 'depenses', label: 'Dépenses', detail: detail(resume.depenses) },
+    { cle: 'paies', label: 'Paies', detail: detail(resume.paies) },
+  ]
+  const manquants = manquantsDeductions(
+    fournisseursGerantCaisse,
+    id => fournisseursList.find(f => f.id === id)?.nom || 'Fournisseur',
+  )
+  const libelleBouton = saveStatus === 'ok' ? '✅ Sauvegardé' : saveStatus === 'error' ? '❌ Erreur — Réessayez' : 'Sauvegarder'
+  const totalTexte = total > 0 ? `− ${fmt(total)}` : fmt(0)
+
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => retour()}>
-          <Text style={styles.back}>‹ Retour</Text>
-        </TouchableOpacity>
-        <View>
-          <Text style={styles.headerTitre}>Déductions Gérant</Text>
-          <Text style={styles.headerSub}>Prélevées sur les espèces de caisse</Text>
-        </View>
-        <View style={{ width: 60 }} />
-      </View>
+    <SafeAreaView style={styles.ecran}>
+      <EnTete titre="Déductions gérant" sous="Prélevées sur les espèces de caisse" chiffre={totalTexte}
+        contexte={contexteJour(restaurantNom, dateJour)} onRetour={() => retour()} flottant={!isDark} />
+      <Onglets elements={onglets} actif={onglet} onChoisir={setOnglet} flottant={!isDark} />
+      {uploading ? <Bandeau chargement texte="Envoi de la photo en cours…" /> : null}
 
-      {uploading && (
-        <View style={styles.uploadBanner}>
-          <ActivityIndicator size="small" color="#fff" />
-          <Text style={styles.uploadTxt}>Upload de la photo en cours...</Text>
-        </View>
-      )}
-
-      {totalDepensesGerantCaisse() > 0 && (
-        <View style={styles.totalBanner}>
-          <Text style={styles.totalBannerLabel}>Total saisi</Text>
-          <Text style={styles.totalBannerVal}>− {fmt(totalDepensesGerantCaisse())}</Text>
-        </View>
-      )}
-
-      <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-
-        {/* Bande Fournisseurs */}
-        <TouchableOpacity style={styles.bandHeader} onPress={() => toggleSection('fournisseurs')}>
-          <Text style={styles.bandTitre}>🏪 Fournisseurs</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            {Object.keys(fournisseursGerantCaisse).length > 0 && (
-              <Text style={styles.bandCount}>{Object.keys(fournisseursGerantCaisse).length} saisie(s)</Text>
-            )}
-            <Text style={styles.bandChevron}>{sectionsOuvertes.has('fournisseurs') ? '▲' : '▼'}</Text>
-          </View>
-        </TouchableOpacity>
-
-        {sectionsOuvertes.has('fournisseurs') && (
-          <View style={styles.bandContent}>
-            {chargement ? (
-              <ActivityIndicator size="small" color="#EF9F27" style={{ paddingVertical: 16 }} />
-            ) : fournisseursList.length === 0 ? (
-              <Text style={styles.bandVide}>Aucun fournisseur enregistré pour ce restaurant</Text>
-            ) : (
-              fournisseursList.map(four => {
-                const data = fournisseursGerantCaisse[four.id] || {}
-                const fourOpen = sectionsOuvertes.has(`four_${four.id}`)
-                const creditV = getCreditVeille(four)
-                const montFact = parseFloat(data.montant_facture) || 0
-                const photoValide = estPhotoValide(data.photoUri)
-                const payé = parseFloat(data.paye) || 0
-                const reste = creditV + montFact - payé
-                return (
-                  <View key={four.id}>
-                    <TouchableOpacity style={styles.fourRow} onPress={() => toggleSection(`four_${four.id}`)}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.fourNom}>{four.nom}</Text>
-                        {creditV !== 0 && (
-                          <Text style={{ fontSize: 10, color: creditV < 0 ? '#3B6D11' : colors.textMuted, marginTop: 1 }}>
-                            {creditV > 0 ? `Crédit total dû : ${fmt(creditV)}` : `Avance veille : ${fmt(Math.abs(creditV))}`}
-                            {four.caissier_facture > 0 ? ` (dont facture caissier : ${fmt(four.caissier_facture)})` : ''}
-                          </Text>
-                        )}
-                      </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        {payé > 0 && (
-                          <Text style={styles.fourMontant}>Payé {fmt(payé)}</Text>
-                        )}
-                        {photoValide && <Text style={{ fontSize: 12 }}>📷</Text>}
-                        <Text style={styles.bandChevron}>{fourOpen ? '▲' : '▼'}</Text>
-                      </View>
-                    </TouchableOpacity>
-                    {fourOpen && (
-                      <View style={styles.fourDetails}>
-                        <View style={styles.fourCreditRow}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.fourCreditLabel}>{creditV >= 0 ? 'Total dû (crédit)' : 'Avance veille'}</Text>
-                            <Text style={{ fontSize: 10, color: colors.textMuted }}>
-                              {four.caissier_facture > 0
-                                ? `Veille + facture caissier ${fmt(four.caissier_facture)}`
-                                : 'Calculé auto depuis jours précédents'}
-                            </Text>
-                          </View>
-                          <Text style={[styles.fourCreditVal, creditV < 0 && { color: '#3B6D11' }]}>{fmt(Math.abs(creditV))}</Text>
-                        </View>
-
-                        <TextInput
-                          style={styles.depInput}
-                          value={data.facture_ref || ''}
-                          onChangeText={v => updateFournisseurGerant(four.id, four.nom, 'facture_ref', v)}
-                          placeholder="N° facture / référence (optionnel)"
-                          placeholderTextColor="#bbb"
-                        />
-                        <TextInput
-                          style={styles.depInput}
-                          value={data.montant_facture || ''}
-                          onChangeText={v => updateFournisseurGerant(four.id, four.nom, 'montant_facture', v)}
-                          keyboardType="numeric"
-                          placeholder="Montant facture du jour (FCFA)"
-                          placeholderTextColor="#bbb"
-                        />
-                        <TextInput
-                          style={[styles.depInput, { borderWidth: 1, borderColor: '#EF9F27' }]}
-                          value={data.paye || ''}
-                          onChangeText={v => updateFournisseurGerant(four.id, four.nom, 'paye', v)}
-                          keyboardType="numeric"
-                          placeholder="Montant payé ce jour (FCFA)"
-                          placeholderTextColor="#bbb"
-                        />
-
-                        {(montFact > 0 || payé > 0 || creditV !== 0) && (
-                          <View style={[styles.fourResteRow, {
-                            backgroundColor: reste <= 0 ? '#EAF3DE' : '#FAEEDA',
-                            borderColor: reste <= 0 ? '#3B6D11' : '#EF9F27',
-                          }]}>
-                            <Text style={[styles.fourResteLabel, { color: reste <= 0 ? '#3B6D11' : '#854F0B' }]}>
-                              {reste <= 0 ? 'Avance payée' : 'Reste dû après paiement'}
-                            </Text>
-                            <Text style={[styles.fourResteVal, { color: reste <= 0 ? '#3B6D11' : '#A32D2D' }]}>
-                              {fmt(Math.abs(reste))}
-                            </Text>
-                          </View>
-                        )}
-
-                        <View style={[styles.photoBlock, montFact > 0 && !photoValide && styles.photoBlockRequired]}>
-                          <View style={styles.photoBlockHeader}>
-                            <Text style={styles.photoBlockLabel}>
-                              📷 Justificatif facture
-                              {montFact > 0 && <Text style={{ color: '#A32D2D' }}> *</Text>}
-                            </Text>
-                            {photoValide ? (
-                              <View style={styles.photoBadgeOk}><Text style={styles.photoBadgeOkTxt}>✅ OK</Text></View>
-                            ) : montFact > 0 ? (
-                              <View style={styles.photoBadgeReq}><Text style={styles.photoBadgeReqTxt}>⚠️ Requis</Text></View>
-                            ) : null}
-                          </View>
-                          {data.photoUri && (
-                            <PhotoJustificatif uri={data.photoUri} style={styles.photoPreview} />
-                          )}
-                          <TouchableOpacity
-                            style={styles.photoBtn}
-                            onPress={() => gererPhoto(url => updateFournisseurGerant(four.id, four.nom, 'photoUri', url), 'depenses-gerant')}
-                            disabled={uploading}
-                          >
-                            {uploading ? (
-                              <ActivityIndicator size="small" color="#412402" />
-                            ) : (
-                              <Text style={styles.photoBtnTxt}>
-                                {data.photoUri ? '🔄 Changer la photo' : '📷 Ajouter une photo'}
-                              </Text>
-                            )}
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    )}
-                  </View>
-                )
-              })
-            )}
-          </View>
-        )}
-
-        {/* Bandes catégories */}
-        {[
-          { key: CATEGORIES_DEPENSES[0], emoji: '🛒' },
-          { key: CATEGORIES_DEPENSES[1], emoji: '🥦' },
-          { key: CATEGORIES_DEPENSES[2], emoji: '🍊' },
-          { key: CATEGORIES_DEPENSES[3], emoji: '📦' },
-        ].map(({ key, emoji }) => {
-          const lignes = depensesGerantCaisse[key] || []
-          const isOpen = sectionsOuvertes.has(key)
-          return (
-            <View key={key}>
-              <TouchableOpacity style={styles.bandHeader} onPress={() => toggleSection(key)}>
-                <Text style={styles.bandTitre}>{emoji} {key}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  {lignes.length > 0 && (
-                    <Text style={styles.bandCount}>{lignes.length} ligne(s)</Text>
-                  )}
-                  <Text style={styles.bandChevron}>{isOpen ? '▲' : '▼'}</Text>
-                </View>
-              </TouchableOpacity>
-              {isOpen && (
-                <View style={styles.bandContent}>
-                  {lignes.map((ligne, i) => (
-                    <View key={ligne.id || i} style={styles.ligneDepCard}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <Text style={styles.ligneDepNum}>Ligne {i + 1}</Text>
-                        <TouchableOpacity onPress={() => supprimerLigneDep(key, i)}>
-                          <Text style={{ color: '#993C1D', fontSize: 12, fontWeight: '500' }}>✕ Supprimer</Text>
-                        </TouchableOpacity>
-                      </View>
-                      <TextInput
-                        style={styles.depInput}
-                        value={ligne.description || ''}
-                        onChangeText={v => updateLigneDep(key, i, 'description', v)}
-                        placeholder="Description"
-                        placeholderTextColor="#bbb"
-                      />
-                      <TextInput
-                        style={styles.depInput}
-                        value={ligne.montant || ''}
-                        onChangeText={v => updateLigneDep(key, i, 'montant', v)}
-                        keyboardType="numeric"
-                        placeholder="Montant (FCFA)"
-                        placeholderTextColor="#bbb"
-                      />
-                    </View>
-                  ))}
-                  <TouchableOpacity style={styles.ajouterLigneBtn} onPress={() => ajouterLigneDep(key)}>
-                    <Text style={styles.ajouterLigneTxt}>+ Ajouter une ligne</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          )
-        })}
-
-        {/* Paies de salaire */}
-        <TouchableOpacity style={styles.bandHeader} onPress={() => toggleSection('paies')}>
-          <Text style={styles.bandTitre}>💵 Paies de salaire</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            {paiesGerantCaisse.length > 0 && (
-              <Text style={styles.bandCount}>{paiesGerantCaisse.length} ligne(s)</Text>
-            )}
-            <Text style={styles.bandChevron}>{sectionsOuvertes.has('paies') ? '▲' : '▼'}</Text>
-          </View>
-        </TouchableOpacity>
-
-        {sectionsOuvertes.has('paies') && (
-          <View style={styles.bandContent}>
-            {paiesGerantCaisse.map((ligne, i) => (
-              <View key={ligne.id || i} style={styles.ligneDepCard}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <Text style={styles.ligneDepNum}>Paie {i + 1}</Text>
-                  <TouchableOpacity onPress={() => setPaiesGerantCaisse(prev => prev.filter((_, j) => j !== i))}>
-                    <Text style={{ color: '#993C1D', fontSize: 12, fontWeight: '500' }}>✕ Supprimer</Text>
-                  </TouchableOpacity>
-                </View>
-                {/* Sélecteur travailleur */}
-                <TouchableOpacity style={styles.travSelectBtn} onPress={() => ouvrirSelecteurTravailleur(i)}>
-                  <Text style={ligne.travailleur_nom ? styles.travSelectNom : styles.travSelectPlaceholder}>
-                    {ligne.travailleur_nom || '👤 Sélectionner un travailleur…'}
-                  </Text>
-                  <Text style={styles.travSelectChevron}>›</Text>
-                </TouchableOpacity>
-                <TextInput
-                  style={styles.depInput}
-                  value={ligne.montant || ''}
-                  onChangeText={v => setPaiesGerantCaisse(prev => prev.map((l, j) => j === i ? { ...l, montant: v } : l))}
-                  keyboardType="numeric"
-                  placeholder="Montant payé (FCFA)"
-                  placeholderTextColor="#bbb"
-                />
-              </View>
-            ))}
-            <TouchableOpacity
-              style={styles.ajouterLigneBtn}
-              onPress={() => setPaiesGerantCaisse(prev => [
-                ...prev,
-                { id: Date.now().toString(), travailleur_id: null, travailleur_nom: '', montant: '' }
-              ])}
-            >
-              <Text style={styles.ajouterLigneTxt}>+ Ajouter une paie</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {totalDepensesGerantCaisse() > 0 && (
-          <View style={styles.totalDepGerantCard}>
-            <Text style={styles.totalDepGerantLabel}>Total dépenses gérant caisse</Text>
-            <Text style={styles.totalDepGerantVal}>− {fmt(totalDepensesGerantCaisse())}</Text>
-          </View>
-        )}
-
-        {/* Bouton Sauvegarder */}
-        <TouchableOpacity
-          style={[styles.sauvegarderBtn, (uploading || saveStatus === 'saving') && { opacity: 0.6 }]}
-          onPress={sauvegarder}
-          disabled={uploading || saveStatus === 'saving'}
-        >
-          {saveStatus === 'saving' ? (
-            <ActivityIndicator color="#412402" size="small" />
-          ) : (
-            <Text style={styles.sauvegarderTxt}>
-              {saveStatus === 'ok' ? '✅ Sauvegardé' : saveStatus === 'error' ? '❌ Erreur — Réessayez' : '💾 Sauvegarder'}
-            </Text>
-          )}
-        </TouchableOpacity>
-
-        <View style={{ height: 40 }} />
+      <ScrollView style={styles.corps} contentContainerStyle={styles.corpsContenu}
+        showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        {onglet === 'fournisseurs' ? (
+          <OngletFournisseurs
+            fournisseursList={fournisseursList}
+            fournisseursGerantCaisse={fournisseursGerantCaisse}
+            chargement={chargement}
+            ouverts={fournOuverts}
+            basculer={basculerFournisseur}
+            getCreditVeille={getCreditVeille}
+            majFournisseur={updateFournisseurGerant}
+            onPhoto={four => gererPhoto(url => updateFournisseurGerant(four.id, four.nom, 'photoUri', url), 'depenses-gerant')}
+            uploading={uploading}
+            fmt={fmt}
+          />
+        ) : null}
+        {onglet === 'depenses' ? (
+          <OngletDepenses depenses={depensesGerantCaisse} ajouter={ajouterLigneDep}
+            supprimer={supprimerLigneDep} maj={updateLigneDep} fmt={fmt} />
+        ) : null}
+        {onglet === 'paies' ? (
+          <OngletPaies
+            paies={paiesGerantCaisse}
+            choisirTravailleur={ouvrirSelecteurTravailleur}
+            majMontant={(i, v) => setPaiesGerantCaisse(prev => prev.map((l, j) => (j === i ? { ...l, montant: v } : l)))}
+            supprimer={i => setPaiesGerantCaisse(prev => prev.filter((_, j) => j !== i))}
+            ajouter={() => setPaiesGerantCaisse(prev => [
+              ...prev,
+              { id: Date.now().toString(), travailleur_id: null, travailleur_nom: '', montant: '' },
+            ])}
+          />
+        ) : null}
       </ScrollView>
 
-      {/* Modal sélection travailleur */}
-      <Modal visible={modalPaie} transparent animationType="slide" onRequestClose={() => setModalPaie(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitre}>Sélectionner un travailleur</Text>
-              <TouchableOpacity onPress={() => setModalPaie(false)}>
-                <Text style={styles.modalClose}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {travailleurs.length === 0 ? (
-                <Text style={styles.travVide}>Aucun travailleur enregistré pour ce restaurant</Text>
-              ) : (
-                travailleurs.map(trav => {
-                  const dejaSelectionne = paiesGerantCaisse.some(
-                    (l, i) => i !== paieEditIndex && l.travailleur_id === trav.id
-                  )
-                  return (
-                    <TouchableOpacity
-                      key={trav.id}
-                      style={[styles.travItem, dejaSelectionne && styles.travItemDejaPaye]}
-                      onPress={() => !dejaSelectionne && selectionnerTravailleur(trav)}
-                      disabled={dejaSelectionne}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.travItemNom, dejaSelectionne && { color: '#aaa' }]}>{trav.nom}</Text>
-                        {trav.poste ? (
-                          <Text style={styles.travItemPoste}>{trav.poste}</Text>
-                        ) : null}
-                      </View>
-                      {dejaSelectionne && (
-                        <Text style={styles.travItemDejaTag}>Déjà payé</Text>
-                      )}
-                    </TouchableOpacity>
-                  )
-                })
-              )}
-              <View style={{ height: 20 }} />
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      <BarreBas libelle="Total prélevé" valeur={totalTexte} couleurValeur={total > 0 ? p.erreur : undefined} manquants={manquants}>
+        <BoutonDegrade label={libelleBouton} onPress={sauvegarder} chargement={saveStatus === 'saving'}
+          disabled={uploading} attenue={manquants.length > 0} />
+      </BarreBas>
+
+      <Feuille visible={modalPaie} titre="Choisir un travailleur" onFermer={() => setModalPaie(false)}>
+        {travailleurs.length === 0 ? (
+          <Vide texte="Aucun travailleur enregistré pour ce restaurant" />
+        ) : travailleurs.map(trav => {
+          const deja = paiesGerantCaisse.some((l, i) => i !== paieEditIndex && l.travailleur_id === trav.id)
+          return (
+            <Choix key={trav.id} nom={trav.nom} sous={trav.poste} desactive={deja}
+              etiquette={deja ? 'Déjà payé' : null} onPress={() => selectionnerTravailleur(trav)} />
+          )
+        })}
+      </Feuille>
     </SafeAreaView>
   )
 }
-
-function makeStyles(colors) { return StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    backgroundColor: '#EF9F27', padding: 16,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'
-  },
-  back: { fontSize: 16, color: '#412402', fontWeight: '500' },
-  headerTitre: { fontSize: 16, fontWeight: '600', color: '#412402', textAlign: 'center' },
-  headerSub: { fontSize: 11, color: '#854F0B', textAlign: 'center' },
-  uploadBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#EF9F27', padding: 8, paddingHorizontal: 14
-  },
-  uploadTxt: { fontSize: 12, color: '#412402', fontWeight: '500' },
-  totalBanner: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#FAECE7', padding: 12, paddingHorizontal: 16,
-    borderBottomWidth: 0.5, borderBottomColor: '#F09595'
-  },
-  totalBannerLabel: { fontSize: 13, color: '#993C1D', fontWeight: '500' },
-  totalBannerVal: { fontSize: 15, fontWeight: '700', color: '#A32D2D' },
-  body: { flex: 1, padding: 12 },
-  bandHeader: {
-    backgroundColor: colors.surface, borderRadius: 12, padding: 14,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 2, marginTop: 6, borderWidth: 0.5, borderColor: colors.border
-  },
-  bandTitre: { fontSize: 14, fontWeight: '600', color: colors.text },
-  bandChevron: { fontSize: 12, color: colors.textMuted },
-  bandCount: {
-    fontSize: 11, color: '#EF9F27', fontWeight: '600',
-    backgroundColor: colors.orangeLight, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10
-  },
-  bandContent: {
-    backgroundColor: colors.surfaceAlt, borderRadius: 12, padding: 12,
-    marginBottom: 2, borderWidth: 0.5, borderColor: colors.border, borderTopWidth: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0
-  },
-  bandVide: { fontSize: 12, color: colors.textPlaceholder, textAlign: 'center', paddingVertical: 12 },
-  fourRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: colors.border
-  },
-  fourNom: { fontSize: 13, color: colors.text, fontWeight: '500' },
-  fourMontant: { fontSize: 12, color: '#A32D2D', fontWeight: '600' },
-  fourDetails: { paddingTop: 10, paddingBottom: 6 },
-  fourCreditRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: colors.primaryLight, borderRadius: 10, padding: 10, marginBottom: 8
-  },
-  fourCreditLabel: { fontSize: 12, fontWeight: '600', color: colors.primary },
-  fourCreditVal: { fontSize: 14, fontWeight: '700', color: colors.primaryDark },
-  fourResteRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderRadius: 10, padding: 10, marginBottom: 8, borderWidth: 1
-  },
-  fourResteLabel: { fontSize: 12, fontWeight: '500' },
-  fourResteVal: { fontSize: 14, fontWeight: '700' },
-  depInput: {
-    backgroundColor: colors.bg, borderRadius: 10, padding: 11,
-    fontSize: 14, color: colors.text, marginBottom: 8
-  },
-  ligneDepCard: {
-    backgroundColor: colors.surface, borderRadius: 10, padding: 12,
-    marginBottom: 8, borderWidth: 0.5, borderColor: colors.border
-  },
-  ligneDepNum: { fontSize: 12, fontWeight: '600', color: colors.textMuted },
-  ajouterLigneBtn: {
-    backgroundColor: '#EF9F27', borderRadius: 10, padding: 12,
-    alignItems: 'center', marginTop: 6
-  },
-  ajouterLigneTxt: { fontSize: 13, fontWeight: '600', color: '#412402' },
-  photoBlock: {
-    marginTop: 10, backgroundColor: colors.surfaceAlt,
-    borderRadius: 10, padding: 10, borderWidth: 0.5, borderColor: colors.border
-  },
-  photoBlockRequired: { backgroundColor: '#FAECE7', borderColor: '#F09595' },
-  photoBlockHeader: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', marginBottom: 8
-  },
-  photoBlockLabel: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
-  photoBadgeOk: { backgroundColor: '#EAF3DE', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
-  photoBadgeOkTxt: { fontSize: 10, color: '#3B6D11', fontWeight: '500' },
-  photoBadgeReq: { backgroundColor: '#FAECE7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
-  photoBadgeReqTxt: { fontSize: 10, color: '#993C1D', fontWeight: '500' },
-  photoPreview: { width: '100%', height: 140, borderRadius: 10, marginBottom: 8 },
-  photoBtn: { backgroundColor: '#EF9F27', borderRadius: 10, padding: 10, alignItems: 'center' },
-  photoBtnTxt: { fontSize: 13, color: '#412402', fontWeight: '500' },
-  totalDepGerantCard: {
-    backgroundColor: '#FAECE7', borderRadius: 12, padding: 14,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginTop: 12, marginBottom: 8, borderWidth: 1, borderColor: '#F09595'
-  },
-  totalDepGerantLabel: { fontSize: 13, color: '#993C1D', fontWeight: '500' },
-  totalDepGerantVal: { fontSize: 16, fontWeight: '700', color: '#A32D2D' },
-  sauvegarderBtn: {
-    backgroundColor: '#EF9F27', borderRadius: 14, padding: 16,
-    alignItems: 'center', marginTop: 8, marginBottom: 4,
-  },
-  sauvegarderTxt: { fontSize: 15, fontWeight: '700', color: '#412402' },
-  // ── Sélecteur travailleur ──
-  travSelectBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: colors.bg, borderRadius: 10, padding: 12, marginBottom: 8,
-    borderWidth: 1, borderColor: colors.primary
-  },
-  travSelectNom: { fontSize: 14, color: colors.text, fontWeight: '500', flex: 1 },
-  travSelectPlaceholder: { fontSize: 14, color: colors.textPlaceholder, flex: 1 },
-  travSelectChevron: { fontSize: 18, color: colors.primary, marginLeft: 6 },
-  // ── Modal sélection ──
-  modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'flex-end'
-  },
-  modalBox: {
-    backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    padding: 20, maxHeight: '75%'
-  },
-  modalHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 14
-  },
-  modalTitre: { fontSize: 16, fontWeight: '700', color: colors.text },
-  modalClose: { fontSize: 18, color: colors.textMuted, padding: 4 },
-  travItem: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 12, paddingHorizontal: 4,
-    borderBottomWidth: 0.5, borderBottomColor: colors.borderLight
-  },
-  travItemDejaPaye: { opacity: 0.4 },
-  travItemNom: { fontSize: 14, fontWeight: '600', color: colors.text },
-  travItemPoste: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
-  travItemDejaTag: {
-    fontSize: 10, color: '#3B6D11', backgroundColor: '#EAF3DE',
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, fontWeight: '600'
-  },
-  travVide: { fontSize: 13, color: colors.textPlaceholder, textAlign: 'center', paddingVertical: 20 },
-}) }
