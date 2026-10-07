@@ -24,6 +24,8 @@ import { chargerLitigesRestaurant } from '../lib/litigesGlobal'
 import { resumeLitiges } from '../lib/litigesResume'
 import { fmtCourt, melangerCouleurs } from '../lib/graphiques'
 import { progressionObjectif, variation } from '../lib/objectifs'
+import { venteRetenue, venteTheorique } from '../lib/venteMachine'
+import VenteDouble, { TexteTheorique } from '../components/ui/VenteDouble'
 import {
   JOURS_COURTS, ORDRE_HEURES, faitsMarquants, grilleSemaine, heurePic, heuresDuService, joursForts, libelleCreneau,
   mixCanaux, mixPaiements, ticketMoyen,
@@ -33,7 +35,7 @@ import { supabase } from '../lib/supabase'
 
 
 // Les colonnes de `points` que cet écran lit — une seule liste, trois requêtes.
-const CHAMPS_POINTS = 'id, date, restaurant_id, vente_total, depense_total, benefice_sc, yango_cse, yango_tab, glovo_cse, glovo_tab, wave, om, djamo, fond_recu, fc_compte'
+const CHAMPS_POINTS = 'id, date, restaurant_id, vente_total, vente_machine, depense_total, benefice_sc, yango_cse, yango_tab, glovo_cse, glovo_tab, wave, om, djamo, fond_recu, fc_compte'
 
 // Alertes et Litiges sont des listes d'événements déjà datables, pas des
 // agrégats à confronter : ils restent en lecture simple sur le terme A.
@@ -106,7 +108,7 @@ export default function DashboardGlobalScreen() {
   const [statsPOS, setStatsPOS] = useState(null)        // { stats } | { erreur }
   const [chargementPOS, setChargementPOS] = useState(false)
   // Mois en cours, quelle que soit la période : objectifs et effectifs.
-  const [moisEnCours, setMoisEnCours] = useState({ ventes: {}, employes: {} })
+  const [moisEnCours, setMoisEnCours] = useState({ ventes: {}, ventesTheo: {}, employes: {} })
   const [objectifsVisibles, setObjectifsVisibles] = useState(false)   // feuille « Fixer les objectifs »
   const [objectifsSaisis, setObjectifsSaisis] = useState({})          // { restaurantId: texte }
   const [objectifEnCours, setObjectifEnCours] = useState(false)
@@ -158,13 +160,17 @@ export default function DashboardGlobalScreen() {
     const auj = new Date()
     const debut = `${auj.getFullYear()}-${String(auj.getMonth() + 1).padStart(2, '0')}-01`
     const [{ data: pts }, { data: trav }] = await Promise.all([
-      supabase.from('points').select('restaurant_id, vente_total').gte('date', debut),
+      supabase.from('points').select('restaurant_id, vente_total, vente_machine').gte('date', debut),
       supabase.from('travailleurs').select('restaurant_id').eq('actif', true),
     ])
-    const ventes = {}, employes = {}
-    ;(pts || []).forEach(p => { ventes[p.restaurant_id] = (ventes[p.restaurant_id] || 0) + (Number(p.vente_total) || 0) })
+    // Objectif : vente machine (lib/venteMachine.js), la théorique en comparatif.
+    const ventes = {}, ventesTheo = {}, employes = {}
+    ;(pts || []).forEach(p => {
+      ventes[p.restaurant_id] = (ventes[p.restaurant_id] || 0) + venteRetenue(p)
+      ventesTheo[p.restaurant_id] = (ventesTheo[p.restaurant_id] || 0) + venteTheorique(p)
+    })
     ;(trav || []).forEach(t => { employes[t.restaurant_id] = (employes[t.restaurant_id] || 0) + 1 })
-    setMoisEnCours({ ventes, employes })
+    setMoisEnCours({ ventes, ventesTheo, employes })
   }
 
   function grouperParResto(data, list) {
@@ -466,7 +472,7 @@ export default function DashboardGlobalScreen() {
     const A = cmp.vueA.total
     const B = cmp.vueB.total
     if (clePilier === 'apercu') return [
-      { cle: 'ventes', libelle: 'Ventes', a: A.ventes, b: B.ventes, ...commun,
+      { cle: 'ventes', libelle: 'Vente machine', a: A.ventes, b: B.ventes, ...commun,
         phraseZeroA: `${cmp.libelleA} n’a rien vendu sur cette période` },
       { cle: 'depenses', libelle: 'Dépenses', a: A.depenses, b: B.depenses, polarite: POLARITE.MAUVAIS, ...commun },
       { cle: 'benefice', libelle: 'Bénéfice SC', a: A.benefice, b: B.benefice, ...commun },
@@ -717,9 +723,9 @@ export default function DashboardGlobalScreen() {
     const n = Math.max(sA.length, sB.length)
     const etiquettes = Array.from({ length: n }, (_, i) => `J${i + 1}`)
     const val = (serie, champ) => serie.map(p => Number(p[champ]) || 0)
-    const renta = serie => serie.map(p => (p.vente_total ? (p.benefice_sc / p.vente_total) * 100 : 0))
+    const renta = serie => serie.map(p => (p.vente ? (p.benefice_sc / p.vente) * 100 : 0))
     const courbes = [
-      { cle: 'ventes', icone: 'chart-areaspline', titre: 'Ventes par jour', a: val(sA, 'vente_total'), b: val(sB, 'vente_total'), format: fmtCourt, detail: fmt },
+      { cle: 'ventes', icone: 'chart-areaspline', titre: 'Vente machine par jour', a: val(sA, 'vente'), b: val(sB, 'vente'), format: fmtCourt, detail: fmt },
       { cle: 'benefice', icone: 'cash-plus', titre: 'Bénéfice SC par jour', a: val(sA, 'benefice_sc'), b: val(sB, 'benefice_sc'), format: fmtCourt, detail: fmt },
       { cle: 'renta', icone: 'percent-outline', titre: 'Rentabilité par jour', a: renta(sA), b: renta(sB), format: v => `${Math.round(v)}%`, detail: v => `${v.toFixed(1)} %` },
     ]
@@ -901,12 +907,15 @@ export default function DashboardGlobalScreen() {
         <View style={[styles.heroRond, { bottom: -80, left: -40, width: 150, height: 150, opacity: 0.5 }]} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <View style={styles.heroIcone}><MaterialCommunityIcons name="chart-areaspline" size={18} color="#FFFFFF" /></View>
-          <Text style={styles.heroLbl} numberOfLines={1}>Ventes · {titrePeriode()}</Text>
+          <Text style={styles.heroLbl} numberOfLines={1}>Vente machine · {titrePeriode()}</Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
-          <Text style={styles.heroValeur} numberOfLines={1} adjustsFontSizeToFit>{fmt(total.ventes)}</Text>
-          {varVentes !== null ? <View style={{ marginBottom: 8 }}>{pastilleVariation(varVentes, { surFond: true })}</View> : null}
-        </View>
+        <VenteDouble machine={total.ventes} theorique={total.ventesTheo} colors={colors} taille={13}
+          couleur="rgba(255,255,255,0.8)" couleurValeur="#FFFFFF">
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+            <Text style={styles.heroValeur} numberOfLines={1} adjustsFontSizeToFit>{fmt(total.ventes)}</Text>
+            {varVentes !== null ? <View style={{ marginBottom: 8 }}>{pastilleVariation(varVentes, { surFond: true })}</View> : null}
+          </View>
+        </VenteDouble>
         <Text style={styles.heroSous}>
           {varVentes !== null ? 'par rapport à la période précédente de même durée' : `${serieJours.length} jour${serieJours.length > 1 ? 's' : ''} de points validés`}
         </Text>
@@ -942,20 +951,21 @@ export default function DashboardGlobalScreen() {
       {serieJours.length > 1 && (<>
         <CarteGraphique icone="chart-areaspline" couleur="#EF9F27" titre="Ventes et bénéfice par jour"
           sous="Le point le plus haut est signalé"
-          legende={[{ nom: 'Ventes', couleur: '#EF9F27' }, { nom: 'Bénéfice SC', couleur: '#10B981' }]}>
+          legende={[{ nom: 'Vente machine', couleur: '#EF9F27' }, { nom: 'Théorique', couleur: colors.textMuted, pointille: true }, { nom: 'Bénéfice SC', couleur: '#10B981' }]}>
           {l => (
             <CourbeAire largeur={l} hauteur={210} etiquettes={etiquettesJours} formatDetail={fmt} series={[
-              { nom: 'Ventes', valeurs: serieJours.map(p => Number(p.vente_total) || 0), couleur: '#EF9F27', aire: true },
+              { nom: 'Vente machine', valeurs: serieJours.map(p => Number(p.vente) || 0), couleur: '#EF9F27', aire: true },
+              { nom: 'Théorique', valeurs: serieJours.map(p => Number(p.vente_theorique) || 0), couleur: colors.textMuted, pointille: true, opacite: 0.8 },
               { nom: 'Bénéfice SC', valeurs: serieJours.map(p => Number(p.benefice_sc) || 0), couleur: '#10B981', aire: true },
             ]} />
           )}
         </CarteGraphique>
 
         <CarteGraphique icone="chart-bar" couleur="#EF4444" titre="Ventes et dépenses par jour"
-          legende={[{ nom: 'Ventes', couleur: '#EF9F27' }, { nom: 'Dépenses', couleur: '#EF4444' }]}>
+          legende={[{ nom: 'Vente machine', couleur: '#EF9F27' }, { nom: 'Dépenses', couleur: '#EF4444' }]}>
           {l => (
             <Barres largeur={l} etiquettes={etiquettesJours} formatDetail={fmt} series={[
-              { nom: 'Ventes', valeurs: serieJours.map(p => Number(p.vente_total) || 0), couleur: '#EF9F27' },
+              { nom: 'Vente machine', valeurs: serieJours.map(p => Number(p.vente) || 0), couleur: '#EF9F27' },
               { nom: 'Dépenses', valeurs: serieJours.map(p => Number(p.depense_total) || 0), couleur: '#EF4444' },
             ]} />
           )}
@@ -965,7 +975,7 @@ export default function DashboardGlobalScreen() {
           {l => (
             <CourbeAire largeur={l} etiquettes={etiquettesJours} format={v => `${Math.round(v)}%`} formatDetail={v => `${v.toFixed(1)} %`}
               seuil={{ valeur: 20, libelle: 'seuil 20 %', couleur: '#F59E0B' }}
-              series={[{ nom: 'Rentabilité', valeurs: serieJours.map(p => (p.vente_total ? (p.benefice_sc / p.vente_total) * 100 : 0)), couleur: '#6C63E0', aire: true }]} />
+              series={[{ nom: 'Rentabilité', valeurs: serieJours.map(p => (p.vente ? (p.benefice_sc / p.vente) * 100 : 0)), couleur: '#6C63E0', aire: true }]} />
           )}
         </CarteGraphique>
 
@@ -979,11 +989,11 @@ export default function DashboardGlobalScreen() {
         </CarteGraphique>
       </>)}
 
-      <CarteGraphique icone="podium" couleur="#EF9F27" titre="Ventes par restaurant" sous={titrePeriode()}>
+      <CarteGraphique icone="podium" couleur="#EF9F27" titre="Vente machine par restaurant" sous={titrePeriode()}>
         {() => (
           <BarresHorizontales rangs format={fmtCourt} donnees={parVentes.map(r => ({
             cle: r.id, nom: r.nom, valeur: r.ventes, couleur: r.couleur,
-            sous: `Bénéfice ${fmtCourt(r.benefice)} · ${tauxRenta(r.ventes, r.benefice).toFixed(1)} %`,
+            sous: `Théorique ${fmtCourt(r.ventesTheo)} · Bénéfice ${fmtCourt(r.benefice)} · ${tauxRenta(r.ventes, r.benefice).toFixed(1)} %`,
           }))} />
         )}
       </CarteGraphique>
@@ -1076,17 +1086,18 @@ export default function DashboardGlobalScreen() {
               </View>
             </View>
             <View style={styles.restoChiffres}>
-              <View style={styles.restoChiffre}><Text style={styles.restoChiffreLbl}>Ventes</Text><Text style={styles.restoChiffreVal}>{fmtCourt(r.ventes)}</Text></View>
+              <View style={styles.restoChiffre}><Text style={styles.restoChiffreLbl}>Vente machine</Text><Text style={styles.restoChiffreVal}>{fmtCourt(r.ventes)}</Text></View>
               <View style={styles.restoChiffre}><Text style={styles.restoChiffreLbl}>Bénéfice</Text><Text style={[styles.restoChiffreVal, { color: r.benefice >= 0 ? colors.successDark : colors.error }]}>{fmtCourt(r.benefice)}</Text></View>
               <View style={styles.restoChiffre}><Text style={styles.restoChiffreLbl}>Ticket</Text><Text style={styles.restoChiffreVal}>{posResto?.nb ? fmtCourt(posResto.ca / posResto.nb) : '—'}</Text></View>
               <View style={styles.restoChiffre}><Text style={styles.restoChiffreLbl}>Pic</Text><Text style={styles.restoChiffreVal}>{posResto?.pic != null ? `${posResto.pic}h` : '—'}</Text></View>
             </View>
+            {r.nbJours > 0 && <TexteTheorique machine={r.ventes} theorique={r.ventesTheo} colors={colors} style={{ marginTop: 6 }} />}
             <TouchableOpacity style={styles.objectif} activeOpacity={0.7}
               onPress={ouvrirObjectifs}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: prog ? 6 : 0 }}>
                 <MaterialCommunityIcons name="target" size={15} color={prog ? (prog.enAvance ? colors.successDark : colors.warningDark) : colors.textMuted} />
                 <Text style={styles.objectifTxt} numberOfLines={1}>
-                  {prog ? `${fmtCourt(ventesMois)} sur ${fmtCourt(resto.objectif_mensuel)} · ${prog.pct} %` : `Objectif de ${nomMoisCourant} à définir`}
+                  {prog ? `${fmtCourt(ventesMois)} sur ${fmtCourt(resto.objectif_mensuel)} · ${prog.pct} % (vente machine)` : `Objectif de ${nomMoisCourant} à définir`}
                 </Text>
                 <MaterialCommunityIcons name="pencil-outline" size={15} color={colors.primary} />
               </View>

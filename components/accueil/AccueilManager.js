@@ -27,6 +27,7 @@ import { chargerContactsPeriode } from '../../lib/contactsPeriodeDb'
 import { evolutionsHierDetail, texteHier, totalParJour } from '../../lib/hierAccueil'
 import { etatPointHier, lignesCaissiersHier, texteDemandes } from '../../lib/accueilGerant'
 import { objectifDuMois } from '../../lib/objectifs'
+import { CHAMPS_VENTE, venteRetenue, venteTheorique, ventesDouble } from '../../lib/venteMachine'
 import BandeauGerant from './BandeauGerant'
 import { resumeContrats } from '../../lib/contrats'
 import {
@@ -118,7 +119,7 @@ function useEtatDuJour(role, userId, restaurantId) {
         const debutMois = isoLocal(new Date(auj.getFullYear(), auj.getMonth(), 1))
         const joursMois = new Date(auj.getFullYear(), auj.getMonth() + 1, 0).getDate()
         const [pts, corr, dem, expl, aH, aAH, aSP, contactsJours, shiftsHier, resto, ptsMois] = await Promise.all([
-          supabase.from('points').select('date, valide, verifie, vente_total').eq('restaurant_id', restaurantId).in('date', dates),
+          supabase.from('points').select(`date, valide, verifie, ${CHAMPS_VENTE}`).eq('restaurant_id', restaurantId).in('date', dates),
           supabase.from('deverouillages_points').select('id', { count: 'exact', head: true })
             .eq('restaurant_id', restaurantId).eq('statut', 'ouvert'),
           supabase.from('demandes').select('id', { count: 'exact', head: true })
@@ -132,15 +133,16 @@ function useEtatDuJour(role, userId, restaurantId) {
             .select('id, caissier_nom, heure_debut, heure_fin, vente_shift, ecart_pos, explication_ecart')
             .eq('restaurant_id', restaurantId).eq('date', dates[0]),
           supabase.from('restaurants').select('objectif_mensuel').eq('id', restaurantId).maybeSingle(),
-          supabase.from('points').select('vente_total').eq('restaurant_id', restaurantId)
+          supabase.from('points').select(CHAMPS_VENTE).eq('restaurant_id', restaurantId)
             .gte('date', debutMois).lt('date', isoLocal(auj)),
         ])
         if (pts.error) return
         const parDate = Object.fromEntries((pts.data || []).map(x => [x.date, x]))
-        const vente = d => (parDate[d] ? Number(parDate[d].vente_total) || 0 : 0)
+        // La vraie vente = vente machine ; la théorique n'est que le comparatif (lib/venteMachine.js).
+        const vente = d => venteRetenue(parDate[d])
         const nbDem = dem.error ? 0 : dem.count || 0
         const nbExpl = expl.error ? 0 : expl.count || 0
-        const ventesMois = (ptsMois.data || []).reduce((s, x) => s + (Number(x.vente_total) || 0), 0)
+        const mois = ventesDouble(ptsMois.data || [])
         const objectifMensuel = Number(resto.data?.objectif_mensuel) || 0
         setEtat({
           hier,
@@ -148,6 +150,7 @@ function useEtatDuJour(role, userId, restaurantId) {
             hier,
             point: etatPointHier({ point: parDate[dates[0]] || null, nbCorrections: corr.error ? 0 : corr.count || 0 }),
             ventes: parDate[dates[0]] ? vente(dates[0]) : null,
+            ventesTheo: parDate[dates[0]] ? venteTheorique(parDate[dates[0]]) : null,
             ventesEvo: parDate[dates[0]]
               ? evolutionsHierDetail({ hier: vente(dates[0]), avantHier: vente(dates[1]), semainePrec: vente(dates[2]) }, dates[0])
               : [],
@@ -155,10 +158,11 @@ function useEtatDuJour(role, userId, restaurantId) {
             nbDemandes: nbDem + nbExpl,
             caissiers: shiftsHier.error ? [] : lignesCaissiersHier(shiftsHier.data),
             objectif: resto.error || ptsMois.error ? null : objectifDuMois({
-              ventes: ventesMois, objectif: objectifMensuel, joursEcoules: auj.getDate() - 1, joursMois,
+              ventes: mois.machine, objectif: objectifMensuel, joursEcoules: auj.getDate() - 1, joursMois,
             }),
             objectifMensuel,
-            ventesMois,
+            ventesMois: mois.machine,
+            ventesMoisTheo: mois.theorique,
           },
           avisHier: texteHier({ hier: aH, avantHier: aAH, semainePrec: aSP }, dates[0]),
           contactsHier: contactsJours === null ? null : texteHier({

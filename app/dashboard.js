@@ -13,6 +13,8 @@ import {
 } from 'victory-native'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
+import VenteDouble, { TexteTheorique } from '../components/ui/VenteDouble'
+import { venteRetenue, venteTheorique } from '../lib/venteMachine'
 import { getDepensesPeriode, getFournisseursPeriodePaye, getPaiesGerantPeriode, getPointsPeriode, getPresencesPeriode } from '../lib/api'
 import { FOURNISSEURS_LABOR, FOURNISSEURS_NON_FOOD } from '../lib/constants'
 import { chargerChargesMois } from '../lib/chargesMois'
@@ -280,7 +282,11 @@ export default function DashboardScreen() {
     return beneficeSC()
   }
 
-  const ventesPeriode = isToday ? ventesToday() : totalPeriode('vente_total')
+  // Vente = vente machine ; la théorique (shifts / stock) n'est que le comparatif (lib/venteMachine.js).
+  // Aujourd'hui : la vente machine saisie, sinon la théorique en attendant.
+  const theoPeriode = isToday ? ventesToday() : totalPeriode('vente_total')
+  const machineDuJour = parseFloat(ventesJour.venteMachine) || 0
+  const ventesPeriode = isToday ? (machineDuJour > 0 ? machineDuJour : theoPeriode) : points.reduce((s, p) => s + venteRetenue(p), 0)
   const depensesPeriode = isToday ? depensesToday() : totalPeriode('depense_total')
   const beneficePeriode = isToday ? beneficeToday() : totalPeriode('benefice_sc')
   const nbJours = isToday ? 1 : points.length
@@ -296,13 +302,13 @@ export default function DashboardScreen() {
   }
 
   const dataVentes = points.map((p, i) => ({
-    x: i + 1, y: (p.vente_total || 0) / 1000, label: formatDate(p.date)
+    x: i + 1, y: venteRetenue(p) / 1000, label: formatDate(p.date)
   }))
   const dataBenefice = points.map((p, i) => ({
     x: i + 1, y: (p.benefice_sc || 0) / 1000
   }))
   const dataRentabilite = points.map((p, i) => ({
-    x: i + 1, y: tauxRenta(p.vente_total || 0, p.benefice_sc || 0)
+    x: i + 1, y: tauxRenta(venteRetenue(p), p.benefice_sc || 0)
   }))
 
   // ---- Pilier 2 — Structure des coûts ----
@@ -379,10 +385,10 @@ export default function DashboardScreen() {
         message: `Le bénéfice SC de la période est négatif (${fmtFull(beneficePeriode)})` })
     }
     if (!isToday && points.length > 1) {
-      const meilleur = points.reduce((max, p) => (p.vente_total || 0) > (max.vente_total || 0) ? p : max, points[0])
-      if ((meilleur.vente_total || 0) > 0) {
+      const meilleur = points.reduce((max, p) => venteRetenue(p) > venteRetenue(max) ? p : max, points[0])
+      if (venteRetenue(meilleur) > 0) {
         alertes.push({ type: 'info', icon: '🏆', titre: 'Meilleure journée',
-          message: `${formatDateLong(meilleur.date)} avec ${fmtFull(meilleur.vente_total || 0)} de ventes` })
+          message: `${formatDateLong(meilleur.date)} avec ${fmtFull(venteRetenue(meilleur))} de vente machine` })
       }
       const pire = points.reduce((min, p) => (p.benefice_sc || 0) < (min.benefice_sc || 0) ? p : min, points[0])
       if ((pire.benefice_sc || 0) < 0) {
@@ -495,8 +501,10 @@ export default function DashboardScreen() {
               {/* KPIs */}
               <View style={styles.kpiGrid}>
                 <View style={styles.kpiCard}>
-                  <Text style={styles.kpiLabel}>Ventes {isToday ? 'du jour' : `(${nbJours}j)`}</Text>
-                  <Text style={[styles.kpiValue, { color: '#BA7517' }]}>{fmtFull(ventesPeriode)}</Text>
+                  <Text style={styles.kpiLabel}>Vente machine {isToday ? 'du jour' : `(${nbJours}j)`}</Text>
+                  <VenteDouble machine={ventesPeriode} theorique={theoPeriode} colors={colors} taille={11}>
+                    <Text style={[styles.kpiValue, { color: '#BA7517' }]}>{fmtFull(ventesPeriode)}</Text>
+                  </VenteDouble>
                 </View>
                 <View style={styles.kpiCard}>
                   <Text style={styles.kpiLabel}>Dépenses</Text>
@@ -544,7 +552,7 @@ export default function DashboardScreen() {
                     <View style={styles.legende}>
                       <View style={styles.legendeItem}>
                         <View style={[styles.legendeColor, { backgroundColor: '#EF9F27' }]} />
-                        <Text style={styles.legendeTxt}>Ventes</Text>
+                        <Text style={styles.legendeTxt}>Vente machine</Text>
                       </View>
                       <View style={styles.legendeItem}>
                         <View style={[styles.legendeColor, { backgroundColor: '#3B6D11' }]} />
@@ -568,7 +576,7 @@ export default function DashboardScreen() {
                       />
                       <VictoryAxis dependentAxis style={{ tickLabels: { fontSize: 8, fill: '#888' } }} />
                       <VictoryBar
-                        data={points.map((p, i) => ({ x: i + 1 - 0.2, y: (p.vente_total || 0) / 1000 }))}
+                        data={points.map((p, i) => ({ x: i + 1 - 0.2, y: venteRetenue(p) / 1000 }))}
                         style={{ data: { fill: '#EF9F27', width: 8 } }}
                       />
                       <VictoryBar
@@ -579,7 +587,7 @@ export default function DashboardScreen() {
                     <View style={styles.legende}>
                       <View style={styles.legendeItem}>
                         <View style={[styles.legendeColor, { backgroundColor: '#EF9F27' }]} />
-                        <Text style={styles.legendeTxt}>Ventes</Text>
+                        <Text style={styles.legendeTxt}>Vente machine</Text>
                       </View>
                       <View style={styles.legendeItem}>
                         <View style={[styles.legendeColor, { backgroundColor: '#A32D2D' }]} />
@@ -697,10 +705,14 @@ export default function DashboardScreen() {
                     <Text style={styles.sectionTitre}>Résultats financiers</Text>
                     <View style={styles.resultCard}>
                       <View style={styles.resultRow}>
-                        <Text style={styles.resultLabel}>Total ventes shifts</Text>
+                        <Text style={styles.resultLabel}>Vente machine</Text>
                         <Text style={[styles.resultValue, { color: '#BA7517' }]}>
                           {fmtFull(ventesPeriode)}
                         </Text>
+                      </View>
+                      <View style={styles.resultRow}>
+                        <Text style={styles.resultLabel}>Vente théorique (shifts)</Text>
+                        <TexteTheorique machine={ventesPeriode} theorique={theoPeriode} colors={colors} />
                       </View>
                       <View style={styles.resultRow}>
                         <Text style={styles.resultLabel}>Total dépenses</Text>
@@ -764,7 +776,8 @@ export default function DashboardScreen() {
                           <Text style={styles.dateSmall}>Dép: {fmtFull(p.depense_total || 0)}</Text>
                         </View>
                         <View style={{ alignItems: 'flex-end' }}>
-                          <Text style={styles.resultValue}>{fmtFull(p.vente_total || 0)}</Text>
+                          <Text style={styles.resultValue}>{fmtFull(venteRetenue(p))}</Text>
+                          <TexteTheorique machine={venteRetenue(p)} theorique={venteTheorique(p)} colors={colors} taille={10.5} />
                           <Text style={[styles.dateSmall, {
                             color: (p.benefice_sc || 0) >= 0 ? '#3B6D11' : '#A32D2D'
                           }]}>

@@ -14,6 +14,7 @@ import { fmtCourt, melangerCouleurs } from '../../lib/graphiques'
 import { chargerAnalyse, moisProposes } from '../../lib/analyseMoisDb'
 import { heuresDuService, mixCanaux } from '../../lib/statsPOS'
 import { Anneau, Barres, BarresHorizontales, CarteGraphique, CourbeAire } from '../graphiques'
+import VenteDouble from '../ui/VenteDouble'
 
 const fmt = v => `${Math.round(Number(v) || 0).toLocaleString('fr-FR')} F`
 const pct = v => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v} %`)
@@ -82,17 +83,20 @@ export default function OngletAnalyse({ onExporter }) {
               {infoMois?.label}{a.enCours ? ` · au ${a.jourCourant}` : ''}
             </Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
-            <Text style={styles.heroValeur} numberOfLines={1} adjustsFontSizeToFit>{fmt(a.totaux.ca)}</Text>
-            {a.totaux.varCa !== null && (
-              <View style={styles.heroVar}>
-                <MaterialCommunityIcons name={a.totaux.varCa >= 0 ? 'arrow-up' : 'arrow-down'} size={13} color="#FFFFFF" />
-                <Text style={styles.heroVarTxt}>{Math.abs(a.totaux.varCa)} %</Text>
-              </View>
-            )}
-          </View>
+          <VenteDouble machine={a.totaux.ca} theorique={a.totaux.caTheo} colors={colors} taille={13}
+            couleur="rgba(255,255,255,0.8)" couleurValeur="#FFFFFF">
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+              <Text style={styles.heroValeur} numberOfLines={1} adjustsFontSizeToFit>{fmt(a.totaux.ca)}</Text>
+              {a.totaux.varCa !== null && (
+                <View style={styles.heroVar}>
+                  <MaterialCommunityIcons name={a.totaux.varCa >= 0 ? 'arrow-up' : 'arrow-down'} size={13} color="#FFFFFF" />
+                  <Text style={styles.heroVarTxt}>{Math.abs(a.totaux.varCa)} %</Text>
+                </View>
+              )}
+            </View>
+          </VenteDouble>
           <Text style={styles.heroSous}>
-            Ventes du mois{a.totaux.varCa !== null ? ` · ${a.enCours ? 'comparé au mois précédent à date égale' : 'comparé au mois précédent'}` : ''}
+            Vente machine du mois{a.totaux.varCa !== null ? ` · ${a.enCours ? 'comparé au mois précédent à date égale' : 'comparé au mois précédent'}` : ''}
           </Text>
           <View style={styles.heroCases}>
             {[
@@ -189,7 +193,8 @@ export default function OngletAnalyse({ onExporter }) {
               {estOuvert && (
                 <View style={styles.restoDetail}>
                   {[
-                    ['Ventes', fmt(r.ca)],
+                    ['Vente machine', fmt(r.ca)],
+                    ['Vente théorique (comparatif)', `${fmt(r.caTheo)} · écart ${r.caTheo - r.ca > 0 ? '+' : ''}${fmt(r.caTheo - r.ca)}`],
                     ['Mois précédent', r.caPrec ? fmt(r.caPrec) : '—'],
                     ['Dépenses (points)', fmt(r.depenses)],
                     ['Bénéfice SC', fmt(r.benefice)],

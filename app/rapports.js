@@ -18,6 +18,8 @@ import {
 import * as Print from 'expo-print'
 import * as Sharing from 'expo-sharing'
 import { supabase } from '../lib/supabase'
+import { venteRetenue, venteTheorique } from '../lib/venteMachine'
+import { TexteTheorique } from '../components/ui/VenteDouble'
 import { listerMoisAvecTotaux, chargerRapportMensuel } from '../lib/rapportMensuel'
 import { chargerAnalyse } from '../lib/analyseMoisDb'
 import { exporterPptx, exporterXlsx, exporterPdf } from '../lib/exportRapportMensuel'
@@ -53,9 +55,11 @@ function buildRapport(lundi, points, restaurants) {
   const parResto = {}
   points.forEach(p => {
     if (!parResto[p.restaurant_id]) {
-      parResto[p.restaurant_id] = { venteTotal: 0, beneficeTotal: 0, depenseTotal: 0, nbJours: 0 }
+      parResto[p.restaurant_id] = { venteTotal: 0, venteTheo: 0, beneficeTotal: 0, depenseTotal: 0, nbJours: 0 }
     }
-    parResto[p.restaurant_id].venteTotal += p.vente_total || 0
+    // venteTotal = vente machine ; venteTheo = vente théorique, le comparatif (lib/venteMachine.js).
+    parResto[p.restaurant_id].venteTotal += venteRetenue(p)
+    parResto[p.restaurant_id].venteTheo += venteTheorique(p)
     parResto[p.restaurant_id].beneficeTotal += p.benefice_sc || 0
     parResto[p.restaurant_id].depenseTotal += p.depense_total || 0
     parResto[p.restaurant_id].nbJours++
@@ -66,6 +70,7 @@ function buildRapport(lundi, points, restaurants) {
       id: r.id,
       nom: r.nom,
       venteTotal: Math.round(parResto[r.id].venteTotal),
+      venteTheo: Math.round(parResto[r.id].venteTheo),
       beneficeTotal: Math.round(parResto[r.id].beneficeTotal),
       depenseTotal: Math.round(parResto[r.id].depenseTotal),
       nbJours: parResto[r.id].nbJours,
@@ -76,7 +81,8 @@ function buildRapport(lundi, points, restaurants) {
     semaine_fin: getDimanche(lundi),
     nb_points: points.length,
     nb_restaurants: new Set(points.map(p => p.restaurant_id)).size,
-    vente_total: Math.round(points.reduce((s, p) => s + (p.vente_total || 0), 0)),
+    vente_total: Math.round(points.reduce((s, p) => s + venteRetenue(p), 0)),
+    vente_theorique: Math.round(points.reduce((s, p) => s + venteTheorique(p), 0)),
     benefice_total: Math.round(points.reduce((s, p) => s + (p.benefice_sc || 0), 0)),
     depense_total: Math.round(points.reduce((s, p) => s + (p.depense_total || 0), 0)),
     detail_restaurants,
@@ -126,7 +132,7 @@ export default function RapportsScreen() {
       dateMin.setMonth(dateMin.getMonth() - 3)
       const { data: points, error } = await supabase
         .from('points')
-        .select('id, date, restaurant_id, vente_total, depense_total, benefice_sc')
+        .select('id, date, restaurant_id, vente_total, vente_machine, depense_total, benefice_sc')
         .gte('date', dateMin.toISOString().split('T')[0])
         .order('date', { ascending: false })
       if (error) throw error
@@ -167,6 +173,7 @@ export default function RapportsScreen() {
       if (filtreDetail.length === 0) { alert('Aucune donnée pour ce restaurant.'); setExporting(false); return }
 
       const venteT = filtreDetail.reduce((s, r) => s + (r.venteTotal || 0), 0)
+      const theoT = filtreDetail.reduce((s, r) => s + (r.venteTheo || 0), 0)
       const benefT = filtreDetail.reduce((s, r) => s + (r.beneficeTotal || 0), 0)
       const depT = filtreDetail.reduce((s, r) => s + (r.depenseTotal || 0), 0)
       const restoNom = restoFiltre ? (restaurants.find(r => r.id === restoFiltre)?.nom || 'Restaurant') : 'Tous les restaurants'
@@ -175,6 +182,7 @@ export default function RapportsScreen() {
         <tr>
           <td>${r.nom || '—'}</td>
           <td style="color:#BA7517;font-weight:600">${(r.venteTotal || 0).toLocaleString('fr-FR')} F</td>
+          <td style="color:#888">${(r.venteTheo || 0).toLocaleString('fr-FR')} F</td>
           <td style="color:${(r.beneficeTotal || 0) >= 0 ? '#2D7D46' : '#A32D2D'};font-weight:600">${(r.beneficeTotal || 0).toLocaleString('fr-FR')} F</td>
           <td style="color:#A32D2D;font-weight:600">${(r.depenseTotal || 0).toLocaleString('fr-FR')} F</td>
           <td style="text-align:center">${r.nbJours || 0}j</td>
@@ -200,11 +208,11 @@ export default function RapportsScreen() {
         <h1>Rapport hebdomadaire — SAMER</h1>
         <div class="sub">${restoNom} · Semaine du ${formatDateFr(rapport.semaine_debut)} au ${formatDateFr(rapport.semaine_fin)}</div>
         <div class="kpi-row">
-          <div class="kpi"><div class="kpi-label">Ventes totales</div><div class="kpi-val" style="color:#BA7517">${venteT.toLocaleString('fr-FR')} F</div></div>
+          <div class="kpi"><div class="kpi-label">Vente machine</div><div class="kpi-val" style="color:#BA7517">${venteT.toLocaleString('fr-FR')} F</div><div class="kpi-label" style="margin:4px 0 0">Théorique ${theoT.toLocaleString('fr-FR')} F</div></div>
           <div class="kpi"><div class="kpi-label">Bénéfice SC</div><div class="kpi-val" style="color:${benefT >= 0 ? '#2D7D46' : '#A32D2D'}">${benefT.toLocaleString('fr-FR')} F</div></div>
           <div class="kpi"><div class="kpi-label">Dépenses</div><div class="kpi-val" style="color:#A32D2D">${depT.toLocaleString('fr-FR')} F</div></div>
         </div>
-        ${lignesDetail ? `<table><tr><th>Restaurant</th><th>Ventes</th><th>Bénéfice SC</th><th>Dépenses</th><th>Jours</th></tr>${lignesDetail}</table>` : ''}
+        ${lignesDetail ? `<table><tr><th>Restaurant</th><th>Vente machine</th><th>Théorique</th><th>Bénéfice SC</th><th>Dépenses</th><th>Jours</th></tr>${lignesDetail}</table>` : ''}
         <div class="footer">Généré le ${new Date().toLocaleString('fr-FR')} · SAMER</div>
       </body></html>`
 
@@ -541,6 +549,7 @@ function RapportCard({ rapport, precedent, restoFiltre, onPartager, exporting })
 
   const filtreDetail = restoFiltre ? detail.filter(r => r.id === restoFiltre) : null
   const venteAff = filtreDetail ? filtreDetail.reduce((s, r) => s + r.venteTotal, 0) : rapport.vente_total
+  const theoAff = filtreDetail ? filtreDetail.reduce((s, r) => s + (r.venteTheo || 0), 0) : rapport.vente_theorique
   const benefAff = filtreDetail ? filtreDetail.reduce((s, r) => s + r.beneficeTotal, 0) : rapport.benefice_total
   const depAff = filtreDetail ? filtreDetail.reduce((s, r) => s + r.depenseTotal, 0) : rapport.depense_total
 
@@ -578,8 +587,9 @@ function RapportCard({ rapport, precedent, restoFiltre, onPartager, exporting })
 
       <View style={styles.kpiRow}>
         <View style={styles.kpiItem}>
-          <Text style={styles.kpiLabel}>Ventes</Text>
+          <Text style={styles.kpiLabel}>Vente machine</Text>
           <Text style={styles.kpiVente}>{fmt(venteAff)}</Text>
+          {theoAff != null && <TexteTheorique machine={venteAff} theorique={theoAff} colors={colors} taille={10.5} />}
           <VariationBadge valeur={venteAff} reference={prevVente} />
         </View>
         <View style={styles.kpiItem}>
@@ -602,8 +612,9 @@ function RapportCard({ rapport, precedent, restoFiltre, onPartager, exporting })
               <Text style={styles.restoNom} numberOfLines={1}>{resto.nom}</Text>
               <View style={styles.restoStats}>
                 <View style={styles.restoStat}>
-                  <Text style={styles.restoStatLabel}>Ventes</Text>
+                  <Text style={styles.restoStatLabel}>Vente machine</Text>
                   <Text style={styles.restoStatVal}>{fmt(resto.venteTotal)}</Text>
+                  {resto.venteTheo != null && <Text style={[styles.restoStatLabel, { marginTop: 2 }]}>Théo. {fmt(resto.venteTheo)}</Text>}
                 </View>
                 <View style={styles.restoStat}>
                   <Text style={styles.restoStatLabel}>Bénéf.</Text>
