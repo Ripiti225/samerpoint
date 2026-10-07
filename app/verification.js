@@ -29,6 +29,8 @@ import { cloturesPOS, resumerEcartsGlobaux } from '../lib/cloturesCaisse'
 import { depensesSalairesShift } from '../lib/depensesShift'
 import { decisionEcartShiftPOS, SOURCE_DECISION_POS } from '../lib/ecartPOS'
 import { preparerEntreesVerification } from '../lib/entreesVerification'
+import { venteRetenue, venteTheorique } from '../lib/venteMachine'
+import VenteDouble from '../components/ui/VenteDouble'
 import { photosCanalDisponibles } from '../lib/photosVerification'
 import {
   alertesPoint, bornesDuMois, libelleMoisLong, moisVoisin, organiserPoints, ventesParCanal,
@@ -1812,7 +1814,7 @@ export default function VerificationScreen() {
                         style={[styles.carteAVerifier, { borderLeftColor: enRetard ? colors.error : colors.primary }]}
                         onPress={() => ouvrirPoint(point)}
                         accessibilityRole="button"
-                        accessibilityLabel={`${formatJour(point.date)}, ventes ${fmtCourt(point.vente_total)}${enRetard ? ', en retard' : ''}`}
+                        accessibilityLabel={`${formatJour(point.date)}, vente machine ${fmtCourt(venteRetenue(point))}${enRetard ? ', en retard' : ''}`}
                       >
                         <View style={{ flex: 1 }}>
                           <Text style={styles.carteDate}>{formatJour(point.date)}</Text>
@@ -1821,7 +1823,7 @@ export default function VerificationScreen() {
                             {alertes.map(al => puce(al.ton, al.texte))}
                           </View>
                         </View>
-                        <Text style={styles.carteMontant}>{fmtCourt(point.vente_total)}</Text>
+                        <Text style={styles.carteMontant}>{fmtCourt(venteRetenue(point))}</Text>
                         <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
                       </TouchableOpacity>
                     )
@@ -1843,7 +1845,7 @@ export default function VerificationScreen() {
                       >
                         <View style={[styles.pointStatut, { backgroundColor: point.verifie ? colors.success : colors.textMuted }]} />
                         <Text style={styles.ligneDate}>{formatJour(point.date)}{!point.valide ? ' · en cours' : ''}</Text>
-                        <Text style={styles.ligneMontant}>{point.valide ? fmtCourt(point.vente_total) : '—'}</Text>
+                        <Text style={styles.ligneMontant}>{point.valide ? fmtCourt(venteRetenue(point)) : '—'}</Text>
                         <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textMuted} />
                       </TouchableOpacity>
                     ))}
@@ -1900,8 +1902,10 @@ export default function VerificationScreen() {
                 return (
                   <View style={styles.ficheResume}>
                     <View style={{ flexDirection: 'row' }}>{statut}</View>
-                    <Text style={styles.ficheLabel}>Ventes du jour</Text>
-                    <Text style={styles.ficheGros}>{fmtCourt(p?.vente_total)}</Text>
+                    <Text style={styles.ficheLabel}>Vente machine du jour</Text>
+                    <VenteDouble machine={venteRetenue(p)} theorique={venteTheorique(p)} colors={colors}>
+                      <Text style={styles.ficheGros}>{fmtCourt(venteRetenue(p))}</Text>
+                    </VenteDouble>
                     <View style={styles.ficheTrois}>
                       <View style={styles.ficheCase}>
                         <Text style={styles.ficheCaseLabel}>Écart caisse</Text>
@@ -1974,8 +1978,12 @@ export default function VerificationScreen() {
                         </View>
                       ))}
                       <View style={[styles.recapRow, styles.recapRowTotal]}>
-                        <Text style={[styles.recapLabel, { fontWeight: '700' }]}>Total Ventes</Text>
-                        <Text style={[styles.recapVal, { color: '#EF9F27', fontWeight: '700' }]}>{fmt(p?.vente_total || 0)}</Text>
+                        <Text style={styles.recapLabel}>Total ventes théorique</Text>
+                        <Text style={[styles.recapVal, { color: colors.textMuted }]}>{fmt(venteTheorique(p))}</Text>
+                      </View>
+                      <View style={styles.recapRow}>
+                        <Text style={[styles.recapLabel, { fontWeight: '700' }]}>Vente machine</Text>
+                        <Text style={[styles.recapVal, { color: '#EF9F27', fontWeight: '700' }]}>{fmt(venteRetenue(p))}</Text>
                       </View>
 
                       <View style={styles.recapSep} />
@@ -2422,16 +2430,16 @@ export default function VerificationScreen() {
                   <View style={{ marginBottom: 14 }}>
                     <Text style={styles.sectionTitre}>Vente machine</Text>
                     <View style={styles.recapCard}>
+                      {venteMachine != null && (
+                        <View style={styles.recapRow}>
+                          <Text style={[styles.recapLabel, { fontWeight: '700' }]}>Vente machine</Text>
+                          <Text style={[styles.recapVal, { fontWeight: '700' }]}>{fmt(venteMachine)}</Text>
+                        </View>
+                      )}
                       <View style={styles.recapRow}>
                         <Text style={styles.recapLabel}>Vente théorique (shifts)</Text>
                         <Text style={styles.recapVal}>{fmt(venteTheo)}</Text>
                       </View>
-                      {venteMachine != null && (
-                        <View style={styles.recapRow}>
-                          <Text style={styles.recapLabel}>Vente machine</Text>
-                          <Text style={styles.recapVal}>{fmt(venteMachine)}</Text>
-                        </View>
-                      )}
                       {ecart != null && (
                         <View style={[styles.recapRow, {
                           backgroundColor: ecart === 0 ? '#EAF3DE' : '#FAEEDA',
