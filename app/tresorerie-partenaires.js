@@ -4,8 +4,9 @@
 // Une période affiche UNE valeur : l'export s'il est importé (l'estimé est alors
 // barré), sinon l'estimé tiré des points. Seules les périodes terminées comptent
 // dans le total. La période en cours est affichée à part, pour information.
-// Chaque partenaire a ses propres réceptions : Glovo par restaurant, Yango en un
-// virement, OM / Wave / Djamo sur leur tête de fond (reçu noté par restaurant,
+// Chaque partenaire a ses propres réceptions : Glovo par restaurant (un
+// restaurant peut arriver en plusieurs virements, ex. KMS sur BACI puis SIB),
+// Yango en un virement, OM / Wave / Djamo sur leur tête de fond (reçu noté par restaurant,
 // le total entre sur la tête de fond ; un virement l'envoie ensuite en banque).
 // Logique : lib/partenaires.js · lecture des exports : lib/partenairesImport.js
 // ──────────────────────────────────────────────────────────────────────────────
@@ -253,7 +254,7 @@ function LignePeriode({ s, onPress, enCours }) {
 
 function FeuillePeriode({ ouverte, situation, vue, donnees, niveau, nomResto, user, onFermer, apres, onImporter }) {
   const { styles, colors } = useStylesTreso()
-  const [reception, setReception] = useState(null)   // { restaurantId | null, attendu }
+  const [reception, setReception] = useState(null)   // { restaurantId | null, attendu, complement }
   const [receptionTete, setReceptionTete] = useState(false)
   const [pubVisible, setPubVisible] = useState(false)
 
@@ -323,7 +324,10 @@ function FeuillePeriode({ ouverte, situation, vue, donnees, niveau, nomResto, us
           .map(r => {
             // Tête de fond : chaque restaurant peut être reçu à part, dès que son argent arrive (OM surtout).
             const recevable = !groupe && !r.recuFait && peutRecevoir && situation.terminee
+            // Déjà reçu : un autre virement peut encore arriver (KMS : un magasin sur la BACI, l'autre sur la SIB).
+            const complement = !groupe && !tete && r.recuFait && peutRecevoir && situation.terminee
             const ouvrir = () => setReception({ restaurantId: r.restaurant_id, attendu: r.attendu })
+            const ouvrirComplement = () => setReception({ restaurantId: r.restaurant_id, attendu: r.reste, complement: true })
             return (
             <TouchableOpacity key={r.restaurant_id} style={styles.item} disabled={!(tete && recevable)} onPress={ouvrir}>
               <View style={{ flex: 1 }}>
@@ -334,11 +338,12 @@ function FeuillePeriode({ ouverte, situation, vue, donnees, niveau, nomResto, us
                     : `estimé ${fmt(r.estime)}`}
                   {r.reel !== null ? ` · export ${fmt(r.reel)}` : ''}
                   {r.pub ? ` · pub − ${fmt(r.pub)}` : ''}
-                  {!groupe && r.recuFait ? ` · reçu ${fmt(r.recu)}${r.ecart ? ` (écart ${r.ecart > 0 ? '+' : '−'} ${fmt(Math.abs(r.ecart))})` : ''}` : ''}
+                  {!groupe && r.recuFait ? ` · reçu ${fmt(r.recu)}${r.nbRecus > 1 ? ` en ${r.nbRecus} virements` : ''}${r.ecart ? ` (écart ${r.ecart > 0 ? '+' : '−'} ${fmt(Math.abs(r.ecart))})` : ''}` : ''}
                 </Text>
               </View>
               <Text style={styles.ligneValeur}>{fmt(r.attendu)}</Text>
               {recevable && <Bouton titre="Reçu" style={styles.btnPetit} onPress={ouvrir} />}
+              {complement && <Bouton secondaire titre="+ Virement" style={styles.btnPetit} onPress={ouvrirComplement} />}
             </TouchableOpacity>
             )
           })}
@@ -478,7 +483,12 @@ function FeuilleReception({ demande, partenaire, periode, donnees, nomResto, use
     <Feuille visible onFermer={onFermer}
       titre={`${info.nom} reçu · ${demande.restaurantId ? nomResto(demande.restaurantId) : 'tous les restaurants'}`}>
       <View style={styles.carte}>
-        <Ligne label="Montant attendu" valeur={demande.attendu} fort />
+        <Ligne label={demande.complement ? 'Reste attendu' : 'Montant attendu'} valeur={demande.attendu} fort />
+        {demande.complement && (
+          <Text style={[styles.petit, { marginTop: 6 }]}>
+            Autre virement pour ce restaurant (ex. KMS : un magasin Glovo payé sur la BACI, l'autre sur la SIB). Choisissez bien le compte où il est arrivé.
+          </Text>
+        )}
       </View>
       <ChampMontant label="Montant réellement reçu (celui du relevé)" valeur={montant} onChange={setMontant} />
       <Text style={styles.label}>Arrivé sur</Text>
