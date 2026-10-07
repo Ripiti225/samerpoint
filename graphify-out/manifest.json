@@ -108,15 +108,15 @@
     "semantic_hash": ""
   },
   "app/dashboard-global.js": {
-    "mtime": 1791047726.9097385,
-    "seen": 1791047759.719732,
-    "ast_hash": "2edd23ecae99aef290d1519ec41353af",
+    "mtime": 1791368204.2232456,
+    "seen": 1791368231.88542,
+    "ast_hash": "ef2fa195ea588954835e7e35f7e60717",
     "semantic_hash": ""
   },
   "app/dashboard.js": {
-    "mtime": 1791240123.8197875,
-    "seen": 1791240168.182901,
-    "ast_hash": "0770f484e9a22f80fe079d8d51b12f88",
+    "mtime": 1791368204.2237017,
+    "seen": 1791368231.885421,
+    "ast_hash": "2ee5ca1a1f1b3fe03578454be306bee8",
     "semantic_hash": ""
   },
   "app/deductions-gerant.js": {
@@ -258,9 +258,9 @@
     "semantic_hash": ""
   },
   "app/rapports.js": {
-    "mtime": 1791053778.6252983,
-    "seen": 1791061425.0435479,
-    "ast_hash": "f43d1e5a1fefeb77383a8dcf7566ed01",
+    "mtime": 1791368204.2242367,
+    "seen": 1791368231.8854332,
+    "ast_hash": "ce9e4227df06789938a156c575ce9b50",
     "semantic_hash": ""
   },
   "app/recap-point.js": {
@@ -564,15 +564,15 @@
     "semantic_hash": ""
   },
   "lib/exportRapportMensuel.js": {
-    "mtime": 1791053795.6203291,
-    "seen": 1791061425.0436108,
-    "ast_hash": "b7dad76a2d0b508ad491e9aafcd84f9f",
+    "mtime": 1791368204.2261152,
+    "seen": 1791368231.8855228,
+    "ast_hash": "34df2e69f7354fef620a8ca10ff655fe",
     "semantic_hash": ""
   },
   "lib/generatePdf.js": {
-    "mtime": 1787567987.5096228,
-    "seen": 1788454354.111352,
-    "ast_hash": "9c5d7d56808df043944d7f27df16fb53",
+    "mtime": 1791368204.2262602,
+    "seen": 1791368231.885525,
+    "ast_hash": "3512aa74db2e268a50eba661b4cf0a9c",
     "semantic_hash": ""
   },
   "lib/inactivityLock.js": {
@@ -672,15 +672,15 @@
     "semantic_hash": ""
   },
   "lib/rapportHebdo.js": {
-    "mtime": 1778881287.0,
-    "seen": 1788454354.111359,
-    "ast_hash": "cfbaeeb16b8b2cdc5de9d94e44a37c19",
+    "mtime": 1791368204.2265806,
+    "seen": 1791368231.885553,
+    "ast_hash": "3ff4147b02846fe0d95670fdbd365bb8",
     "semantic_hash": ""
   },
   "lib/rapportMensuel.js": {
-    "mtime": 1791214900.6024492,
-    "seen": 1791215073.501927,
-    "ast_hash": "a79bb433d1dae598a96ef5d48d310e5b",
+    "mtime": 1791368204.2267208,
+    "seen": 1791368231.885553,
+    "ast_hash": "b9ae0d888dc0505f0b82848b11ea6954",
     "semantic_hash": ""
   },
   "lib/sourcePoint.js": {
@@ -1542,15 +1542,15 @@
     "semantic_hash": ""
   },
   "lib/dashboardGlobal.js": {
-    "mtime": 1790598257.5204718,
-    "seen": 1790819998.874215,
-    "ast_hash": "81c5ed08b0733b521057badf6c81b3e2",
+    "mtime": 1791368204.2257314,
+    "seen": 1791368231.88551,
+    "ast_hash": "4e833e9399ffd5af7354629ea45bace1",
     "semantic_hash": ""
   },
   "lib/dashboardGlobal.test.mjs": {
-    "mtime": 1790598257.491592,
-    "seen": 1790819998.8742158,
-    "ast_hash": "585bd93d3d7297d3d540e5ed947ca34e",
+    "mtime": 1791368204.2258866,
+    "seen": 1791368231.88551,
+    "ast_hash": "fb2704ea83b5e262c090e789f2f589da",
     "semantic_hash": ""
   },
   "lib/derniersRestesFournisseurs.js": {
@@ -1962,9 +1962,9 @@
     "semantic_hash": ""
   },
   "components/accueil/AccueilManager.js": {
-    "mtime": 1791240926.5152938,
-    "seen": 1791240978.33866,
-    "ast_hash": "ab447f460997cc564b8495a2d749fb1a",
+    "mtime": 1791368204.224441,
+    "seen": 1791368231.885449,
+    "ast_hash": "ac4321497e5f6b72999b38e42ffecefb",
     "semantic_hash": ""
   },
   "components/ui/Survol.js": {
@@ -2100,15 +2100,15 @@
     "semantic_hash": ""
   },
   "components/rapports/OngletAnalyse.js": {
-    "mtime": 1791053237.9289222,
-    "seen": 1791053356.594778,
-    "ast_hash": "4b703f463f4e4795e3f969031bb5bddf",
+    "mtime": 1791368204.2249327,
+    "seen": 1791368231.8854651,
+    "ast_hash": "93282c33740e924b0ff3776569a4e908",
     "semantic_hash": ""
   },
   "lib/analyseMois.js": {
-    "mtime": 1791053334.1778731,
-    "seen": 1791053356.5947928,
-    "ast_hash": "92fa6de53ded93428a959409997f93fd",
+    "mtime": 1791368204.225408,
+    "seen": 1791368231.8854852,
+    "ast_hash": "b1ed6296dd1cfee2f4333f757ddbb61c",
     "semantic_hash": ""
   },
   "lib/analyseMois.test.mjs": {
@@ -2118,9 +2118,9 @@
     "semantic_hash": ""
   },
   "lib/analyseMoisDb.js": {
-    "mtime": 1791053152.8839717,
-    "seen": 1791053356.594794,
-    "ast_hash": "f59edeb5b06030fb2274ee7081864b2c",
+    "mtime": 1791368204.2255745,
+    "seen": 1791368231.8854861,
+    "ast_hash": "e6902eb1255a129a178c27aa619eb955",
     "semantic_hash": ""
   },
   "lib/cotisations.js": {
@@ -2388,9 +2388,9 @@
     "semantic_hash": ""
   },
   "components/accueil/BandeauGerant.js": {
-    "mtime": 1791241267.6036937,
-    "seen": 1791241285.731169,
-    "ast_hash": "81a3e04c3ae89c587bc1dda2595363e2",
+    "mtime": 1791368204.2247713,
+    "seen": 1791368231.88545,
+    "ast_hash": "dcdd0c66ad40cab0673951f50499ea1f",
     "semantic_hash": ""
   },
   "components/accueil/Indicateur.js": {
@@ -2733,6 +2733,24 @@
     "mtime": 1791242278.1184373,
     "seen": 1791242386.178637,
     "ast_hash": "41e1d3d41e6b3eae9606e3b334ae6af4",
+    "semantic_hash": ""
+  },
+  "components/ui/VenteDouble.js": {
+    "mtime": 1791368037.3710804,
+    "seen": 1791368231.885472,
+    "ast_hash": "3654c78460643a225f8d7f0cd53daa89",
+    "semantic_hash": ""
+  },
+  "lib/venteMachine.js": {
+    "mtime": 1791367938.0765839,
+    "seen": 1791368231.885565,
+    "ast_hash": "3e12bf9ce09d7d010d636db80957148e",
+    "semantic_hash": ""
+  },
+  "lib/venteMachine.test.mjs": {
+    "mtime": 1791367939.1145604,
+    "seen": 1791368231.885565,
+    "ast_hash": "409ea7ce0f1a2a0dfe0fec7cdca48dad",
     "semantic_hash": ""
   }
 }
