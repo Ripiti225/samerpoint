@@ -5,7 +5,9 @@ import DetailShiftCaissier from '../components/DetailShiftCaissier'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { chargerDetailShift } from '../lib/detailShift'
+import { detailKdoShift, grouperKdoParService } from '../lib/kdoPOS'
 import { aBesoinExplication, grouperShiftsParJour, troisDerniersJours } from '../lib/pointCaissier'
+import { chargerKdoServices, POS_NON_INSTALLE } from '../lib/statsPOSDb'
 import { supabase } from '../lib/supabase'
 
 const DETAIL_VIDE = { depenses: [], fournisseurs: [], presences: [], inventaire: null, loading: false }
@@ -33,6 +35,10 @@ export default function PointCaissierScreen() {
   const [loading, setLoading] = useState(true)
   const [shiftDetail, setShiftDetail] = useState(null)
   const [detail, setDetail] = useState(DETAIL_VIDE)
+  // KDO : commandes offertes du POS rangées par service, et shifts dépliés.
+  const [kdoParService, setKdoParService] = useState({})
+  const [kdoErreur, setKdoErreur] = useState(null)
+  const [kdoOuverts, setKdoOuverts] = useState({})
 
   // Le gérant est rattaché à son restaurant ; manager et directeur n'en ont
   // aucun dans leur contexte, ils le choisissent ici.
@@ -59,9 +65,21 @@ export default function PointCaissierScreen() {
       .select('*')
       .eq('restaurant_id', restoActif)
       .in('date', troisDerniersJours())
-    setGroupes(grouperShiftsParJour(data || []))
+    const groupesJour = grouperShiftsParJour(data || [])
+    setGroupes(groupesJour)
     setLoading(false)
+
+    // Détail KDO en un seul appel pour tous les shifts affichés qui en ont.
+    const services = groupesJour.flatMap(g => g.shifts)
+      .filter(s => Number(s.kdo) > 0 && s.pos_service_id).map(s => s.pos_service_id)
+    const r = await chargerKdoServices(services)
+    setKdoParService(grouperKdoParService(r.lignes))
+    setKdoErreur(r.erreur || null)
   }, [restoActif])
+
+  function basculerKdo(shiftId) {
+    setKdoOuverts(prev => ({ ...prev, [shiftId]: !prev[shiftId] }))
+  }
 
   useEffect(() => { charger() }, [charger])
 
@@ -155,6 +173,16 @@ export default function PointCaissierScreen() {
                         <Text style={styles.badgeSansExplicationTxt}>⚠ Sans explication</Text>
                       </View>
                     )}
+
+                    {Number(shift.kdo) > 0 && (
+                      <BlocKdo
+                        kdo={detailKdoShift(shift, kdoParService)}
+                        ouvert={!!kdoOuverts[shift.id]}
+                        onBasculer={() => basculerKdo(shift.id)}
+                        erreur={kdoErreur}
+                        styles={styles}
+                      />
+                    )}
                   </TouchableOpacity>
                 ))}
               </View>
@@ -194,6 +222,66 @@ export default function PointCaissierScreen() {
         afficherEcartPOS
       />
     </SafeAreaView>
+  )
+}
+
+// Ligne « 🎁 KDO » d'une carte : un appui déroule les commandes offertes du
+// shift, avec leurs produits et l'explication saisie par le caissier au POS.
+function BlocKdo({ kdo, ouvert, onBasculer, erreur, styles }) {
+  const nbCommandes = kdo.commandes.length
+  return (
+    <View style={styles.kdoBloc}>
+      <TouchableOpacity style={styles.kdoEntete} onPress={onBasculer} activeOpacity={0.7}>
+        <Text style={styles.kdoTitre}>
+          🎁 KDO offerts{nbCommandes > 0 ? ` · ${nbCommandes} commande${nbCommandes > 1 ? 's' : ''}` : ''}
+        </Text>
+        <Text style={styles.kdoMontant}>{fmt(kdo.montant)}  {ouvert ? '▴' : '▾'}</Text>
+      </TouchableOpacity>
+
+      {ouvert && (
+        <View style={styles.kdoListe}>
+          {kdo.origine === 'manuel' ? (
+            <Text style={styles.kdoInfo}>Montant saisi à la main : pas de détail des produits (voir la photo KDO).</Text>
+          ) : erreur === POS_NON_INSTALLE ? (
+            <Text style={styles.kdoInfo}>Détail indisponible : passez pos_cloud_kdo_services.sql dans le projet « pos-samer-cloud ».</Text>
+          ) : erreur ? (
+            <Text style={styles.kdoInfo}>Impossible de joindre le POS pour le moment. Réessayez plus tard.</Text>
+          ) : nbCommandes === 0 ? (
+            <Text style={styles.kdoInfo}>Aucune commande offerte retrouvée dans le POS pour ce shift.</Text>
+          ) : (
+            <>
+              {kdo.commandes.map((c, i) => (
+                <View key={`${c.ticket}-${i}`} style={[styles.kdoCommande, i === nbCommandes - 1 && { borderBottomWidth: 0 }]}>
+                  <View style={styles.kdoCommandeHead}>
+                    <Text style={styles.kdoTicket}>
+                      {c.heure}{c.ticket != null ? ` · Ticket ${c.ticket}` : ''}
+                    </Text>
+                    <Text style={styles.kdoCommandeTotal}>{fmt(c.total)}</Text>
+                  </View>
+                  {c.articles.map((a, j) => (
+                    <View key={j} style={styles.kdoArticle}>
+                      <Text style={styles.kdoArticleNom}>
+                        {a.qte} × {a.nom}
+                        {a.supplements.length > 0 ? ` (+ ${a.supplements.join(', ')})` : ''}
+                      </Text>
+                      <Text style={styles.kdoArticleMontant}>{fmt(a.montant)}</Text>
+                    </View>
+                  ))}
+                  <Text style={c.motif ? styles.kdoMotif : styles.kdoSansMotif}>
+                    {c.motif ? `💬 « ${c.motif} »` : '⚠ Aucune explication donnée'}
+                  </Text>
+                </View>
+              ))}
+              {kdo.ecart !== 0 && (
+                <Text style={styles.kdoInfo}>
+                  Le montant KDO du shift diffère de {fmt(Math.abs(kdo.ecart))} des commandes offertes du POS.
+                </Text>
+              )}
+            </>
+          )}
+        </View>
+      )}
+    </View>
   )
 }
 
@@ -271,4 +359,25 @@ function makeStyles(colors) { return StyleSheet.create({
     backgroundColor: '#FAECE7', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4,
   },
   badgeSansExplicationTxt: { fontSize: 11, color: '#A32D2D', fontWeight: '600' },
+  kdoBloc: {
+    marginTop: 10, borderRadius: 10, backgroundColor: colors.surfaceAlt,
+    borderWidth: 0.5, borderColor: colors.borderLight, overflow: 'hidden',
+  },
+  kdoEntete: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 11, paddingHorizontal: 12, minHeight: 44,
+  },
+  kdoTitre: { fontSize: 13, fontWeight: '600', color: colors.text, flex: 1 },
+  kdoMontant: { fontSize: 13, fontWeight: '700', color: '#EF9F27' },
+  kdoListe: { borderTopWidth: 0.5, borderTopColor: colors.borderLight, paddingHorizontal: 12, paddingBottom: 6 },
+  kdoInfo: { fontSize: 12, color: colors.textMuted, paddingVertical: 10 },
+  kdoCommande: { paddingVertical: 9, borderBottomWidth: 0.5, borderBottomColor: colors.borderLight },
+  kdoCommandeHead: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  kdoTicket: { fontSize: 11, color: colors.textMuted, fontWeight: '600' },
+  kdoCommandeTotal: { fontSize: 12, fontWeight: '700', color: colors.text },
+  kdoArticle: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 2 },
+  kdoArticleNom: { fontSize: 13, color: colors.text, flex: 1, paddingRight: 8 },
+  kdoArticleMontant: { fontSize: 12, color: colors.textMuted },
+  kdoMotif: { fontSize: 12, color: colors.text, fontStyle: 'italic', marginTop: 5 },
+  kdoSansMotif: { fontSize: 12, color: '#A32D2D', fontWeight: '600', marginTop: 5 },
 }) }
