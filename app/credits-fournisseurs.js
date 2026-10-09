@@ -25,16 +25,23 @@ import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import {
   agregerMouvementsMensuels,
+  ecritureAjustementCredit,
   preparerHistoriqueFournisseur,
   restaurerPhotosFacturesDepuisPoints,
 } from '../lib/creditsFournisseurs'
 import { appliquerFacturesMensuelles } from '../lib/facturesMensuelles'
 import { journaliser } from '../lib/journal'
 import { supabase } from '../lib/supabase'
+import { aujourdhuiISO } from '../lib/tresorerie'
 
 let _restoFilterCache = null
 
 function fmt(n) { return Math.round(n || 0).toLocaleString('fr-FR') + ' FCFA' }
+// Paramètres facture/payé d'inserer_transaction_hors_point pour un écart de crédit.
+function ajustementRpc(delta) {
+  const e = ecritureAjustementCredit(delta)
+  return { p_facture: e?.facture || 0, p_paye: e?.paye || 0 }
+}
 function fmtShort(n) { return Math.round(n || 0).toLocaleString('fr-FR') }
 function fmtDate(dateStr) {
   if (!dateStr) return ''
@@ -59,7 +66,7 @@ function derniersMois(n) {
 }
 
 export default function CreditsFournisseursScreen() {
-  const { roleActif, restaurantId, restaurantNom, userId } = useApp()
+  const { roleActif, restaurantId, restaurantNom, userId, userNom } = useApp()
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
 
@@ -214,13 +221,25 @@ export default function CreditsFournisseursScreen() {
     const nouveauCredit = ancienCredit + delta
     setSaving(true)
     try {
-      const { data: updated, error } = await supabase.from('fournisseurs')
-        .update({ credit_actuel: nouveauCredit }).eq('id', selectedFourn.id).select('id')
+      // Écriture datée du jour dans la chaîne des restes : le crédit veille du
+      // gérant en repart (voir ecritureAjustementCredit). La fonction met aussi
+      // à jour credit_actuel.
+      const { data: txId, error } = await supabase.rpc('inserer_transaction_hors_point', {
+        p_fournisseur: selectedFourn.id, p_date: aujourdhuiISO(),
+        ...ajustementRpc(delta),
+        p_saisi_par: 'manager', p_source: 'ajustement_manager', p_caissier_nom: userNom || null,
+      })
       if (error) throw error
-      if (!updated?.length) throw new Error('Modification refusée (droits insuffisants)')
+      // Le motif s'affiche sous la ligne dans l'historique (pas de colonne note).
+      const motif = formCredit.motif.trim()
+      if (txId && motif) {
+        await supabase.from('transactions_fournisseurs')
+          .update({ facture_correction_raison: motif }).eq('id', txId)
+      }
 
       journaliser('modif_credit_fournisseur', {
         fournisseur: selectedFourn.nom, delta, ancien: ancienCredit, nouveau: nouveauCredit,
+        motif: formCredit.motif.trim() || null,
       }, { restaurantId: selectedFourn.restaurant_id, userId }).catch(() => {})
 
       setShowEditCredit(false)
@@ -568,31 +587,15 @@ ${mouvements.map(m => {
     setRemettreAZeroErreur(null)
     setRemettreAZeroId(f.id)
     try {
-      // Trouver le point le plus récent du restaurant
-      const { data: latestPoint, error: pointErr } = await supabase
-        .from('points').select('id').eq('restaurant_id', f.restaurant_id)
-        .order('date', { ascending: false }).limit(1).maybeSingle()
-      if (pointErr) throw pointErr
-
-      const pointId = latestPoint?.id || null
-
-      // Créer une transaction qui annule l'avance : facture = avance → reste = 0
-      const { error: insertErr } = await supabase.from('transactions_fournisseurs').insert({
-        point_id: pointId,
-        fournisseur_id: f.id,
-        fournisseur_nom: f.nom,
-        restaurant_id: f.restaurant_id,
-        facture: avance,
-        paye: 0,
-        reste: 0,
-        saisi_par: 'manager',
-        caissier_nom: null,
-        source: 'manager',
+      // L'avance est annulée par une écriture sans journée (facture = avance).
+      // Rattachée au dernier point, comme avant, elle était exclue du crédit
+      // veille du gérant de ce jour-là et l'avance revenait.
+      const { error } = await supabase.rpc('inserer_transaction_hors_point', {
+        p_fournisseur: f.id, p_date: aujourdhuiISO(),
+        ...ajustementRpc(avance),
+        p_saisi_par: 'manager', p_source: 'ajustement_manager', p_caissier_nom: userNom || null,
       })
-      if (insertErr) throw insertErr
-
-      const { error: updateErr } = await supabase.from('fournisseurs').update({ credit_actuel: 0 }).eq('id', f.id)
-      if (updateErr) throw updateErr
+      if (error) throw error
 
       setFournisseurARemettre(null)
       await charger()
@@ -986,6 +989,7 @@ ${mouvements.map(m => {
                   deduction_gerant: { icon: 'clipboard-text-outline', label: 'Déduction Gérant', bg: colors.warningLight, txt: colors.warningDark },
                   facture_mensuelle: { icon: 'calendar-refresh', label: 'Facture mensuelle', bg: colors.primaryLight, txt: colors.primary },
                   cotisation_remise: { icon: 'bank-transfer-in', label: 'Cotisation reçue (RH)', bg: colors.successLight, txt: colors.successDark },
+                  ajustement_manager: { icon: 'pencil-outline', label: 'Modifié directement', bg: colors.surfaceAlt, txt: colors.textMuted },
                 }[src] || { icon: 'pencil-outline', label: src, bg: colors.surfaceAlt, txt: colors.textMuted }
                 const facture = Number(m.facture) || 0
                 const paye = Number(m.paye) || 0
@@ -1021,6 +1025,12 @@ ${mouvements.map(m => {
                         <MaterialCommunityIcons name="account-outline" size={13} color={colors.textMuted} />
                         <Text style={{ fontSize: 12, color: colors.textMuted }}>{m.caissier_nom}</Text>
                       </View>
+                    )}
+
+                    {src === 'ajustement_manager' && m.facture_correction_raison && (
+                      <Text style={{ fontSize: 12, color: colors.textMuted, fontStyle: 'italic', marginBottom: 6 }}>
+                        « {m.facture_correction_raison} »
+                      </Text>
                     )}
 
                     <View style={styles.histoMvtChiffres}>
