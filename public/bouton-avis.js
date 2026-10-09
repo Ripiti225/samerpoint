@@ -101,6 +101,74 @@ function moteurAvis() {
     }
   }
 
+  // ── Commandes (litiges automatiques) ─────────────────────────────────
+  // Repérage des portails : docs/superpowers/specs/2026-10-09-portails-commandes-notes.md
+  // Premier passage : depuis hier. Ensuite 2 jours de marge avant le dernier
+  // jour reçu (une commande peut changer de statut le lendemain).
+  function periodeCommandes(dernierJour, maintenant, plafondJours) {
+    let plancher = jourIso(maintenant - plafondJours * JOUR)
+    let debut = dernierJour ? jourIso(Date.parse(dernierJour + 'T00:00:00Z') - 2 * JOUR) : jourIso(maintenant - JOUR)
+    if (debut < plancher) debut = plancher
+    return { debut: debut, fin: jourIso(maintenant) }
+  }
+
+  function entier(v) { let n = Math.round(Number(v)); return Number.isFinite(n) ? n : 0 }
+
+  function lignesValides(lignes) {
+    return lignes.filter(function (l) { return l.nom && l.quantite > 0 })
+  }
+
+  // Liste : ListOrders (retenues dans orderIssuesDetails) ; détail :
+  // GetOrderDetails (plats). Un menu est une seule ligne, ses options
+  // (boisson choisie) sont ignorées.
+  function convertirCommandeGlovo(brut) {
+    let l = brut.liste || {}
+    let d = brut.detail && brut.detail.order
+    let rembourse = 0, attente = 0
+    ;(l.orderIssuesDetails || []).forEach(function (i) {
+      ;(i.metadata || []).forEach(function (m) {
+        if (i.orderIssue === 'ORDER_WITH_DEDUCTION' && /refund/.test(String(m.reason))) rembourse += entier(m.amount)
+        if (i.orderIssue === 'AVOIDABLE_WAIT_TIME') attente += entier(m.fee)
+      })
+    })
+    let statut = l.orderStatus === 'DELIVERED' ? 'livree' : l.orderStatus === 'CANCELLED' ? 'annulee' : 'autre'
+    return {
+      plateforme: 'glovo',
+      numero: String(l.orderId),
+      boutique: l.globalEntityId + ';' + l.vendorId,
+      commande_le: new Date(l.placedTimestamp).toISOString(),
+      statut: statut,
+      montant_paye: l.billing && l.billing.netRevenue != null ? entier(l.billing.netRevenue) : null,
+      rembourse: rembourse,
+      penalite_attente: attente,
+      lignes: lignesValides(((d && d.items) || []).map(function (p) {
+        return { nom: String(p.name || '').trim(), quantite: entier(p.quantity), prix_unitaire: entier(p.unitPrice) }
+      })),
+    }
+  }
+
+  // Liste : v2/history ; détail : v1/history/order. `is_reimbursement_to_place`
+  // = pastille « Sera payée » : une annulée payée compte comme vendue.
+  // Yango ne donne ni remboursement ni pénalité d'attente.
+  function convertirCommandeYango(brut) {
+    let l = brut.liste || {}
+    let d = brut.detail
+    let paye = l.is_reimbursement_to_place === true
+    return {
+      plateforme: 'yango',
+      numero: String(l.order_nr),
+      boutique: String(l.place_id),
+      commande_le: new Date((d && d.created_at) || l.place_confirmed_at).toISOString(),
+      statut: l.status === 'released' ? 'livree' : l.status === 'refused' ? 'annulee' : 'autre',
+      montant_paye: paye ? entier(l.sum) : 0,
+      rembourse: 0,
+      penalite_attente: 0,
+      lignes: lignesValides(((d && d.items) || []).map(function (p) {
+        return { nom: String(p.name || '').trim(), quantite: entier(p.quantity), prix_unitaire: entier(p.sum) }
+      })),
+    }
+  }
+
   function plateformeDuSite(hote) {
     if (hote === 'portal.glovoapp.com') return 'glovo'
     if (hote === 'vendor.yango.com') return 'yango'
@@ -260,6 +328,7 @@ function moteurAvis() {
       curseur = j.cursor
     }
     tous.modele = modele
+    tous.placeIds = base.place_ids || []
     return tous
   }
 
@@ -291,6 +360,123 @@ function moteurAvis() {
       const r = await fetch(new Request(u.toString(), { method: 'GET', headers: modele.headers, credentials: 'include' }))
       return r.ok ? heureYango(await r.json()) : null
     }
+  }
+
+  // ── Lecture des commandes ────────────────────────────────────────────
+  // Un détail qui ne répond pas est retenté une fois, puis la lecture
+  // s'arrête : une commande livrée envoyée sans ses plats ferait croire à
+  // un tapé +.
+  const LECTURE_INCOMPLETE = 'Les avis sont partis, mais la lecture des commandes n’a pas abouti : clique à nouveau dans quelques minutes.'
+
+  async function avecReprise(fn) {
+    try { return await fn() } catch (_e) {
+      try { return await fn() } catch (_e2) { throw erreurFr(LECTURE_INCOMPLETE) }
+    }
+  }
+
+  const REQUETE_GLOVO_LISTE = 'query ListOrders($params: ListOrdersReq!) { orders { listOrders(input: $params) { nextPageToken orders { orderId globalEntityId vendorId orderStatus placedTimestamp subtotal billing { netRevenue } orderIssuesDetails { orderIssue metadata { reason amount deduction fee } } } } } }'
+  const REQUETE_GLOVO_PLATS = 'query GetOrderDetails($params: OrderReq!) { orders { order(input: $params) { order { orderId placedTimestamp items { name quantity unitPrice } } } } }'
+
+  async function appelGlovo(jeton, corps) {
+    let r = await fetch(URL_GLOVO_COMMANDE, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + jeton },
+      body: JSON.stringify(corps),
+    })
+    if (r.status === 401 || r.status === 403) throw erreurFr('Ta session Glovo a expiré : reconnecte-toi au portail puis clique à nouveau.')
+    if (!r.ok) throw erreurFr(LECTURE_INCOMPLETE)
+    let j = await r.json()
+    if (!j.data || !j.data.orders) throw erreurFr(LECTURE_INCOMPLETE)
+    return j.data.orders
+  }
+
+  async function lireCommandesGlovo(periode, info) {
+    let jeton = jetonGlovo()
+    if (!jeton) throw erreurFr('Ta session Glovo a expiré : reconnecte-toi au portail puis clique à nouveau.')
+    let codes = Object.keys(NOMS_GLOVO).map(function (c) { let p = c.split(';'); return { globalEntityId: p[0], vendorId: p[1] } })
+    let liste = []
+    let jetonPage = null
+    for (let page = 0; page < 200; page++) {
+      let pagination = { pageSize: PAR_PAGE }
+      if (jetonPage) pagination.pageToken = jetonPage
+      let lo = (await avecReprise(function () {
+        return appelGlovo(jeton, {
+          operationName: 'ListOrders',
+          variables: { params: { pagination: pagination, timeFrom: periode.debut + 'T00:00:00.000Z', timeTo: periode.fin + 'T23:59:59.999Z',
+            globalVendorCodes: codes, useRefundStreamIssueSource: false } },
+          query: REQUETE_GLOVO_LISTE,
+        })
+      })).listOrders
+      let lot = (lo && lo.orders) || []
+      liste = liste.concat(lot)
+      info('Lecture des commandes Glovo… ' + liste.length + ' lues')
+      if (!lo || !lo.nextPageToken || !lot.length) break
+      jetonPage = lo.nextPageToken
+    }
+    let faits = 0
+    let bruts = await enParallele(liste, 4, async function (l) {
+      let detail = null
+      if (l.orderStatus === 'DELIVERED') {
+        detail = (await avecReprise(function () {
+          return appelGlovo(jeton, {
+            operationName: 'GetOrderDetails',
+            variables: { params: { orderId: l.orderId, GlobalVendorCode: { globalEntityId: l.globalEntityId, vendorId: l.vendorId },
+              placedTimestamp: new Date(l.placedTimestamp).toISOString(), isBillingDataFlagEnabled: false, useRefundStreamIssueSource: false } },
+            query: REQUETE_GLOVO_PLATS,
+          })
+        })).order
+      }
+      faits++
+      if (faits % 20 === 0 || faits === liste.length) info('Plats des commandes Glovo : ' + faits + '/' + liste.length)
+      return { liste: l, detail: detail }
+    })
+    return bruts.map(convertirCommandeGlovo)
+  }
+
+  // Yango : mêmes en-têtes que la requête d'avis captée sur la page (on ne
+  // lit jamais le jeton), mêmes boutiques (place_ids de cette requête).
+  async function appelYango(modele, chemin, options) {
+    let u = new URL(chemin, location.origin)
+    Object.keys(options.params || {}).forEach(function (k) { u.searchParams.set(k, options.params[k]) })
+    let r = await fetch(new Request(u.toString(), {
+      method: options.corps ? 'POST' : 'GET', headers: modele.headers, credentials: 'include',
+      body: options.corps ? JSON.stringify(options.corps) : undefined,
+    }))
+    if (r.status === 401 || r.status === 403) throw erreurFr('Ta session Yango a expiré : reconnecte-toi au portail puis clique à nouveau.')
+    if (!r.ok) throw erreurFr(LECTURE_INCOMPLETE)
+    return r.json()
+  }
+
+  async function lireCommandesYango(periode, info, modele, placeIds) {
+    let liste = []
+    let curseur = null
+    for (let page = 0; page < 200; page++) {
+      let params = { limit: PAR_PAGE }
+      if (curseur) params.cursor = curseur
+      let j = await avecReprise(function () {
+        return appelYango(modele, '/4.0/restapp-front/eats-restapp-orders/v2/history', {
+          params: params, corps: { from: periode.debut, to: periode.fin, place_ids: placeIds },
+        })
+      })
+      liste = liste.concat(j.orders || [])
+      info('Lecture des commandes Yango… ' + liste.length + ' lues')
+      if (!j.meta || !j.meta.can_fetch_next || !j.meta.cursor) break
+      curseur = j.meta.cursor
+    }
+    let faits = 0
+    let bruts = await enParallele(liste, 4, async function (l) {
+      let detail = null
+      // Plats utiles seulement pour les commandes qui comptent comme vendues.
+      if (l.status === 'released' || l.is_reimbursement_to_place === true) {
+        detail = await avecReprise(function () {
+          return appelYango(modele, '/4.0/restapp-front/eats-restapp-orders/v1/history/order', { params: { order_nr: l.order_nr } })
+        })
+      }
+      faits++
+      if (faits % 20 === 0 || faits === liste.length) info('Plats des commandes Yango : ' + faits + '/' + liste.length)
+      return { liste: l, detail: detail }
+    })
+    return bruts.map(convertirCommandeYango)
   }
 
   async function ajouterHeures(avis, lireHeure, info, nom) {
@@ -335,7 +521,23 @@ function moteurAvis() {
       fen.postMessage({ type: 'avis', reviews: Array.prototype.slice.call(avis) }, cfg.origine)
       info(avis.length + ' avis ' + nom + ' transmis'
         + (introuvables ? ' (' + introuvables + ' heure' + (introuvables > 1 ? 's' : '') + ' introuvable' + (introuvables > 1 ? 's' : '') + ')' : '')
-        + ' : le résultat s’affiche dans la petite fenêtre.', 10000)
+        + '. Lecture des commandes…')
+
+      // Commandes → litiges automatiques. Un échec ici n'annule pas les avis.
+      try {
+        let dernierCmd = reponse.commandes && reponse.commandes[plateforme]
+        let periodeCmd = periodeCommandes(dernierCmd ? dernierCmd.jour : null, Date.now(), PLAFOND_JOURS[plateforme])
+        info('Lecture des commandes ' + nom + ' du ' + frDate(periodeCmd.debut) + ' au ' + frDate(periodeCmd.fin) + '…')
+        let commandes = plateforme === 'glovo'
+          ? await lireCommandesGlovo(periodeCmd, info)
+          : await lireCommandesYango(periodeCmd, info, avis.modele, avis.placeIds)
+        fen.postMessage({ type: 'commandes', commandes: commandes }, cfg.origine)
+        info(avis.length + ' avis et ' + commandes.length + ' commandes ' + nom + ' transmis : le résultat s’affiche dans la petite fenêtre.', 12000)
+      } catch (e) {
+        let message = e && e.messageFr ? e.messageFr : LECTURE_INCOMPLETE
+        try { fen.postMessage({ type: 'erreur', message: message }, cfg.origine) } catch (_) { /* fenêtre fermée */ }
+        info(message, 15000)
+      }
     } catch (e) {
       let message = e && e.messageFr ? e.messageFr
         : "La lecture des avis n'a pas abouti, rien n'est perdu : clique à nouveau dans quelques minutes."
@@ -349,6 +551,9 @@ function moteurAvis() {
     convertirGlovo: convertirGlovo,
     convertirYango: convertirYango,
     plateformeDuSite: plateformeDuSite,
+    periodeCommandes: periodeCommandes,
+    convertirCommandeGlovo: convertirCommandeGlovo,
+    convertirCommandeYango: convertirCommandeYango,
     heureGlovo: heureGlovo,
     heureYango: heureYango,
     enParallele: enParallele,
