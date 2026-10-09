@@ -31,7 +31,16 @@ function moteurRelais() {
     return nom + ' : ' + parties.join(' · ')
   }
 
-  function demarrer(urlFonction) {
+  function resumeCommandes(plateforme, nb, r) {
+    const nom = NOMS[plateforme] || plateforme
+    const parties = [pluriel(nb, 'commande lue', 'commandes lues'), r.litiges ? pluriel(r.litiges, 'litige', 'litiges') : 'aucun litige']
+    if (r.a_relier) parties.push(pluriel(r.a_relier, 'journée', 'journées') + ' à relier (Litiges → Correspondances)')
+    if (r.a_rattacher) parties.push(pluriel(r.a_rattacher, 'commande', 'commandes') + ' d’une boutique non rattachée')
+    return nom + ' : ' + parties.join(' · ')
+  }
+
+  // urlCommandes : ingest-commandes-plateformes (litiges automatiques).
+  function demarrer(urlFonction, urlCommandes) {
     const etat = document.getElementById('etat')
     function afficher(texte, genre) { etat.textContent = texte; etat.className = genre || '' }
 
@@ -61,7 +70,14 @@ function moteurRelais() {
             return
           }
           const j = await r.json()
-          portail.postMessage({ type: 'derniers', derniers: j.derniers || {} }, e.origin)
+          // Derniers jours de commandes reçus : si cet appel échoue, les avis
+          // passent quand même (le favori relira depuis hier).
+          let derniersCommandes = {}
+          try {
+            const rc = await fetch(urlCommandes, { headers: { 'x-ingest-secret': secret } })
+            if (rc.ok) derniersCommandes = (await rc.json()).derniers || {}
+          } catch (_e) { /* avis seuls */ }
+          portail.postMessage({ type: 'derniers', derniers: j.derniers || {}, commandes: derniersCommandes }, e.origin)
         } catch (_e) {
           afficher(RESEAU, 'erreur')
           portail.postMessage({ type: 'derniers', erreur: RESEAU }, e.origin)
@@ -76,8 +92,24 @@ function moteurRelais() {
             body: JSON.stringify({ reviews: avis, finalize: false }),
           })
           if (!envoi.ok) { afficher(messageHttp(envoi.status), 'erreur'); return }
-          afficher(resumeEnvoi(p, await envoi.json()), 'ok')
-          setTimeout(function () { window.close() }, 8000)
+          // La fenêtre reste ouverte : les commandes suivent.
+          afficher(resumeEnvoi(p, await envoi.json()) + ' — lecture des commandes en cours…', 'ok')
+        } catch (_e) {
+          afficher(RESEAU, 'erreur')
+        }
+      } else if (e.data.type === 'commandes' && secret && p === plateforme) {
+        const commandes = Array.isArray(e.data.commandes) ? e.data.commandes : []
+        const avant = etat.textContent.replace(/ — lecture des commandes en cours…$/, '')
+        afficher(avant + ' — envoi de ' + pluriel(commandes.length, 'commande', 'commandes') + ' et calcul des litiges…')
+        try {
+          const envoi = await fetch(urlCommandes, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-ingest-secret': secret },
+            body: JSON.stringify({ commandes: commandes }),
+          })
+          if (!envoi.ok) { afficher(messageHttp(envoi.status), 'erreur'); return }
+          afficher(avant + '\n' + resumeCommandes(p, commandes.length, await envoi.json()), 'ok')
+          setTimeout(function () { window.close() }, 12000)
         } catch (_e) {
           afficher(RESEAU, 'erreur')
         }
@@ -89,5 +121,5 @@ function moteurRelais() {
     window.opener.postMessage({ type: 'pret' }, '*')
   }
 
-  return { plateformeDOrigine: plateformeDOrigine, messageHttp: messageHttp, resumeEnvoi: resumeEnvoi, demarrer: demarrer }
+  return { plateformeDOrigine: plateformeDOrigine, messageHttp: messageHttp, resumeEnvoi: resumeEnvoi, resumeCommandes: resumeCommandes, demarrer: demarrer }
 }

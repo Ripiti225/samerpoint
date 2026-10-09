@@ -11,7 +11,7 @@
       background: var(--fond); color: var(--texte); font: 16px/1.5 system-ui, sans-serif; padding: 16px; box-sizing: border-box; }
     main { max-width: 380px; text-align: center; }
     h1 { font-size: 18px; margin: 0 0 12px; }
-    #etat.ok { color: var(--ok); font-weight: 600; }
+    #etat.ok { color: var(--ok); font-weight: 600; white-space: pre-line; }
     #etat.erreur { color: var(--erreur); font-weight: 600; }
   </style>
 </head>
@@ -21,6 +21,6 @@
     <p id="etat">Connexion au portail…</p>
   </main>
   <script src="/envoi-avis.js"></script>
-  <script>moteurRelais().demarrer('https://wlwotzxnzowbkbfcpnyi.supabase.co/functions/v1/ingest-reviews')</script>
+  <script>moteurRelais().demarrer('https://wlwotzxnzowbkbfcpnyi.supabase.co/functions/v1/ingest-reviews', 'https://wlwotzxnzowbkbfcpnyi.supabase.co/functions/v1/ingest-commandes-plateformes')</script>
 </body>
 </html>
