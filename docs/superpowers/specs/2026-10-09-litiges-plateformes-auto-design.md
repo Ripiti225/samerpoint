@@ -162,3 +162,21 @@ fonction serveur, comme `attributionAvis.js`) :
 
 Partie 2 POS (vue caissier, note, notification) ; annulations par le restaurant ;
 réclamations « article manquant » sans remboursement chiffré.
+
+## Ajustements retenus au moment du plan (09/10)
+
+- **Annulation** : annuler un litige auto le retire de `litiges_yango/glovo` et
+  range sa copie dans `litiges_auto_annules` (clé `cle_auto`, qui, quand). Le
+  calcul ne recrée jamais une clé présente dans cette table. Résultat : la note
+  /20, les retenues et les rapports n'ont rien à filtrer (pas de colonne
+  `annule_le` sur les litiges).
+- **Stockage plateforme** : une seule table `commandes_plateformes`, les plats en
+  JSONB (`lignes`), pas de table de lignes séparée.
+- **Correspondances** : un nom plateforme → **un nom de plat POS** (`nom_snapshot`,
+  combo compris : un menu plateforme se relie au combo POS) ou « ignorer ». Les
+  noms POS vus sont rangés dans `plats_pos_vus`, où un plat POS peut aussi être
+  marqué « ignorer » (supplément tapé comme article).
+- **Responsable tapé +** : le caissier du shift Samtrackly lié au service POS de
+  la commande (`points_shifts.pos_service_id`).
+- **Journées** : `journees_litiges_plateformes` garde le statut de chaque
+  restaurant × plateforme × jour (`calculee` / `a_relier` / `pos_manquant`).
