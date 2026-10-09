@@ -747,7 +747,7 @@ Expected: FAIL (`retenuesJournee` n'est pas exporté).
 // reste la seule source pour lui.
 export const RETENUES_FOURNIES = {
   glovo: ['remboursement', 'temps_attente'],
-  yango: ['remboursement', 'temps_attente'],
+  yango: [], // Litiges → Yango n'a que tapé + / tapé − (repérage du 09/10)
 }
 
 const CHAMP_RETENUE = { remboursement: 'rembourse', temps_attente: 'penalite_attente' }

@@ -1,0 +1,162 @@
+{
+  "source": "vendor.yango.com — POST /4.0/restapp-front/eats-restapp-orders/v2/history?limit=50[&cursor=] (liste) + GET /4.0/restapp-front/eats-restapp-orders/v1/history/order?order_nr= (détail), relevé le 09/10/2026. Champs client (coordonnées, code coursier) retirés. Structure exacte du portail ; 261008-CI0870074, 261008-CI2708798, 261009-CI2857631 copiés tels quels (heures arrondies), 261008-CI5550101 reconstitué d’après une annulée non payée réelle.",
+  "commandes": [
+    {
+      "liste": {
+        "order_nr": "261008-CI0870074",
+        "flow": "native",
+        "status": "refused",
+        "place_id": 1969345,
+        "place_confirmed_at": "2026-10-08T01:19:02+00:00",
+        "is_reimbursement_to_place": true,
+        "sum": "3000",
+        "total_sum": "3000",
+        "discount": "0",
+        "payment_type": "cash",
+        "summary_date": "2026-10-08",
+        "service": "eda"
+      },
+      "detail": {
+        "order_nr": "261008-CI0870074",
+        "status": "refused",
+        "created_at": "2026-10-08T01:18:55.14958+00:00",
+        "sum": "3000",
+        "is_reimbursement": true,
+        "cancel_reason": "Commande annulée : le coursier ne peut pas la livrer.",
+        "items": [
+          {
+            "id": "item-1",
+            "name": "Jambon fromage",
+            "quantity": 1,
+            "sum": "3000",
+            "original_sum": "3000",
+            "weight": "300 g",
+            "category_name": "Nos manaïches"
+          }
+        ],
+        "combos": [],
+        "place": {
+          "id": 1969345,
+          "name": "Chez Samer"
+        }
+      }
+    },
+    {
+      "liste": {
+        "order_nr": "261008-CI5550101",
+        "flow": "native",
+        "status": "refused",
+        "place_id": 1969340,
+        "place_confirmed_at": "2026-10-08T12:40:11+00:00",
+        "is_reimbursement_to_place": false,
+        "sum": "5200",
+        "total_sum": "5200",
+        "discount": "0",
+        "payment_type": "cashless",
+        "summary_date": "2026-10-08",
+        "service": "eda"
+      },
+      "detail": {
+        "order_nr": "261008-CI5550101",
+        "status": "refused",
+        "created_at": "2026-10-08T12:39:40+00:00",
+        "sum": "5200",
+        "is_reimbursement": false,
+        "cancel_reason": "Commande annulée : l’utilisateur n’a pas accepté les modifications.",
+        "items": [
+          {
+            "id": "item-2",
+            "name": "Tacos viande + frites + 1 boisson",
+            "quantity": 1,
+            "sum": "5200",
+            "original_sum": "6500",
+            "category_name": "Tacos"
+          }
+        ],
+        "combos": [],
+        "place": {
+          "id": 1969340,
+          "name": "Chez Samer"
+        }
+      }
+    },
+    {
+      "liste": {
+        "order_nr": "261008-CI2708798",
+        "flow": "native",
+        "status": "released",
+        "place_id": 1969340,
+        "place_confirmed_at": "2026-10-08T19:12:30+00:00",
+        "is_reimbursement_to_place": true,
+        "sum": "10400",
+        "total_sum": "10400",
+        "discount": "0",
+        "payment_type": "cash",
+        "summary_date": "2026-10-08",
+        "service": "eda"
+      },
+      "detail": {
+        "order_nr": "261008-CI2708798",
+        "status": "released",
+        "created_at": "2026-10-08T19:12:01+00:00",
+        "sum": "10400",
+        "is_reimbursement": true,
+        "cancel_reason": null,
+        "items": [
+          {
+            "id": "item-3",
+            "name": "Tacos viande + frites + 1 boisson",
+            "quantity": 2,
+            "sum": "5200",
+            "original_sum": "6500",
+            "category_name": "Tacos"
+          }
+        ],
+        "combos": [],
+        "place": {
+          "id": 1969340,
+          "name": "Chez Samer"
+        }
+      }
+    },
+    {
+      "liste": {
+        "order_nr": "261009-CI2857631",
+        "flow": "native",
+        "status": "released",
+        "place_id": 2028607,
+        "place_confirmed_at": "2026-10-08T21:05:44+00:00",
+        "is_reimbursement_to_place": true,
+        "sum": "6000",
+        "total_sum": "6000",
+        "discount": "0",
+        "payment_type": "cash",
+        "summary_date": "2026-10-08",
+        "service": "eda"
+      },
+      "detail": {
+        "order_nr": "261009-CI2857631",
+        "status": "released",
+        "created_at": "2026-10-08T21:05:10+00:00",
+        "sum": "6000",
+        "is_reimbursement": true,
+        "cancel_reason": null,
+        "items": [
+          {
+            "id": "item-4",
+            "name": "Chawarma mélange",
+            "quantity": 2,
+            "sum": "3000",
+            "original_sum": "3000",
+            "category_name": "Chawarmas"
+          }
+        ],
+        "combos": [],
+        "place": {
+          "id": 2028607,
+          "name": "Chez Samer Yopougon Maroc"
+        }
+      }
+    }
+  ]
+}

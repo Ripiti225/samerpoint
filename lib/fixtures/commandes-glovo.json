@@ -1,0 +1,270 @@
+{
+  "source": "portal.glovoapp.com — vagw-api ListOrders (liste) + GetOrderDetails (détail), relevé le 09/10/2026 sur les commandes du 08/10. Aucune donnée client (adresses vides côté portail). Structure exacte du portail ; 101796963699 et 101796996020 (liste) copiés tels quels, le reste reconstitué sur la même forme.",
+  "commandes": [
+    {
+      "liste": {
+        "orderId": "101796963699",
+        "globalEntityId": "GV_CI",
+        "vendorId": "84806",
+        "vendorName": "Chez Samer",
+        "orderStatus": "DELIVERED",
+        "placedTimestamp": "2026-10-08T20:08:11Z",
+        "subtotal": 6500,
+        "billableStatus": "UNKNOWN",
+        "deliveryType": "platform_delivery",
+        "billing": {
+          "commissionAmount": 0,
+          "netRevenue": 0
+        },
+        "orderIssuesDetails": [
+          {
+            "orderIssue": "AVOIDABLE_WAIT_TIME",
+            "metadata": [
+              {
+                "reason": null,
+                "amount": null,
+                "deduction": null,
+                "fee": 0,
+                "avoidableWaitTime": 6,
+                "baseWaitTimeFeeThresholdMinutes": 0
+              }
+            ]
+          },
+          {
+            "orderIssue": "ORDER_WITH_DEDUCTION",
+            "metadata": [
+              {
+                "reason": "plugins.orders.v3.glovo.reasons.refund",
+                "amount": 5200,
+                "deduction": null,
+                "fee": null,
+                "avoidableWaitTime": null,
+                "baseWaitTimeFeeThresholdMinutes": null
+              },
+              {
+                "reason": null,
+                "amount": null,
+                "deduction": 5200,
+                "fee": null,
+                "avoidableWaitTime": null,
+                "baseWaitTimeFeeThresholdMinutes": null
+              }
+            ]
+          },
+          {
+            "orderIssue": "ORDER_WITH_COMPLAINT",
+            "metadata": [
+              {
+                "reason": "WRONG_ORDER",
+                "amount": null,
+                "deduction": null,
+                "fee": null,
+                "avoidableWaitTime": null,
+                "baseWaitTimeFeeThresholdMinutes": null
+              }
+            ]
+          }
+        ],
+        "totalFeesAndDeductions": 5200
+      },
+      "detail": {
+        "order": {
+          "orderId": "101796963699",
+          "placedTimestamp": "2026-10-08T20:08:11Z",
+          "status": "DELIVERED",
+          "globalEntityId": "GV_CI",
+          "vendorId": "84806",
+          "vendorName": "Chez Samer",
+          "orderValue": 6500,
+          "items": [
+            {
+              "id": "1",
+              "name": "Tacos Viande + Frites + Coca-Cola Original 33cl Canette",
+              "parentName": "",
+              "quantity": 1,
+              "unitPrice": 6500,
+              "options": [
+                {
+                  "id": "8310748061",
+                  "name": "Coca-Cola Original  33cl Canette",
+                  "quantity": 1,
+                  "type": "choice",
+                  "unitPrice": 0
+                }
+              ]
+            }
+          ]
+        },
+        "billing": {
+          "billingStatus": "NOT_PAID",
+          "isCancelled": false,
+          "estimatedVendorNetRevenue": 0
+        },
+        "orderIssues": [
+          {
+            "orderIssue": "ORDER_WITH_DEDUCTION",
+            "metadata": [
+              {
+                "reason": "plugins.orders.v3.glovo.reasons.refund",
+                "amount": 5200,
+                "fee": null,
+                "deduction": null
+              }
+            ]
+          }
+        ],
+        "refundData": null
+      }
+    },
+    {
+      "liste": {
+        "orderId": "101796996020",
+        "globalEntityId": "GV_CI",
+        "vendorId": "84806",
+        "vendorName": "Chez Samer",
+        "orderStatus": "DELIVERED",
+        "placedTimestamp": "2026-10-08T21:02:40Z",
+        "subtotal": 10000,
+        "billableStatus": "UNKNOWN",
+        "deliveryType": "platform_delivery",
+        "billing": {
+          "commissionAmount": 0,
+          "netRevenue": 5532
+        },
+        "orderIssuesDetails": [
+          {
+            "orderIssue": "AVOIDABLE_WAIT_TIME",
+            "metadata": [
+              {
+                "reason": null,
+                "amount": null,
+                "deduction": null,
+                "fee": 468,
+                "avoidableWaitTime": 17,
+                "baseWaitTimeFeeThresholdMinutes": 0
+              }
+            ]
+          }
+        ],
+        "totalFeesAndDeductions": 468
+      },
+      "detail": {
+        "order": {
+          "orderId": "101796996020",
+          "placedTimestamp": "2026-10-08T21:02:40Z",
+          "status": "DELIVERED",
+          "globalEntityId": "GV_CI",
+          "vendorId": "84806",
+          "vendorName": "Chez Samer",
+          "orderValue": 10000,
+          "items": [
+            {
+              "id": "2",
+              "name": "Chawarma Poulet",
+              "parentName": "",
+              "quantity": 2,
+              "unitPrice": 3500,
+              "options": null
+            },
+            {
+              "id": "3",
+              "name": "Coca-Cola Original  33cl Canette",
+              "parentName": "",
+              "quantity": 2,
+              "unitPrice": 1500,
+              "options": null
+            }
+          ]
+        },
+        "billing": {
+          "billingStatus": "NOT_PAID",
+          "isCancelled": false,
+          "estimatedVendorNetRevenue": 5532
+        },
+        "orderIssues": [],
+        "refundData": null
+      }
+    },
+    {
+      "liste": {
+        "orderId": "101797048992",
+        "globalEntityId": "GV_CI",
+        "vendorId": "121904",
+        "vendorName": "Chez Samer",
+        "orderStatus": "DELIVERED",
+        "placedTimestamp": "2026-10-08T22:57:54Z",
+        "subtotal": 5000,
+        "billableStatus": "UNKNOWN",
+        "deliveryType": "platform_delivery",
+        "billing": {
+          "commissionAmount": 0,
+          "netRevenue": 3000
+        },
+        "orderIssuesDetails": null,
+        "totalFeesAndDeductions": null
+      },
+      "detail": {
+        "order": {
+          "orderId": "101797048992",
+          "placedTimestamp": "2026-10-08T22:57:54Z",
+          "status": "DELIVERED",
+          "globalEntityId": "GV_CI",
+          "vendorId": "121904",
+          "vendorName": "Chez Samer",
+          "orderValue": 5000,
+          "items": [
+            {
+              "id": "4",
+              "name": "Salade Poulet",
+              "parentName": "",
+              "quantity": 1,
+              "unitPrice": 5000,
+              "options": null
+            }
+          ]
+        },
+        "billing": {
+          "billingStatus": "NOT_PAID",
+          "isCancelled": false,
+          "estimatedVendorNetRevenue": 3000
+        },
+        "orderIssues": [],
+        "refundData": null
+      }
+    },
+    {
+      "liste": {
+        "orderId": "101796870011",
+        "globalEntityId": "GV_CI",
+        "vendorId": "84806",
+        "vendorName": "Chez Samer",
+        "orderStatus": "CANCELLED",
+        "placedTimestamp": "2026-10-08T17:41:05Z",
+        "subtotal": 4000,
+        "billableStatus": "UNKNOWN",
+        "deliveryType": "platform_delivery",
+        "billing": {
+          "commissionAmount": 0,
+          "netRevenue": 0
+        },
+        "orderIssuesDetails": [
+          {
+            "orderIssue": "AVOIDABLE_CANCELLATION",
+            "metadata": [
+              {
+                "reason": null,
+                "amount": null,
+                "deduction": null,
+                "fee": null,
+                "avoidableWaitTime": null,
+                "baseWaitTimeFeeThresholdMinutes": null
+              }
+            ]
+          }
+        ],
+        "totalFeesAndDeductions": 0
+      },
+      "detail": null
+    }
+  ]
+}
