@@ -1,4 +1,5 @@
 import { retour } from '../lib/navigation'
+import { router } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator, Alert, Modal, Platform, SafeAreaView,
@@ -169,6 +170,10 @@ export default function LitigesScreen() {
   const [shiftsAvis, setShiftsAvis] = useState([])
   const [attributionEnCours, setAttributionEnCours] = useState(false)
   const [confirmSuppr, setConfirmSuppr] = useState(null)
+  // Litiges Yango/Glovo automatiques : journées dont des plats ne sont pas
+  // encore reliés au POS, et détail déplié d'une ligne.
+  const [aRelier, setARelier] = useState(0)
+  const [detailOuvert, setDetailOuvert] = useState(null)
   const [saveError, setSaveError] = useState(null)
 
   // ── Volet 1 — écarts ────────────────────────────────────────
@@ -276,7 +281,7 @@ export default function LitigesScreen() {
   async function chargerTout() {
     if (!restoSelectionne) return
     setLoading(true)
-    await Promise.all([chargerEcarts(), chargerResponsables(), chargerInventaire(), chargerAvis(), chargerYango(), chargerGlovo(), chargerEcartContacts(), chargerPointPasFait(), chargerDeducVerifResto()])
+    await Promise.all([chargerEcarts(), chargerResponsables(), chargerInventaire(), chargerAvis(), chargerYango(), chargerGlovo(), chargerEcartContacts(), chargerPointPasFait(), chargerDeducVerifResto(), chargerARelier()])
     setLoading(false)
   }
 
@@ -690,6 +695,13 @@ export default function LitigesScreen() {
       .gte('date', debut).lte('date', fin)
       .order('date', { ascending: false })
     setLitigesYango(data || [])
+  }
+
+  async function chargerARelier() {
+    const { count } = await supabase.from('journees_litiges_plateformes')
+      .select('jour', { count: 'exact', head: true })
+      .eq('restaurant_id', restoSelectionne.id).eq('statut', 'a_relier')
+    setARelier(count || 0)
   }
 
   async function chargerGlovo() {
@@ -1467,7 +1479,16 @@ export default function LitigesScreen() {
   async function supprimerItem() {
     if (!confirmSuppr) return
     setSaving(true)
-    const { table, id } = confirmSuppr
+    const { table, id, auto } = confirmSuppr
+    // Litige automatique : rangé dans litiges_auto_annules avant d'être
+    // retiré, pour que le calcul ne le recrée jamais.
+    if (auto) {
+      const { error } = await supabase.from('litiges_auto_annules').upsert({
+        cle_auto: auto.cle_auto, plateforme: table === 'litiges_yango' ? 'yango' : 'glovo',
+        copie: auto, annule_par: userNom || userId,
+      }, { onConflict: 'cle_auto' })
+      if (error) { setSaving(false); setSaveError("L'annulation n'a pas abouti. Réessayez."); return }
+    }
     await supabase.from(table).delete().eq('id', id)
     setSaving(false)
     setConfirmSuppr(null)
@@ -2049,9 +2070,52 @@ export default function LitigesScreen() {
     )
   }
 
+  // Ligne Yango/Glovo : pastille « auto », détail déplié, et pour une ligne
+  // automatique seulement « Annuler » (une modification serait écrasée par
+  // le prochain calcul ; une simple suppression serait recréée).
+  function extrasAuto(l) {
+    if (l.origine !== 'auto') return null
+    const lignes = l.detail?.lignes || []
+    return (
+      <>
+        <View style={styles.pastilleAuto}><Text style={styles.pastilleAutoTxt}>auto</Text></View>
+        {lignes.length > 0 && (
+          <TouchableOpacity onPress={() => setDetailOuvert(detailOuvert === l.id ? null : l.id)}>
+            <Text style={styles.lienDetail}>{detailOuvert === l.id ? 'Masquer le détail' : 'Voir le détail'}</Text>
+          </TouchableOpacity>
+        )}
+        {detailOuvert === l.id && lignes.map((d, i) => (
+          <Text key={i} style={styles.ligneDetail}>
+            {d.heure} · {d.plat ? `${d.plat} · ` : ''}n° {d.commande} · {fmtShort(d.prix)}
+          </Text>
+        ))}
+      </>
+    )
+  }
+  function actionsPlateforme(l, table, onModifier) {
+    if (l.origine !== 'auto') return actions(onModifier, () => setConfirmSuppr({ table, id: l.id }))
+    if (roleActif !== 'manager') return null
+    return (
+      <TouchableOpacity onPress={() => setConfirmSuppr({ table, id: l.id, auto: l })} accessibilityRole="button">
+        <Text style={styles.lienAnnuler}>Annuler</Text>
+      </TouchableOpacity>
+    )
+  }
+  function bandeauARelier() {
+    if (!aRelier || roleActif !== 'manager') return null
+    return (
+      <TouchableOpacity style={styles.bandeauRelier} onPress={() => router.push('/correspondances-plats')}>
+        <Text style={styles.bandeauRelierTxt}>
+          {aRelier} journée{aRelier > 1 ? 's' : ''} en attente : des plats Glovo/Yango ne sont pas encore reliés au POS. Toucher pour les relier.
+        </Text>
+      </TouchableOpacity>
+    )
+  }
+
   function renderYango() {
     return (
       <View style={styles.section}>
+        {bandeauARelier()}
         {litigesYango.length > 0 && (
           <View style={styles.totalBanner}>
             <Text style={styles.totalBannerLabel}>Impact total Yango</Text>
@@ -2071,12 +2135,13 @@ export default function LitigesScreen() {
                 {multiJour && y.date ? info('calendar-blank-outline', y.date, styles.ligneSous) : null}
                 {y.notes ? <Text style={styles.ligneSous}>{y.notes}</Text> : null}
                 {y.created_by ? <Text style={styles.ligneCreer}>par {y.created_by}</Text> : null}
+                {extrasAuto(y)}
               </View>
               <View style={{ alignItems: 'flex-end', gap: 6 }}>
                 <Text style={[styles.montantTxt, { color: y.montant > 0 ? colors.error : colors.successDark }]}>
                   {y.montant > 0 ? '+' : ''}{fmtShort(y.montant)}
                 </Text>
-                {actions(() => ouvrirEditYango(y), () => setConfirmSuppr({ table: 'litiges_yango', id: y.id }))}
+                {actionsPlateforme(y, 'litiges_yango', () => ouvrirEditYango(y))}
               </View>
             </View>
           )
@@ -2093,6 +2158,7 @@ export default function LitigesScreen() {
   function renderGlovo() {
     return (
       <View style={styles.section}>
+        {bandeauARelier()}
         {litigesGlovo.length > 0 && (
           <View style={styles.totalBanner}>
             <Text style={styles.totalBannerLabel}>Impact total Glovo</Text>
@@ -2112,12 +2178,13 @@ export default function LitigesScreen() {
                 {multiJour && g.date ? info('calendar-blank-outline', g.date, styles.ligneSous) : null}
                 {g.notes ? <Text style={styles.ligneSous}>{g.notes}</Text> : null}
                 {g.created_by ? <Text style={styles.ligneCreer}>par {g.created_by}</Text> : null}
+                {extrasAuto(g)}
               </View>
               <View style={{ alignItems: 'flex-end', gap: 6 }}>
                 <Text style={[styles.montantTxt, { color: g.montant > 0 ? colors.error : colors.successDark }]}>
                   {g.montant > 0 ? '+' : ''}{fmtShort(g.montant)}
                 </Text>
-                {actions(() => ouvrirEditGlovo(g), () => setConfirmSuppr({ table: 'litiges_glovo', id: g.id }))}
+                {actionsPlateforme(g, 'litiges_glovo', () => ouvrirEditGlovo(g))}
               </View>
             </View>
           )
@@ -2929,14 +2996,17 @@ export default function LitigesScreen() {
       <Modal visible={!!confirmSuppr} transparent animationType="fade">
         <View style={styles.overlay}>
           <View style={[styles.formModal, { alignItems: 'center', gap: 16 }]}>
-            <Text style={[styles.formTitre, { color: colors.error }]}>Supprimer cet élément ?</Text>
-            <Text style={{ fontSize: 13, color: '#666', textAlign: 'center' }}>Cette action est irréversible.</Text>
+            <Text style={[styles.formTitre, { color: colors.error }]}>{confirmSuppr?.auto ? 'Annuler ce litige automatique ?' : 'Supprimer cet élément ?'}</Text>
+            <Text style={{ fontSize: 13, color: '#666', textAlign: 'center' }}>
+              {confirmSuppr?.auto ? 'Il ne comptera plus et ne sera jamais recréé par le calcul.' : 'Cette action est irréversible.'}
+            </Text>
+            {confirmSuppr?.auto && saveError ? <Text style={{ fontSize: 13, color: colors.error, textAlign: 'center' }}>{saveError}</Text> : null}
             <View style={styles.formBtns}>
-              <TouchableOpacity style={styles.btnAnnuler} onPress={() => setConfirmSuppr(null)}>
-                <Text style={styles.btnAnnulerTxt}>Annuler</Text>
+              <TouchableOpacity style={styles.btnAnnuler} onPress={() => { setConfirmSuppr(null); setSaveError(null) }}>
+                <Text style={styles.btnAnnulerTxt}>{confirmSuppr?.auto ? 'Garder' : 'Annuler'}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.btnValider, { backgroundColor: colors.error }]} onPress={supprimerItem} disabled={saving}>
-                <Text style={styles.btnValiderTxt}>{saving ? '...' : 'Supprimer'}</Text>
+                <Text style={styles.btnValiderTxt}>{saving ? '...' : confirmSuppr?.auto ? 'Annuler le litige' : 'Supprimer'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -3023,6 +3093,13 @@ export default function LitigesScreen() {
 }
 
 function makeStyles(colors) { return StyleSheet.create({
+  pastilleAuto: { alignSelf: 'flex-start', backgroundColor: colors.primaryLight, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1, marginTop: 4 },
+  pastilleAutoTxt: { color: colors.primary, fontSize: 11, fontWeight: '700' },
+  lienDetail: { color: colors.primary, fontSize: 13, marginTop: 6, minHeight: 24 },
+  ligneDetail: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
+  lienAnnuler: { color: colors.error, fontSize: 14, fontWeight: '600', paddingVertical: 8, paddingHorizontal: 4 },
+  bandeauRelier: { backgroundColor: colors.warningLight, borderRadius: 10, padding: 12, marginBottom: 12, minHeight: 48, justifyContent: 'center' },
+  bandeauRelierTxt: { color: colors.warningDark, fontSize: 14 },
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     backgroundColor: colors.headerBg, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 14, gap: 12,
