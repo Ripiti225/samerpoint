@@ -204,9 +204,9 @@
     "semantic_hash": ""
   },
   "app/litiges.js": {
-    "mtime": 1791210877.7082784,
-    "seen": 1791210902.921481,
-    "ast_hash": "d040ef08784bf490ed0144a19199514c",
+    "mtime": 1791553761.2270575,
+    "seen": 1791553804.0373409,
+    "ast_hash": "d19901d394c1a6b987c8131d8be9e108",
     "semantic_hash": ""
   },
   "app/livraisons.js": {
@@ -2340,27 +2340,27 @@
     "semantic_hash": ""
   },
   "lib/boutonAvis.test.mjs": {
-    "mtime": 1791104133.1586995,
-    "seen": 1791107478.177402,
-    "ast_hash": "17432978e932383b2ebaeac639078844",
+    "mtime": 1791553495.1958556,
+    "seen": 1791553804.037419,
+    "ast_hash": "0772e28cafaa0b64404760a63ee9a2d2",
     "semantic_hash": ""
   },
   "lib/envoiAvis.test.mjs": {
-    "mtime": 1791104133.159084,
-    "seen": 1791107478.177425,
-    "ast_hash": "1f9e56a797e789cf4ce04e9bf0f3263d",
+    "mtime": 1791553589.0658638,
+    "seen": 1791553804.037447,
+    "ast_hash": "42845c09a0550eb5523d89d55758b1a9",
     "semantic_hash": ""
   },
   "public/bouton-avis.js": {
-    "mtime": 1791104154.228393,
-    "seen": 1791107478.17747,
-    "ast_hash": "0c6ea2f411c819a9ecaf0d3c88c35937",
+    "mtime": 1791553569.5609267,
+    "seen": 1791553804.0375092,
+    "ast_hash": "cdb87581da9afb2c7ed3778e141d6759",
     "semantic_hash": ""
   },
   "public/envoi-avis.js": {
-    "mtime": 1791104154.2285202,
-    "seen": 1791107478.177471,
-    "ast_hash": "bf1264defee29f883eb3879be96957f4",
+    "mtime": 1791553603.8275359,
+    "seen": 1791553804.0375092,
+    "ast_hash": "1ff0cdcc39f79fcc09552221e0a77058",
     "semantic_hash": ""
   },
   "supabase_avis_litige_motif.sql": {
@@ -2382,9 +2382,9 @@
     "semantic_hash": ""
   },
   "public/envoi-avis.html": {
-    "mtime": 1791101176.606033,
-    "seen": 1791101364.578393,
-    "ast_hash": "2fe89f7a2917a84e3eaa9884a6ea8900",
+    "mtime": 1791553603.8278656,
+    "seen": 1791553804.0375838,
+    "ast_hash": "1cdd5dc3423c62d7213f3a872238ced4",
     "semantic_hash": ""
   },
   "components/accueil/BandeauGerant.js": {
@@ -2769,6 +2769,66 @@
     "mtime": 1791547201.1780043,
     "seen": 1791547345.965674,
     "ast_hash": "8aae35c788f6213fbc41af95ae8efc45",
+    "semantic_hash": ""
+  },
+  "app/correspondances-plats.js": {
+    "mtime": 1791553700.4191906,
+    "seen": 1791553804.03733,
+    "ast_hash": "5efcf692436d801e7677c8840223fe9f",
+    "semantic_hash": ""
+  },
+  "lib/fixtures/commandes-glovo.json": {
+    "mtime": 1791552477.2860167,
+    "seen": 1791553804.037451,
+    "ast_hash": "70421a65403b25029f8ea3a19b317a59",
+    "semantic_hash": ""
+  },
+  "lib/fixtures/commandes-yango.json": {
+    "mtime": 1791552477.286997,
+    "seen": 1791553804.037452,
+    "ast_hash": "28ee651d21acf33bf42731690a90a2a1",
+    "semantic_hash": ""
+  },
+  "lib/litigesPlateformes.js": {
+    "mtime": 1791553195.0351105,
+    "seen": 1791553804.0374668,
+    "ast_hash": "d57190c78092980edc85742836102e93",
+    "semantic_hash": ""
+  },
+  "lib/litigesPlateformes.test.mjs": {
+    "mtime": 1791553213.7800446,
+    "seen": 1791553804.0374668,
+    "ast_hash": "af3ab1cbb57cfb260a84860e8066538e",
+    "semantic_hash": ""
+  },
+  "supabase/functions/ingest-commandes-plateformes/index.ts": {
+    "mtime": 1791553670.560216,
+    "seen": 1791553804.037513,
+    "ast_hash": "e9c2b25323c86c4bc5235080148d2a72",
+    "semantic_hash": ""
+  },
+  "supabase_litiges_plateformes_auto.sql": {
+    "mtime": 1791553395.7553985,
+    "seen": 1791553804.037536,
+    "ast_hash": "edbb46f859beebbf34d01f243cb88845",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-09-litiges-plateformes-auto.md": {
+    "mtime": 1791553154.9775074,
+    "seen": 1791553804.03757,
+    "ast_hash": "226e5293329620a958575977f5ad2f16",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-09-litiges-plateformes-auto-design.md": {
+    "mtime": 1791551162.1917,
+    "seen": 1791553804.0375779,
+    "ast_hash": "e3dd61d6f63efb87a0c991882a0158d6",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-09-portails-commandes-notes.md": {
+    "mtime": 1791553154.9770374,
+    "seen": 1791553804.037579,
+    "ast_hash": "384429891d450a45e0f040b8f79edbfc",
     "semantic_hash": ""
   }
 }

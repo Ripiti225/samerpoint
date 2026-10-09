@@ -1434,9 +1434,9 @@
     "semantic_hash": ""
   },
   "app/point-caissier.js": {
-    "mtime": 1790827178.747638,
-    "seen": 1790827220.2738612,
-    "ast_hash": "03fe0f08ea478acdf49d915e810c11fd",
+    "mtime": 1791547291.2625604,
+    "seen": 1791547345.96552,
+    "ast_hash": "52ea97153db424e6ff596efe00cc8410",
     "semantic_hash": ""
   },
   "components/DetailShiftCaissier.js": {
@@ -2028,9 +2028,9 @@
     "semantic_hash": ""
   },
   "lib/statsPOSDb.js": {
-    "mtime": 1791051433.7923026,
-    "seen": 1791051493.69261,
-    "ast_hash": "1bd1299b5177e091a3c502d23c47b698",
+    "mtime": 1791547260.0653727,
+    "seen": 1791547345.965663,
+    "ast_hash": "d871d70a9d9bb4f6adfe789f18a753da",
     "semantic_hash": ""
   },
   "pos_cloud_stats_dashboard.sql": {
@@ -2751,6 +2751,24 @@
     "mtime": 1791367939.1145604,
     "seen": 1791368231.885565,
     "ast_hash": "409ea7ce0f1a2a0dfe0fec7cdca48dad",
+    "semantic_hash": ""
+  },
+  "lib/kdoPOS.js": {
+    "mtime": 1791547243.2992444,
+    "seen": 1791547345.965632,
+    "ast_hash": "bbb554e887c9cb9d3c4696a000280690",
+    "semantic_hash": ""
+  },
+  "lib/kdoPOS.test.mjs": {
+    "mtime": 1791547244.3388014,
+    "seen": 1791547345.965633,
+    "ast_hash": "3e08575910bb7ff990cb63da1f91712a",
+    "semantic_hash": ""
+  },
+  "pos_cloud_kdo_services.sql": {
+    "mtime": 1791547201.1780043,
+    "seen": 1791547345.965674,
+    "ast_hash": "8aae35c788f6213fbc41af95ae8efc45",
     "semantic_hash": ""
   }
 }
