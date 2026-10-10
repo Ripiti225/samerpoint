@@ -25,6 +25,8 @@ import { useApp } from '../context/AppContext'
 import { creerNotification } from '../lib/notificationsInterne'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
+import { chargerDerniersRestes } from '../lib/derniersRestesFournisseurs'
+import { ecritureAjustementCredit, ecrituresFicheFournisseur } from '../lib/creditsFournisseurs'
 import { libelleMois, premierDuMois } from '../lib/facturesMensuelles'
 import { connecterOneDrive, deconnecterOneDrive, estatConnecte } from '../lib/onedrive'
 import { ROLES_GLOBAUX } from '../lib/constants'
@@ -213,18 +215,51 @@ export default function ParametresScreen() {
     }
   }
 
+  // Nouveau crédit et avance cotisée deviennent des écritures de l'historique
+  // (lib/creditsFournisseurs.js → ecrituresFicheFournisseur). Écrire seulement
+  // credit_actuel / montant_cotise faisait diverger Crédits fournisseurs et
+  // Déductions gérant, et le montant cotisé était retiré à chaque journée.
   async function modifierCredit(fournisseurId, nouveauCredit, nouveauCotise) {
-    const mc = parseFloat(nouveauCotise)
+    const mc = nouveauCotise === '' || nouveauCotise == null ? NaN : parseFloat(nouveauCotise)
     if (!isNaN(mc) && mc < 0) {
       Alert.alert('Erreur', 'Le montant cotisé ne peut pas être négatif.')
       return false
     }
-    const { error } = await supabase.from('fournisseurs').update({
-      credit_actuel: parseFloat(nouveauCredit) || 0,
-      montant_cotise: isNaN(mc) ? 0 : mc,
-    }).eq('id', fournisseurId)
-    if (error) {
-      Alert.alert('Erreur', error.message)
+    try {
+      const derniers = await chargerDerniersRestes(supabase, [fournisseurId])
+      const ecarts = ecrituresFicheFournisseur({
+        resteChaine: Number(derniers[fournisseurId]?.reste) || 0,
+        nouveauCredit, avance: nouveauCotise,
+      })
+      for (const [i, delta] of ecarts.entries()) {
+        const e = ecritureAjustementCredit(delta)
+        const { data: txId, error } = await supabase.rpc('inserer_transaction_hors_point', {
+          p_fournisseur: fournisseurId, p_date: aujourdhuiISO(),
+          p_facture: e.facture, p_paye: e.paye,
+          p_saisi_par: 'manager', p_source: 'ajustement_manager', p_caissier_nom: userNom || null,
+        })
+        if (error) throw error
+        const estAvance = i === ecarts.length - 1 && !isNaN(mc) && mc > 0
+        if (txId) {
+          await supabase.from('transactions_fournisseurs')
+            .update({ facture_correction_raison: estAvance ? 'Montant cotisé (avance en attente de facture)' : 'Crédit corrigé dans Paramètres' })
+            .eq('id', txId)
+        }
+      }
+      // credit_actuel suit la fonction SQL ; on l'aligne sur le crédit voulu s'il avait dérivé.
+      if (nouveauCredit !== '' && nouveauCredit != null && !isNaN(parseFloat(nouveauCredit))) {
+        const voulu = parseFloat(nouveauCredit) - (!isNaN(mc) && mc > 0 ? mc : 0)
+        await supabase.from('fournisseurs').update({ credit_actuel: voulu, montant_cotise: 0 }).eq('id', fournisseurId)
+      } else {
+        await supabase.from('fournisseurs').update({ montant_cotise: 0 }).eq('id', fournisseurId)
+      }
+      if (ecarts.length) {
+        journaliser('modif_credit_fournisseur', {
+          ecarts, nouveau_credit: nouveauCredit || null, avance: !isNaN(mc) && mc > 0 ? mc : null, depuis: 'parametres',
+        }, { userId }).catch(() => {})
+      }
+    } catch (err) {
+      Alert.alert('Erreur', err?.message || 'Impossible de modifier le crédit')
       return false
     }
     return true
@@ -406,10 +441,9 @@ export default function ParametresScreen() {
           if (error) throw error
 
           // Modification du crédit et du montant cotisé (manager uniquement)
-          if (isManager && (form.nouveau_credit !== undefined || form.nouveau_montant_cotise !== undefined)) {
-            const creditVal = form.nouveau_credit !== undefined && form.nouveau_credit !== '' ? form.nouveau_credit : (creditActuel ?? 0)
-            const cotiseVal = form.nouveau_montant_cotise !== undefined && form.nouveau_montant_cotise !== '' ? form.nouveau_montant_cotise : (montantCotise ?? 0)
-            const ok = await modifierCredit(data.id, creditVal, cotiseVal)
+          // Seulement ce qui a été tapé : un champ laissé vide ne crée aucune écriture.
+          if (isManager && (form.nouveau_credit || form.nouveau_montant_cotise)) {
+            const ok = await modifierCredit(data.id, form.nouveau_credit || '', form.nouveau_montant_cotise || '')
             if (!ok) { setLoading(false); return }
           }
         } else {
@@ -1494,14 +1528,14 @@ export default function ParametresScreen() {
             />
             <View style={styles.infoBox}>
               <Text style={styles.infoTxt}>
-                ⚠️ Cette valeur écrase le crédit actuel du fournisseur. À utiliser uniquement pour corriger une erreur.
+                ⚠️ Corrige le crédit à cette valeur : l'écart est enregistré dans l'historique du fournisseur. À utiliser uniquement pour corriger une erreur.
               </Text>
             </View>
 
             <View style={styles.creditSeparateur} />
             <Text style={styles.modalLabel}>Montant Cotisé</Text>
             <Text style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>
-              Somme déjà versée en attente de facture
+              Somme versée une fois en attente de facture : retirée une seule fois du crédit (ligne dans l'historique)
             </Text>
             {montantCotise !== null && (
               <View style={[styles.creditActuelBanner, { backgroundColor: '#E6F1FB', borderColor: '#B8D4F5' }]}>

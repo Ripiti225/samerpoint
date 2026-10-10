@@ -53,7 +53,7 @@ export default function DeductionsGerantScreen() {
     // Avant toute lecture : la facture mensuelle du 1er doit être dans la chaîne.
     await appliquerFacturesMensuelles(supabase)
     const [{ data: fours }, { data: travs }] = await Promise.all([
-      supabase.from('fournisseurs').select('id, nom, montant_cotise').eq('restaurant_id', restaurantId).order('nom'),
+      supabase.from('fournisseurs').select('id, nom').eq('restaurant_id', restaurantId).order('nom'),
       supabase.from('travailleurs').select('id, nom, poste').eq('restaurant_id', restaurantId).order('nom'),
     ])
 
@@ -90,10 +90,13 @@ export default function DeductionsGerantScreen() {
 
     setFournisseursList((fours || []).map(f => ({
       ...f,
-      // credit_veille = reste du point précédent (par date) - cotisations + factures caissier aujourd'hui
+      // credit_veille = reste du point précédent (par date) + factures caissier aujourd'hui
       // NE PAS utiliser credit_actuel : il est déjà mis à jour par le shift caissier,
       // l'ajouter à caissierMap provoquerait un double-comptage.
-      credit_veille: (prevMap[f.id]?.reste ?? 0) - (f.montant_cotise || 0) + (caissierMap[f.id] || 0),
+      // NE PAS retirer fournisseurs.montant_cotise : retiré ici à chaque journée,
+      // il s'accumulait dans le reste (KMS, Cotisation salaire : 7 M en 35 jours).
+      // L'avance cotisée est désormais une écriture unique (Paramètres).
+      credit_veille: (prevMap[f.id]?.reste ?? 0) + (caissierMap[f.id] || 0),
       caissier_facture: caissierMap[f.id] || 0,
     })))
     setChargement(false)
