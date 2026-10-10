@@ -127,7 +127,7 @@ export default function TresorerieResultatsScreen() {
             </>
           )}
           <Text style={styles.petit}>
-            Points validés seulement. Loyer, salaires, CNPS, impôts, ITS, TEE et bail comptent au mois de leur date limite, payés ou non (le loyer de juin, dû début juillet, pèse sur juillet). Investissements, retraits perso et rechargements de fond ne comptent pas. Les litiges ne sont pas déduits. Crédit fournisseurs : une dette qui monte dans le mois est une marchandise reçue sans être payée, elle est retirée ; une dette qui baisse est ajoutée (cotisations, CNPS, impôts, loyer et bail exclus, déjà dans les charges ; avant octobre 2026, un crédit négatif, souvent une facture oubliée, compte pour 0).
+            Points validés seulement. Loyer, salaires, CNPS, impôts, ITS, TEE et bail comptent au mois de leur date limite, payés ou non (le loyer de juin, dû début juillet, pèse sur juillet). Investissements, retraits perso et rechargements de fond ne comptent pas. Les litiges ne sont pas déduits. Crédit fournisseurs : une dette qui monte dans le mois est une marchandise reçue sans être payée, elle est retirée ; une dette qui baisse est ajoutée (cotisations, CNPS, impôts, loyer et bail exclus, déjà dans les charges, ainsi que PALMCI, Sécurité, Boss et Anciens travailleurs ; avant octobre 2026, un crédit négatif, souvent une facture oubliée, compte pour 0).
           </Text>
         </ScrollView>
       )}
