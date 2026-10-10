@@ -363,15 +363,30 @@ function moteurAvis() {
   }
 
   // ── Lecture des commandes ────────────────────────────────────────────
-  // Un détail qui ne répond pas est retenté une fois, puis la lecture
-  // s'arrête : une commande livrée envoyée sans ses plats ferait croire à
-  // un tapé +.
+  // Un appel qui échoue est retenté en attendant de plus en plus longtemps
+  // (Glovo freine le détail des commandes : « grpc_ratelimit », constaté le
+  // 10/10/2026), puis la lecture s'arrête : une commande livrée envoyée sans
+  // ses plats ferait croire à un tapé +. Session expirée : pas de réessai.
   const LECTURE_INCOMPLETE = 'Les avis sont partis, mais la lecture des commandes n’a pas abouti : clique à nouveau dans quelques minutes.'
+  const ATTENTES_REPRISE = [1000, 2000, 4000, 8000, 16000]
 
-  async function avecReprise(fn) {
-    try { return await fn() } catch (_e) {
-      try { return await fn() } catch (_e2) { throw erreurFr(LECTURE_INCOMPLETE) }
+  function pause(ms) { return new Promise(function (ok) { setTimeout(ok, ms) }) }
+
+  async function avecReprise(fn, attendre) {
+    attendre = attendre || pause
+    for (let essai = 0; ; essai++) {
+      try { return await fn() } catch (e) {
+        if (e && e.definitif) throw e
+        if (essai >= ATTENTES_REPRISE.length) throw erreurFr(LECTURE_INCOMPLETE)
+        await attendre(ATTENTES_REPRISE[essai])
+      }
     }
+  }
+
+  function sessionExpiree(nom) {
+    let e = erreurFr('Ta session ' + nom + ' a expiré : reconnecte-toi au portail puis clique à nouveau.')
+    e.definitif = true
+    return e
   }
 
   const REQUETE_GLOVO_LISTE = 'query ListOrders($params: ListOrdersReq!) { orders { listOrders(input: $params) { nextPageToken orders { orderId globalEntityId vendorId orderStatus placedTimestamp subtotal billing { netRevenue } orderIssuesDetails { orderIssue metadata { reason amount deduction fee } } } } } }'
@@ -383,7 +398,7 @@ function moteurAvis() {
       headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + jeton },
       body: JSON.stringify(corps),
     })
-    if (r.status === 401 || r.status === 403) throw erreurFr('Ta session Glovo a expiré : reconnecte-toi au portail puis clique à nouveau.')
+    if (r.status === 401 || r.status === 403) throw sessionExpiree('Glovo')
     if (!r.ok) throw erreurFr(LECTURE_INCOMPLETE)
     let j = await r.json()
     if (!j.data || !j.data.orders) throw erreurFr(LECTURE_INCOMPLETE)
@@ -414,7 +429,8 @@ function moteurAvis() {
       jetonPage = lo.nextPageToken
     }
     let faits = 0
-    let bruts = await enParallele(liste, 4, async function (l) {
+    // 2 à la fois : à 4, Glovo refuse un tiers des détails (10/10/2026).
+    let bruts = await enParallele(liste, 2, async function (l) {
       let detail = null
       if (l.orderStatus === 'DELIVERED') {
         detail = (await avecReprise(function () {
@@ -442,7 +458,7 @@ function moteurAvis() {
       method: options.corps ? 'POST' : 'GET', headers: modele.headers, credentials: 'include',
       body: options.corps ? JSON.stringify(options.corps) : undefined,
     }))
-    if (r.status === 401 || r.status === 403) throw erreurFr('Ta session Yango a expiré : reconnecte-toi au portail puis clique à nouveau.')
+    if (r.status === 401 || r.status === 403) throw sessionExpiree('Yango')
     if (!r.ok) throw erreurFr(LECTURE_INCOMPLETE)
     return r.json()
   }
@@ -557,6 +573,7 @@ function moteurAvis() {
     heureGlovo: heureGlovo,
     heureYango: heureYango,
     enParallele: enParallele,
+    avecReprise: avecReprise,
     lancer: lancer,
   }
 }
