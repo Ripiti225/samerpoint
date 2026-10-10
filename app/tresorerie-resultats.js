@@ -2,7 +2,8 @@
 // Trésorerie — Résultat net par restaurant et par mois (M. Zreik et managers).
 //
 // Résultat = encaissé net des points validés (formule de l'écran Charges, sans
-// les litiges) − charges du mois − dépenses direction comptées − pubs.
+// les litiges) − charges du mois − dépenses direction comptées − pubs
+// − hausse du crédit fournisseurs dans le mois (+ si la dette baisse).
 // Loyer, salaires, CNPS, impôts, ITS, TEE, bail : au mois de leur DATE LIMITE,
 // payés ou non (lib/chargesMois.js).
 // Un mois à la fois, montants complets en gros : un tableau de 4 mois en
@@ -107,6 +108,11 @@ export default function TresorerieResultatsScreen() {
                         <Detail point={colors.error} label="Charges du mois" valeur={`− ${fmt(c.charges)}`} />
                         {c.direction > 0 && <Detail point="#7C3AED" label="Dépenses direction" valeur={`− ${fmt(c.direction)}`} />}
                         {c.pubs > 0 && <Detail point="#E11D48" label="Pubs Yango / Glovo" valeur={`− ${fmt(c.pubs)}`} />}
+                        {c.variationCredit !== 0 && (
+                          <Detail point={colors.warning}
+                            label={`Crédit fournisseurs ${fmt(c.creditDebut)} → ${fmt(c.creditFin)}`}
+                            valeur={c.variationCredit > 0 ? `− ${fmt(c.variationCredit)}` : `+ ${fmt(-c.variationCredit)}`} />
+                        )}
                         {part !== null && (
                           <View style={{ marginTop: 10 }}>
                             <Progression pct={part} couleur={part > 100 ? colors.error : colors.warning} hauteur={8} />
@@ -121,7 +127,7 @@ export default function TresorerieResultatsScreen() {
             </>
           )}
           <Text style={styles.petit}>
-            Points validés seulement. Loyer, salaires, CNPS, impôts, ITS, TEE et bail comptent au mois de leur date limite, payés ou non (le loyer de juin, dû début juillet, pèse sur juillet). Investissements, retraits perso et rechargements de fond ne comptent pas. Les litiges ne sont pas déduits.
+            Points validés seulement. Loyer, salaires, CNPS, impôts, ITS, TEE et bail comptent au mois de leur date limite, payés ou non (le loyer de juin, dû début juillet, pèse sur juillet). Investissements, retraits perso et rechargements de fond ne comptent pas. Les litiges ne sont pas déduits. Crédit fournisseurs : une dette qui monte dans le mois est une marchandise reçue sans être payée, elle est retirée ; une dette qui baisse est ajoutée (cotisations, CNPS, impôts, loyer et bail exclus, déjà dans les charges).
           </Text>
         </ScrollView>
       )}
