@@ -220,7 +220,7 @@ async function traiterJournee(restaurantId: string, plateforme: Plateforme, jour
   }
   const { error } = await admin.from('journees_litiges_plateformes').upsert({
     restaurant_id: restaurantId, plateforme, jour, statut: resultat.statut,
-    noms_inconnus: resultat.nomsInconnus, calcule_le: new Date().toISOString(),
+    noms_inconnus: resultat.nomsInconnus, erreurs_saisie: resultat.erreursSaisie ?? [], calcule_le: new Date().toISOString(),
   }, { onConflict: 'restaurant_id,plateforme,jour' })
   if (error) throw error
 

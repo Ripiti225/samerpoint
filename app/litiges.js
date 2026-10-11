@@ -173,6 +173,9 @@ export default function LitigesScreen() {
   // Litiges Yango/Glovo automatiques : journées dont des plats ne sont pas
   // encore reliés au POS, et détail déplié d'une ligne.
   const [aRelier, setARelier] = useState(0)
+  // Erreurs de saisie (mauvais plat tapé sur la même commande) : jamais un
+  // litige, seulement signalées. { yango: [...], glovo: [...] }
+  const [erreursSaisie, setErreursSaisie] = useState({ yango: [], glovo: [] })
   const [detailOuvert, setDetailOuvert] = useState(null)
   const [saveError, setSaveError] = useState(null)
 
@@ -281,7 +284,7 @@ export default function LitigesScreen() {
   async function chargerTout() {
     if (!restoSelectionne) return
     setLoading(true)
-    await Promise.all([chargerEcarts(), chargerResponsables(), chargerInventaire(), chargerAvis(), chargerYango(), chargerGlovo(), chargerEcartContacts(), chargerPointPasFait(), chargerDeducVerifResto(), chargerARelier()])
+    await Promise.all([chargerEcarts(), chargerResponsables(), chargerInventaire(), chargerAvis(), chargerYango(), chargerGlovo(), chargerEcartContacts(), chargerPointPasFait(), chargerDeducVerifResto(), chargerARelier(), chargerErreursSaisie()])
     setLoading(false)
   }
 
@@ -702,6 +705,19 @@ export default function LitigesScreen() {
       .select('jour', { count: 'exact', head: true })
       .eq('restaurant_id', restoSelectionne.id).eq('statut', 'a_relier')
     setARelier(count || 0)
+  }
+
+  async function chargerErreursSaisie() {
+    const { debut, fin } = plage
+    const { data } = await supabase.from('journees_litiges_plateformes')
+      .select('plateforme, jour, erreurs_saisie')
+      .eq('restaurant_id', restoSelectionne.id).gte('jour', debut).lte('jour', fin)
+      .order('jour', { ascending: false })
+    const out = { yango: [], glovo: [] }
+    for (const j of data || []) {
+      for (const e of j.erreurs_saisie || []) out[j.plateforme]?.push({ ...e, jour: j.jour })
+    }
+    setErreursSaisie(out)
   }
 
   async function chargerGlovo() {
@@ -2112,10 +2128,34 @@ export default function LitigesScreen() {
     )
   }
 
+  function blocErreursSaisie(plateforme) {
+    const liste = erreursSaisie[plateforme] || []
+    if (!liste.length) return null
+    const jj = iso => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
+    return (
+      <View style={styles.ligneCard}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.ligneNom}>Erreurs de saisie · pas de litige</Text>
+          <Text style={styles.ligneDetail}>
+            Le caissier a tapé un autre plat sur la bonne commande : rien n'est reproché, même si le prix diffère.
+          </Text>
+          {liste.map((e, i) => (
+            <Text key={`${e.jour}-${e.commande}-${i}`} style={[styles.ligneDetail, { marginTop: 6 }]}>
+              {jj(e.jour)} {e.heure} · commande {e.commande}{e.caissier_nom ? ` · ${e.caissier_nom}` : ''}{'\n'}
+              vendu {e.vendu} ({fmtShort(e.prix_vendu)}) → tapé {e.tape} ({fmtShort(e.prix_tape)})
+              {e.prix_tape !== e.prix_vendu ? ` · écart ${e.prix_tape > e.prix_vendu ? '+' : '−'} ${fmtShort(Math.abs(e.prix_tape - e.prix_vendu))}` : ''}
+            </Text>
+          ))}
+        </View>
+      </View>
+    )
+  }
+
   function renderYango() {
     return (
       <View style={styles.section}>
         {bandeauARelier()}
+        {blocErreursSaisie('yango')}
         {litigesYango.length > 0 && (
           <View style={styles.totalBanner}>
             <Text style={styles.totalBannerLabel}>Impact total Yango</Text>
@@ -2159,6 +2199,7 @@ export default function LitigesScreen() {
     return (
       <View style={styles.section}>
         {bandeauARelier()}
+        {blocErreursSaisie('glovo')}
         {litigesGlovo.length > 0 && (
           <View style={styles.totalBanner}>
             <Text style={styles.totalBannerLabel}>Impact total Glovo</Text>
