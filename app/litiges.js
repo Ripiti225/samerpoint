@@ -2137,12 +2137,12 @@ export default function LitigesScreen() {
         <View style={{ flex: 1 }}>
           <Text style={styles.ligneNom}>Erreurs de saisie · pas de litige</Text>
           <Text style={styles.ligneDetail}>
-            Le caissier a tapé un autre plat sur la bonne commande : rien n'est reproché, même si le prix diffère.
+            Le caissier a tapé un autre plat, ou la commande sur la mauvaise plateforme, avec le bon numéro : rien n'est reproché, même si le prix diffère.
           </Text>
           {liste.map((e, i) => (
             <Text key={`${e.jour}-${e.commande}-${i}`} style={[styles.ligneDetail, { marginTop: 6 }]}>
               {jj(e.jour)} {e.heure} · commande {e.commande}{e.caissier_nom ? ` · ${e.caissier_nom}` : ''}{'\n'}
-              vendu {e.vendu} ({fmtShort(e.prix_vendu)}) → tapé {e.tape} ({fmtShort(e.prix_tape)})
+              vendu {e.vendu} ({fmtShort(e.prix_vendu)}) → tapé {e.tape} ({fmtShort(e.prix_tape)}){e.tape_en ? ` en ${e.tape_en === 'yango' ? 'Yango' : 'Glovo'} au lieu de ${plateforme === 'yango' ? 'Yango' : 'Glovo'}` : ''}
               {e.prix_tape !== e.prix_vendu ? ` · écart ${e.prix_tape > e.prix_vendu ? '+' : '−'} ${fmtShort(Math.abs(e.prix_tape - e.prix_vendu))}` : ''}
             </Text>
           ))}

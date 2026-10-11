@@ -22,7 +22,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import {
-  comparerJournee, retenuesJournee, planEcriture, normaliserNom, jourDe, RETENUES_FOURNIES,
+  comparerJourneesCroisees, retenuesJournee, planEcriture, normaliserNom, jourDe, RETENUES_FOURNIES,
 } from '../../../lib/litigesPlateformes.js'
 
 const cors = {
@@ -171,7 +171,10 @@ async function lirePos(restaurantId: string, plateforme: Plateforme, jour: strin
 }
 
 // ── Calcul et écriture d'une journée ───────────────────────────────────
-async function traiterJournee(restaurantId: string, plateforme: Plateforme, jour: string, dernierJour: string) {
+// Yango et Glovo d'un même restaurant le même jour sont comparés ensemble : une
+// commande Glovo tapée en Yango dans le POS (même numéro) est une erreur de
+// saisie, pas un tapé + Yango et un tapé − Glovo.
+async function lireJournee(restaurantId: string, plateforme: Plateforme, jour: string, dernierJour: string) {
   const [cmdsPf, corr, ignores, shifts, existants] = await Promise.all([
     toutes(() => admin.from('commandes_plateformes').select('*')
       .eq('restaurant_id', restaurantId).eq('plateforme', plateforme).eq('jour', jour).order('numero')),
@@ -183,13 +186,20 @@ async function traiterJournee(restaurantId: string, plateforme: Plateforme, jour
       .eq('restaurant_id', restaurantId).eq('date', jour).order('id')),
   ])
   const lecture = await lirePos(restaurantId, plateforme, jour, dernierJour)
-  const resultat = comparerJournee({
-    plateforme, restaurantId, jour, posPresent: lecture.posPresent,
-    commandesPlateforme: cmdsPf, commandesPos: lecture.commandesPos,
-    correspondances: new Map(corr.map(c => [c.nom_norm, c])),
-    posIgnores: new Set(ignores.map(i => i.nom_norm)),
-    prixReference: lecture.prixReference, shifts,
-  })
+  return {
+    cmdsPf, shifts, existants,
+    entree: {
+      plateforme, restaurantId, jour, posPresent: lecture.posPresent,
+      commandesPlateforme: cmdsPf, commandesPos: lecture.commandesPos,
+      correspondances: new Map(corr.map(c => [c.nom_norm, c])),
+      posIgnores: new Set(ignores.map(i => i.nom_norm)),
+      prixReference: lecture.prixReference, shifts,
+    },
+  }
+}
+
+async function ecrireJournee(restaurantId: string, plateforme: Plateforme, jour: string, lu: any, resultat: any) {
+  const { cmdsPf, shifts, existants } = lu
   const retenues = retenuesJournee({ plateforme, restaurantId, jour, commandesPlateforme: cmdsPf, shifts })
   const calcules = [...resultat.litiges, ...retenues]
   const typesCouverts = [...(resultat.statut === 'calculee' ? ['tape_moins', 'tape_plus'] : []), ...RETENUES_FOURNIES[plateforme]]
@@ -227,16 +237,43 @@ async function traiterJournee(restaurantId: string, plateforme: Plateforme, jour
   return { statut: resultat.statut, litiges: plan.aInserer.length + plan.aMettreAJour.length }
 }
 
+// Un restaurant, un jour : les plateformes demandées, plus l'autre si elle a des
+// commandes ce jour-là (pour le croisement).
+async function traiterRestoJour(restaurantId: string, jour: string, demandees: Set<Plateforme>, dernierJour: string) {
+  const plateformes: Plateforme[] = []
+  for (const p of PLATEFORMES) {
+    if (demandees.has(p)) { plateformes.push(p); continue }
+    const { count } = await admin.from('commandes_plateformes').select('numero', { count: 'exact', head: true })
+      .eq('restaurant_id', restaurantId).eq('plateforme', p).eq('jour', jour)
+    if (count) plateformes.push(p)
+  }
+  const lus: Record<string, any> = {}
+  for (const p of plateformes) lus[p] = await lireJournee(restaurantId, p, jour, dernierJour)
+  const resultats = comparerJourneesCroisees(Object.fromEntries(plateformes.map(p => [p, lus[p].entree])))
+  const sorties = []
+  for (const p of plateformes) sorties.push(await ecrireJournee(restaurantId, p, jour, lus[p], resultats[p]))
+  return sorties
+}
+
 async function traiterJournees(cles: string[]) {
-  let litiges = 0, a_relier = 0
+  let litiges = 0, a_relier = 0, journees = 0
   const dernierJour = cles.map(c => c.split('|')[2]).sort().pop() ?? aujourdhui()
+  const parRestoJour = new Map<string, Set<Plateforme>>()
   for (const cle of cles) {
     const [restaurantId, plateforme, jour] = cle.split('|')
-    const r = await traiterJournee(restaurantId, plateforme as Plateforme, jour, dernierJour)
-    litiges += r.litiges
-    if (r.statut === 'a_relier') a_relier++
+    const k = `${restaurantId}|${jour}`
+    if (!parRestoJour.has(k)) parRestoJour.set(k, new Set())
+    parRestoJour.get(k)!.add(plateforme as Plateforme)
   }
-  return { journees: cles.length, litiges, a_relier }
+  for (const [k, demandees] of parRestoJour) {
+    const [restaurantId, jour] = k.split('|')
+    for (const r of await traiterRestoJour(restaurantId, jour, demandees, dernierJour)) {
+      journees++
+      litiges += r.litiges
+      if (r.statut === 'a_relier') a_relier++
+    }
+  }
+  return { journees, litiges, a_relier }
 }
 
 Deno.serve(async req => {
