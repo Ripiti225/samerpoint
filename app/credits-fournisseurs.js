@@ -31,6 +31,7 @@ import {
 } from '../lib/creditsFournisseurs'
 import { appliquerFacturesMensuelles } from '../lib/facturesMensuelles'
 import { journaliser } from '../lib/journal'
+import { chargerDerniersRestes } from '../lib/derniersRestesFournisseurs'
 import { supabase } from '../lib/supabase'
 import { aujourdhuiISO } from '../lib/tresorerie'
 
@@ -38,6 +39,15 @@ let _restoFilterCache = null
 
 function fmt(n) { return Math.round(n || 0).toLocaleString('fr-FR') + ' FCFA' }
 // Paramètres facture/payé d'inserer_transaction_hors_point pour un écart de crédit.
+// Solde selon l'historique (reste de la dernière transaction : ce que voit le
+// gérant) à la place de credit_actuel, qui a pu dériver (anciennes
+// modifications de Paramètres). `credit_enregistre` garde l'ancien affichage.
+async function avecSoldeHistorique(f) {
+  const derniers = await chargerDerniersRestes(supabase, [f.id])
+  const reste = derniers[f.id] ? Number(derniers[f.id].reste) || 0 : Number(f.credit_actuel) || 0
+  return { ...f, credit_actuel: reste, credit_enregistre: Number(f.credit_actuel) || 0 }
+}
+
 function ajustementRpc(delta) {
   const e = ecritureAjustementCredit(delta)
   return { p_facture: e?.facture || 0, p_paye: e?.paye || 0 }
@@ -230,6 +240,10 @@ export default function CreditsFournisseursScreen() {
         p_saisi_par: 'manager', p_source: 'ajustement_manager', p_caissier_nom: userNom || null,
       })
       if (error) throw error
+      // credit_actuel avait pu dériver de l'historique : on l'aligne sur le nouveau solde.
+      if (selectedFourn.credit_enregistre !== undefined && selectedFourn.credit_enregistre !== ancienCredit) {
+        await supabase.from('fournisseurs').update({ credit_actuel: nouveauCredit }).eq('id', selectedFourn.id)
+      }
       // Le motif s'affiche sous la ligne dans l'historique (pas de colonne note).
       const motif = formCredit.motif.trim()
       if (txId && motif) {
@@ -573,20 +587,30 @@ ${mouvements.map(m => {
     setArchivageId(null)
   }
 
-  function remettreAZero(f) {
-    const avance = Math.abs(f.credit_actuel || 0)
-    if (avance === 0) return
+  async function remettreAZero(f) {
+    if ((f.credit_actuel || 0) === 0) return
     setRemettreAZeroErreur(null)
-    setFournisseurARemettre(f)
+    try { setFournisseurARemettre(await avecSoldeHistorique(f)) } catch { setFournisseurARemettre(f) }
   }
 
   async function confirmerRemiseAZero() {
     const f = fournisseurARemettre
     if (!f) return
-    const avance = Math.abs(f.credit_actuel || 0)
+    const solde = f.credit_actuel || 0
     setRemettreAZeroErreur(null)
     setRemettreAZeroId(f.id)
     try {
+      // Selon l'historique, pas d'avance (déjà à 0 ou dette) : rien à annuler,
+      // on aligne seulement l'affichage sur l'historique.
+      if (solde >= 0) {
+        const { error } = await supabase.from('fournisseurs').update({ credit_actuel: solde }).eq('id', f.id)
+        if (error) throw error
+        setFournisseurARemettre(null)
+        await charger()
+        setRemettreAZeroId(null)
+        return
+      }
+      const avance = -solde
       // L'avance est annulée par une écriture sans journée (facture = avance).
       // Rattachée au dernier point, comme avant, elle était exclue du crédit
       // veille du gérant de ce jour-là et l'avance revenait.
@@ -596,6 +620,9 @@ ${mouvements.map(m => {
         p_saisi_par: 'manager', p_source: 'ajustement_manager', p_caissier_nom: userNom || null,
       })
       if (error) throw error
+      if (f.credit_enregistre !== undefined && f.credit_enregistre !== solde) {
+        await supabase.from('fournisseurs').update({ credit_actuel: 0 }).eq('id', f.id)
+      }
 
       setFournisseurARemettre(null)
       await charger()
@@ -650,9 +677,9 @@ ${mouvements.map(m => {
           {peutModifier && (
             <TouchableOpacity
               style={[styles.cardBtn, { backgroundColor: colors.primaryLight }]}
-              onPress={() => {
-                setSelectedFourn(f)
+              onPress={async () => {
                 setFormCredit({ montant: '', motif: '' })
+                try { setSelectedFourn(await avecSoldeHistorique(f)) } catch { setSelectedFourn(f) }
                 setShowEditCredit(true)
               }}
             >
@@ -1084,9 +1111,15 @@ ${mouvements.map(m => {
             </View>
             <Text style={styles.confirmTitre}>Remettre à 0 ?</Text>
             <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 16, textAlign: 'center' }}>
-              L'avance de {fmt(Math.abs(fournisseurARemettre?.credit_actuel || 0))} pour {fournisseurARemettre?.nom} sera annulée via une transaction.{'\n'}
-              Cette action est irréversible.
+              {(fournisseurARemettre?.credit_actuel || 0) < 0
+                ? `L'avance de ${fmt(Math.abs(fournisseurARemettre?.credit_actuel || 0))} pour ${fournisseurARemettre?.nom} sera annulée via une transaction.\nCette action est irréversible.`
+                : `Selon l'historique (ce que voit le gérant), ${fournisseurARemettre?.nom} n'a pas d'avance : ${(fournisseurARemettre?.credit_actuel || 0) === 0 ? 'il est déjà soldé' : `il doit ${fmt(fournisseurARemettre?.credit_actuel || 0)}`}. Confirmer aligne seulement l'affichage, sans transaction.`}
             </Text>
+            {fournisseurARemettre?.credit_enregistre !== undefined && fournisseurARemettre.credit_enregistre !== fournisseurARemettre.credit_actuel && (
+              <Text style={{ fontSize: 12, color: colors.warning, marginBottom: 12, textAlign: 'center' }}>
+                L'écran affichait {fmt(fournisseurARemettre.credit_enregistre)} : ce chiffre ne correspondait plus à l'historique.
+              </Text>
+            )}
             {remettreAZeroErreur && (
               <Text style={{ color: colors.error, fontSize: 12, marginBottom: 10, textAlign: 'center' }}>{remettreAZeroErreur}</Text>
             )}
@@ -1229,6 +1262,11 @@ ${mouvements.map(m => {
                       : `${fmt(selectedFourn.credit_actuel || 0)} dû`}
                   </Text>
                 </Text>
+                {selectedFourn.credit_enregistre !== undefined && selectedFourn.credit_enregistre !== selectedFourn.credit_actuel && (
+                  <Text style={[styles.fournInfoSub, { color: colors.warning, marginTop: 4 }]}>
+                    L'écran affichait {fmt(selectedFourn.credit_enregistre)} : ce chiffre ne correspondait plus à l'historique. Le solde ci-dessus est celui que voit le gérant.
+                  </Text>
+                )}
               </View>
             )}
 
