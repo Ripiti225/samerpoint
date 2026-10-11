@@ -301,7 +301,7 @@ export default function TresorerieScreen() {
               <Tuile icone="alarm-light" couleur="#EA580C" titre="Plafonds de fond" detail="Alerte « fond bas » par restaurant" onPress={() => setPlafondsVisible(true)} />
             )}
             <Tuile icone="credit-card-clock" couleur="#D97706" titre="Fournisseurs" sous={`${fmt(fournisseursDus(donnees.fournisseurs))} F`} detail="dus par les restaurants" route="/credits-fournisseurs" />
-            <Tuile icone="folder-table" couleur="#0891B2" titre="Historique par restaurant" detail="Dû et payé, mois par mois" route="/tresorerie-restaurant" />
+            <Tuile icone="folder-table" couleur="#0891B2" titre="Historique" detail="Restaurants (dû et payé) · partenaires reçus" route="/tresorerie-restaurant" />
           </View>
         </ScrollView>
       )}

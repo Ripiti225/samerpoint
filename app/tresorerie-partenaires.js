@@ -8,8 +8,12 @@
 // restaurant peut arriver en plusieurs virements, ex. KMS sur BACI puis SIB),
 // Yango en un virement, OM / Wave / Djamo sur leur tête de fond (reçu noté par restaurant,
 // le total entre sur la tête de fond ; un virement l'envoie ensuite en banque).
+// Une période entièrement reçue quitte cet écran : elle se retrouve dans
+// Historique → onglet Partenaires (qui rouvre son détail ici, ?partenaire=&periode=).
 // Logique : lib/partenaires.js · lecture des exports : lib/partenairesImport.js
 // ──────────────────────────────────────────────────────────────────────────────
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
+import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
 
@@ -20,8 +24,8 @@ import {
 import ChampDate from '../components/ChampDate'
 import { choisirEtLireExcel } from '../lib/lireExcel'
 import {
-  COMPTE_TETE_DE_FOND, INFOS_PARTENAIRE, MODE_PAR_DEFAUT, PARTENAIRES, ajouterJours, estimerPeriode, libellePeriode,
-  periodeDe, periodesSuivies, situationPeriode,
+  COMPTE_TETE_DE_FOND, INFOS_PARTENAIRE, MODE_PAR_DEFAUT, PARTENAIRES, ajouterJours, libellePeriode, periodeDe,
+  periodeSoldee, vuesPartenaires,
 } from '../lib/partenaires'
 import { CODES, analyserGlovo, analyserYango } from '../lib/partenairesImport'
 import { aujourdhuiISO, fmt, formatDateFR, peut } from '../lib/tresorerie'
@@ -36,10 +40,9 @@ const LIBELLES_MODE = {
   tete_de_fond: 'reçu par restaurant sur la tête de fond',
 }
 
-const PERIODES_RECUES_VISIBLES = 3
-
 export default function TresoreriePartenairesScreen() {
   const { styles } = useStylesTreso()
+  const params = useLocalSearchParams()
   const t = useTresorerie({ avecPartenaires: true })
   const { donnees, niveau, user, recharger } = t
   const [ouverte, setOuverte] = useState(null)        // { partenaire, periode }
@@ -51,23 +54,15 @@ export default function TresoreriePartenairesScreen() {
   const nomResto = id => donnees?.restaurants.find(r => r.id === id)?.nom || 'Groupe'
 
   // Toutes les situations, par partenaire.
-  const vues = useMemo(() => {
-    if (!p) return {}
-    const out = {}
-    for (const part of PARTENAIRES) {
-      const reg = p.reglages[part] || {}
-      const mode = reg.mode_versement || MODE_PAR_DEFAUT[part]
-      const situations = periodesSuivies(part, reg.date_depart, aujourdhui).map(per => situationPeriode({
-        periode: per,
-        estimes: estimerPeriode(p.points, part, per),
-        lignes: p.lignes.filter(l => l.partenaire === part && l.periode_debut === per.debut),
-        mode,
-        aujourdhui,
-      }))
-      out[part] = { reg, mode, situations, total: situations.reduce((s, x) => s + x.aRecevoir, 0) }
-    }
-    return out
-  }, [p, aujourdhui])
+  const vues = useMemo(() => (p ? vuesPartenaires(p, aujourdhui) : {}), [p, aujourdhui])
+
+  // Ouvert depuis l'Historique : le détail de la période demandée s'affiche (une seule fois).
+  useEffect(() => {
+    if (!params.partenaire || !params.periode || !vues[params.partenaire]) return
+    const s = vues[params.partenaire].situations.find(x => x.periode.debut === params.periode)
+    if (s) setOuverte({ partenaire: params.partenaire, periode: s.periode })
+    router.setParams({ partenaire: undefined, periode: undefined })
+  }, [vues, params.partenaire, params.periode])
 
   const total = Object.values(vues).reduce((s, v) => s + v.total, 0)
   const bloque = (t.loading && !donnees) || t.erreur || !peut(niveau, 'voir_partenaires')
@@ -145,7 +140,8 @@ function CartePartenaire({ partenaire, vue, niveau, onOuvrir, onRegler, onImport
   const { reg, situations } = vue
   const enCours = situations.filter(s => !s.terminee)
   const aRecevoir = situations.filter(s => s.terminee && s.aRecevoir > 0)
-  const recues = situations.filter(s => s.terminee && s.aRecevoir === 0).slice(0, PERIODES_RECUES_VISIBLES)
+  // Les périodes entièrement reçues sont dans l'Historique.
+  const nbRecues = situations.filter(periodeSoldee).length
 
   return (
     <View style={[styles.carte, { overflow: 'hidden', paddingTop: 18 }]}>
@@ -178,8 +174,20 @@ function CartePartenaire({ partenaire, vue, niveau, onOuvrir, onRegler, onImport
 
       {aRecevoir.map(s => <LignePeriode key={s.periode.debut} s={s} onPress={() => onOuvrir(s.periode)} />)}
       {enCours.map(s => <LignePeriode key={s.periode.debut} s={s} onPress={() => onOuvrir(s.periode)} enCours />)}
-      {recues.map(s => <LignePeriode key={s.periode.debut} s={s} onPress={() => onOuvrir(s.periode)} />)}
       {reg.date_depart && !situations.length && <Text style={styles.vide}>Aucune période depuis la date de départ.</Text>}
+      {reg.date_depart && situations.length > 0 && !aRecevoir.length && (
+        <Text style={[styles.petit, { marginTop: 8 }]}>Rien à recevoir sur les périodes terminées.</Text>
+      )}
+      {nbRecues > 0 && (
+        <TouchableOpacity onPress={() => router.push(`/tresorerie-restaurant?onglet=partenaires&partenaire=${partenaire}`)}
+          style={[styles.histoBouton, { marginTop: 10 }]} accessibilityRole="button">
+          <MaterialCommunityIcons name="history" size={18} color={colors.primary} />
+          <Text style={styles.histoBoutonTxt}>
+            {nbRecues} période{nbRecues > 1 ? 's' : ''} reçue{nbRecues > 1 ? 's' : ''} · voir l'historique
+          </Text>
+          <MaterialCommunityIcons name="chevron-right" size={20} color={colors.primary} />
+        </TouchableOpacity>
+      )}
 
       <View style={[styles.rangee, { marginTop: 10 }]}>
         {info.importable && peut(niveau, 'recevoir_partenaires') && reg.date_depart && (
