@@ -24,9 +24,9 @@ export default function CorrespondancesPlats() {
   const styles = useMemo(() => makeStyles(colors), [colors])
   const { roleActif } = useApp()
   const [chargement, setChargement] = useState(true)
-  const [inconnus, setInconnus] = useState([])      // [{ plateforme, nom, jours }]
+  const [inconnus, setInconnus] = useState([])      // [{ cle, plateforme, nom, variantes, jours }]
   const [platsPos, setPlatsPos] = useState([])      // [{ nom_norm, nom, ignorer }]
-  const [choix, setChoix] = useState({})            // `${plateforme}|${nom}` → nom POS | '__ignorer'
+  const [choix, setChoix] = useState({})            // cle → nom POS | '__ignorer'
   const [ouvert, setOuvert] = useState(null)
   const [message, setMessage] = useState(null)
   const [envoi, setEnvoi] = useState(false)
@@ -37,20 +37,27 @@ export default function CorrespondancesPlats() {
       supabase.from('journees_litiges_plateformes').select('plateforme, jour, noms_inconnus').eq('statut', 'a_relier'),
       supabase.from('plats_pos_vus').select('nom_norm, nom, ignorer').order('nom'),
     ])
+    // Un nom par plateforme et par nom normalisé : « Pizza à Gogo » et « Pizza a
+    // Gogo » sont le même plat (même ligne en base). Envoyés séparément, la base
+    // refusait tout l'enregistrement (deux fois la même clé dans un upsert).
     const parNom = new Map()
     for (const j of journees || []) {
       for (const nom of j.noms_inconnus || []) {
-        const cle = `${j.plateforme}|${nom}`
-        if (!parNom.has(cle)) parNom.set(cle, { plateforme: j.plateforme, nom, jours: 0 })
-        parNom.get(cle).jours++
+        const cle = `${j.plateforme}|${normaliserNom(nom)}`
+        if (!parNom.has(cle)) parNom.set(cle, { cle, plateforme: j.plateforme, nom, variantes: new Set(), jours: new Set() })
+        const e = parNom.get(cle)
+        e.variantes.add(nom)
+        e.jours.add(j.jour)
       }
     }
-    const liste = [...parNom.values()].sort((a, b) => b.jours - a.jours || a.nom.localeCompare(b.nom))
+    const liste = [...parNom.values()]
+      .map(e => ({ ...e, variantes: [...e.variantes].filter(v => v !== e.nom), jours: e.jours.size }))
+      .sort((a, b) => b.jours - a.jours || a.nom.localeCompare(b.nom))
     const nomsPos = (pos || []).filter(p => !p.ignorer).map(p => p.nom)
     const propositions = {}
     for (const i of liste) {
       const p = proposerCorrespondance(i.nom, nomsPos)
-      if (p) propositions[`${i.plateforme}|${i.nom}`] = p
+      if (p) propositions[i.cle] = p
     }
     setInconnus(liste)
     setPlatsPos(pos || [])
@@ -62,9 +69,9 @@ export default function CorrespondancesPlats() {
 
   async function enregistrer() {
     const lignes = inconnus
-      .filter(i => choix[`${i.plateforme}|${i.nom}`])
+      .filter(i => choix[i.cle])
       .map(i => {
-        const c = choix[`${i.plateforme}|${i.nom}`]
+        const c = choix[i.cle]
         return {
           plateforme: i.plateforme, nom_norm: normaliserNom(i.nom), nom_plateforme: i.nom,
           nom_pos: c === '__ignorer' ? null : c, ignorer: c === '__ignorer',
@@ -121,11 +128,12 @@ export default function CorrespondancesPlats() {
           {inconnus.length === 0 ? (
             <Text style={styles.vide}>Tous les plats sont reliés. Rien à faire.</Text>
           ) : inconnus.map(i => {
-            const cle = `${i.plateforme}|${i.nom}`
+            const cle = i.cle
             const c = choix[cle]
             return (
               <View key={cle} style={styles.carte}>
                 <Text style={styles.nomPf}>{NOMS[i.plateforme]} · {i.nom}</Text>
+                {i.variantes.length > 0 && <Text style={styles.sous}>aussi écrit : {i.variantes.join(' · ')}</Text>}
                 <Text style={styles.sous}>{i.jours} journée{i.jours > 1 ? 's' : ''} en attente</Text>
                 <TouchableOpacity style={styles.selecteur} onPress={() => setOuvert(ouvert === cle ? null : cle)}>
                   <Text style={styles.selecteurTxt}>
