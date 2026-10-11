@@ -11,6 +11,8 @@
 //  POST { commandes } (secret) → range + calcule les journées complètes reçues
 //  POST { recalculer: true }   → recalcule les journées « à relier » (sans
 //                                secret : ne fait que relire ce qui est déjà là)
+//  POST { recalculer: true, tout: true } → idem, journées déjà calculées comprises
+//                                (après un changement de règle de calcul)
 //
 //  Secrets (projet Samtrackly) : INGEST_SECRET (comme ingest-reviews),
 //  POS_URL, POS_CLE_SERVICE (comme import-contacts-pos).
@@ -251,8 +253,9 @@ Deno.serve(async req => {
     }
     const corps = await req.json().catch(() => ({}))
     if (corps?.recalculer) {
+      const statuts = corps.tout ? ['a_relier', 'calculee'] : ['a_relier']
       const a = await toutes(() => admin.from('journees_litiges_plateformes').select('restaurant_id, plateforme, jour')
-        .eq('statut', 'a_relier').order('jour'))
+        .in('statut', statuts).order('jour').order('restaurant_id').order('plateforme'))
       return json({ ok: true, ...(await traiterJournees(a.map(j => `${j.restaurant_id}|${j.plateforme}|${j.jour}`))) })
     }
     if (!secretOk(req)) return json({ erreur: 'secret' }, 401)

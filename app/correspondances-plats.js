@@ -5,6 +5,8 @@
 //  tapés dans le POS. Chaque nom de plat d'un portail doit être relié une fois
 //  à un plat du POS (ou ignoré : sauce, couverts…). Tant qu'un nom n'est pas
 //  relié, la journée reste « à relier » et aucun tapé ± n'est créé.
+//  La taille (M) / (G) ne compte pas dans la comparaison : relier à l'une ou à
+//  l'autre revient au même (lib/litigesPlateformes.js · cleComparaison).
 // ──────────────────────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
@@ -111,6 +113,11 @@ export default function CorrespondancesPlats() {
       {entete}
       {chargement ? <ActivityIndicator style={{ marginTop: 32 }} color={colors.primary} /> : (
         <ScrollView contentContainerStyle={styles.contenu}>
+          {inconnus.length > 0 && (
+            <Text style={[styles.sous, { marginBottom: 10 }]}>
+              La taille ne compte pas : Glovo et Yango ne la donnent jamais. Pizza (M) ou (G), le calcul est le même.
+            </Text>
+          )}
           {inconnus.length === 0 ? (
             <Text style={styles.vide}>Tous les plats sont reliés. Rien à faire.</Text>
           ) : inconnus.map(i => {
