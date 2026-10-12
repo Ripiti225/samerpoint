@@ -25,9 +25,10 @@ import { objectifDuMois, progression, resteARembourser, soldeCoffre } from '../l
 import { chargerAlertes, chargerPlafonds, enregistrerPlafonds } from '../lib/alertesDb'
 import { totalPartenaires } from '../lib/partenaires'
 import {
-  LIBELLES_CATEGORIE, NIVEAUX, aujourdhuiISO, classerTous, depensesDuMois, fmt, formatDateFR, fournisseursDus,
+  LIBELLES_CATEGORIE, NIVEAUX, aujourdhuiISO, classerTous, depensesDuMois, fmt, formatDateFR,
   joursDeRetard, libelleMoisCourt, paiementsParDu, peut, premierDuMois, resteDu, syntheseTresorerie, totalPaye,
 } from '../lib/tresorerie'
+import { separerFournisseurs, totalDu } from '../lib/fournisseursAdmin'
 import { chargerUtilisateursAdmin, enregistrerDroit, enregistrerDu, retirerDroit } from '../lib/tresorerieDb'
 import { chargerFondsNegatifs } from '../lib/transfertFondDb'
 
@@ -221,7 +222,7 @@ export default function TresorerieScreen() {
             <Ligne label={donnees.partenaires === null ? 'Partenaires à recevoir (migration à passer)' : 'Partenaires à recevoir'}
               valeur={s.partenaires} />
             <Text style={[styles.petit, { marginTop: 6 }]}>
-              Pour information : fournisseurs dus {fmt(fournisseursDus(donnees.fournisseurs))} F (payés par les restaurants).
+              Pour information : fournisseurs dus {fmt(totalDu(separerFournisseurs(donnees.fournisseurs).marchandise))} F, administrations {fmt(totalDu(separerFournisseurs(donnees.fournisseurs).administratifs))} F (payés par les restaurants).
             </Text>
           </Bloc>
 
@@ -329,7 +330,8 @@ export default function TresorerieScreen() {
             {peut(niveau, 'gerer_droits') && (
               <Tuile icone="alarm-light" couleur="#EA580C" titre="Plafonds de fond" detail="Alerte « fond bas » par restaurant" onPress={() => setPlafondsVisible(true)} />
             )}
-            <Tuile icone="credit-card-clock" couleur="#D97706" titre="Fournisseurs" sous={`${fmt(fournisseursDus(donnees.fournisseurs))} F`} detail="dus par les restaurants" route="/credits-fournisseurs" />
+            <Tuile icone="credit-card-clock" couleur="#D97706" titre="Fournisseurs" sous={`${fmt(totalDu(separerFournisseurs(donnees.fournisseurs).marchandise))} F`} detail="dus par les restaurants" route="/credits-fournisseurs" />
+            <Tuile icone="bank-outline" couleur="#7C3AED" titre="Administrations" sous={`${fmt(totalDu(separerFournisseurs(donnees.fournisseurs).administratifs))} F`} detail="Impôts, CNPS, bail… dus" route="/credits-fournisseurs?onglet=administratifs" />
             <Tuile icone="folder-table" couleur="#0891B2" titre="Historique" detail="Restaurants (dû et payé) · partenaires reçus" route="/tresorerie-restaurant" />
           </View>
         </ScrollView>

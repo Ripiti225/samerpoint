@@ -28,7 +28,7 @@ import {
   INFOS_PARTENAIRE, PARTENAIRES, historiquePartenaires, libellePeriode as libellePeriodePartenaire, vuesPartenaires,
 } from '../lib/partenaires'
 import {
-  CATEGORIES_SERIE, LIBELLES_CATEGORIE, aujourdhuiISO, categoriesVisibles, classerTous, fmt, formatDateFR,
+  CATEGORIES_TRESORERIE, LIBELLES_CATEGORIE, aujourdhuiISO, categoriesVisibles, classerTous, fmt, formatDateFR,
   libelleMois, paiementsParDu, peut,
 } from '../lib/tresorerie'
 
@@ -52,7 +52,7 @@ export default function TresorerieRestaurantScreen() {
   // Ce que ce compte a le droit de voir : les charges en série (RH compris), et
   // les autres charges pour qui voit les dépenses direction.
   const categories = useMemo(() => [
-    ...CATEGORIES_SERIE.filter(c => categoriesVisibles(niveau).includes(c)),
+    ...CATEGORIES_TRESORERIE.filter(c => categoriesVisibles(niveau).includes(c)),
     ...(peut(niveau, 'voir_direction') ? ['autre'] : []),
   ], [niveau])
   const parDu = useMemo(() => paiementsParDu(donnees?.paiements), [donnees])

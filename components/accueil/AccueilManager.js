@@ -34,7 +34,7 @@ import {
   ICONES_TUILES, etatPointsDuJour, groupeDeTuile, messagesTresorerie, nbAVerifier, organiserAccueil,
 } from '../../lib/groupesAccueil'
 import { supabase } from '../../lib/supabase'
-import { CATEGORIES_SERIE, fmt, niveauTresorerie, peut } from '../../lib/tresorerie'
+import { CATEGORIES_TRESORERIE, fmt, niveauTresorerie, peut } from '../../lib/tresorerie'
 
 const CLE_OUVERTS = 'samtrackly_accueil_groupes_ouverts'
 const TRANSITION_WEB = Platform.OS === 'web'
@@ -64,7 +64,7 @@ async function chargerTresorerie({ role, userId, hier, auj, demain }) {
   const niveau = niveauTresorerie(role, userId, droits || [])
   if (!peut(niveau, 'voir_a_payer')) return null
   const d = await supabase.from('tresorerie_dus').select('id, categorie, restaurant_id, echeance, montant_du')
-    .in('categorie', CATEGORIES_SERIE).gte('echeance', hier).lte('echeance', demain).range(0, 999)
+    .in('categorie', CATEGORIES_TRESORERIE).gte('echeance', hier).lte('echeance', demain).range(0, 999)
   if (d.error) return null
   const ids = (d.data || []).map(x => x.id)
   const p = ids.length
