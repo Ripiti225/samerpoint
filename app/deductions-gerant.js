@@ -11,7 +11,7 @@ import { useApp } from '../context/AppContext'
 import { facturesGerantSansPhoto } from '../lib/creditsFournisseurs'
 import { chargerDerniersRestes } from '../lib/derniersRestesFournisseurs'
 import { appliquerFacturesMensuelles } from '../lib/facturesMensuelles'
-import { droitAAfficherGerant, estDroitAncienTravailleur, sousTitreDepart } from '../lib/droitsAnciensTravailleurs'
+import { estDroitAncienTravailleur, fournisseurAAfficherGerant, sousTitreDepart } from '../lib/droitsAnciensTravailleurs'
 import { separerFournisseurs } from '../lib/fournisseursAdmin'
 import { logErreur } from '../lib/logErreur'
 import { manquantsDeductions, resumeDeductions } from '../lib/manquantsSaisie'
@@ -383,8 +383,11 @@ export default function DeductionsGerantScreen() {
   const total = totalDepensesGerantCaisse()
   // Fournisseurs administratifs (impôts, CNPS, bail…) : leur propre onglet.
   const { marchandise, administratifs } = separerFournisseurs(fournisseursList)
-  // Droits d'anciens travailleurs soldés : hors de la liste, sauf déjà saisis ce jour.
-  const adminAffiches = administratifs.filter(f => droitAAfficherGerant(f, getCreditVeille(f), !!fournisseursGerantCaisse[f.id]))
+  // Fournisseurs désactivés et droits d'anciens travailleurs soldés : hors de la
+  // liste, sauf déjà saisis ce jour ou (désactivés) avec un dû restant.
+  const aAfficher = f => fournisseurAAfficherGerant(f, getCreditVeille(f), !!fournisseursGerantCaisse[f.id])
+  const marchandiseAffiches = marchandise.filter(aAfficher)
+  const adminAffiches = administratifs.filter(aAfficher)
   const idsAdmin = new Set(administratifs.map(f => f.id))
   const resume = resumeDeductions(depensesGerantCaisse, fournisseursGerantCaisse, paiesGerantCaisse, idsAdmin)
   const detail = r => (r.n > 0 ? `${r.n} · ${Math.round(r.total).toLocaleString('fr-FR')}` : '—')
@@ -413,7 +416,7 @@ export default function DeductionsGerantScreen() {
         showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {onglet === 'fournisseurs' ? (
           <OngletFournisseurs
-            fournisseursList={marchandise}
+            fournisseursList={marchandiseAffiches}
             fournisseursGerantCaisse={fournisseursGerantCaisse}
             chargement={chargement}
             ouverts={fournOuverts}

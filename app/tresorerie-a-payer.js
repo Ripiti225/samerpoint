@@ -126,6 +126,7 @@ export default function TresorerieAPayerScreen() {
             {onglet === ONGLET_ANCIENS && (
               <OngletAnciensTravailleurs niveau={niveau} user={user} restaurants={donnees.restaurants}
                 onModifie={recharger}
+                rafraichir={donnees}
                 onPrevoir={fiche => setPrevoir((donnees.droits?.dus || []).find(d => d.fiche.id === fiche.id) || null)} />
             )}
             {onglet === 'loyer' && (

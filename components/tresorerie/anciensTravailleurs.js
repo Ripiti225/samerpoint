@@ -25,7 +25,8 @@ const style = styleCategorie(ONGLET_ANCIENS)
 
 // onPrevoir(fiche) : ouvre la feuille « Prévoir » de l'écran (même que pour une dette).
 // onModifie() : après chaque enregistrement (l'écran recharge la Trésorerie : prévisions, totaux).
-export function OngletAnciensTravailleurs({ niveau, user, restaurants = [], onPrevoir, onModifie }) {
+// rafraichir : change à chaque rechargement de la Trésorerie (retour sur l'écran) → relit les fiches.
+export function OngletAnciensTravailleurs({ niveau, user, restaurants = [], onPrevoir, onModifie, rafraichir }) {
   const { styles, colors } = useStylesTreso()
   const [donnees, setDonnees] = useState(null)
   const [erreur, setErreur] = useState(null)
@@ -38,7 +39,7 @@ export function OngletAnciensTravailleurs({ niveau, user, restaurants = [], onPr
     setErreur(null)
     try { setDonnees(await chargerDroitsAnciens()) } catch (e) { setErreur(e?.message || 'Chargement impossible.') }
   }, [])
-  useEffect(() => { charger() }, [charger])
+  useEffect(() => { charger() }, [charger, rafraichir])
   const apres = useCallback(async () => { await charger(); onModifie?.() }, [charger, onModifie])
 
   const parResto = useMemo(
@@ -56,6 +57,7 @@ export function OngletAnciensTravailleurs({ niveau, user, restaurants = [], onPr
     .map(([rid, g]) => ({ rid, ...g, fiches: g.fiches.filter(f => !restantsSeulement || !f.solde) }))
     .filter(g => g.fiches.length)
     .sort((a, b) => nomResto(a.rid).localeCompare(nomResto(b.rid)))
+  const nbSoldes = Object.values(parResto).reduce((x, g) => x + g.fiches.filter(f => f.solde).length, 0)
   const total = Object.values(parResto).reduce((s, g) => (
     { du: s.du + g.du, paye: s.paye + g.paye, reste: s.reste + g.reste }), { du: 0, paye: 0, reste: 0 })
 
@@ -98,9 +100,10 @@ export function OngletAnciensTravailleurs({ niveau, user, restaurants = [], onPr
         </View>
       ))}
 
+      {/* Soldés : archivés tout seuls à 0 (supabase_droits_anciens_soldes.sql), consultables ici seulement. */}
       <View style={[styles.ligne, { marginTop: 4 }]}>
-        <Text style={styles.ligneLabel}>Restants seulement</Text>
-        <Switch value={restantsSeulement} onValueChange={setRestantsSeulement}
+        <Text style={styles.ligneLabel}>Voir les soldés ({nbSoldes})</Text>
+        <Switch value={!restantsSeulement} onValueChange={v => setRestantsSeulement(!v)}
           trackColor={{ false: colors.border, true: colors.primary }} thumbColor="#fff" />
       </View>
 

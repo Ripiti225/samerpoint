@@ -12,9 +12,9 @@
 
 import * as FileSystem from 'expo-file-system/legacy'
 import * as Print from 'expo-print'
-import { router, useLocalSearchParams } from 'expo-router'
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router'
 import * as Sharing from 'expo-sharing'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator, Alert, Modal, Platform,
   SafeAreaView, ScrollView, StyleSheet,
@@ -149,7 +149,10 @@ export default function CreditsFournisseursScreen() {
     }
   }, [roleActif])
 
-  useEffect(() => { charger() }, [restaurantId, restoFilter])
+  // Au retour sur l'écran aussi : une fiche remplacée ou soldée ailleurs
+  // (Trésorerie → À payer → Anciens travailleurs) disparaît sans quitter l'app.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useFocusEffect(useCallback(() => { charger() }, [restaurantId, restoFilter]))
 
   async function charger() {
     setLoading(true)
