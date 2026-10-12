@@ -2994,9 +2994,9 @@
     "semantic_hash": ""
   },
   "app/recherche.js": {
-    "mtime": 1791838481.0413165,
-    "seen": 1791838524.825829,
-    "ast_hash": "c8eb83f1f46e78c2b4850118d8108db2",
+    "mtime": 1791838985.029962,
+    "seen": 1791839015.751152,
+    "ast_hash": "8ba4bb32e090a629fd88076494239eb0",
     "semantic_hash": ""
   },
   "components/BandeauRecherche.js": {
@@ -3012,15 +3012,15 @@
     "semantic_hash": ""
   },
   "lib/rechercheGlobale.js": {
-    "mtime": 1791838455.3612418,
-    "seen": 1791838524.825959,
-    "ast_hash": "47f978509db5916eca4366bbccde56b3",
+    "mtime": 1791838903.9628534,
+    "seen": 1791839015.751283,
+    "ast_hash": "ba93415c3b1a5068d579d099e1b80e01",
     "semantic_hash": ""
   },
   "lib/rechercheGlobale.test.mjs": {
-    "mtime": 1791838455.361533,
-    "seen": 1791838524.82596,
-    "ast_hash": "05d9c00f31e23bbf019bed5a3a750c54",
+    "mtime": 1791838903.963484,
+    "seen": 1791839015.751284,
+    "ast_hash": "035ba9511bac67474514e0c35dd7d205",
     "semantic_hash": ""
   },
   "supabase_recherche_globale.sql": {
@@ -3060,9 +3060,9 @@
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-10-12-recherche-globale-filtre-resto-design.md": {
-    "mtime": 1791838518.881953,
-    "seen": 1791838524.826051,
-    "ast_hash": "d627736d9920592cdbeb38d29951ecbc",
+    "mtime": 1791839011.0253253,
+    "seen": 1791839015.751373,
+    "ast_hash": "94aefeb372288b987e2c37f33217a950",
     "semantic_hash": ""
   }
 }
