@@ -1,5 +1,6 @@
 /*
- * Recherche globale — la loupe de l'accueil (manager, gérant).
+ * Recherche globale — la loupe de l'accueil (manager, RH, gérant).
+ * Manager et RH choisissent Global ou un restaurant ; résultats en groupes repliés.
  * On tape un mot, on voit tous les endroits où il apparaît (libellés, notes,
  * motifs, noms…), groupés par source, avec l'écran où l'ouvrir.
  * Spéc : docs/superpowers/specs/2026-10-12-recherche-globale-design.md
@@ -8,16 +9,18 @@
 import { router } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ActivityIndicator, FlatList, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  ActivityIndicator, FlatList, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { rechercheGlobale } from '../lib/api'
 import { chargerAccesConfig, tuilesPourRole } from '../lib/menus'
 import { retour } from '../lib/navigation'
+import { supabase } from '../lib/supabase'
 import { rechercheCourante } from '../lib/rechercheCourante'
 import {
-  LIMITE_PAR_SOURCE, LONGUEUR_MIN, cheminEcran, dateCourte, extrait, grouperParSource, peutOuvrir, routePour, texteLisible,
+  LIMITE_PAR_SOURCE, LONGUEUR_MIN, cheminEcran, dateCourte, extrait, grouperParSource, lignesAffichees, ouverturesInitiales,
+  peutOuvrir, routePour, texteLisible,
 } from '../lib/rechercheGlobale'
 
 const DELAI_FRAPPE = 350
@@ -32,25 +35,36 @@ export default function Recherche() {
   const styles = useMemo(() => makeStyles(colors), [colors])
   const { roleActif, restaurantId, dateJour } = useApp()
   const manager = roleActif === 'manager'
+  const rh = roleActif === 'rh'
+  // Manager et RH : tous les restaurants (Global) ou un seul. Gérant : le sien.
+  const choixResto = manager || rh
 
   const [terme, setTerme] = useState('')
   const [etat, setEtat] = useState({ statut: 'vide', resultats: [] })
   const [idsTuiles, setIdsTuiles] = useState([])
+  const [restaurants, setRestaurants] = useState([])
+  const [restoFiltre, setRestoFiltre] = useState(null) // null = Global
+  const [ouverts, setOuverts] = useState({})           // { source: true } : groupes dépliés
   const numeroRequete = useRef(0)
   const champ = useRef(null)
 
   // Revenir sur la recherche efface le bandeau de rappel.
   useEffect(() => { rechercheCourante.definir(null) }, [])
 
-  // Écrans que le gérant peut ouvrir (ses tuiles, réglées dans Paramètres).
+  // Écrans que le gérant ou la RH peut ouvrir (ses tuiles, réglées dans Paramètres).
   useEffect(() => {
     if (manager) return
     let actif = true
     chargerAccesConfig().then(config => {
-      if (actif) setIdsTuiles(tuilesPourRole('gerant', config).map(t => (t.route || '').replace(/^\//, '') || t.id))
+      if (actif) setIdsTuiles(tuilesPourRole(roleActif, config).map(t => (t.route || '').replace(/^\//, '') || t.id))
     })
     return () => { actif = false }
-  }, [manager])
+  }, [manager, roleActif])
+
+  useEffect(() => {
+    if (!choixResto) return
+    supabase.from('restaurants').select('id, nom').order('nom').then(({ data }) => setRestaurants(data || []))
+  }, [choixResto])
 
   useEffect(() => {
     const t = terme.trim()
@@ -62,7 +76,9 @@ export default function Recherche() {
     setEtat(e => ({ ...e, statut: 'chargement' }))
     const minuteur = setTimeout(async () => {
       try {
-        const r = await rechercheGlobale(t, { restaurantId, manager, date: dateJour })
+        const r = await rechercheGlobale(t, {
+          restaurantId: choixResto ? restoFiltre : restaurantId, manager, rh, date: dateJour,
+        })
         if (numero !== numeroRequete.current) return // une frappe plus récente a pris le relais
         setEtat({ statut: r.horsLigne ? 'horsLigne' : 'ok', resultats: r.resultats })
       } catch {
@@ -70,15 +86,16 @@ export default function Recherche() {
       }
     }, DELAI_FRAPPE)
     return () => clearTimeout(minuteur)
-  }, [terme, restaurantId, manager, dateJour])
+  }, [terme, restaurantId, restoFiltre, choixResto, manager, rh, dateJour])
 
   const groupes = useMemo(() => grouperParSource(etat.resultats), [etat.resultats])
-  // Liste à plat : une bannière par source, puis ses cartes.
-  const lignes = useMemo(() => groupes.flatMap(g => [
-    { cle: `g:${g.source}`, groupe: g },
-    ...g.resultats.map(r => ({ cle: `${r.source}:${r.id}`, resultat: r })),
-    ...(g.resultats.length >= LIMITE_PAR_SOURCE ? [{ cle: `l:${g.source}`, limite: true }] : []),
-  ]), [groupes])
+  // Nouvelle recherche : tout replié (un groupe unique s'ouvre tout seul).
+  useEffect(() => { setOuverts(ouverturesInitiales(groupes)) }, [groupes])
+  const lignes = useMemo(() => lignesAffichees(groupes, ouverts), [groupes, ouverts])
+
+  function basculer(source) {
+    setOuverts(o => ({ ...o, [source]: !o[source] }))
+  }
 
   function ouvrir(r) {
     rechercheCourante.definir({ ...r, terme: terme.trim() })
@@ -88,10 +105,13 @@ export default function Recherche() {
   function renderLigne({ item }) {
     if (item.groupe) {
       return (
-        <View style={styles.banniere}>
+        <TouchableOpacity style={[styles.banniere, item.ouvert && styles.banniereOuverte]} onPress={() => basculer(item.groupe.source)}
+          accessibilityRole="button" accessibilityState={{ expanded: item.ouvert }}
+          accessibilityLabel={`${item.groupe.source}, ${item.groupe.resultats.length} résultat(s)`}>
+          <Text style={styles.chevron}>{item.ouvert ? '▾' : '▸'}</Text>
           <Text style={styles.banniereTxt}>{item.groupe.source}</Text>
           <Text style={styles.banniereNb}>{item.groupe.resultats.length}</Text>
-        </View>
+        </TouchableOpacity>
       )
     }
     if (item.limite) {
@@ -113,7 +133,7 @@ export default function Recherche() {
           <Text style={styles.chemin} numberOfLines={1}>{cheminEcran(r)}</Text>
           <Text style={styles.date}>{dateCourte(r.date)}</Text>
         </View>
-        {manager && r.restaurant_nom ? <Text style={styles.resto}>{r.restaurant_nom}</Text> : null}
+        {choixResto && !restoFiltre && r.restaurant_nom ? <Text style={styles.resto}>{r.restaurant_nom}</Text> : null}
         <Text style={styles.extrait}>
           <Text style={styles.champ}>{r.champ} : </Text>
           {e.avant}
@@ -139,7 +159,9 @@ export default function Recherche() {
           <Text style={styles.videTxt}>Tape au moins {LONGUEUR_MIN} lettres.</Text>
           <Text style={styles.videSous}>
             {manager
-              ? 'Dépenses, fournisseurs, trésorerie, points, équipe, litiges, journal… tous les restaurants.'
+              ? 'Dépenses, fournisseurs, trésorerie, points, équipe, litiges, journal… tous les restaurants ou un seul.'
+              : rh
+                ? 'Équipe, contrats, demandes, documents, contacts, fournisseurs… tous les restaurants ou un seul.'
               : dateJour
                 ? `Ta journée du ${dateCourte(dateJour)} (dépenses, présences, litiges…), tes fournisseurs, ton équipe et tes demandes en cours.`
                 : "Aucune journée ouverte : seulement tes fournisseurs, ton équipe et tes demandes en cours."}
@@ -179,6 +201,20 @@ export default function Recherche() {
             </TouchableOpacity>
           ) : null}
         </View>
+        {choixResto ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.puces}
+            keyboardShouldPersistTaps="handled">
+            {[{ id: null, nom: 'Global' }, ...restaurants].map(r => {
+              const actif = restoFiltre === r.id
+              return (
+                <TouchableOpacity key={r.id || 'global'} style={[styles.puce, actif && styles.puceActive]}
+                  onPress={() => setRestoFiltre(r.id)} accessibilityRole="button" accessibilityState={{ selected: actif }}>
+                  <Text style={[styles.puceTxt, actif && styles.puceTxtActive]}>{r.id ? r.nom : '🌍 Global'}</Text>
+                </TouchableOpacity>
+              )
+            })}
+          </ScrollView>
+        ) : null}
       </View>
 
       {lignes.length > 0 && etat.statut !== 'horsLigne' && etat.statut !== 'erreur' && terme.trim().length >= LONGUEUR_MIN ? (
@@ -216,10 +252,21 @@ function makeStyles(colors) {
     effacerTxt: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
     liste: { paddingBottom: 40 },
     banniere: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      marginHorizontal: 12, marginTop: 18, marginBottom: 2, paddingHorizontal: 4,
+      flexDirection: 'row', alignItems: 'center', minHeight: 48,
+      marginHorizontal: 12, marginTop: 8, paddingHorizontal: 14, borderRadius: 12,
+      backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
     },
-    banniereTxt: { fontSize: 13, fontWeight: '800', color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
+    banniereOuverte: { borderColor: colors.primary },
+    chevron: { fontSize: 14, color: colors.primary, width: 18 },
+    banniereTxt: { flex: 1, fontSize: 13, fontWeight: '800', color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
+    puces: { gap: 8, paddingTop: 12 },
+    puce: {
+      paddingHorizontal: 14, minHeight: 36, justifyContent: 'center', borderRadius: 18,
+      backgroundColor: colors.inputBg, borderWidth: 1, borderColor: colors.border,
+    },
+    puceActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    puceTxt: { fontSize: 13, fontWeight: '600', color: colors.text },
+    puceTxtActive: { color: '#FFFFFF' },
     banniereNb: {
       fontSize: 12, fontWeight: '700', color: colors.primaryDark, backgroundColor: colors.primaryLight,
       paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, overflow: 'hidden',

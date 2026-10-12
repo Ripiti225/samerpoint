@@ -236,7 +236,7 @@ export default function AccueilScreen() {
         </View>
         <View style={{ alignItems: 'flex-end', gap: 8 }}>
           <View style={styles.iconesHeader}>
-          {(isManager || isGerant) && (
+          {(isManager || isGerant || isRH) && (
             <TouchableOpacity onPress={() => router.push('/recherche')} style={styles.bellBtn}
               accessibilityRole="button" accessibilityLabel="Rechercher partout">
               <Text style={styles.bellIcon}>🔍</Text>
