@@ -37,6 +37,7 @@ export default function Recherche() {
   const [etat, setEtat] = useState({ statut: 'vide', resultats: [] })
   const [idsTuiles, setIdsTuiles] = useState([])
   const numeroRequete = useRef(0)
+  const champ = useRef(null)
 
   // Revenir sur la recherche efface le bandeau de rappel.
   useEffect(() => { rechercheCourante.definir(null) }, [])
@@ -166,9 +167,15 @@ export default function Recherche() {
             autoCorrect={false}
             autoCapitalize="none"
             returnKeyType="search"
-            clearButtonMode="while-editing"
+            ref={champ}
           />
           {etat.statut === 'chargement' && lignes.length > 0 ? <ActivityIndicator size="small" color={colors.primary} /> : null}
+          {terme ? (
+            <TouchableOpacity style={styles.effacer} onPress={() => { setTerme(''); champ.current?.focus() }}
+              accessibilityRole="button" accessibilityLabel="Effacer la recherche" hitSlop={8}>
+              <Text style={styles.effacerTxt}>✕</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
 
@@ -200,6 +207,11 @@ function makeStyles(colors) {
     },
     loupe: { fontSize: 16, marginRight: 8 },
     input: { flex: 1, fontSize: 16, color: colors.text, paddingVertical: 10 },
+    effacer: {
+      width: 28, height: 28, borderRadius: 14, marginLeft: 8, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border,
+    },
+    effacerTxt: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
     liste: { paddingBottom: 40 },
     banniere: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
