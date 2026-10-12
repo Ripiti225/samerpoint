@@ -87,6 +87,28 @@ Visible pour les niveaux qui voient À payer (`voir_a_payer`) et pour le RH
 - Ouvrir une fiche : la liste de tous ses paiements (date, montant,
   gérant/direction), le dû, le payé et le reste.
 
+## 2 bis. Prévisions (demandé le 12/10)
+
+Comme sur une dette, on peut **prévoir un paiement** sur un droit : montant +
+date, ou prochaine réception d'un partenaire. Bouton « Prévoir un paiement »
+sur la fiche (À payer → Anciens travailleurs) et groupe « Anciens
+travailleurs » dans « Prévoir un paiement » de l'accueil Trésorerie (niveau
+`payer`, comme les autres prévisions).
+
+- `tresorerie_previsions.fournisseur_id` (et `du_id` devient facultatif ;
+  exactement l'un des deux est rempli).
+- Pour les prévisions seulement, chaque droit est vu comme une ligne de la
+  Trésorerie (`droitsPourPrevisions`) : même calcul d'état (orange le jour
+  venu), compté dans le « Prévu » retiré de la trésorerie nette. Ces lignes ne
+  vont jamais dans les dus (déjà comptées comme fournisseurs).
+- Réalisée par **tout** paiement du droit — gérant en caisse ou direction —
+  fait à partir du jour de la prévision, la plus ancienne d'abord, sans
+  dépasser son montant.
+- « Payer » sur une prévision orange ouvre le paiement direction du droit ;
+  toucher la ligne mène à l'onglet Anciens travailleurs.
+- Une prévision « à la réception d'un partenaire » sur un droit ne déclenche
+  pas la notification de réception (seules les lignes de la Trésorerie y sont).
+
 ## 3. Équipe → Archiver
 
 Après l'archivage d'un travailleur dont `type_contrat = 'CDI'` : question
