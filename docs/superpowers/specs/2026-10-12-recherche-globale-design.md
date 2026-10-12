@@ -18,7 +18,13 @@ chaque résultat, et un toucher pour y aller.
 | Technique | Une fonction SQL `recherche_globale` (un seul appel, insensible aux accents) |
 | Découpage | Lot 1 : recherche + navigation vers les écrans qui savent déjà s'ouvrir sur un onglet ; Lot 2 : apprendre les autres écrans |
 
-## Base — `recherche_globale(p_terme text, p_restaurant_id uuid, p_manager boolean, p_limite int default 100)`
+## Base — `recherche_globale(p_terme text, p_restaurant_id uuid, p_manager boolean, p_limite int default 25)`
+
+`p_limite` = nombre maximum de résultats **par source** (les plus récents), pour
+qu'une source bavarde (journal, présences) ne cache pas les autres. Le filtre
+gérant n'est pas une barrière de sécurité (clé anon publique, RLS ouvert : voir
+mémoire « security posture ») ; il évite seulement d'afficher ce qui ne le
+concerne pas.
 
 Migration `supabase_recherche_globale.sql` (idempotente, à passer à la main) :
 
@@ -30,7 +36,7 @@ Migration `supabase_recherche_globale.sql` (idempotente, à passer à la main) :
   (les `%` et `_` tapés sont échappés).
 - `UNION ALL` d'une sous-requête par source (tableau ci-dessous), chacune
   limitée à `p_limite` lignes triées par date décroissante ; le tout trié par
-  date décroissante puis tronqué à `p_limite`.
+  date décroissante. Renvoie aussi `restaurant_nom`.
 - **Filtre restaurant dans la base** : si `p_manager` est faux, chaque source
   garde seulement `restaurant_id = p_restaurant_id` ; les sources marquées
   « manager » ne renvoient rien. `restaurant_id` absent de la table → pris sur
@@ -56,7 +62,7 @@ sous la seconde. Si ça devient lent, on ajoutera `pg_trgm` (hors périmètre).
 | Fournisseurs | fournisseurs | nom, contact, depart_motif | restaurant_id | created_at | credits-fournisseurs | — |
 | Points (journée) | points | contact_litige_motif, explication_ecart_machine, nb_commandes_correction_motif, verifie_par | restaurant_id | date | verification (M) / point-caissier | — |
 | Points caissier | points_shifts | explication_ecart, caissier_nom | restaurant_id | date | point-caissier | — |
-| Inventaire | inventaires | explication, explication_ecart, produit_nom, fournisseur_nom | restaurant_id | date | gestion-stock | — |
+| Inventaire | inventaires | explication, explication_ecart, fournisseur_nom (pas produit_nom : une ligne par produit et par jour noierait tout) | restaurant_id | date | gestion-stock | — |
 | Déductions vérification | deductions_verification | explication, produits_resume, caissier_nom | restaurant_id | date | verification | — |
 | Présences | presences | travailleur_nom, statut | restaurant_id | date | presences | — |
 | Travailleurs | travailleurs | nom, poste, contact, archive_motif | restaurant_id | created_at | equipe | `restaurant_id` |
@@ -70,7 +76,7 @@ sous la seconde. Si ça devient lent, on ajoutera `pg_trgm` (hors périmètre).
 | Litiges avis clients | litiges_avis_clients | contenu, notes, numero_commande, responsable_nom | restaurant_id | date | litiges | — |
 | Point pas fait | litiges_point_pas_fait | notes, responsable_nom | restaurant_id | date | litiges | — |
 | Contacts clients | contacts_clients | numero | restaurant_id | date | contacts | — |
-| Commandes livraison | commandes | numero_commande, contact_client, plat | point | points.date | livraisons | — |
+| Commandes livraison | commandes | numero_commande, contact_client (pas plat, même raison) | point | points.date | livraisons | — |
 | Avis plateformes | platform_reviews | comment, author | restaurant_id | created_at | avis-plateformes | — |
 | Charges (M) | charges | libelle | restaurant_id | mois | charges | — |
 | À payer (M) | tresorerie_dus | libelle, note, creancier | restaurant_id | mois sinon created_at | tresorerie-a-payer | `onglet = categorie` |
@@ -94,9 +100,10 @@ caches POS, `raw` des avis, photos, PIN.
   première occurrence, comparaison sans accents ; `…` aux coupures.
 - `normaliser(s)` : minuscules + accents retirés (même règle que `unaccent`).
 - `grouperParSource(resultats)` → groupes dans l'ordre d'apparition, avec compte.
-- `filtrerPourGerant(resultats, tuilesAutorisees)` : retire les résultats dont
-  l'écran n'est pas dans les tuiles du gérant (`tuilesPourRole`), en plus du
-  filtre en base.
+- `peutOuvrir(r, idsTuiles, manager)` : le manager ouvre tout ; le gérant ouvre
+  seulement les écrans de ses tuiles (`tuilesPourRole`). Un résultat de son
+  restaurant dont l'écran ne lui est pas ouvert reste **affiché mais grisé**
+  (« Écran non disponible ») : c'est son restaurant, il peut lire le texte.
 - `routePour(resultat)` → `{ pathname, params }`.
 - Tests `lib/rechercheGlobale.test.mjs` (node:test).
 
@@ -114,7 +121,7 @@ renvoie `{ horsLigne: true }` (pas de cache, pas de file d'attente).
   champ, extrait avec le mot **surligné**, montant s'il existe.
 - États : « Tape au moins 3 lettres », « Recherche… », « Aucun résultat pour
   « xxx » », « Pas de connexion : la recherche a besoin d'internet », erreur.
-- « 100 premiers résultats — précise ta recherche » quand la limite est atteinte.
+- « Les 25 plus récents — précise ta recherche » sous un groupe qui atteint la limite.
 - Styles via `useMemo(() => makeStyles(colors), [colors])`, thème clair/sombre.
 
 ### Bouton
