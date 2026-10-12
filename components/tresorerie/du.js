@@ -17,7 +17,7 @@ import {
 import {
   ajouterPrevision, annulerCotisation, annulerPaiement, basculerDette, enregistrerRetenueLitiges, recevoirCotisation, chargerDusLoyer, enregistrerDu, payer, payerAvant, supprimerDu, supprimerPrevision,
 } from '../../lib/tresorerieDb'
-import { Bouton, Champ, ChampMontant, Feuille, ItemIcone, Ligne, Pastille, Progression, Puces, TitreSection, styleCategorie, useStylesTreso } from './commun'
+import { Bouton, Champ, ChampCalendrier, ChampMontant, Feuille, ItemIcone, Ligne, Pastille, Progression, Puces, TitreSection, styleCategorie, useStylesTreso } from './commun'
 
 // paye (vert) · a_payer (orange) · dette_recente (rouge) · dette (rouge foncé)
 export function couleursStatut(colors) {
@@ -372,7 +372,7 @@ function SectionCotisation({ du, donnees, niveau, nomResto, user, apres }) {
   async function enregistrer() {
     const v = montant === '' ? 0 : parseInt(montant, 10)
     if (!v) { Alert.alert('Montant manquant', 'Combien le restaurant vous a-t-il remis ?'); return }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Écrivez la date au format AAAA-MM-JJ.'); return }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Choisissez la date dans le calendrier.'); return }
     setOccupe(true)
     try {
       await recevoirCotisation({
@@ -430,7 +430,7 @@ function SectionCotisation({ du, donnees, niveau, nomResto, user, apres }) {
       {peutSaisir && ouvert && (
         <View style={{ marginTop: 6 }}>
           <ChampMontant label="Montant remis par le restaurant" valeur={montant} onChange={setMontant} />
-          <Champ label="Date (AAAA-MM-JJ)" value={date} onChangeText={setDate} autoCapitalize="none" />
+          <ChampCalendrier label="Date" valeur={date} onChange={setDate} />
           <Text style={styles.label}>Cotisation à diminuer</Text>
           <Puces
             options={[...duResto.filter(f => Number(f.credit_actuel) < 0 || f.id === attendue?.id)
@@ -532,7 +532,7 @@ export function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFer
     }
     if (!source) { Alert.alert('Source manquante', 'Choisissez d\'où part l\'argent : BACI, SIB ou espèces.'); return }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      Alert.alert('Date invalide', 'Écrivez la date au format AAAA-MM-JJ, par exemple 2026-10-01.'); return
+      Alert.alert('Date invalide', 'Choisissez la date dans le calendrier.'); return
     }
     setOccupe(true)
     try {
@@ -597,7 +597,7 @@ export function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFer
       <ChampMontant label="Montant versé" valeur={montant} onChange={setMontant} />
       <Text style={styles.label}>Payé depuis</Text>
       <Puces options={sources} valeur={source} onChange={setSource} />
-      <Champ label="Date du versement (AAAA-MM-JJ)" value={date} onChangeText={setDate} autoCapitalize="none" />
+      <ChampCalendrier label="Date du versement" valeur={date} onChange={setDate} />
       <Text style={styles.label}>Reçu (photo, facultatif)</Text>
       {photo ? <Image source={{ uri: photo }} style={{ width: '100%', height: 150, borderRadius: 10, marginBottom: 10 }} resizeMode="cover" /> : null}
       <Bouton secondaire titre={photo ? 'Changer la photo' : '📷 Ajouter une photo'} onPress={ajouterPhoto} occupe={photoEnCours} style={{ marginBottom: 14 }} />
@@ -642,7 +642,7 @@ export function FeuillePrevision({ du, donnees, nomResto, user, onFermer, apres 
     if (v > reste) { Alert.alert('Montant trop élevé', `Il ne reste que ${fmt(reste)} F à payer sur cette ligne.`); return }
     if (!quand) { Alert.alert('Quand ?', 'Choisissez une date ou la prochaine réception d\'un partenaire.'); return }
     if (quand === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(datePrevue)) {
-      Alert.alert('Date invalide', 'Écrivez la date au format AAAA-MM-JJ, par exemple 2026-10-15.'); return
+      Alert.alert('Date invalide', 'Choisissez la date dans le calendrier.'); return
     }
     if (quand === 'reception' && !partenaire) { Alert.alert('Partenaire manquant', 'À la réception de quel partenaire ?'); return }
     setOccupe(true)
@@ -671,7 +671,7 @@ export function FeuillePrevision({ du, donnees, nomResto, user, onFermer, apres 
       <Puces options={[{ valeur: 'date', label: 'À une date' }, { valeur: 'reception', label: 'À la prochaine réception' }]}
         valeur={quand} onChange={setQuand} />
       {quand === 'date' && (
-        <Champ label="Date (AAAA-MM-JJ)" value={datePrevue} onChangeText={setDatePrevue} autoCapitalize="none" placeholder="Ex : 2026-10-15" />
+        <ChampCalendrier label="Date prévue" valeur={datePrevue} onChange={setDatePrevue} />
       )}
       {quand === 'reception' && <Puces options={PARTENAIRES_PREVISION} valeur={partenaire} onChange={setPartenaire} />}
       <Champ label="Note (facultatif)" value={note} onChangeText={setNote} />

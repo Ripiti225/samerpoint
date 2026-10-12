@@ -11,6 +11,7 @@ import {
 } from 'react-native'
 
 import { useApp } from '../../context/AppContext'
+import ChampDate from '../ChampDate'
 import { useTheme } from '../../context/ThemeContext'
 import { isOnlineNow } from '../../lib/networkStatus'
 import { fmt, niveauTresorerie, peut } from '../../lib/tresorerie'
@@ -151,6 +152,12 @@ export function Champ({ label, ...props }) {
       <TextInput placeholderTextColor={colors.textPlaceholder} style={styles.input} {...props} />
     </View>
   )
+}
+
+// Date choisie au calendrier (jamais tapée au clavier). Valeur ISO AAAA-MM-JJ.
+export function ChampCalendrier({ label, valeur, onChange, ...props }) {
+  const { styles } = useStylesTreso()
+  return <ChampDate label={label} styleLabel={styles.label} valeur={valeur} onChange={onChange} {...props} />
 }
 
 export function ChampMontant({ label, valeur, onChange, placeholder = '0' }) {

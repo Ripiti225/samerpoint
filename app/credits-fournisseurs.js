@@ -20,6 +20,7 @@ import {
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import * as XLSX from 'xlsx'
+import ChampDate from '../components/ChampDate'
 import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
@@ -1343,28 +1344,12 @@ ${mouvements.map(m => {
           </View>
           <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
             <Text style={styles.exportSection}>Période</Text>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <View style={[styles.formGroup, { flex: 1 }]}>
-                <Text style={styles.formLabel}>Date début</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={exportFilters.dateDebut}
-                  onChangeText={v => setExportFilters(p => ({ ...p, dateDebut: v }))}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={colors.textPlaceholder}
-                />
-              </View>
-              <View style={[styles.formGroup, { flex: 1 }]}>
-                <Text style={styles.formLabel}>Date fin</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={exportFilters.dateFin}
-                  onChangeText={v => setExportFilters(p => ({ ...p, dateFin: v }))}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={colors.textPlaceholder}
-                />
-              </View>
-            </View>
+            <ChampDate label="Date début" styleLabel={styles.formLabel} valeur={exportFilters.dateDebut}
+              maxDate={exportFilters.dateFin || undefined}
+              onChange={v => setExportFilters(p => ({ ...p, dateDebut: v }))} />
+            <ChampDate label="Date fin" styleLabel={styles.formLabel} valeur={exportFilters.dateFin}
+              minDate={exportFilters.dateDebut || undefined}
+              onChange={v => setExportFilters(p => ({ ...p, dateFin: v }))} />
 
             {peutModifier && restaurants.length > 0 && (
               <>

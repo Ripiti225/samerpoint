@@ -13,7 +13,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Alert, Image, SafeAreaView, ScrollView, Text, View } from 'react-native'
 
 import {
-  Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Hero, HeroCase, ItemIcone, Puces, TitreSection,
+  Bouton, Champ, ChampCalendrier, ChampMontant, Entete, EtatEcran, Feuille, Hero, HeroCase, ItemIcone, Puces, TitreSection,
   styleDepense, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import { Badge, FeuilleDetail, FeuillePaiement, FeuillePrevision, couleursStatut } from '../components/tresorerie/du'
@@ -275,7 +275,7 @@ function FeuilleDepense({ visible, depense, enfants, donnees, user, onFermer, ap
     if (estFond && !restaurantId) { Alert.alert('Restaurant manquant', 'Un fond se donne à un restaurant : choisissez lequel.'); return }
     if (!source) { Alert.alert('Source manquante', 'D\'où part l\'argent ?'); return }
     if (!v) { Alert.alert('Montant manquant', 'Saisissez le montant.'); return }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Écrivez la date au format AAAA-MM-JJ.'); return }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Choisissez la date dans le calendrier.'); return }
     setOccupe(true)
     try {
       const estCompte = source !== 'especes' && source !== 'coffre'
@@ -357,7 +357,7 @@ function FeuilleDepense({ visible, depense, enfants, donnees, user, onFermer, ap
       {!verrou && (
         <>
           <ChampMontant label="Montant" valeur={montant} onChange={setMontant} />
-          <Champ label="Date (AAAA-MM-JJ)" value={date} onChangeText={t => { setDate(t); setDateTouchee(true) }} autoCapitalize="none" />
+          <ChampCalendrier label="Date" valeur={date} onChange={t => { setDate(t); setDateTouchee(true) }} />
         </>
       )}
       <Champ label="Note (facultatif)" value={note} onChangeText={setNote} placeholder="Ex : compresseur frigo" />

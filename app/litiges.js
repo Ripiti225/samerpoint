@@ -8,6 +8,7 @@ import {
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { Calendar } from 'react-native-calendars'
+import ChampDate from '../components/ChampDate'
 import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
@@ -2709,20 +2710,12 @@ export default function LitigesScreen() {
               onChangeText={v => setFormAvis(p => ({ ...p, numero_commande: v }))}
               placeholder="Ex: 48291" placeholderTextColor="#bbb" keyboardType="default" />
 
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.formLabel}>Date</Text>
-                <TextInput style={styles.formInput} value={formAvis.date_saisie}
-                  onChangeText={v => { setFormAvis(p => ({ ...p, date_saisie: v })); if (/^\d{4}-\d{2}-\d{2}$/.test(v)) chargerShiftsAvis(v, v) }}
-                  placeholder="AAAA-MM-JJ" placeholderTextColor={colors.textPlaceholder} />
-              </View>
-              <View style={{ width: 120 }}>
-                <Text style={styles.formLabel}>Heure commande</Text>
-                <TextInput style={styles.formInput} value={formAvis.heure}
-                  onChangeText={v => setFormAvis(p => ({ ...p, heure: v }))}
-                  placeholder="Ex : 9h30" placeholderTextColor={colors.textPlaceholder} />
-              </View>
-            </View>
+            <ChampDate label="Date" styleLabel={styles.formLabel} valeur={formAvis.date_saisie}
+              onChange={v => { setFormAvis(p => ({ ...p, date_saisie: v })); if (v) chargerShiftsAvis(v, v) }} />
+            <Text style={styles.formLabel}>Heure commande</Text>
+            <TextInput style={styles.formInput} value={formAvis.heure}
+              onChangeText={v => setFormAvis(p => ({ ...p, heure: v }))}
+              placeholder="Ex : 9h30" placeholderTextColor={colors.textPlaceholder} />
             {(() => {
               const r = caissierAuMoment(shiftsAvis, { restaurantId: restoSelectionne?.id, date: formAvis.date_saisie, heure: formAvis.heure })
               const trouve = !!(r.caissier_id || r.caissier_nom)
@@ -2795,10 +2788,8 @@ export default function LitigesScreen() {
               onChangeText={v => setFormYango(p => ({ ...p, montant: v }))}
               placeholder="Ex: 2500" placeholderTextColor="#bbb" keyboardType="numeric" />
 
-            <Text style={styles.formLabel}>Date</Text>
-            <TextInput style={styles.formInput} value={formYango.date_saisie}
-              onChangeText={v => setFormYango(p => ({ ...p, date_saisie: v }))}
-              placeholder="AAAA-MM-JJ" placeholderTextColor="#bbb" />
+            <ChampDate label="Date" styleLabel={styles.formLabel} valeur={formYango.date_saisie}
+              onChange={v => setFormYango(p => ({ ...p, date_saisie: v }))} />
 
             {renderResponsablePicker(formYango.responsable_id, (id, nom) => setFormYango(p => ({ ...p, responsable_id: id, responsable_nom: nom })))}
 
@@ -2850,10 +2841,8 @@ export default function LitigesScreen() {
               onChangeText={v => setFormGlovo(p => ({ ...p, montant: v }))}
               placeholder="Ex: 2500" placeholderTextColor="#bbb" keyboardType="numeric" />
 
-            <Text style={styles.formLabel}>Date</Text>
-            <TextInput style={styles.formInput} value={formGlovo.date_saisie}
-              onChangeText={v => setFormGlovo(p => ({ ...p, date_saisie: v }))}
-              placeholder="AAAA-MM-JJ" placeholderTextColor="#bbb" />
+            <ChampDate label="Date" styleLabel={styles.formLabel} valeur={formGlovo.date_saisie}
+              onChange={v => setFormGlovo(p => ({ ...p, date_saisie: v }))} />
 
             {renderResponsablePicker(formGlovo.responsable_id, (id, nom) => setFormGlovo(p => ({ ...p, responsable_id: id, responsable_nom: nom })))}
 
@@ -2888,10 +2877,8 @@ export default function LitigesScreen() {
               onChangeText={v => setFormPPF(p => ({ ...p, montant: v }))}
               placeholder="Ex: 5000" placeholderTextColor="#bbb" keyboardType="numeric" />
 
-            <Text style={styles.formLabel}>Date</Text>
-            <TextInput style={styles.formInput} value={formPPF.date_saisie}
-              onChangeText={v => setFormPPF(p => ({ ...p, date_saisie: v }))}
-              placeholder="AAAA-MM-JJ" placeholderTextColor="#bbb" />
+            <ChampDate label="Date" styleLabel={styles.formLabel} valeur={formPPF.date_saisie}
+              onChange={v => setFormPPF(p => ({ ...p, date_saisie: v }))} />
 
             <Text style={styles.formLabel}>Notes (optionnel)</Text>
             <TextInput style={[styles.formInput, { height: 56 }]} value={formPPF.notes}

@@ -18,10 +18,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Alert, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
 
 import {
-  Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Hero, HeroCase, Ligne, Pastille, Puces, STYLE_PARTENAIRE,
+  Bouton, Champ, ChampCalendrier, ChampMontant, Entete, EtatEcran, Feuille, Hero, HeroCase, Ligne, Pastille, Puces, STYLE_PARTENAIRE,
   useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
-import ChampDate from '../components/ChampDate'
 import { choisirEtLireExcel } from '../lib/lireExcel'
 import {
   COMPTE_TETE_DE_FOND, INFOS_PARTENAIRE, MODE_PAR_DEFAUT, PARTENAIRES, ajouterJours, libellePeriode, periodeDe,
@@ -470,7 +469,7 @@ function FeuilleReception({ demande, partenaire, periode, donnees, nomResto, use
   async function enregistrer() {
     if (!valeur) { Alert.alert('Montant manquant', 'Saisissez le montant réellement reçu.'); return }
     if (!compte) { Alert.alert('Compte manquant', "Choisissez le compte où l'argent est arrivé."); return }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Écrivez la date au format AAAA-MM-JJ.'); return }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Choisissez la date dans le calendrier.'); return }
     setOccupe(true)
     try {
       await recevoir({
@@ -501,7 +500,7 @@ function FeuilleReception({ demande, partenaire, periode, donnees, nomResto, use
       <ChampMontant label="Montant réellement reçu (celui du relevé)" valeur={montant} onChange={setMontant} />
       <Text style={styles.label}>Arrivé sur</Text>
       <Puces options={donnees.comptes.map(c => ({ valeur: c.id, label: c.nom }))} valeur={compte} onChange={setCompte} />
-      <Champ label="Date de réception (AAAA-MM-JJ)" value={date} onChangeText={setDate} autoCapitalize="none" />
+      <ChampCalendrier label="Date de réception" valeur={date} onChange={setDate} />
       <Champ label="Note (facultatif)" value={note} onChangeText={setNote} />
       {valeur > 0 && ecart !== 0 && (
         <View style={styles.avert}>
@@ -559,7 +558,7 @@ function FeuilleReceptionTete({ visible, partenaire, periode, situation, donnees
     const parts = restos.map(r => ({ restaurant_id: r.id, montant: lire(valeurs[r.id]) })).filter(x => x.montant > 0)
     if (!parts.length) { Alert.alert('Montant manquant', 'Saisissez ce que chaque restaurant a versé.'); return }
     if (!compte) { Alert.alert('Compte manquant', 'Choisissez le compte où l\'argent est arrivé (la tête de fond).'); return }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Écrivez la date au format AAAA-MM-JJ.'); return }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Choisissez la date dans le calendrier.'); return }
     setOccupe(true)
     try {
       await recevoirDetaille({
@@ -608,7 +607,7 @@ function FeuilleReceptionTete({ visible, partenaire, periode, situation, donnees
       </View>
       <Text style={styles.label}>Arrivé sur</Text>
       <Puces options={donnees.comptes.map(c => ({ valeur: c.id, label: c.nom }))} valeur={compte} onChange={setCompte} />
-      <Champ label="Date de réception (AAAA-MM-JJ)" value={date} onChangeText={setDate} autoCapitalize="none" />
+      <ChampCalendrier label="Date de réception" valeur={date} onChange={setDate} />
       <Champ label="Note (facultatif)" value={note} onChangeText={setNote} />
       <Bouton titre={`Enregistrer · ${fmt(total)} F`} onPress={enregistrer} occupe={occupe} />
       <Text style={[styles.petit, { marginTop: 10 }]}>
@@ -692,7 +691,7 @@ function FeuilleReglage({ partenaire, reglages, user, onFermer, apres }) {
     : null
 
   async function enregistrer() {
-    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Écrivez la date au format AAAA-MM-JJ, par exemple 2026-10-01.'); return }
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Choisissez la date dans le calendrier.'); return }
     setOccupe(true)
     try {
       await enregistrerReglagePartenaire({ partenaire, dateDepart: date || null, modeVersement: mode }, user)
@@ -707,7 +706,7 @@ function FeuilleReglage({ partenaire, reglages, user, onFermer, apres }) {
 
   return (
     <Feuille visible onFermer={onFermer} titre={`Régler ${info.nom}`}>
-      <ChampDate label="Suivre à partir du" valeur={date} onChange={setDate} effacable placeholder="Pas suivi" />
+      <ChampCalendrier label="Suivre à partir du" valeur={date} onChange={setDate} effacable placeholder="Pas suivi" />
       {premiereReelle && (
         <Text style={[styles.petit, { marginBottom: 12 }]}>
           Première période suivie : {libellePeriode(premiereReelle)}. Les périodes d'avant sont considérées comme payées.

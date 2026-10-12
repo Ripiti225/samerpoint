@@ -13,7 +13,7 @@ import { useEffect, useState } from 'react'
 import { Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 
 import {
-  Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Hero, ItemIcone, Progression, Puces, TitreSection,
+  Bouton, Champ, ChampCalendrier, ChampMontant, Entete, EtatEcran, Feuille, Hero, ItemIcone, Progression, Puces, TitreSection,
   useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import { objectifDuMois, progression, resteARembourser, soldeCoffre, statutEmprunt } from '../lib/direction'
@@ -186,7 +186,7 @@ function FeuilleEpargne({ visible, donnees, user, onFermer, apres }) {
     const v = montant === '' ? 0 : parseInt(montant, 10)
     if (!v) { Alert.alert('Montant manquant', 'Saisissez le montant.'); return }
     if (!source) { Alert.alert('Origine manquante', 'D\'où vient l\'argent : Espèces, BACI ou SIB ?'); return }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Écrivez la date au format AAAA-MM-JJ.'); return }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Choisissez la date dans le calendrier.'); return }
     setOccupe(true)
     try {
       await operationCoffre({
@@ -207,7 +207,7 @@ function FeuilleEpargne({ visible, donnees, user, onFermer, apres }) {
       <ChampMontant label="Montant à mettre de côté" valeur={montant} onChange={setMontant} />
       <Text style={styles.label}>L'argent vient de</Text>
       <Puces options={donnees.comptes.map(c => ({ valeur: c.id, label: c.nom }))} valeur={source} onChange={setSource} />
-      <Champ label="Date (AAAA-MM-JJ)" value={date} onChangeText={setDate} autoCapitalize="none" />
+      <ChampCalendrier label="Date" valeur={date} onChange={setDate} />
       <Champ label="Libellé (facultatif)" value={libelle} onChangeText={setLibelle} />
       <Bouton titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
       <Text style={[styles.petit, { marginTop: 10 }]}>
@@ -269,7 +269,7 @@ function FeuilleEmprunt({ visible, donnees, solde, user, onFermer, apres }) {
     if (!compte) { Alert.alert('Compte manquant', 'Où va l\'argent : Espèces, BACI ou SIB ?'); return }
     if (!quand) { Alert.alert('Remboursement', 'Quand allez-vous rembourser le coffre ?'); return }
     if (quand === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(dateRetour)) {
-      Alert.alert('Date invalide', 'Écrivez la date de remboursement au format AAAA-MM-JJ.'); return
+      Alert.alert('Date invalide', 'Choisissez la date de remboursement dans le calendrier.'); return
     }
     if (quand === 'reception' && !partenaire) { Alert.alert('Partenaire manquant', 'À la réception de quel partenaire ?'); return }
     setOccupe(true)
@@ -299,7 +299,7 @@ function FeuilleEmprunt({ visible, donnees, solde, user, onFermer, apres }) {
       <Puces options={[{ valeur: 'date', label: 'À une date' }, { valeur: 'reception', label: 'À la prochaine réception' }]}
         valeur={quand} onChange={setQuand} />
       {quand === 'date' && (
-        <Champ label="Date de remboursement (AAAA-MM-JJ)" value={dateRetour} onChangeText={setDateRetour} autoCapitalize="none" placeholder="Ex : 2026-10-15" />
+        <ChampCalendrier label="Date de remboursement" valeur={dateRetour} onChange={setDateRetour} />
       )}
       {quand === 'reception' && <Puces options={PARTENAIRES} valeur={partenaire} onChange={setPartenaire} />}
       <Champ label="Pour quoi ? (facultatif)" value={note} onChangeText={setNote} placeholder="Ex : salaires KMS" />
@@ -321,7 +321,7 @@ function FeuilleRemboursement({ emprunt, donnees, user, onFermer, apres }) {
 
   async function enregistrer() {
     if (!compte) { Alert.alert('Compte manquant', 'D\'où part l\'argent ?'); return }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Écrivez la date au format AAAA-MM-JJ.'); return }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Choisissez la date dans le calendrier.'); return }
     setOccupe(true)
     try {
       await rembourserEmprunt({ emprunt, compteId: compte, date }, user)
@@ -338,7 +338,7 @@ function FeuilleRemboursement({ emprunt, donnees, user, onFermer, apres }) {
     <Feuille visible onFermer={onFermer} titre={`Rembourser ${fmt(emprunt.montant)} F au coffre`}>
       <Text style={styles.label}>L'argent part de</Text>
       <Puces options={donnees.comptes.map(c => ({ valeur: c.id, label: c.nom }))} valeur={compte} onChange={setCompte} />
-      <Champ label="Date (AAAA-MM-JJ)" value={date} onChangeText={setDate} autoCapitalize="none" />
+      <ChampCalendrier label="Date" valeur={date} onChange={setDate} />
       <Bouton titre="Rembourser" onPress={enregistrer} occupe={occupe} />
     </Feuille>
   )

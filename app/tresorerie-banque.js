@@ -13,7 +13,7 @@ import { useMemo, useState } from 'react'
 import { Alert, Image, SafeAreaView, ScrollView, Text, View } from 'react-native'
 
 import {
-  BarreRepartition, Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Hero, ItemIcone, Pastille, Puces,
+  BarreRepartition, Bouton, Champ, ChampCalendrier, ChampMontant, Entete, EtatEcran, Feuille, Hero, ItemIcone, Pastille, Puces,
   TitreSection, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import { usePhoto } from '../lib/usePhoto'
@@ -252,7 +252,7 @@ function FeuilleMouvement({ saisie, onFermer, user, apres }) {
       return
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      Alert.alert('Date invalide', 'Écrivez la date au format AAAA-MM-JJ, par exemple 2026-10-01.')
+      Alert.alert('Date invalide', 'Choisissez la date dans le calendrier.')
       return
     }
     if (estRecalage && ecart === 0) {
@@ -299,7 +299,7 @@ function FeuilleMouvement({ saisie, onFermer, user, apres }) {
           <Champ label="Libellé" value={libelle} onChangeText={setLibelle} placeholder="Ex : versement espèces 7E" />
         </>
       )}
-      <Champ label="Date (AAAA-MM-JJ)" value={date} onChangeText={setDate} autoCapitalize="none" />
+      <ChampCalendrier label="Date" valeur={date} onChange={setDate} />
       <Text style={styles.label}>Photo du reçu (facultatif)</Text>
       {photo
         ? <Image source={{ uri: photo }} style={{ width: '100%', height: 160, borderRadius: 10, marginBottom: 12 }} resizeMode="cover" />
@@ -342,7 +342,7 @@ function FeuilleEntreeEspeces({ compte, donnees, user, onFermer, apres }) {
     if (origine === 'restaurant' && !restaurantId) { Alert.alert('Restaurant manquant', 'Choisissez le restaurant.'); return }
     if (origine === 'pret' && !preteur.trim()) { Alert.alert('Prêteur manquant', 'Qui a prêté cet argent ?'); return }
     if (!v) { Alert.alert('Montant manquant', 'Saisissez le montant.'); return }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Écrivez la date au format AAAA-MM-JJ.'); return }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Choisissez la date dans le calendrier.'); return }
     setOccupe(true)
     try {
       if (origine === 'pret') {
@@ -388,7 +388,7 @@ function FeuilleEntreeEspeces({ compte, donnees, user, onFermer, apres }) {
         </>
       )}
       <ChampMontant label="Montant" valeur={montant} onChange={setMontant} />
-      <Champ label="Date (AAAA-MM-JJ)" value={date} onChangeText={setDate} autoCapitalize="none" />
+      <ChampCalendrier label="Date" valeur={date} onChange={setDate} />
       <Champ label="Note (facultatif)" value={note} onChangeText={setNote} />
       <Bouton titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
     </Feuille>
@@ -417,7 +417,7 @@ function FeuilleVirement({ visible, comptes, user, onFermer, apres }) {
     if (!de || !vers) { Alert.alert('Comptes manquants', 'Choisissez le compte de départ et le compte d\'arrivée.'); return }
     if (de === vers) { Alert.alert('Même compte', 'Choisissez deux comptes différents.'); return }
     if (!v) { Alert.alert('Montant manquant', 'Saisissez le montant.'); return }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Écrivez la date au format AAAA-MM-JJ.'); return }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Choisissez la date dans le calendrier.'); return }
     const nom = id => comptes.find(c => c.id === id)?.nom || '?'
     setOccupe(true)
     try {
@@ -439,7 +439,7 @@ function FeuilleVirement({ visible, comptes, user, onFermer, apres }) {
       <Text style={styles.label}>Vers</Text>
       <Puces options={options} valeur={vers} onChange={setVers} />
       <ChampMontant label="Montant" valeur={montant} onChange={setMontant} />
-      <Champ label="Date (AAAA-MM-JJ)" value={date} onChangeText={setDate} autoCapitalize="none" />
+      <ChampCalendrier label="Date" valeur={date} onChange={setDate} />
       <Champ label="Libellé (facultatif)" value={libelle} onChangeText={setLibelle} placeholder="Ex : dépôt des espèces à la BACI" />
       <Bouton titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
       <Text style={[styles.petit, { marginTop: 10 }]}>Le montant sort du premier compte et entre dans le second : le total ne change pas.</Text>

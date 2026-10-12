@@ -27,13 +27,43 @@ export function dateEnClair(iso) {
   })
 }
 
+// Le calendrier seul (sans bouton), aux couleurs du thème. onChoisir(iso).
+// initial : mois affiché quand aucune date n'est choisie (ISO).
+export function CalendrierFr({ valeur, onChoisir, minDate, maxDate, couleur, initial }) {
+  const { colors } = useTheme()
+  const c = couleur || colors.primary
+  return (
+    <Calendar
+      key={colors.bg}
+      current={valeur || initial || undefined}
+      minDate={minDate}
+      maxDate={maxDate}
+      firstDay={1}
+      onDayPress={d => onChoisir(d.dateString)}
+      markedDates={valeur ? { [valeur]: { selected: true } } : {}}
+      theme={{
+        calendarBackground: colors.surface,
+        selectedDayBackgroundColor: c,
+        selectedDayTextColor: '#fff',
+        todayTextColor: c,
+        dayTextColor: colors.text,
+        textDisabledColor: colors.textPlaceholder,
+        arrowColor: c,
+        monthTextColor: colors.text,
+        textSectionTitleColor: colors.textMuted,
+      }}
+    />
+  )
+}
+
 /**
  * valeur : 'AAAA-MM-JJ' ou vide · onChange(iso | '')
  * effacable : affiche « Effacer » (date facultative)
  * minDate / maxDate : bornes facultatives (ISO)
  * couleur : couleur du calendrier et du bouton (par défaut, celle du thème)
+ * styleLabel : style du libellé (pour suivre le kit de l'écran)
  */
-export default function ChampDate({ label, valeur, onChange, effacable = false, minDate, maxDate, placeholder = 'Choisir une date', couleur }) {
+export default function ChampDate({ label, valeur, onChange, effacable = false, minDate, maxDate, placeholder = 'Choisir une date', couleur, styleLabel }) {
   const { colors } = useTheme()
   const c = couleur || colors.primary
   const [ouvert, setOuvert] = useState(false)
@@ -41,7 +71,7 @@ export default function ChampDate({ label, valeur, onChange, effacable = false, 
 
   return (
     <View style={{ marginBottom: 12 }}>
-      {!!label && <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 6 }}>{label}</Text>}
+      {!!label && <Text style={styleLabel || { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 6 }}>{label}</Text>}
       <TouchableOpacity
         onPress={() => setOuvert(o => !o)}
         style={{
@@ -58,26 +88,8 @@ export default function ChampDate({ label, valeur, onChange, effacable = false, 
 
       {ouvert && (
         <View style={{ marginTop: 8, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
-          <Calendar
-            key={colors.bg}
-            current={valeur || undefined}
-            minDate={minDate}
-            maxDate={maxDate}
-            firstDay={1}
-            onDayPress={d => { onChange(d.dateString); setOuvert(false) }}
-            markedDates={valeur ? { [valeur]: { selected: true } } : {}}
-            theme={{
-              calendarBackground: colors.surface,
-              selectedDayBackgroundColor: c,
-              selectedDayTextColor: '#fff',
-              todayTextColor: c,
-              dayTextColor: colors.text,
-              textDisabledColor: colors.textPlaceholder,
-              arrowColor: c,
-              monthTextColor: colors.text,
-              textSectionTitleColor: colors.textMuted,
-            }}
-          />
+          <CalendrierFr valeur={valeur} minDate={minDate} maxDate={maxDate} couleur={c}
+            onChoisir={iso => { onChange(iso); setOuvert(false) }} />
           {effacable && !!valeur && (
             <TouchableOpacity onPress={() => { onChange(''); setOuvert(false) }} style={{ padding: 10, alignItems: 'center', backgroundColor: colors.surface }}>
               <Text style={{ color: colors.error, fontSize: 13, fontWeight: '600' }}>Effacer la date</Text>

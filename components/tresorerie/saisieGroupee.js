@@ -7,7 +7,9 @@
 // Logique : planSaisieGroupee / planSaisieBaux (lib/tresorerie.js).
 // ──────────────────────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Text, TextInput, View } from 'react-native'
+import { Alert, Text, TextInput, TouchableOpacity, View } from 'react-native'
+
+import { CalendrierFr } from '../ChampDate'
 
 import {
   CATEGORIES_MONTANT_FIXE, LIBELLES_CATEGORIE, aujourdhuiISO, fmt, jourCommun, libelleMois, moisEntre,
@@ -283,6 +285,7 @@ function lireDate(texte) {
 }
 
 const jjmm = (jour, mois) => `${String(jour).padStart(2, '0')}/${String(mois).padStart(2, '0')}`
+const deux = n => String(n).padStart(2, '0')
 
 export function FeuilleSaisieBaux({ visible, donnees, user, onFermer, apres }) {
   const { styles, colors } = useStylesTreso()
@@ -290,6 +293,7 @@ export function FeuilleSaisieBaux({ visible, donnees, user, onFermer, apres }) {
   const [an, setAn] = useState(anCourant)
   const [valeurs, setValeurs] = useState({})   // { [restaurant_id]: { montant, date } }
   const [occupe, setOccupe] = useState(false)
+  const [calendrierPour, setCalendrierPour] = useState(null)   // restaurant dont le calendrier est ouvert
 
   const parDu = useMemo(() => paiementsParDu(donnees.paiements), [donnees])
   const ligneDe = restaurantId => donnees.dus.find(d => d.categorie === 'bail' && d.restaurant_id === restaurantId && d.mois?.startsWith(`${an}-`))
@@ -326,7 +330,7 @@ export function FeuilleSaisieBaux({ visible, donnees, user, onFermer, apres }) {
       if (!montant) { saisies[r.id] = null; continue }
       const date = lireDate(v.date)
       if (!date) {
-        Alert.alert('Date limite à corriger', `${r.nom} : écrivez la date limite comme 20/11 (jour/mois).`); return
+        Alert.alert('Date limite manquante', `${r.nom} : choisissez la date limite dans le calendrier (📅).`); return
       }
       saisies[r.id] = { montant, ...date }
     }
@@ -357,19 +361,36 @@ export function FeuilleSaisieBaux({ visible, donnees, user, onFermer, apres }) {
       <Text style={styles.label}>Année</Text>
       <Puces options={[anCourant - 1, anCourant, anCourant + 1].map(a => ({ valeur: a, label: String(a) }))} valeur={an} onChange={setAn} />
       <Text style={[styles.petit, { marginBottom: 12 }]}>
-        En face de chaque restaurant : le montant annuel et la date limite (jour/mois, ex : 20/11). Les années suivantes, la ligne apparaît toute seule
+        En face de chaque restaurant : le montant annuel et la date limite (touchez 📅 pour la choisir). Les années suivantes, la ligne apparaît toute seule
         un mois avant sa date, avec ces valeurs. Champ vide = plus de bail pour ce restaurant.
       </Text>
       {donnees.restaurants.map(r => {
         const d = entamee(r)
         if (d) return <LigneEntamee key={r.id} nom={r.nom} montant={d.montant_du} />
+        const date = lireDate(valeurs[r.id]?.date)
+        const ouvert = calendrierPour === r.id
         return (
-          <Rangee key={r.id} nom={r.nom}>
-            <Saisie montant largeur={120} valeur={valeurs[r.id]?.montant ?? ''} placeholder="Montant"
-              onChange={v => maj(r.id, 'montant', v)} />
-            <Saisie largeur={78} valeur={valeurs[r.id]?.date ?? ''} placeholder="JJ/MM"
-              onChange={v => maj(r.id, 'date', v)} />
-          </Rangee>
+          <View key={r.id}>
+            <Rangee nom={r.nom}>
+              <Saisie montant largeur={120} valeur={valeurs[r.id]?.montant ?? ''} placeholder="Montant"
+                onChange={v => maj(r.id, 'montant', v)} />
+              <TouchableOpacity onPress={() => setCalendrierPour(ouvert ? null : r.id)}
+                style={[styles.input, { width: 92, paddingVertical: 9, borderColor: ouvert ? colors.primary : colors.inputBorder }]}>
+                <Text style={{ fontSize: 15, textAlign: 'right', color: date ? colors.text : colors.textMuted }}>
+                  📅 {date ? jjmm(date.jour, date.mois) : 'Date'}
+                </Text>
+              </TouchableOpacity>
+            </Rangee>
+            {ouvert && (
+              <View style={{ marginBottom: 10, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
+                <CalendrierFr
+                  valeur={date ? `${an}-${deux(date.mois)}-${deux(date.jour)}` : ''}
+                  initial={`${an}-${aujourdhuiISO().slice(5, 7)}-01`}
+                  onChoisir={iso => { maj(r.id, 'date', jjmm(Number(iso.slice(8, 10)), Number(iso.slice(5, 7)))); setCalendrierPour(null) }}
+                />
+              </View>
+            )}
+          </View>
         )
       })}
       <View style={[styles.ligne, { marginVertical: 10 }]}>
