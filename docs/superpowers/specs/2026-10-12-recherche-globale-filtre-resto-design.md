@@ -36,3 +36,14 @@ Date : 12/10/2026 — validé avec l'utilisateur.
 Migration testée sur le Postgres local : manager Global / un restaurant, RH
 Global (sources RH seulement) / un restaurant (rien d'un autre), gérant inchangé,
 une seule version de la fonction après passage.
+
+## Style (choisi par l'utilisateur : « sobre façon iPhone »)
+
+- Barre du haut « ‹ Retour » + petit titre qui apparaît quand le **grand titre
+  « Recherche »** se replie en défilant (reanimated).
+- Champ gris arrondi (loupe, ⓧ pour effacer), bord coloré quand il est actif ;
+  puces Global / restaurants grises, la choisie pleine.
+- Rubriques en **listes groupées iOS** : icône monochrome par rubrique
+  (`iconeSource`), nombre, chevron qui pivote ; résultats dans la même carte,
+  filets fins, extrait surligné + « Écran › Onglet · resto · date », montant à droite.
+- Résumé « 42 RÉSULTATS · 6 RUBRIQUES » ; états vides avec grande icône grise.
