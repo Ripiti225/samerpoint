@@ -51,6 +51,11 @@ Contrainte : `depart_le IS NULL OR type = 'administratif'`.
 puis le montant dû est posé par une écriture `ajustement_manager` (même chemin
 que le crédit de départ des administratifs), datée du jour de saisie.
 
+**Paiement en plusieurs fois** (précisé le 12/10) : chaque paiement, du gérant
+ou de la direction, est une transaction à part sur la fiche ; on peut payer
+une partie puis le reste plus tard, autant de fois qu'il faut. Le reste dû =
+montant dû − somme des paiements.
+
 Une fiche dont le crédit retombe à 0 est **soldée** : elle reste en base
 (historique), sort des listes « restants ».
 
@@ -75,10 +80,12 @@ Visible pour les niveaux qui voient À payer (`voir_a_payer`) et pour le RH
 - **« Modifier »** (RH, manager) : nom, date, motif ; le montant dû se corrige
   par une écriture `ajustement_manager` de la différence (jamais d'écrasement
   de `credit_actuel`).
-- **« Payer »** (direction) : réutilise le paiement direction des
+- **« Payer »** (direction), en une ou plusieurs fois : réutilise le paiement direction des
   administratifs (`tresorerie_payer_fournisseur_admin` : banque, espèces de la
-  trésorerie ou coffre). Montant ≤ reste dû.
-- Ouvrir une fiche : détail des paiements (date, montant, gérant/direction).
+  trésorerie ou coffre). Montant proposé = reste dû, modifiable à la baisse (paiement partiel) ;
+  jamais plus que le reste.
+- Ouvrir une fiche : la liste de tous ses paiements (date, montant,
+  gérant/direction), le dû, le payé et le reste.
 
 ## 3. Équipe → Archiver
 
@@ -93,7 +100,8 @@ manager). Hors CDI : rien ne change.
 
 Les fiches y figurent comme tout administratif de son restaurant, avec sous le
 nom « Ancien travailleur · parti le … ». Paiement en espèces de caisse,
-enregistré comme les autres administratifs. Le caissier ne les voit pas
+enregistré comme les autres administratifs : le gérant peut payer une partie
+un jour, une autre partie un autre jour, jusqu'au solde. Le caissier ne les voit pas
 (exclusion des administratifs déjà prévue).
 
 ## 5. Crédits fournisseurs → Administratifs
@@ -132,7 +140,8 @@ l'encaissé du point.
 Purs (`lib/*.test.mjs`, node:test) :
 - `estDroitAncienTravailleur`, `proposerDroits` (CDI oui ; CDD, Stage,
   Journalier non) ;
-- `resumeDroits` : regroupement par restaurant, soldé à 0, paiements partiels ;
+- `resumeDroits` : regroupement par restaurant, soldé à 0, plusieurs
+  paiements partiels (gérant puis direction puis gérant) jusqu'au solde ;
 - `creditFournisseursMois` : une fiche ancien travailleur ne bouge pas la
   variation (création et paiement), un administratif normal si.
 
