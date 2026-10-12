@@ -235,6 +235,13 @@ export default function AccueilScreen() {
           </Text>
         </View>
         <View style={{ alignItems: 'flex-end', gap: 8 }}>
+          <View style={styles.iconesHeader}>
+          {(isManager || isGerant) && (
+            <TouchableOpacity onPress={() => router.push('/recherche')} style={styles.bellBtn}
+              accessibilityRole="button" accessibilityLabel="Rechercher partout">
+              <Text style={styles.bellIcon}>🔍</Text>
+            </TouchableOpacity>
+          )}
           {!isCaissier && (
             <TouchableOpacity onPress={ouvrirPanel} style={styles.bellBtn}>
               <Text style={styles.bellIcon}>🔔</Text>
@@ -248,6 +255,7 @@ export default function AccueilScreen() {
               )}
             </TouchableOpacity>
           )}
+          </View>
           <Animated.View
             entering={FadeInRight.delay(200).springify().damping(18)}
             style={[styles.roleBadge, { backgroundColor: getRoleBadgeBg() }]}
@@ -552,7 +560,8 @@ function makeStyles(colors) { return StyleSheet.create({
     shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
   },
   logoutText: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
-  bellBtn: { position: 'relative', padding: 4 },
+  iconesHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  bellBtn: { position: 'relative', padding: 4, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   bellIcon: { fontSize: 24 },
   bellBadge: {
     position: 'absolute', top: 0, right: 0,

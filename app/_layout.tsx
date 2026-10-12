@@ -3,6 +3,7 @@ import * as Notifications from 'expo-notifications'
 import { router, Stack, useSegments } from 'expo-router'
 import { useCallback, useEffect, useRef } from 'react'
 import { AppState, Platform, View } from 'react-native'
+import BandeauRecherche from '../components/BandeauRecherche'
 import NetworkStatusBar from '../components/NetworkStatusBar'
 import { AppProvider, useApp } from '../context/AppContext'
 import { NetworkProvider } from '../context/NetworkContext'
@@ -237,6 +238,7 @@ export default function RootLayout() {
         <Stack.Screen name="rapports" />
         <Stack.Screen name="stats-caissiers" />
         <Stack.Screen name="journal" />
+        <Stack.Screen name="recherche" />
         <Stack.Screen name="gerant-caissier" />
         <Stack.Screen name="deductions-gerant" />
         <Stack.Screen name="selectionner-journee" />
@@ -245,6 +247,7 @@ export default function RootLayout() {
         <Stack.Screen name="demandes-admin" />
         <Stack.Screen name="(tabs)" />
       </Stack>
+        <BandeauRecherche />
         </InactivityGuard>
       </NotificationsProvider>
       </NetworkProvider>
