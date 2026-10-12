@@ -9,6 +9,7 @@ export default function OngletFournisseurs({
   fournisseursList, fournisseursGerantCaisse, chargement, ouverts, basculer,
   getCreditVeille, majFournisseur, onPhoto, uploading, fmt,
   texteVide = 'Aucun fournisseur enregistré pour ce restaurant',
+  sousTitre = null, // four => texte sous le nom (ex. « Ancien travailleur · parti le … »)
 }) {
   const { p, styles } = useStyleChaleureux()
   if (chargement) return <ActivityIndicator color={p.accentVif} style={{ paddingVertical: 24 }} />
@@ -35,6 +36,7 @@ export default function OngletFournisseurs({
                   ? <Etiquette ton="erreur" texte={`dû ${fmt(creditV)}`} />
                   : creditV < 0 ? <Etiquette ton="ok" texte={`avance ${fmt(-creditV)}`} /> : null}
               </View>
+              {sousTitre?.(four) ? <Text style={styles.petitDoux}>{sousTitre(four)}</Text> : null}
               {four.caissier_facture > 0
                 ? <Text style={styles.petitDoux}>dont facture caissier : {fmt(four.caissier_facture)}</Text>
                 : null}

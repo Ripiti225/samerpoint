@@ -11,6 +11,7 @@ import { useApp } from '../context/AppContext'
 import { facturesGerantSansPhoto } from '../lib/creditsFournisseurs'
 import { chargerDerniersRestes } from '../lib/derniersRestesFournisseurs'
 import { appliquerFacturesMensuelles } from '../lib/facturesMensuelles'
+import { droitAAfficherGerant, estDroitAncienTravailleur, sousTitreDepart } from '../lib/droitsAnciensTravailleurs'
 import { separerFournisseurs } from '../lib/fournisseursAdmin'
 import { logErreur } from '../lib/logErreur'
 import { manquantsDeductions, resumeDeductions } from '../lib/manquantsSaisie'
@@ -54,7 +55,8 @@ export default function DeductionsGerantScreen() {
     // Avant toute lecture : la facture mensuelle du 1er doit être dans la chaîne.
     await appliquerFacturesMensuelles(supabase)
     const [{ data: fours }, { data: travs }] = await Promise.all([
-      supabase.from('fournisseurs').select('id, nom, type').eq('restaurant_id', restaurantId).order('nom'),
+      // '*' : depart_le (droits des anciens travailleurs), absent avant migration.
+      supabase.from('fournisseurs').select('*').eq('restaurant_id', restaurantId).order('nom'),
       supabase.from('travailleurs').select('id, nom, poste').eq('restaurant_id', restaurantId).order('nom'),
     ])
 
@@ -381,6 +383,8 @@ export default function DeductionsGerantScreen() {
   const total = totalDepensesGerantCaisse()
   // Fournisseurs administratifs (impôts, CNPS, bail…) : leur propre onglet.
   const { marchandise, administratifs } = separerFournisseurs(fournisseursList)
+  // Droits d'anciens travailleurs soldés : hors de la liste, sauf déjà saisis ce jour.
+  const adminAffiches = administratifs.filter(f => droitAAfficherGerant(f, getCreditVeille(f), !!fournisseursGerantCaisse[f.id]))
   const idsAdmin = new Set(administratifs.map(f => f.id))
   const resume = resumeDeductions(depensesGerantCaisse, fournisseursGerantCaisse, paiesGerantCaisse, idsAdmin)
   const detail = r => (r.n > 0 ? `${r.n} · ${Math.round(r.total).toLocaleString('fr-FR')}` : '—')
@@ -423,8 +427,9 @@ export default function DeductionsGerantScreen() {
         ) : null}
         {onglet === 'administratifs' ? (
           <OngletFournisseurs
-            fournisseursList={administratifs}
+            fournisseursList={adminAffiches}
             texteVide="Aucun fournisseur administratif pour ce restaurant"
+            sousTitre={f => (estDroitAncienTravailleur(f) ? `Ancien travailleur · ${sousTitreDepart(f)}` : null)}
             fournisseursGerantCaisse={fournisseursGerantCaisse}
             chargement={chargement}
             ouverts={fournOuverts}
