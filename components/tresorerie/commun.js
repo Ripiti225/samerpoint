@@ -243,6 +243,7 @@ export const STYLE_CATEGORIE = {
   admin: { icone: 'briefcase-outline', couleur: '#475569' },
   dette: { icone: 'hand-coin-outline', couleur: '#DC2626' },
   dette_recente: { icone: 'alert-circle-outline', couleur: '#EA580C' },
+  anciens_travailleurs: { icone: 'account-arrow-right-outline', couleur: '#B45309' },
 }
 export const styleCategorie = cat => STYLE_CATEGORIE[cat] || STYLE_CATEGORIE.autre
 

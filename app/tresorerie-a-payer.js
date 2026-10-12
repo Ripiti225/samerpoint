@@ -7,6 +7,7 @@
 // dette récente (date limite passée) → dette (la suivante de la même série est
 // en retard à son tour). Ce classement se calcule (lib/tresorerie.js, classerDu).
 // Loyers : au paiement, le mois retenu par le propriétaire se choisit à la main.
+// Anciens travailleurs : components/tresorerie/anciensTravailleurs.js (droits dus aux travailleurs partis).
 // Spéc : docs/superpowers/specs/2026-10-02-nouvelle-tresorerie-design.md
 // ──────────────────────────────────────────────────────────────────────────────
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
@@ -29,6 +30,8 @@ import {
   resumeLoyersParRestaurant, totalPaye,
 } from '../lib/tresorerie'
 import { enregistrerDu } from '../lib/tresorerieDb'
+import { OngletAnciensTravailleurs } from '../components/tresorerie/anciensTravailleurs'
+import { ONGLET_ANCIENS } from '../lib/droitsAnciensTravailleurs'
 
 // Saisie groupée d'un mois : tous les restaurants sur un seul écran.
 // (CNPS, timbre, ITS, TEE et bail sont des fournisseurs administratifs depuis le 12/10/2026.)
@@ -100,7 +103,7 @@ export default function TresorerieAPayerScreen() {
           </ScrollView>
 
           <ScrollView style={styles.body} contentContainerStyle={styles.bodyContenu}>
-            {onglet && (
+            {onglet && onglet !== ONGLET_ANCIENS && (
               <Hero icone={styleCategorie(onglet).icone} titre={`${LIBELLES_ONGLET[onglet]} · reste à payer`}
                 valeur={`${fmt(resteOnglet)} F`}
                 sous={EN_RETARD.includes(onglet)
@@ -119,6 +122,9 @@ export default function TresorerieAPayerScreen() {
                   </View>
                 )}
               </Hero>
+            )}
+            {onglet === ONGLET_ANCIENS && (
+              <OngletAnciensTravailleurs niveau={niveau} user={user} restaurants={donnees.restaurants} />
             )}
             {onglet === 'loyer' && (
               <ListeLoyers
