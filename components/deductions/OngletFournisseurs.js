@@ -8,10 +8,11 @@ import { BarreProgression, BlocPhoto, Carte, Champ, Etiquette, Vide, useStyleCha
 export default function OngletFournisseurs({
   fournisseursList, fournisseursGerantCaisse, chargement, ouverts, basculer,
   getCreditVeille, majFournisseur, onPhoto, uploading, fmt,
+  texteVide = 'Aucun fournisseur enregistré pour ce restaurant',
 }) {
   const { p, styles } = useStyleChaleureux()
   if (chargement) return <ActivityIndicator color={p.accentVif} style={{ paddingVertical: 24 }} />
-  if (fournisseursList.length === 0) return <Vide texte="Aucun fournisseur enregistré pour ce restaurant" />
+  if (fournisseursList.length === 0) return <Vide texte={texteVide} />
 
   return (
     <>

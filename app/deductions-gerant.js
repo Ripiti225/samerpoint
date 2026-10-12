@@ -11,6 +11,7 @@ import { useApp } from '../context/AppContext'
 import { facturesGerantSansPhoto } from '../lib/creditsFournisseurs'
 import { chargerDerniersRestes } from '../lib/derniersRestesFournisseurs'
 import { appliquerFacturesMensuelles } from '../lib/facturesMensuelles'
+import { separerFournisseurs } from '../lib/fournisseursAdmin'
 import { logErreur } from '../lib/logErreur'
 import { manquantsDeductions, resumeDeductions } from '../lib/manquantsSaisie'
 import { supabase } from '../lib/supabase'
@@ -53,7 +54,7 @@ export default function DeductionsGerantScreen() {
     // Avant toute lecture : la facture mensuelle du 1er doit être dans la chaîne.
     await appliquerFacturesMensuelles(supabase)
     const [{ data: fours }, { data: travs }] = await Promise.all([
-      supabase.from('fournisseurs').select('id, nom').eq('restaurant_id', restaurantId).order('nom'),
+      supabase.from('fournisseurs').select('id, nom, type').eq('restaurant_id', restaurantId).order('nom'),
       supabase.from('travailleurs').select('id, nom, poste').eq('restaurant_id', restaurantId).order('nom'),
     ])
 
@@ -378,10 +379,15 @@ export default function DeductionsGerantScreen() {
   function fmt(n) { return Math.round(n).toLocaleString('fr-FR') + ' FCFA' }
 
   const total = totalDepensesGerantCaisse()
-  const resume = resumeDeductions(depensesGerantCaisse, fournisseursGerantCaisse, paiesGerantCaisse)
+  // Fournisseurs administratifs (impôts, CNPS, bail…) : leur propre onglet.
+  const { marchandise, administratifs } = separerFournisseurs(fournisseursList)
+  const idsAdmin = new Set(administratifs.map(f => f.id))
+  const resume = resumeDeductions(depensesGerantCaisse, fournisseursGerantCaisse, paiesGerantCaisse, idsAdmin)
   const detail = r => (r.n > 0 ? `${r.n} · ${Math.round(r.total).toLocaleString('fr-FR')}` : '—')
   const onglets = [
-    { cle: 'fournisseurs', label: 'Fournisseurs', detail: detail(resume.fournisseurs) },
+    // Libellés courts : quatre onglets doivent tenir sur un téléphone.
+    { cle: 'fournisseurs', label: 'Fourn.', detail: detail(resume.fournisseurs) },
+    { cle: 'administratifs', label: 'Admin.', detail: detail(resume.administratifs) },
     { cle: 'depenses', label: 'Dépenses', detail: detail(resume.depenses) },
     { cle: 'paies', label: 'Paies', detail: detail(resume.paies) },
   ]
@@ -403,7 +409,22 @@ export default function DeductionsGerantScreen() {
         showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {onglet === 'fournisseurs' ? (
           <OngletFournisseurs
-            fournisseursList={fournisseursList}
+            fournisseursList={marchandise}
+            fournisseursGerantCaisse={fournisseursGerantCaisse}
+            chargement={chargement}
+            ouverts={fournOuverts}
+            basculer={basculerFournisseur}
+            getCreditVeille={getCreditVeille}
+            majFournisseur={updateFournisseurGerant}
+            onPhoto={four => gererPhoto(url => updateFournisseurGerant(four.id, four.nom, 'photoUri', url), 'depenses-gerant')}
+            uploading={uploading}
+            fmt={fmt}
+          />
+        ) : null}
+        {onglet === 'administratifs' ? (
+          <OngletFournisseurs
+            fournisseursList={administratifs}
+            texteVide="Aucun fournisseur administratif pour ce restaurant"
             fournisseursGerantCaisse={fournisseursGerantCaisse}
             chargement={chargement}
             ouverts={fournOuverts}
