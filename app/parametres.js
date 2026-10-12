@@ -28,6 +28,7 @@ import { usePhoto } from '../lib/usePhoto'
 import { chargerDerniersRestes } from '../lib/derniersRestesFournisseurs'
 import { ecritureAjustementCredit, ecrituresFicheFournisseur } from '../lib/creditsFournisseurs'
 import { libelleMois, premierDuMois } from '../lib/facturesMensuelles'
+import { choixMoisDepart } from '../lib/fournisseursAdmin'
 import { connecterOneDrive, deconnecterOneDrive, estatConnecte } from '../lib/onedrive'
 import { ROLES_GLOBAUX } from '../lib/constants'
 import { ACTIONS, journaliser } from '../lib/journal'
@@ -274,6 +275,9 @@ export default function ParametresScreen() {
     return {
       facture_mensuelle: montant,
       facture_mensuelle_depuis: montant > 0 ? (form.facture_mensuelle_depuis || premierDuMois(0)) : null,
+      // Colonne de supabase_fournisseurs_administratifs.sql : seulement si connue.
+      ...(form.facture_periodicite !== undefined
+        ? { facture_periodicite: form.facture_periodicite === 'annuel' ? 'annuel' : 'mensuel' } : {}),
     }
   }
 
@@ -1082,9 +1086,9 @@ export default function ParametresScreen() {
         {filtres.map(f => (
           <View key={f.id} style={[styles.itemCard, !f.actif && styles.itemCardInactif]}>
             <View style={styles.itemLeft}>
-              <View style={[styles.typeBadge, f.type === 'cotisation' && styles.typeBadgeCotis]}>
-                <Text style={[styles.typeTxt, f.type === 'cotisation' && styles.typeTxtCotis]}>
-                  {f.type === 'cotisation' ? 'Cotis.' : 'Fourn.'}
+              <View style={[styles.typeBadge, f.type === 'cotisation' && styles.typeBadgeCotis, f.type === 'administratif' && styles.typeBadgeAdmin]}>
+                <Text style={[styles.typeTxt, f.type === 'cotisation' && styles.typeTxtCotis, f.type === 'administratif' && styles.typeTxtAdmin]}>
+                  {f.type === 'cotisation' ? 'Cotis.' : f.type === 'administratif' ? 'Admin.' : 'Fourn.'}
                 </Text>
               </View>
               <View>
@@ -1449,13 +1453,15 @@ export default function ParametresScreen() {
 
         <Text style={styles.modalLabel}>Type</Text>
         <View style={styles.contratRow}>
-          {['fournisseur', 'cotisation'].map(t => (
+          {['fournisseur', 'cotisation', 'administratif'].map(t => (
             <TouchableOpacity
               key={t}
               style={[styles.contratBtn, form.type === t && styles.contratBtnSelected]}
               onPress={() => setForm(p => ({ ...p, type: t }))}
             >
-              <Text style={[styles.contratTxt, form.type === t && styles.contratTxtSelected]}>{t}</Text>
+              <Text style={[styles.contratTxt, form.type === t && styles.contratTxtSelected]}>
+                {{ fournisseur: 'Fournisseur', cotisation: 'Cotisation', administratif: 'Administratif' }[t]}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -1464,25 +1470,37 @@ export default function ParametresScreen() {
 
         {isManager && (() => {
           const ceMois = premierDuMois(0)
-          const moisProchain = premierDuMois(1)
           const depuis = form.facture_mensuelle_depuis || ceMois
-          const choix = [...new Set([depuis, ceMois, moisProchain])].sort()
+          const annuel = form.facture_periodicite === 'annuel'
+          const choix = choixMoisDepart(annuel ? 'annuel' : 'mensuel', ceMois, depuis)
           const actif = (parseFloat(form.facture_mensuelle) || 0) > 0
           return (
             <>
               <View style={styles.creditSeparateur} />
-              <Text style={styles.modalLabel}>Facture mensuelle automatique</Text>
+              <Text style={styles.modalLabel}>Facture automatique</Text>
               <TextInput
                 style={styles.modalInput}
                 value={form.facture_mensuelle ? String(form.facture_mensuelle) : ''}
                 onChangeText={v => setForm(p => ({ ...p, facture_mensuelle: v.replace(/[^0-9]/g, '') }))}
                 keyboardType="numeric"
-                placeholder="Montant par mois (ex: 20000) — vide = aucune"
+                placeholder="Montant par échéance (ex: 20000) — vide = aucune"
                 placeholderTextColor="#bbb"
               />
               {actif && (
                 <>
-                  <Text style={styles.modalLabel}>À partir de</Text>
+                  <Text style={styles.modalLabel}>Revient</Text>
+                  <View style={styles.contratRow}>
+                    {[['mensuel', 'Chaque mois'], ['annuel', 'Chaque année']].map(([v, l]) => (
+                      <TouchableOpacity
+                        key={v}
+                        style={[styles.contratBtn, (annuel ? 'annuel' : 'mensuel') === v && styles.contratBtnSelected]}
+                        onPress={() => setForm(p => ({ ...p, facture_periodicite: v }))}
+                      >
+                        <Text style={[styles.contratTxt, (annuel ? 'annuel' : 'mensuel') === v && styles.contratTxtSelected]}>{l}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={styles.modalLabel}>{annuel ? 'Mois de l\'échéance' : 'À partir de'}</Text>
                   <View style={styles.contratRow}>
                     {choix.map(m => (
                       <TouchableOpacity
@@ -1498,7 +1516,9 @@ export default function ParametresScreen() {
               )}
               <View style={styles.infoBox}>
                 <Text style={styles.infoTxt}>
-                  Le 1er de chaque mois, ce montant s'ajoute au reste dû du fournisseur (une seule fois par mois).
+                  {annuel
+                    ? 'Le 1er de ce mois, chaque année, ce montant s\'ajoute au reste dû du fournisseur (une seule fois par an).'
+                    : 'Le 1er de chaque mois, ce montant s\'ajoute au reste dû du fournisseur (une seule fois par mois).'}
                   {!modal.data ? ' Même montant pour tous les restaurants cochés : corrigez ensuite la fiche d\'un restaurant dont le montant diffère.' : ''}
                 </Text>
               </View>
@@ -1924,8 +1944,10 @@ function makeStyles(colors) { return StyleSheet.create({
   globalTxt: { fontSize: 11, color: colors.surface, fontWeight: '500' },
   typeBadge: { backgroundColor: colors.orangeLight, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
   typeBadgeCotis: { backgroundColor: '#E6F1FB' },
+  typeBadgeAdmin: { backgroundColor: '#EDE9FE' },
   typeTxt: { fontSize: 10, color: colors.orangeDark, fontWeight: '500' },
   typeTxtCotis: { color: '#185FA5' },
+  typeTxtAdmin: { color: '#7C3AED' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modal: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '90%' },
   modalTitre: { fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 20 },
