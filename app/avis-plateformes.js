@@ -12,7 +12,7 @@
 //  avis n'entrent dans aucun total — c'est la file de travail à vider.
 // ──────────────────────────────────────────────────────────────────────────────
 import { retour } from '../lib/navigation'
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator, Alert, Modal, RefreshControl, SafeAreaView,
@@ -35,6 +35,7 @@ import { ChampDates, EnTete, Puces, useEcranModerne } from '../components/ui/Ecr
 import {
   PERIODES_AVIS, caissierDeLAvis, classementCaissiers, periodePrecedente, plagePeriode, resumeChiffres, topMotifs,
 } from '../lib/avisResume'
+import { useFocusRecherche } from '../lib/useFocusRecherche'
 
 // Au-delà, on n'affiche pas tout d'un coup : un mois d'avis sur 7 restaurants
 // fige la page sur un iPhone.
@@ -57,16 +58,20 @@ export default function AvisPlateformes() {
   const styles = useMemo(() => makeStyles(colors), [colors])
   const { userId, userNom, roleActif } = useApp()
 
-  const [onglet, setOnglet] = useState('resume')        // 'resume' | 'avis' | 'rattacher'
-  const [periodeKey, setPeriodeKey] = useState('mois')
-  const [perso, setPerso] = useState({ debut: null, fin: null })
+  // Ouvert depuis la recherche globale : avis du jour cherché, encadré.
+  const params = useLocalSearchParams()
+  const dateRecherche = typeof params.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : null
+  const focus = useFocusRecherche(params.focus)
+  const [onglet, setOnglet] = useState(params.focus ? 'avis' : 'resume')        // 'resume' | 'avis' | 'rattacher'
+  const [periodeKey, setPeriodeKey] = useState(dateRecherche ? 'perso' : 'mois')
+  const [perso, setPerso] = useState({ debut: dateRecherche, fin: dateRecherche })
   const [champDate, setChampDate] = useState(null)
   const [avisPrec, setAvisPrec] = useState([])
   const [litiges, setLitiges] = useState([])
   const [litigesPrec, setLitigesPrec] = useState([])
   const [shifts, setShifts] = useState([])
   const em = useEcranModerne('orange')
-  const [restoFilter, setRestoFilter] = useState(null)
+  const [restoFilter, setRestoFilter] = useState(typeof params.restaurant_id === 'string' ? params.restaurant_id : null)
   const [platformFilter, setPlatformFilter] = useState(null)
   const [classFilter, setClassFilter] = useState(null)
   const [showRestoPicker, setShowRestoPicker] = useState(false)
@@ -326,7 +331,7 @@ export default function AvisPlateformes() {
             const negatif = classifierAvis(a) === 'negatif'
             const note = noteSur5(a)
             return (
-              <View key={a.id} style={[styles.card, negatif && styles.cardNegatif]}>
+              <View key={a.id} {...focus.props(a.id)} style={[styles.card, negatif && styles.cardNegatif, focus.style(a.id)]}>
                 <View style={styles.ligneHaut}>
                   <Badge texte={plateforme(a.platform)?.label || a.platform} couleur={plateforme(a.platform)?.couleur} />
                   <Text style={styles.ligneSous}>{fmtDate(a.review_date)}</Text>

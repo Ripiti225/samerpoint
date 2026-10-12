@@ -354,12 +354,15 @@ export function Progression({ pct, couleur, fond, hauteur = 10 }) {
 }
 
 // Ligne de liste avec pastille d'icône, titre, détail et montant à droite.
-export function ItemIcone({ icone, couleur, titre, sous, droite, couleurDroite, sousDroite, onPress, onLongPress, surligne, estompe }) {
+// `focus` + `focusId` (facultatifs) : useFocusRecherche() de l'écran, pour
+// encadrer la ligne ouverte depuis la recherche globale.
+export function ItemIcone({ icone, couleur, titre, sous, droite, couleurDroite, sousDroite, onPress, onLongPress, surligne, estompe, focus, focusId }) {
   const { styles, colors } = useStylesTreso()
   const actif = !!(onPress || onLongPress)
   return (
     <TouchableOpacity
-      style={[styles.itemIcone, surligne && { backgroundColor: surligne, borderColor: 'transparent' }, estompe && { opacity: 0.6 }]}
+      {...focus?.props(focusId)}
+      style={[styles.itemIcone, surligne && { backgroundColor: surligne, borderColor: 'transparent' }, estompe && { opacity: 0.6 }, focus?.style(focusId)]}
       onPress={onPress} onLongPress={onLongPress} delayLongPress={500} activeOpacity={actif ? 0.7 : 1} disabled={!actif}
     >
       <Pastille icone={icone} couleur={couleur || colors.primary} taille={38} />

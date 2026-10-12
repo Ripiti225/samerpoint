@@ -1,4 +1,4 @@
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import { useTheme } from '../context/ThemeContext'
 import {
@@ -22,6 +22,7 @@ import {
   calculerLitigeContact, chargerPointsContact, chargerRestaurantsContact,
   chargerShiftsContact, choisirNombreContacts, compterContacts, contactsViennentDuPOS,
 } from '../lib/litigeContacts'
+import { useFocusRecherche } from '../lib/useFocusRecherche'
 
 const MOIS_NOMS = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -45,7 +46,11 @@ export default function ChargesScreen() {
 
   const [restaurants, setRestaurants] = useState([])
   const [restoSelectionne, setRestoSelectionne] = useState(null)
+  // Ouvert depuis la recherche globale : restaurant + mois + charge encadrée.
+  const params = useLocalSearchParams()
+  const focus = useFocusRecherche(params.focus)
   const [moisSelectionne, setMoisSelectionne] = useState(() => {
+    if (typeof params.mois === 'string' && /^\d{4}-\d{2}$/.test(params.mois)) return params.mois
     // Par défaut : mois en cours
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -61,7 +66,7 @@ export default function ChargesScreen() {
   const [recalculating, setRecalculating] = useState(false)
   const [litigesCharges, setLitigesCharges] = useState({ ecart: 0, inventaire: 0, avis: 0, yango: 0, glovo: 0, contact: 0, contactsEnAttente: 0 })
 
-  useEffect(() => { chargerRestaurants() }, [])
+  useEffect(() => { chargerRestaurants() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (restoSelectionne) chargerCharges()
   }, [restoSelectionne, moisSelectionne])
@@ -69,7 +74,7 @@ export default function ChargesScreen() {
   async function chargerRestaurants() {
     const data = await chargerRestaurantsContact()
     setRestaurants(data || [])
-    if (data && data.length > 0) setRestoSelectionne(data[0])
+    if (data && data.length > 0) setRestoSelectionne(data.find(r => r.id === params.restaurant_id) || data[0])
   }
 
   async function chargerCharges() {
@@ -454,9 +459,10 @@ export default function ChargesScreen() {
           ) : (
             <View style={styles.chargesCard}>
               {charges.map((c, i) => (
-                <View key={c.id} style={[
+                <View key={c.id} {...focus.props(c.id)} style={[
                   styles.chargeRow,
-                  i === charges.length - 1 && { borderBottomWidth: 0 }
+                  i === charges.length - 1 && { borderBottomWidth: 0 },
+                  focus.style(c.id),
                 ]}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.chargeLibelle}>{c.libelle}</Text>

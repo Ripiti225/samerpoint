@@ -1,3 +1,4 @@
+import { useLocalSearchParams } from 'expo-router'
 import { retour } from '../lib/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -15,6 +16,7 @@ import { useTheme } from '../context/ThemeContext'
 import { regrouperErreurs } from '../lib/erreursLisibles'
 import { ACTION_LABELS, chargerJournal } from '../lib/journal'
 import { supabase } from '../lib/supabase'
+import { useFocusRecherche } from '../lib/useFocusRecherche'
 
 function formatHeure(dateStr) {
   if (!dateStr) return '—'
@@ -103,6 +105,19 @@ export default function JournalScreen() {
   const [filtreAction, setFiltreAction] = useState(null)
 
   const modeErreurs = filtreAction === '__erreurs__'
+
+  // Ouvert depuis la recherche globale : la liste ne garde que les 100
+  // dernières entrées, l'entrée cherchée est donc chargée à part et montrée en tête.
+  const focusId = useLocalSearchParams().focus
+  const focus = useFocusRecherche(focusId)
+  const [entreeCherchee, setEntreeCherchee] = useState(null)
+  useEffect(() => {
+    if (typeof focusId !== 'string') return
+    supabase.from('journal_activite')
+      .select('id, action, user_nom, details, restaurant_id, created_at, restaurants(nom)')
+      .eq('id', focusId).maybeSingle()
+      .then(({ data }) => setEntreeCherchee(data || null))
+  }, [focusId])
 
   useEffect(() => { charger() }, [filtreAction, restaurantId])
 
@@ -207,7 +222,16 @@ export default function JournalScreen() {
                 <ErreurRow key={p.cle} paquet={p} styles={styles} colors={colors} />
               ))
             )
-          ) : grouped.length === 0 ? (
+          ) : null}
+          {!modeErreurs && entreeCherchee ? (
+            <View>
+              <Text style={styles.dateLabel}>🔍 Résultat de la recherche · {formatDateGroupe(entreeCherchee.created_at.slice(0, 10))}</Text>
+              <View {...focus.props(entreeCherchee.id)} style={[{ borderRadius: 12 }, focus.style(entreeCherchee.id)]}>
+                <EntryRow entry={entreeCherchee} styles={styles} colors={colors} />
+              </View>
+            </View>
+          ) : null}
+          {modeErreurs ? null : grouped.length === 0 ? (
             <View style={styles.emptyBox}>
               <Text style={styles.emptyIcon}>📋</Text>
               <Text style={styles.emptyTxt}>{"Aucune activité enregistrée"}</Text>

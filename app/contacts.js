@@ -10,7 +10,7 @@
 // commande, fidèles, nouveaux) sur tout l'historique — lib/analyseClients.js.
 // Calculs : lib/contactsPeriode.js — Chargement : lib/contactsPeriodeDb.js
 // ──────────────────────────────────────────────────────────────────────────────
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Alert, Linking, Platform, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
 
@@ -38,10 +38,13 @@ export default function ContactsScreen() {
   const avecPeriode = onglet => onglet === 'Clients' || onglet === 'Analyse'
 
   const [restaurants, setRestaurants] = useState([])
-  const [restoId, setRestoId] = useState(isGerant ? restaurantId : null) // null = tous
+  // Ouvert depuis la recherche globale : numéro cherché, sur le jour de la commande.
+  const params = useLocalSearchParams()
+  const dateRecherche = typeof params.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : null
+  const [restoId, setRestoId] = useState(isGerant ? restaurantId : (typeof params.restaurant_id === 'string' ? params.restaurant_id : null)) // null = tous
   const [onglet, setOnglet] = useState(onglets[0])
-  const [periodeKey, setPeriodeKey] = useState('month')
-  const [perso, setPerso] = useState({})
+  const [periodeKey, setPeriodeKey] = useState(dateRecherche ? 'custom' : 'month')
+  const [perso, setPerso] = useState(dateRecherche ? { debut: dateRecherche, fin: dateRecherche } : {})
   const [feuillePeriode, setFeuillePeriode] = useState(false)
   const [brouillon, setBrouillon] = useState({ debut: '', fin: '' })
 
@@ -53,7 +56,7 @@ export default function ContactsScreen() {
   const [historique, setHistorique] = useState(null) // { restoId, lignes }
   const [groupeActif, setGroupeActif] = useState(GROUPES_CLIENTS[0].cle)
 
-  const [recherche, setRecherche] = useState('')
+  const [recherche, setRecherche] = useState(typeof params.recherche === 'string' ? params.recherche : '')
   const [canal, setCanal] = useState(null) // Clients : null = tous, 'yango', 'glovo', 'autres'
   const [nbAffiches, setNbAffiches] = useState(PAR_PAGE)
   const [selectionnes, setSelectionnes] = useState({})

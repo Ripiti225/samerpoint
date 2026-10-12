@@ -8,8 +8,8 @@
 // Le filtre « Sans contrat » est le seul à lister des travailleurs plutôt que
 // des contrats — c'est la liste de ce qui reste à faire.
 // ──────────────────────────────────────────────────────────────────────────────
-import { router } from 'expo-router'
-import { useEffect, useMemo, useState } from 'react'
+import { router, useLocalSearchParams } from 'expo-router'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 
 import FicheContrat, { STATUTS_CONTRAT } from '../components/FicheContrat'
@@ -41,8 +41,11 @@ export default function ContratsScreen() {
   const [contrats, setContrats] = useState([])
   const [loading, setLoading] = useState(true)
 
-  const [recherche, setRecherche] = useState('')
-  const [filtreResto, setFiltreResto] = useState('tous')
+  // Ouvert depuis la recherche globale : restaurant, nom pré-rempli, fiche ouverte.
+  const params = useLocalSearchParams()
+  const ficheRechercheOuverte = useRef(false)
+  const [recherche, setRecherche] = useState(typeof params.recherche === 'string' ? params.recherche : '')
+  const [filtreResto, setFiltreResto] = useState(typeof params.restaurant_id === 'string' ? params.restaurant_id : 'tous')
   const [filtreEtat, setFiltreEtat] = useState('tous')
 
   const [ficheVisible, setFicheVisible] = useState(false)
@@ -119,6 +122,12 @@ export default function ContratsScreen() {
     setTravSelectionne(travailleur)
     setFicheVisible(true)
   }
+
+  useEffect(() => {
+    if (ficheRechercheOuverte.current || typeof params.travailleur_id !== 'string' || !travailleurs.length) return
+    const t = travailleurs.find(x => x.id === params.travailleur_id)
+    if (t) { ficheRechercheOuverte.current = true; ouvrirFiche(t) }
+  }, [travailleurs]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function nouveauContratPour(travailleur) {
     setTravSelectionne(travailleur)

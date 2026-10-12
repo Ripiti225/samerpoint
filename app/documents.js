@@ -5,8 +5,8 @@
 // Photos dans le bucket `photos` (usePhoto), PDF dans `documents-pdf`.
 // ──────────────────────────────────────────────────────────────────────────────
 import * as DocumentPicker from 'expo-document-picker'
-import { router } from 'expo-router'
-import { useEffect, useMemo, useState } from 'react'
+import { router, useLocalSearchParams } from 'expo-router'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator, Alert, Image, Linking, Modal, SafeAreaView, ScrollView, Text, TouchableOpacity, View,
 } from 'react-native'
@@ -70,6 +70,15 @@ export default function DocumentsScreen() {
     setDocuments(data || [])
     setLoading(false)
   }
+
+  // Ouvert depuis la recherche globale : le document cherché s'ouvre.
+  const focusDoc = useLocalSearchParams().focus
+  const docRechercheOuvert = useRef(false)
+  useEffect(() => {
+    if (docRechercheOuvert.current || typeof focusDoc !== 'string' || !documents.length) return
+    const doc = documents.find(d => d.id === focusDoc)
+    if (doc) { docRechercheOuvert.current = true; setDocSelectionne(doc) }
+  }, [documents, focusDoc])
 
   const restoParId = useMemo(() => Object.fromEntries(restaurants.map(r => [r.id, r])), [restaurants])
   const nomResto = id => (hasRestoFixe ? restaurantNom : restoParId[id]?.nom) || ''

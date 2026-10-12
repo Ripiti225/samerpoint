@@ -9,6 +9,7 @@
 // En tête : les autres charges notées AVANT d'être payées (catégorie « autre »
 // de tresorerie_dus) : jamais en dette récente, passées en Dette à la main.
 // ──────────────────────────────────────────────────────────────────────────────
+import { useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, Image, SafeAreaView, ScrollView, Text, View } from 'react-native'
 
@@ -29,11 +30,14 @@ import {
 import {
   ajouterDepenseDirection, enregistrerDu, modifierDepenseDirection, repartirDepenseDirection, supprimerDepenseDirection,
 } from '../lib/tresorerieDb'
+import { useFocusRecherche } from '../lib/useFocusRecherche'
 
 export default function TresorerieDirectionScreen() {
   const { styles, colors } = useStylesTreso()
   const t = useTresorerie({ avecDirection: true })
   const { donnees, niveau, user, recharger } = t
+  // Ouvert depuis la recherche globale : dépense encadrée.
+  const focus = useFocusRecherche(useLocalSearchParams().focus)
   const [saisie, setSaisie] = useState(false)
   const [edition, setEdition] = useState(null)    // dépense payée en modification
   const [charge, setCharge] = useState(null)      // autre charge en création / modification
@@ -139,7 +143,7 @@ export default function TresorerieDirectionScreen() {
             {deps.map(dep => {
               const sd = styleDepense(dep.categorie)
               return (
-                <ItemIcone key={dep.id} onPress={() => ouvrir(dep)} onLongPress={() => supprimer(dep)} icone={sd.icone} couleur={sd.couleur}
+                <ItemIcone key={dep.id} focus={focus} focusId={dep.id} onPress={() => ouvrir(dep)} onLongPress={() => supprimer(dep)} icone={sd.icone} couleur={sd.couleur}
                   titre={`${dep.origine_id ? 'Correction · ' : ''}${categorieDirection(dep.categorie)?.label} · ${nomResto(dep.restaurant_id)}`}
                   sous={
                     <>

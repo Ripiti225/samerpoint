@@ -11,7 +11,7 @@ Date : 12/10/2026 — même modèle que la vague A
 | Inventaire | `gestion-stock` | restaurant_id, date, produit_id, produit_nom | resto + période = ce jour (perso) + détail du produit |
 | Déductions vérification | `verification` | restaurant_id, point_id | point ouvert (déjà géré) |
 | Permissions et congés | `equipe` | restaurant_id, focus = travailleur | fiche du travailleur (`rh` redirigeait déjà vers Équipe) |
-| Contrats | `contrats` | restaurant_id, recherche = nom du travailleur | filtre resto + recherche pré-remplie |
+| Contrats | `contrats` | restaurant_id, recherche = nom, travailleur_id | filtre resto + recherche pré-remplie + fiche contrats du travailleur ouverte |
 | Documents | `documents` | restaurant_id, focus | resto + document ouvert |
 | Documents travailleur | `equipe` | restaurant_id, focus = travailleur | fiche du travailleur (ces documents vivent sur sa fiche) |
 | Contacts clients | `contacts` | restaurant_id, date, recherche = numéro | onglet Clients, période = ce jour, recherche pré-remplie |

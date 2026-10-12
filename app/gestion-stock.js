@@ -1,4 +1,4 @@
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
@@ -61,12 +61,15 @@ export default function GestionStockScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors])
 
   const [restaurants, setRestaurants] = useState([])
-  const [restoFilter, setRestoFilter] = useState(null)
+  // Ouvert depuis la recherche globale : restaurant, jour et produit de l'inventaire.
+  const params = useLocalSearchParams()
+  const jourRecherche = typeof params.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : null
+  const [restoFilter, setRestoFilter] = useState(typeof params.restaurant_id === 'string' ? params.restaurant_id : null)
   const [showRestoPicker, setShowRestoPicker] = useState(false)
 
-  const [preset, setPreset] = useState('30j')
-  const [debut, setDebut] = useState(calcPreset('30j').debut)
-  const [fin, setFin] = useState(calcPreset('30j').fin)
+  const [preset, setPreset] = useState(jourRecherche ? 'perso' : '30j')
+  const [debut, setDebut] = useState(jourRecherche || calcPreset('30j').debut)
+  const [fin, setFin] = useState(jourRecherche || calcPreset('30j').fin)
   const [showCalendar, setShowCalendar] = useState(false)
   const [champDate, setChampDate] = useState(null) // 'debut' | 'fin'
 
@@ -76,7 +79,9 @@ export default function GestionStockScreen() {
 
   // Mode « un seul produit » : le détail mouvement par mouvement, avec la
   // ventilation des entrées par fournisseur.
-  const [produitFilter, setProduitFilter] = useState(null)   // { id, nom }
+  const [produitFilter, setProduitFilter] = useState(typeof params.produit_id === 'string'
+    ? { id: params.produit_id, nom: typeof params.produit_nom === 'string' ? params.produit_nom : params.produit_id }
+    : null)   // { id, nom }
   const [showProduitPicker, setShowProduitPicker] = useState(false)
   const [detail, setDetail] = useState(null)
   const [loadingDetail, setLoadingDetail] = useState(false)

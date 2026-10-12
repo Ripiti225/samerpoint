@@ -32,6 +32,7 @@ import {
   ajouterPub, annulerReception, enregistrerAlias, enregistrerReglagePartenaire, importerExport,
   recevoir, recevoirDetaille, supprimerImport, supprimerLignePub,
 } from '../lib/tresorerieDb'
+import { useFocusRecherche } from '../lib/useFocusRecherche'
 
 const LIBELLES_MODE = {
   groupe: 'un virement pour tous les restaurants',
@@ -264,6 +265,8 @@ function FeuillePeriode({ ouverte, situation, vue, donnees, niveau, nomResto, us
   const [reception, setReception] = useState(null)   // { restaurantId | null, attendu, complement }
   const [receptionTete, setReceptionTete] = useState(false)
   const [pubVisible, setPubVisible] = useState(false)
+  // Ouvert depuis la recherche globale : ligne encadrée.
+  const focus = useFocusRecherche(useLocalSearchParams().focus)
 
   if (!ouverte || !situation) return null
   const { partenaire, periode } = ouverte
@@ -390,7 +393,7 @@ function FeuillePeriode({ ouverte, situation, vue, donnees, niveau, nomResto, us
         <View style={styles.carte}>
           <Text style={[styles.lbl, { marginBottom: 6 }]}>Réceptions</Text>
           {lignes.filter(l => l.type === 'recu').map(l => (
-            <View key={l.id} style={styles.item}>
+            <View key={l.id} {...focus.props(l.id)} style={[styles.item, focus.style(l.id)]}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.itemTitre}>{fmt(l.montant)} F{l.restaurant_id ? ` · ${nomResto(l.restaurant_id)}` : ''}</Text>
                 <Text style={styles.petit}>{formatDateFR(l.date)} · {nomCompte(l.compte_id)}{l.note ? ` · ${l.note}` : ''}{l.cree_par_nom ? ` · ${l.cree_par_nom}` : ''}</Text>
@@ -408,7 +411,7 @@ function FeuillePeriode({ ouverte, situation, vue, donnees, niveau, nomResto, us
             ? <Text style={styles.petit}>Export « {imp.fichier_nom} » importé le {formatDateFR(imp.created_at?.slice(0, 10))}{imp.cree_par_nom ? ` par ${imp.cree_par_nom}` : ''}.</Text>
             : <Text style={styles.petit}>Export pas encore importé : la période est sur l'estimé. La pub se saisit après l'import.</Text>}
           {lignes.filter(l => l.type === 'pub').map(l => (
-            <View key={l.id} style={styles.item}>
+            <View key={l.id} {...focus.props(l.id)} style={[styles.item, focus.style(l.id)]}>
               <Text style={[styles.itemTitre, { flex: 1 }]}>Pub · {nomResto(l.restaurant_id)}{l.note ? ` · ${l.note}` : ''}</Text>
               <Text style={[styles.ligneValeur, { color: colors.error }]}>− {fmt(l.montant)}</Text>
               {peutRecevoir && <TouchableOpacity onPress={() => retirerPub(l)}><Text style={{ color: colors.error, fontSize: 13, marginLeft: 8 }}>✕</Text></TouchableOpacity>}

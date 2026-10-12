@@ -21,6 +21,7 @@ import { aujourdhuiISO, fmt, formatDateFR, libelleMois, peut, premierDuMois } fr
 import {
   annulerEmprunt, annulerOperationCoffre, definirObjectifCoffre, emprunterCoffre, operationCoffre, rembourserEmprunt,
 } from '../lib/tresorerieDb'
+import { useFocusRecherche } from '../lib/useFocusRecherche'
 
 const LIBELLES = { depot: 'Épargne', retrait: 'Sortie', depense: 'Dépense direction' }
 const ICONES = { depot: 'piggy-bank-outline', retrait: 'cash-minus', depense: 'briefcase-outline' }
@@ -36,6 +37,8 @@ export default function TresorerieCoffreScreen() {
   const t = useTresorerie({ avecDirection: true })
   const { donnees, niveau, user, recharger } = t
   const params = useLocalSearchParams()
+  // Ouvert depuis la recherche globale : mouvement ou emprunt encadré.
+  const focus = useFocusRecherche(params.focus)
   const [operation, setOperation] = useState(null) // 'depot' | 'emprunt'
   const [remboursement, setRemboursement] = useState(null) // emprunt à rembourser
   const [objectifVisible, setObjectifVisible] = useState(false)
@@ -119,7 +122,7 @@ export default function TresorerieCoffreScreen() {
               const quand = e.rembourser_le ? `le ${formatDateFR(e.rembourser_le)}` : `à la prochaine réception ${nomPartenaire(e.rembourser_partenaire)}`
               const maintenant = st === 'a_rembourser'
               return (
-                <ItemIcone key={e.id} onLongPress={() => annulerUnEmprunt(e)}
+                <ItemIcone key={e.id} focus={focus} focusId={e.id} onLongPress={() => annulerUnEmprunt(e)}
                   icone={maintenant ? 'bell-ring-outline' : 'hand-coin-outline'} couleur={colors.warningDark}
                   surligne={maintenant ? colors.warningLight : null}
                   titre={`${fmt(e.montant)} F · ${nomCompte(e.compte_id)}`}
@@ -140,7 +143,7 @@ export default function TresorerieCoffreScreen() {
         {d.coffre.map(m => {
           const entree = m.montant >= 0
           return (
-            <ItemIcone key={m.id} onLongPress={() => annuler(m)}
+            <ItemIcone key={m.id} focus={focus} focusId={m.id} onLongPress={() => annuler(m)}
               icone={ICONES[m.type] || 'swap-horizontal'} couleur={entree ? colors.success : colors.error}
               titre={m.libelle || LIBELLES[m.type]}
               sous={`${formatDateFR(m.date)} · ${LIBELLES[m.type]}${m.source === 'compte' ? ` · ${m.type === 'depot' ? 'depuis' : 'vers'} ${nomCompte(m.compte_id)}` : m.source === 'especes' ? ' · espèces' : ''}`}

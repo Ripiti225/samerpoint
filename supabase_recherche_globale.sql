@@ -223,7 +223,7 @@ BEGIN
       ORDER BY pc.date_debut DESC LIMIT n)
     UNION ALL
     (SELECT 'Contrats', ct.id, ct.restaurant_id, ct.date_debut, c.champ, c.texte, NULL::numeric,
-            'contrats', NULL, jsonb_strip_nulls(jsonb_build_object('restaurant_id', ct.restaurant_id, 'recherche', tr.nom))
+            'contrats', NULL, jsonb_strip_nulls(jsonb_build_object('restaurant_id', ct.restaurant_id, 'recherche', tr.nom, 'travailleur_id', ct.travailleur_id))
        FROM contrats_travailleurs ct LEFT JOIN travailleurs tr ON tr.id = ct.travailleur_id
        CROSS JOIN LATERAL (SELECT v.champ, v.texte FROM (VALUES
          ('Travailleur', tr.nom), ('Motif de clôture', ct.cloture_motif), ('Type', ct.type)

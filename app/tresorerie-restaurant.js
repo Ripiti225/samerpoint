@@ -31,6 +31,7 @@ import {
   CATEGORIES_TRESORERIE, LIBELLES_CATEGORIE, aujourdhuiISO, categoriesVisibles, classerTous, fmt, formatDateFR,
   libelleMois, paiementsParDu, peut,
 } from '../lib/tresorerie'
+import { useFocusRecherche } from '../lib/useFocusRecherche'
 
 export default function TresorerieRestaurantScreen() {
   const { styles, colors } = useStylesTreso()
@@ -39,7 +40,11 @@ export default function TresorerieRestaurantScreen() {
   const { donnees, niveau, user, recharger } = t
   const [onglet, setOnglet] = useState(params.onglet === 'partenaires' ? 'partenaires' : 'restaurant')
   const [restaurantId, setRestaurantId] = useState(params.id || null)
-  const [periode, setPeriode] = useState(periodeParDefaut)
+  // Recherche globale : mois du mouvement cherché, et ligne encadrée.
+  const [periode, setPeriode] = useState(() => (Number(params.an) > 0
+    ? { an: Number(params.an), mois: Number(params.mois) || null }
+    : periodeParDefaut()))
+  const focus = useFocusRecherche(params.focus)
   const [detail, setDetail] = useState(null)
   const [paiement, setPaiement] = useState(null)
   const [prevoir, setPrevoir] = useState(null)
@@ -165,7 +170,7 @@ export default function TresorerieRestaurantScreen() {
                   {mv?.lignes.map(l => {
                     const d = decrireMouvement(l, { donnees, nomCompte })
                     return (
-                      <ItemIcone key={l.id} icone={d.icone} couleur={d.couleur} titre={d.titre} sous={d.sous}
+                      <ItemIcone key={l.id} focus={focus} focusId={l.id} icone={d.icone} couleur={d.couleur} titre={d.titre} sous={d.sous}
                         droite={`${fmt(l.montant)} F`}
                         couleurDroite={l.sens === 'entree' ? colors.successDark : l.sens === 'retenue' ? colors.error : colors.warningDark}
                         sousDroite={<Text style={styles.petit}>{d.sens}</Text>} />
