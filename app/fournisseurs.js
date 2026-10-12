@@ -17,6 +17,7 @@ import { useTheme } from '../context/ThemeContext'
 import { saveOneTransactionFournisseur } from '../lib/api'
 import { chargerDerniersRestes } from '../lib/derniersRestesFournisseurs'
 import { appliquerFacturesMensuelles } from '../lib/facturesMensuelles'
+import { estAdministratif } from '../lib/fournisseursAdmin'
 import { estPhotoEnAttente, estPhotoValide } from '../lib/photoQueue'
 import { usePhoto } from '../lib/usePhoto'
 import { supabase } from '../lib/supabase'
@@ -50,7 +51,7 @@ export default function FournisseursScreen() {
 
     const fournQuery = supabase
       .from('fournisseurs')
-      .select('id, nom, actif, credit_actuel')
+      .select('id, nom, actif, credit_actuel, type')
       .eq('restaurant_id', restaurantId)
       .eq('actif', true)
       .order('nom')
@@ -59,7 +60,9 @@ export default function FournisseursScreen() {
       ? supabase.from('transactions_fournisseurs').select('*').eq('point_id', pointId)
       : Promise.resolve({ data: [] })
 
-    const [{ data: fourn }, { data: trans }] = await Promise.all([fournQuery, transQuery])
+    const [{ data: tous }, { data: trans }] = await Promise.all([fournQuery, transQuery])
+    // Impôts, CNPS, bail… : payés par le gérant (Déductions gérant) ou la direction, pas ici.
+    const fourn = (tous || []).filter(f => !estAdministratif(f))
 
     setFournisseurs(fourn || [])
 

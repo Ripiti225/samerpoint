@@ -8,6 +8,7 @@ import {
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { CATEGORIES_INVENTAIRE as CATEGORIES } from '../lib/constants'
+import { estAdministratif } from '../lib/fournisseursAdmin'
 import { journaliser, ACTIONS } from '../lib/journal'
 import { supabase } from '../lib/supabase'
 import { dernierComptage } from '../lib/verificationStock'
@@ -89,9 +90,9 @@ export default function InventaireScreen() {
 
   useEffect(() => {
     if (restaurantId) {
-      supabase.from('fournisseurs').select('id, nom')
+      supabase.from('fournisseurs').select('id, nom, type')
         .eq('restaurant_id', restaurantId).eq('actif', true).order('nom')
-        .then(({ data }) => setFournisseursListe(data || []))
+        .then(({ data }) => setFournisseursListe((data || []).filter(f => !estAdministratif(f))))
     }
   }, [restaurantId])
 
