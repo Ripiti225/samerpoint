@@ -38,13 +38,20 @@ En **une seule fonction SQL** `transferer_fond_negatif` (tout ou rien) :
      …, source 'report_caisse', caissier_nom 'Report caisse')` → crédit +X.
 3. **Trace** : ligne dans la nouvelle table `transferts_fond`.
 
-Puis, côté app, `journaliser('fond_transfert', …)` (jamais bloquant).
+La ligne `journal_activite` (`fond_transfert`, `fond_transfert_annule`) est écrite
+dans la même fonction SQL, comme `appliquer_factures_mensuelles`.
+
+Montant max = arrondi au franc supérieur de |fond| (les fonds peuvent avoir des
+centimes, ex. Lavage 134 764,25).
 
 ## Annulation
 
 `annuler_transfert_fond(id)` (une seule fonction SQL) :
 
-- `ajustement_fond -= X` sur le point enregistré (`fond_point_id`) ;
+- `ajustement_fond -= X` sur le **dernier point validé au moment de
+  l'annulation** (pas forcément `fond_point_id` : si des journées ont été
+  validées depuis, le +X est déjà passé dans leur FC de la veille, et retirer
+  sur l'ancien point ne changerait plus le fond d'aujourd'hui) ;
 - `dette_admin` : supprime la ligne `tresorerie_dus` — **refusé** si elle a déjà
   des paiements (message : « Cette dette est déjà en partie remboursée ») ;
 - `report_caisse` : écriture inverse hors journée (paye = X) sur le fournisseur,
@@ -61,7 +68,9 @@ Puis, côté app, `journaliser('fond_transfert', …)` (jamais bloquant).
 | montant | bigint NOT NULL CHECK > 0 |
 | destination | text CHECK IN ('dette_admin','report_caisse') |
 | fond_avant | numeric NOT NULL (fond laissé avant transfert) |
-| fond_point_id | uuid NOT NULL → points |
+| fond_point_id | uuid → points ON DELETE SET NULL (point qui a reçu le +X) |
+| annule_point_id | uuid → points ON DELETE SET NULL (point qui a reçu le −X) |
+| annule_par_nom | text |
 | du_id | uuid → tresorerie_dus ON DELETE SET NULL |
 | fournisseur_id | uuid → fournisseurs |
 | transaction_id | uuid → transactions_fournisseurs ON DELETE SET NULL |
@@ -74,13 +83,21 @@ RLS `allow_all` comme les autres tables (posture actuelle du projet).
 
 ## Écran
 
-Composant unique `components/TransfertFondModal.js`, ouvert depuis :
+Composant unique `components/tresorerie/FeuilleTransfertFond.js` (construit sur
+`Feuille` de `components/tresorerie/commun.js`), qui charge lui-même le fond du
+dernier point validé du restaurant. Ouvert depuis :
 
-1. la carte d'alerte « Fond bas » de l'accueil (quand le fond est négatif) ;
-2. le récap du fond dans Vérification (à côté de « Fond reporté ») ;
-3. la Trésorerie : une ligne par restaurant au fond négatif.
+1. la carte d'alerte « Fond bas » (elle est affichée dans `app/tresorerie.js`) ;
+2. le récap du fond dans Vérification (sous « Reste + Fc ») ;
+3. la Trésorerie : bloc « Fonds de caisse négatifs », une ligne par restaurant.
 
-Bouton « Remettre le fond à 0 » visible seulement si fond < 0 et manager.
+Bouton « Remettre le fond à 0 » visible seulement si fond < 0 et : niveau
+Trésorerie `saisir_dus` (propriétaire) dans la Trésorerie, rôle manager dans
+Vérification.
+
+Après un transfert, le gérant qui a déjà l'écran Ventes ouvert doit le
+recharger : le FC de la veille est relu à chaque ouverture (`app/ventes.js`),
+comme pour les régularisations d'écart.
 
 Contenu : fond actuel (rouge) · choix Dette administration / Report caisse ·
 montant avec raccourci « Tout (xxx F) » ou saisie partielle · motif facultatif ·
