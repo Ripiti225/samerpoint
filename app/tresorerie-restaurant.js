@@ -323,9 +323,13 @@ function decrireMouvement(l, { donnees, nomCompte }) {
   // Dépense direction (fond, fond en nature, réparation, matériel…).
   const sd = styleDepense(l.type)
   const source = x.source === 'compte' ? nomCompte(x.compte_id) : x.source === 'coffre' ? 'coffre' : 'espèces'
-  const titre = l.type === 'fond' ? 'Fond donné' : l.type === 'fond_nature' ? 'Fond en nature donné'
-    : categorieDirection(l.type)?.label || 'Dépense direction'
-  const etat = l.type === 'fond' ? (x.point_id ? ' · compté dans le FC reçu d\'un point validé' : ' · ira dans le FC reçu du prochain point') : ''
+  const retire = l.type === 'fond' && l.montant < 0
+  const titre = (x.origine_id ? 'Correction · ' : '')
+    + (retire ? 'Fond retiré (était en nature)' : l.type === 'fond' ? 'Fond donné' : l.type === 'fond_nature' ? 'Fond en nature donné'
+      : categorieDirection(l.type)?.label || 'Dépense direction')
+  const etat = retire
+    ? (x.point_id ? ' · retiré du FC reçu d\'un point validé' : ' · sera retiré du FC reçu du prochain point')
+    : l.type === 'fond' ? (x.point_id ? ' · compté dans le FC reçu d\'un point validé' : ' · ira dans le FC reçu du prochain point') : ''
   return { icone: sd.icone, couleur: sd.couleur, titre, sens: l.type.startsWith('fond') ? 'donné' : 'dépensé',
     sous: `${formatDateFR(l.date)} · ${source}${note}${etat}` }
 }

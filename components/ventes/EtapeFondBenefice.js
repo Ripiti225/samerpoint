@@ -7,7 +7,7 @@ export default function EtapeFondBenefice({ ventesJour, setVente, modifiable, fc
   const { p, styles } = useStyleChaleureux()
   const reste = resteEspeces()
   const detailTreso = (ventesJour.fc_recu_detail || [])
-    .map(l => `${l.montant >= 0 ? '+' : '−'} ${fmt(Math.abs(l.montant))} (${l.type === 'fond' ? 'fond donné' : 'repris'} le ${l.date.slice(8, 10)}/${l.date.slice(5, 7)})`)
+    .map(l => `${l.montant >= 0 ? '+' : '−'} ${fmt(Math.abs(l.montant))} (${l.type !== 'fond' ? 'repris' : l.montant >= 0 ? 'fond donné' : 'fond corrigé'} le ${l.date.slice(8, 10)}/${l.date.slice(5, 7)})`)
     .join(' · ')
   const benefices = [
     { label: `Yango TAB ×${COEFFICIENTS.YANGO}`, val: (parseFloat(ventesJour.yangoTab) || 0) * COEFFICIENTS.YANGO },

@@ -18,19 +18,24 @@ import {
 } from '../components/tresorerie/commun'
 import { Badge, FeuilleDetail, FeuillePaiement, FeuillePrevision, couleursStatut } from '../components/tresorerie/du'
 import {
-  CATEGORIES_CHARGE_A_PAYER, CATEGORIES_DIRECTION, categorieDirection, compteDansResultat,
+  CATEGORIES_CHARGE_A_PAYER, CATEGORIES_DIRECTION, categorieDirection, compteDansResultat, planRepartition,
+  repartissable, variationsFond,
 } from '../lib/direction'
+import { envoyerNotifFondCorrige } from '../lib/notifications'
 import { usePhoto } from '../lib/usePhoto'
 import {
   aujourdhuiISO, classerTous, fmt, formatDateFR, libelleMois, paiementsParDu, peut, resteDu, totalPaye,
 } from '../lib/tresorerie'
-import { ajouterDepenseDirection, enregistrerDu, supprimerDepenseDirection } from '../lib/tresorerieDb'
+import {
+  ajouterDepenseDirection, enregistrerDu, modifierDepenseDirection, repartirDepenseDirection, supprimerDepenseDirection,
+} from '../lib/tresorerieDb'
 
 export default function TresorerieDirectionScreen() {
   const { styles, colors } = useStylesTreso()
   const t = useTresorerie({ avecDirection: true })
   const { donnees, niveau, user, recharger } = t
   const [saisie, setSaisie] = useState(false)
+  const [edition, setEdition] = useState(null)    // dépense payée en modification
   const [charge, setCharge] = useState(null)      // autre charge en création / modification
   const [detail, setDetail] = useState(null)      // autre charge ouverte
   const [paiement, setPaiement] = useState(null)  // { du, prevision? }
@@ -58,10 +63,21 @@ export default function TresorerieDirectionScreen() {
     return Object.entries(out).sort((a, b) => b[0].localeCompare(a[0]))
   }, [d])
 
+  const enfantsDe = dep => (d?.depenses || []).filter(x => x.origine_id === dep.id)
+  const origineDe = dep => (d?.depenses || []).find(x => x.id === dep.origine_id)
+
+  function ouvrir(dep) {
+    if (!dep.origine_id) { setEdition(dep); return }
+    const o = origineDe(dep)
+    Alert.alert('Ligne de correction', `Elle corrige le fond${o ? ` du ${formatDateFR(o.date)}` : ''}. Pour l'annuler, supprimez la dépense d'origine (ses corrections partent avec).`)
+  }
+
   function supprimer(dep) {
+    if (dep.origine_id) { ouvrir(dep); return }
     const dejaCompte = dep.categorie === 'fond' && dep.point_id
       ? ' Ce fond est déjà compté dans un point validé : corrigez aussi ce point (Modifier le point).' : ''
-    Alert.alert('Supprimer cette dépense ?', `${categorieDirection(dep.categorie)?.label} · ${fmt(dep.montant)} F. La sortie liée (banque ou coffre) est retirée aussi.${dejaCompte}`, [
+    const corrections = enfantsDe(dep).length ? ' Ses lignes de correction sont supprimées aussi.' : ''
+    Alert.alert('Supprimer cette dépense ?', `${categorieDirection(dep.categorie)?.label} · ${fmt(dep.montant)} F. La sortie liée (banque ou coffre) est retirée aussi.${dejaCompte}${corrections}`, [
       { text: 'Garder', style: 'cancel' },
       {
         text: 'Supprimer', style: 'destructive', onPress: async () => {
@@ -119,8 +135,8 @@ export default function TresorerieDirectionScreen() {
             {deps.map(dep => {
               const sd = styleDepense(dep.categorie)
               return (
-                <ItemIcone key={dep.id} onLongPress={() => supprimer(dep)} icone={sd.icone} couleur={sd.couleur}
-                  titre={`${categorieDirection(dep.categorie)?.label} · ${nomResto(dep.restaurant_id)}`}
+                <ItemIcone key={dep.id} onPress={() => ouvrir(dep)} onLongPress={() => supprimer(dep)} icone={sd.icone} couleur={sd.couleur}
+                  titre={`${dep.origine_id ? 'Correction · ' : ''}${categorieDirection(dep.categorie)?.label} · ${nomResto(dep.restaurant_id)}`}
                   sous={
                     <>
                       <Text style={styles.petit}>
@@ -128,7 +144,9 @@ export default function TresorerieDirectionScreen() {
                         {dep.note ? ` · ${dep.note}` : ''}{dep.photo_url ? ' · photo' : ''}
                       </Text>
                       <Text style={[styles.petit, { color: compteDansResultat(dep) ? colors.warningDark : colors.textMuted, fontWeight: '600' }]}>
-                        {dep.categorie === 'fond' && dep.restaurant_id
+                        {dep.categorie === 'fond' && dep.restaurant_id && Number(dep.montant) < 0
+                          ? (dep.point_id ? 'retiré du FC reçu d\'un point validé' : 'sera retiré du FC reçu du prochain point')
+                          : dep.categorie === 'fond' && dep.restaurant_id
                           ? (dep.point_id ? 'fond en espèces · compté dans le FC reçu d\'un point validé' : 'fond en espèces · ira dans le FC reçu du prochain point')
                           : dep.categorie === 'fond_nature'
                             ? 'fond en nature · déduit du résultat du restaurant'
@@ -136,13 +154,14 @@ export default function TresorerieDirectionScreen() {
                       </Text>
                     </>
                   }
-                  droite={`− ${fmt(dep.montant)}`} couleurDroite={colors.error}
+                  droite={Number(dep.montant) < 0 ? `+ ${fmt(-dep.montant)}` : `− ${fmt(dep.montant)}`}
+                  couleurDroite={Number(dep.montant) < 0 ? colors.textMuted : colors.error}
                 />
               )
             })}
           </View>
         ))}
-        <Text style={styles.petit}>Appui long sur une dépense pour la supprimer.</Text>
+        <Text style={styles.petit}>Touchez une dépense pour la modifier (ou répartir un fond entre espèces et nature) ; appui long pour la supprimer.</Text>
       </ScrollView>
     )
   }
@@ -152,8 +171,9 @@ export default function TresorerieDirectionScreen() {
       <Entete titre="Dépenses direction" sous="M. Zreik seul" />
       {contenu}
       {donnees && d && (
-        <FeuilleDepense visible={saisie} donnees={donnees} user={user}
-          onFermer={() => setSaisie(false)} apres={recharger} />
+        <FeuilleDepense visible={saisie || !!edition} depense={edition} enfants={edition ? enfantsDe(edition) : []}
+          donnees={donnees} user={user}
+          onFermer={() => { setSaisie(false); setEdition(null) }} apres={recharger} />
       )}
       {donnees && (
         <>
@@ -177,7 +197,11 @@ export default function TresorerieDirectionScreen() {
   )
 }
 
-function FeuilleDepense({ visible, donnees, user, onFermer, apres }) {
+// Nouvelle dépense, ou modification d'une dépense existante (depense).
+// Un fond déjà compté dans un point validé ne change plus de montant,
+// catégorie, restaurant ni date : on le répartit entre espèces et nature
+// (règle du 12/10/2026 : les espèces corrigées vont dans le point du jour).
+function FeuilleDepense({ visible, depense, enfants, donnees, user, onFermer, apres }) {
   const { styles } = useStylesTreso()
   const { choisirPhoto } = usePhoto()
   const [categorie, setCategorie] = useState(null)
@@ -185,18 +209,49 @@ function FeuilleDepense({ visible, donnees, user, onFermer, apres }) {
   const [source, setSource] = useState(null)
   const [montant, setMontant] = useState('')
   const [date, setDate] = useState(aujourdhuiISO())
+  const [dateTouchee, setDateTouchee] = useState(false)
   const [note, setNote] = useState('')
   const [photo, setPhoto] = useState(null)
   const [photoEnCours, setPhotoEnCours] = useState(false)
   const [occupe, setOccupe] = useState(false)
+  const [repartir, setRepartir] = useState(false)
+  const [partEspeces, setPartEspeces] = useState('')
+
+  useEffect(() => {
+    if (!depense) return
+    setCategorie(depense.categorie)
+    setRestaurantId(depense.restaurant_id || null)
+    setSource(depense.source === 'compte' ? depense.compte_id : depense.source)
+    setMontant(String(depense.montant))
+    setDate(depense.date)
+    setDateTouchee(false)
+    setNote(depense.note || '')
+    setPhoto(depense.photo_url || null)
+    setRepartir(false)
+    setPartEspeces('')
+  }, [depense])
 
   if (!visible) return null
   const cat = categorieDirection(categorie)
   const estFond = categorie === 'fond' || categorie === 'fond_nature'
-  const nomResto = restaurantId ? donnees.restaurants.find(r => r.id === restaurantId)?.nom || 'ce restaurant' : null
+  const nomRestoDe = id => donnees.restaurants.find(r => r.id === id)?.nom
+  const nomResto = restaurantId ? nomRestoDe(restaurantId) || 'ce restaurant' : null
+  const verrou = !!depense?.point_id
+  const dejaReparti = !!enfants?.length
+  const peutRepartir = repartissable(depense, enfants)
+  const plan = depense && partEspeces !== '' ? planRepartition(depense, parseInt(partEspeces, 10)) : null
+  // Des espèces qui apparaissent par une correction : datées du jour de la modification.
+  const passeEnEspeces = depense && categorie === 'fond' && depense.categorie !== 'fond'
+
+  function choisirCategorie(c) {
+    setCategorie(c)
+    if (!depense || dateTouchee) return
+    setDate(c === 'fond' && depense.categorie !== 'fond' ? aujourdhuiISO() : depense.date)
+  }
 
   function fermer() {
-    setCategorie(null); setRestaurantId(undefined); setSource(null); setMontant(''); setDate(aujourdhuiISO()); setNote(''); setPhoto(null)
+    setCategorie(null); setRestaurantId(undefined); setSource(null); setMontant(''); setDate(aujourdhuiISO()); setDateTouchee(false)
+    setNote(''); setPhoto(null); setRepartir(false); setPartEspeces('')
     onFermer()
   }
 
@@ -205,6 +260,12 @@ function FeuilleDepense({ visible, donnees, user, onFermer, apres }) {
     const url = await choisirPhoto('photos')
     if (url) setPhoto(url)
     setPhotoEnCours(false)
+  }
+
+  async function prevenirGerants(variations, dateOrigine, dateJour) {
+    for (const v of variations) {
+      await envoyerNotifFondCorrige({ restaurantId: v.restaurant_id, delta: v.delta, dateOrigine, dateJour })
+    }
   }
 
   async function enregistrer() {
@@ -217,13 +278,21 @@ function FeuilleDepense({ visible, donnees, user, onFermer, apres }) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Écrivez la date au format AAAA-MM-JJ.'); return }
     setOccupe(true)
     try {
-      const estCompte = source !== 'especes'
-      await ajouterDepenseDirection({
+      const estCompte = source !== 'especes' && source !== 'coffre'
+      const d = {
         date, categorie, restaurantId, montant: v,
         source: estCompte ? 'compte' : source, compteId: estCompte ? source : null,
-        libelle: `${cat.label}${restaurantId ? ` · ${donnees.restaurants.find(r => r.id === restaurantId)?.nom}` : ' · Groupe'}${note.trim() ? ` · ${note.trim()}` : ''}`,
+        libelle: `${cat.label}${restaurantId ? ` · ${nomRestoDe(restaurantId)}` : ' · Groupe'}${note.trim() ? ` · ${note.trim()}` : ''}`,
         note: note.trim(), photoUrl: photo,
-      }, user)
+      }
+      if (depense) {
+        // La sortie banque garde sa date, sauf si la date est changée à la main.
+        await modifierDepenseDirection({ ...d, id: depense.id, dateSortie: dateTouchee ? date : null }, depense, user)
+        await prevenirGerants(
+          variationsFond(depense, { categorie, restaurant_id: restaurantId, montant: v }), depense.date, date)
+      } else {
+        await ajouterDepenseDirection(d, user)
+      }
       await apres()
       fermer()
     } catch (e) {
@@ -233,40 +302,73 @@ function FeuilleDepense({ visible, donnees, user, onFermer, apres }) {
     }
   }
 
+  async function validerRepartition() {
+    if (!plan || plan.erreur) { Alert.alert('Répartition impossible', plan?.erreur || 'Saisissez la part en espèces.'); return }
+    setOccupe(true)
+    try {
+      const jour = aujourdhuiISO()
+      const delta = await repartirDepenseDirection(depense, parseInt(partEspeces, 10), jour, user)
+      await prevenirGerants([{ restaurant_id: depense.restaurant_id, delta }], depense.date, jour)
+      await apres()
+      fermer()
+    } catch (e) {
+      Alert.alert('Non répartie', e?.message || 'Réessayez.')
+    } finally {
+      setOccupe(false)
+    }
+  }
+
   return (
-    <Feuille visible onFermer={fermer} titre="Nouvelle dépense direction">
-      <Text style={styles.label}>Catégorie</Text>
-      {/* « Fond en nature » se choisit sous « Fond » (comment est donné le fond). */}
-      <Puces options={CATEGORIES_DIRECTION.filter(c => c.id !== 'fond_nature').map(c => ({ valeur: c.id, label: c.label }))}
-        valeur={estFond ? 'fond' : categorie} onChange={setCategorie} />
-      {estFond && (
+    <Feuille visible onFermer={fermer} titre={depense ? 'Modifier la dépense' : 'Nouvelle dépense direction'}>
+      {verrou ? (
+        <View style={styles.avert}>
+          <Text style={styles.avertTxt}>
+            {`Fond en espèces de ${fmt(depense.montant)} F · ${nomResto} · ${formatDateFR(depense.date)}. Il est déjà compté dans le FC reçu d'un point validé : son montant, son restaurant et sa date ne changent plus. Si une partie était en nature, utilisez « Répartir espèces / nature » ci-dessous.`}
+          </Text>
+        </View>
+      ) : (
         <>
-          <Text style={styles.label}>Comment est donné ce fond ?</Text>
-          <Puces options={[
-            { valeur: 'fond', label: 'En espèces · passe par le point' },
-            { valeur: 'fond_nature', label: 'En nature · marchandise' },
-          ]} valeur={categorie} onChange={setCategorie} />
+          <Text style={styles.label}>Catégorie</Text>
+          {/* « Fond en nature » se choisit sous « Fond » (comment est donné le fond). */}
+          <Puces options={CATEGORIES_DIRECTION.filter(c => c.id !== 'fond_nature').map(c => ({ valeur: c.id, label: c.label }))}
+            valeur={estFond ? 'fond' : categorie} onChange={choisirCategorie} />
+          {estFond && (
+            <>
+              <Text style={styles.label}>Comment est donné ce fond ?</Text>
+              <Puces options={[
+                { valeur: 'fond', label: 'En espèces · passe par le point' },
+                { valeur: 'fond_nature', label: 'En nature · marchandise' },
+              ]} valeur={categorie} onChange={choisirCategorie} />
+            </>
+          )}
+          {cat?.aide && !estFond && <Text style={[styles.petit, { marginTop: -6, marginBottom: 10 }]}>{cat.aide}</Text>}
+          <Text style={styles.label}>Restaurant</Text>
+          <Puces options={[{ valeur: null, label: 'Groupe' }, ...donnees.restaurants.map(r => ({ valeur: r.id, label: r.nom }))]}
+            valeur={restaurantId} onChange={setRestaurantId} />
         </>
       )}
-      {cat?.aide && !estFond && <Text style={[styles.petit, { marginTop: -6, marginBottom: 10 }]}>{cat.aide}</Text>}
-      <Text style={styles.label}>Restaurant</Text>
-      <Puces options={[{ valeur: null, label: 'Groupe' }, ...donnees.restaurants.map(r => ({ valeur: r.id, label: r.nom }))]}
-        valeur={restaurantId} onChange={setRestaurantId} />
       <Text style={styles.label}>Payé depuis</Text>
       <Puces options={[
         ...donnees.comptes.map(c => ({ valeur: c.id, label: c.nom })),
         // Ancienne option sans compte : seulement avant la migration des espèces.
-        ...(donnees.comptes.some(c => c.nom === 'Espèces') ? [] : [{ valeur: 'especes', label: 'Espèces' }]),
+        ...(donnees.comptes.some(c => c.nom === 'Espèces') && depense?.source !== 'especes' ? [] : [{ valeur: 'especes', label: 'Espèces' }]),
+        ...(depense?.source === 'coffre' ? [{ valeur: 'coffre', label: 'Coffre' }] : []),
       ]} valeur={source} onChange={setSource} />
-      <ChampMontant label="Montant" valeur={montant} onChange={setMontant} />
-      <Champ label="Date (AAAA-MM-JJ)" value={date} onChangeText={setDate} autoCapitalize="none" />
+      {!verrou && (
+        <>
+          <ChampMontant label="Montant" valeur={montant} onChange={setMontant} />
+          <Champ label="Date (AAAA-MM-JJ)" value={date} onChangeText={t => { setDate(t); setDateTouchee(true) }} autoCapitalize="none" />
+        </>
+      )}
       <Champ label="Note (facultatif)" value={note} onChangeText={setNote} placeholder="Ex : compresseur frigo" />
       {photo ? <Image source={{ uri: photo }} style={{ width: '100%', height: 150, borderRadius: 10, marginBottom: 10 }} resizeMode="cover" /> : null}
       <Bouton secondaire titre={photo ? 'Changer la photo' : '📷 Ajouter une photo (facultatif)'} onPress={ajouterPhoto} occupe={photoEnCours} style={{ marginBottom: 12 }} />
-      {cat && restaurantId !== undefined && (
+      {!verrou && cat && restaurantId !== undefined && (
         <View style={styles.avert}>
           <Text style={styles.avertTxt}>
-            {categorie === 'fond' && nomResto
+            {passeEnEspeces && nomResto
+              ? `Les espèces iront dans le « FC reçu » du point du ${formatDateFR(date)} de ${nomResto} (jour de la modification). Le gérant est prévenu.`
+              : categorie === 'fond' && nomResto
               ? `Le fond remplira tout seul le « FC reçu » du point du ${formatDateFR(date)} de ${nomResto} (ou du prochain point, s'il est déjà validé). Ce que le restaurant achète avec est déjà dans ses dépenses : le fond n'est pas déduit de son résultat.`
               : categorie === 'fond_nature' && nomResto
                 ? `La marchandise ne passe pas par le point de ${nomResto} : elle sera déduite de son résultat de ${/^\d{4}-\d{2}/.test(date) ? libelleMois(`${date.slice(0, 7)}-01`).toLowerCase() : 'ce mois'} comme une charge.`
@@ -276,7 +378,36 @@ function FeuilleDepense({ visible, donnees, user, onFermer, apres }) {
           </Text>
         </View>
       )}
-      <Bouton titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
+      <Bouton titre={depense ? 'Enregistrer les modifications' : 'Enregistrer'} onPress={enregistrer} occupe={occupe} />
+
+      {depense && (peutRepartir || dejaReparti) && (
+        <View style={{ marginTop: 16 }}>
+          {dejaReparti ? (
+            <Text style={styles.petit}>Ce fond a déjà été réparti entre espèces et nature (voir ses lignes « Correction »). Pour recommencer, supprimez-le et ressaisissez-le.</Text>
+          ) : !repartir ? (
+            <Bouton secondaire icone="call-split" titre="Répartir espèces / nature" onPress={() => setRepartir(true)} />
+          ) : (
+            <>
+              <Text style={styles.label}>{`Répartir les ${fmt(depense.montant)} F`}</Text>
+              <ChampMontant label="Part donnée en espèces" valeur={partEspeces} onChange={setPartEspeces} />
+              {plan && (
+                <View style={styles.avert}>
+                  <Text style={styles.avertTxt}>
+                    {plan.erreur
+                      ? plan.erreur
+                      : `${fmt(parseInt(partEspeces, 10))} F en espèces + ${fmt(plan.nature)} F en nature. `
+                        + (plan.delta > 0
+                          ? `${fmt(plan.delta)} F s'ajoutent au FC reçu du point d'aujourd'hui (${formatDateFR(aujourdhuiISO())}) de ${nomResto}.`
+                          : `${fmt(-plan.delta)} F sont retirés du FC reçu du point d'aujourd'hui (${formatDateFR(aujourdhuiISO())}) de ${nomResto}.`)
+                        + ` La part nature est déduite du résultat de ${libelleMois(`${depense.date.slice(0, 7)}-01`).toLowerCase()}. Le gérant est prévenu.`}
+                  </Text>
+                </View>
+              )}
+              <Bouton titre="Répartir" onPress={validerRepartition} occupe={occupe} desactive={!plan || !!plan.erreur} />
+            </>
+          )}
+        </View>
+      )}
     </Feuille>
   )
 }
