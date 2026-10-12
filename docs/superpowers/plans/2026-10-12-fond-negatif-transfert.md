@@ -269,7 +269,8 @@ BEGIN
   v_fond := coalesce(pt.reste_fc, 0) + coalesce(pt.ajustement_fond, 0);
   IF v_fond >= 0 THEN RAISE EXCEPTION 'Le fond de ce restaurant n''est pas négatif.'; END IF;
   IF p_montant > ceil(-v_fond) THEN
-    RAISE EXCEPTION 'Le montant dépasse le fond négatif (% F maximum).', ceil(-v_fond)::bigint;
+    RAISE EXCEPTION 'Le montant dépasse le fond négatif (% F maximum).',
+      replace(to_char(ceil(-v_fond), 'FM999,999,999,999'), ',', ' ');
   END IF;
 
   SELECT trim(nom) INTO v_nom FROM restaurants WHERE id = p_restaurant;
