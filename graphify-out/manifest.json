@@ -66,9 +66,9 @@
     "semantic_hash": ""
   },
   "app/charges.js": {
-    "mtime": 1790827163.454872,
-    "seen": 1790827220.273846,
-    "ast_hash": "629a385306d512fb6199f3f91649a190",
+    "mtime": 1791837857.2915897,
+    "seen": 1791837888.701312,
+    "ast_hash": "92ecc54e02ae7b998b8f3aa8e2a8f913",
     "semantic_hash": ""
   },
   "app/choix-date.js": {
@@ -78,15 +78,15 @@
     "semantic_hash": ""
   },
   "app/contacts.js": {
-    "mtime": 1791242347.7297947,
-    "seen": 1791242386.178571,
-    "ast_hash": "a5beb9a63bdb97e879c91d2de6c7b25b",
+    "mtime": 1791837776.941988,
+    "seen": 1791837888.701313,
+    "ast_hash": "5a97b97673f38c644f00a23006cdb797",
     "semantic_hash": ""
   },
   "app/contrats.js": {
-    "mtime": 1791066887.1038399,
-    "seen": 1791066964.414158,
-    "ast_hash": "d8b5bddcf3cf105612dd449a8c1f241b",
+    "mtime": 1791837797.0594187,
+    "seen": 1791837888.701313,
+    "ast_hash": "14797346534cd4deee83adc8f1a9f850",
     "semantic_hash": ""
   },
   "app/corbeille.js": {
@@ -156,9 +156,9 @@
     "semantic_hash": ""
   },
   "app/documents.js": {
-    "mtime": 1791068247.1208177,
-    "seen": 1791068272.6354141,
-    "ast_hash": "2626d1442a2916137386d1de5b244326",
+    "mtime": 1791837784.4961052,
+    "seen": 1791837888.70132,
+    "ast_hash": "29383f9221471ef6d824e5dc41f5737b",
     "semantic_hash": ""
   },
   "app/equipe.js": {
@@ -180,9 +180,9 @@
     "semantic_hash": ""
   },
   "app/gestion-stock.js": {
-    "mtime": 1790827163.464416,
-    "seen": 1790827220.273856,
-    "ast_hash": "3040ddb0aa2ae56a97dc1a623106f66f",
+    "mtime": 1791837804.7390003,
+    "seen": 1791837888.701322,
+    "ast_hash": "209a130135da43fb902bd471434bbcc6",
     "semantic_hash": ""
   },
   "app/index.js": {
@@ -198,9 +198,9 @@
     "semantic_hash": ""
   },
   "app/journal.js": {
-    "mtime": 1790827178.7471936,
-    "seen": 1790827220.273857,
-    "ast_hash": "7c90a4dc39e838c797e35ce1ff42e23e",
+    "mtime": 1791837816.7543263,
+    "seen": 1791837888.701324,
+    "ast_hash": "62c460c0aceb8cc381d46f15605c8c80",
     "semantic_hash": ""
   },
   "app/litiges.js": {
@@ -1236,9 +1236,9 @@
     "semantic_hash": ""
   },
   "app/avis-plateformes.js": {
-    "mtime": 1791104309.2162807,
-    "seen": 1791107478.1773272,
-    "ast_hash": "390b50faedf0b792aeb59a4062c37d3a",
+    "mtime": 1791837765.145533,
+    "seen": 1791837888.70131,
+    "ast_hash": "cf3f5b8252320d976cbd12b17c15016a",
     "semantic_hash": ""
   },
   "lib/avisPlateformes.js": {
@@ -1524,9 +1524,9 @@
     "semantic_hash": ""
   },
   "components/tresorerie/commun.js": {
-    "mtime": 1791825313.5682147,
-    "seen": 1791825471.0096252,
-    "ast_hash": "d2490443dcc6c3d28c5bffdfda0358f0",
+    "mtime": 1791837716.6220741,
+    "seen": 1791837888.7013671,
+    "ast_hash": "38dd6821fb1896ff5006c1d1e685be13",
     "semantic_hash": ""
   },
   "lib/comparaisonDashboard.js": {
@@ -1614,9 +1614,9 @@
     "semantic_hash": ""
   },
   "app/tresorerie-partenaires.js": {
-    "mtime": 1791817674.922415,
-    "seen": 1791817711.3547468,
-    "ast_hash": "e37c17060bc23af45ceff02764228ee4",
+    "mtime": 1791837743.2343805,
+    "seen": 1791837888.7013361,
+    "ast_hash": "1e83c726096d906c0877a793f897a6fd",
     "semantic_hash": ""
   },
   "lib/lireExcel.js": {
@@ -1656,15 +1656,15 @@
     "semantic_hash": ""
   },
   "app/tresorerie-coffre.js": {
-    "mtime": 1791817674.922099,
-    "seen": 1791817711.354746,
-    "ast_hash": "e7be5a705716ef71c64fca857401cf5f",
+    "mtime": 1791837743.233317,
+    "seen": 1791837888.701334,
+    "ast_hash": "c55b6e93b5da5e342f46411dd63ea364",
     "semantic_hash": ""
   },
   "app/tresorerie-direction.js": {
-    "mtime": 1791824434.6600435,
-    "seen": 1791824740.706694,
-    "ast_hash": "72c07ba66179c16e86095f7602210815",
+    "mtime": 1791837743.2337303,
+    "seen": 1791837888.701335,
+    "ast_hash": "b8f7c3106b6bfb29883d6b118e0af204",
     "semantic_hash": ""
   },
   "app/tresorerie-resultats.js": {
@@ -1896,9 +1896,9 @@
     "semantic_hash": ""
   },
   "app/tresorerie-restaurant.js": {
-    "mtime": 1791824246.3064246,
-    "seen": 1791824740.706696,
-    "ast_hash": "46bde5a9d4fc8043ca42e85e18341566",
+    "mtime": 1791837743.2340872,
+    "seen": 1791837888.7013361,
+    "ast_hash": "f5ddd602eda13d5e708d7157270f94b7",
     "semantic_hash": ""
   },
   "components/tresorerie/historique.js": {
@@ -3012,21 +3012,21 @@
     "semantic_hash": ""
   },
   "lib/rechercheGlobale.js": {
-    "mtime": 1791837289.388986,
-    "seen": 1791837321.953517,
-    "ast_hash": "128f7edb639ea064d8e8b514f54f6dbb",
+    "mtime": 1791837828.200248,
+    "seen": 1791837888.701462,
+    "ast_hash": "b9c968a6037e0211dbddf3c2f4e4ede0",
     "semantic_hash": ""
   },
   "lib/rechercheGlobale.test.mjs": {
-    "mtime": 1791837289.3891156,
-    "seen": 1791837321.953517,
-    "ast_hash": "80b6147027e72c64db153b5c9bc813fe",
+    "mtime": 1791837828.2004724,
+    "seen": 1791837888.701462,
+    "ast_hash": "78a743f9a1c361f24439d0ae6b7f8448",
     "semantic_hash": ""
   },
   "supabase_recherche_globale.sql": {
-    "mtime": 1791836921.1430855,
-    "seen": 1791837321.953569,
-    "ast_hash": "e236198a69b338267e923d41701091ea",
+    "mtime": 1791837797.0588744,
+    "seen": 1791837888.701514,
+    "ast_hash": "0813feb7d19580f5f4e6cf0f881e6485",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-10-12-recherche-globale-lot1.md": {
@@ -3051,6 +3051,12 @@
     "mtime": 1791836800.7343686,
     "seen": 1791837321.9536068,
     "ast_hash": "aea0f43d4c573618d628aaeef4364df8",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-12-recherche-globale-lot2b-design.md": {
+    "mtime": 1791837797.059126,
+    "seen": 1791837888.7015529,
+    "ast_hash": "0aee3f6b4d70599b4508a367da846964",
     "semantic_hash": ""
   }
 }
