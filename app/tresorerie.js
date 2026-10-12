@@ -11,13 +11,14 @@
 // ──────────────────────────────────────────────────────────────────────────────
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { Redirect, router } from 'expo-router'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 
 import {
   BarreRepartition, Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Hero, HeroCase, ItemIcone, Ligne, Pastille,
   Progression, Puces, TitreSection, styleCategorie, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
+import FeuilleTransfertFond from '../components/tresorerie/FeuilleTransfertFond'
 import { Badge, FeuilleDetail, FeuillePaiement, FeuillePrevision, couleursStatut, titreDu } from '../components/tresorerie/du'
 import { etatPrevision, totalPrevu, trierPrevisions } from '../lib/previsions'
 import { objectifDuMois, progression, resteARembourser, soldeCoffre } from '../lib/direction'
@@ -28,6 +29,7 @@ import {
   joursDeRetard, libelleMoisCourt, paiementsParDu, peut, premierDuMois, resteDu, syntheseTresorerie, totalPaye,
 } from '../lib/tresorerie'
 import { chargerUtilisateursAdmin, enregistrerDroit, enregistrerDu, retirerDroit } from '../lib/tresorerieDb'
+import { chargerFondsNegatifs } from '../lib/transfertFondDb'
 
 export default function TresorerieScreen() {
   const { styles, colors } = useStylesTreso()
@@ -44,6 +46,8 @@ export default function TresorerieScreen() {
   const [prevoir, setPrevoir] = useState(null)     // dû dont on prévoit le paiement
   const [choix, setChoix] = useState(false)        // choisir la ligne à prévoir
   const [historique, setHistorique] = useState(false)
+  const [fondsNeg, setFondsNeg] = useState([])          // fonds de caisse négatifs
+  const [transfertResto, setTransfertResto] = useState(null) // restaurant dont on remet le fond à 0
 
   useEffect(() => {
     if (!peut(niveau, 'voir_vue') || !donnees) return
@@ -51,6 +55,13 @@ export default function TresorerieScreen() {
     chargerAlertes().then(a => { if (vivant) setAlertes(a) }).catch(() => { if (vivant) setAlertes(null) })
     return () => { vivant = false }
   }, [niveau, donnees])
+
+  const rechargerFonds = useCallback(() => {
+    if (!donnees) return Promise.resolve()
+    const noms = id => donnees.restaurants.find(r => r.id === id)?.nom?.trim() || 'Restaurant'
+    return chargerFondsNegatifs(noms).then(setFondsNeg).catch(() => setFondsNeg([]))
+  }, [donnees])
+  useEffect(() => { if (peut(niveau, 'saisir_dus')) rechargerFonds() }, [niveau, rechargerFonds])
 
   const aujourdhui = aujourdhuiISO()
   const partenaires = useMemo(() => {
@@ -150,6 +161,12 @@ export default function TresorerieScreen() {
                 <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, fontWeight: '600', color: rouge ? colors.errorDark : colors.warningDark }}>
                   {a.message}
                 </Text>
+                {a.type === 'fond' && a.fond < 0 && peut(niveau, 'saisir_dus') && (
+                  <TouchableOpacity onPress={() => setTransfertResto(a.restaurant_id)}
+                    accessibilityRole="button" accessibilityLabel="Remettre le fond à 0">
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: colors.warningDark }}>Remettre à 0</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )
           })}
@@ -159,6 +176,18 @@ export default function TresorerieScreen() {
                 {toutesAlertes ? 'Réduire' : `Voir les ${alertes.length} alertes`}
               </Text>
             </TouchableOpacity>
+          )}
+
+          {fondsNeg.length > 0 && peut(niveau, 'saisir_dus') && (
+            <View style={{ marginBottom: 12 }}>
+              <TitreSection icone="cash-remove" couleur={colors.error} titre="Fonds de caisse négatifs" />
+              {fondsNeg.map(f => (
+                <ItemIcone key={f.restaurant_id} icone="cash-remove" couleur={colors.error}
+                  titre={f.nom} sous={`fond laissé le ${formatDateFR(f.date)} · appuyer pour remettre à 0`}
+                  droite={`− ${fmt(-f.fond)} F`} couleurDroite={colors.error}
+                  onPress={() => setTransfertResto(f.restaurant_id)} />
+              ))}
+            </View>
           )}
 
           {/* Chaque bloc se déroule sur place (montants) ; les écrans s'ouvrent par les raccourcis du bas. */}
@@ -326,6 +355,16 @@ export default function TresorerieScreen() {
             onChoisir={du => { setChoix(false); setPrevoir(du) }} onFermer={() => setChoix(false)} />
           <FeuillePaiement demande={paiement} donnees={donnees} parDu={parDu} nomResto={nomResto} user={user}
             onFermer={() => setPaiement(null)} apres={recharger} />
+          <FeuilleTransfertFond
+            restaurantId={transfertResto} nomResto={nomResto(transfertResto).trim()} user={user}
+            peutTransferer={peut(niveau, 'saisir_dus')}
+            onFermer={() => setTransfertResto(null)}
+            apres={async () => {
+              await rechargerFonds()
+              chargerAlertes().then(setAlertes).catch(() => {})
+              await recharger()
+            }}
+          />
           <FeuilleNouvelleDette visible={nouvelleDette} donnees={donnees} user={user}
             onFermer={() => setNouvelleDette(false)} apres={recharger} />
           <FeuillePlafonds visible={plafondsVisible} restaurants={donnees.restaurants}
