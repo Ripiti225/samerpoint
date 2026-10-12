@@ -19,6 +19,7 @@ import {
   Progression, Puces, TitreSection, styleCategorie, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import FeuilleTransfertFond from '../components/tresorerie/FeuilleTransfertFond'
+import { FeuillePayerDroit } from '../components/tresorerie/anciensTravailleurs'
 import { Badge, FeuilleDetail, FeuillePaiement, FeuillePrevision, couleursStatut, titreDu } from '../components/tresorerie/du'
 import { etatPrevision, totalPrevu, trierPrevisions } from '../lib/previsions'
 import { objectifDuMois, progression, resteARembourser, soldeCoffre } from '../lib/direction'
@@ -45,6 +46,7 @@ export default function TresorerieScreen() {
   const [detail, setDetail] = useState(null)       // dû ouvert
   const [paiement, setPaiement] = useState(null)   // { du, prevision? } ou { categorie: 'loyer', restaurantId }
   const [prevoir, setPrevoir] = useState(null)     // dû dont on prévoit le paiement
+  const [payerDroit, setPayerDroit] = useState(null) // fiche d'un ancien travailleur à payer (prévision orange)
   const [choix, setChoix] = useState(false)        // choisir la ligne à prévoir
   const [historique, setHistorique] = useState(false)
   const [fondsNeg, setFondsNeg] = useState([])          // fonds de caisse négatifs
@@ -75,9 +77,13 @@ export default function TresorerieScreen() {
   // Prévisions : chaque ligne avec son état ; ouvertes (orange d'abord) et réalisées.
   const prev = useMemo(() => {
     if (!donnees) return { ouvertes: [], realisees: [], total: 0, parDu: {} }
+    // Droits des anciens travailleurs : lignes à part, pour les prévisions seulement.
+    const dusPrev = [...donnees.dus, ...(donnees.droits?.dus || [])]
+    const paiementsPrev = [...donnees.paiements, ...(donnees.droits?.paiements || [])]
+    const parDuPrev = paiementsParDu(paiementsPrev)
     const lignes = (donnees.previsions || []).map(p => {
-      const du = donnees.dus.find(d => d.id === p.du_id)
-      return du ? { prevision: p, du, etat: etatPrevision(p, { du, paiementsDu: parDu[du.id] || [], receptions: donnees.receptions, aujourdhui }) } : null
+      const du = dusPrev.find(d => d.id === p.du_id)
+      return du ? { prevision: p, du, etat: etatPrevision(p, { du, paiementsDu: parDuPrev[du.id] || [], receptions: donnees.receptions, aujourdhui }) } : null
     }).filter(Boolean)
     const ouvertes = trierPrevisions(lignes.filter(l => l.etat.statut !== 'realisee'))
     const parLigne = {}
@@ -85,10 +91,10 @@ export default function TresorerieScreen() {
     return {
       ouvertes,
       realisees: lignes.filter(l => l.etat.statut === 'realisee').reverse(),
-      total: totalPrevu(donnees.previsions, donnees.dus, donnees.paiements, donnees.receptions, aujourdhui),
+      total: totalPrevu(donnees.previsions, dusPrev, paiementsPrev, donnees.receptions, aujourdhui),
       parDu: parLigne,
     }
-  }, [donnees, parDu, aujourdhui])
+  }, [donnees, aujourdhui])
   const s = useMemo(
     () => (donnees ? syntheseTresorerie({ comptes: donnees.comptes, partenaires: partenaires?.total || 0, prevu: prev.total }) : null),
     [donnees, partenaires, prev],
@@ -111,7 +117,7 @@ export default function TresorerieScreen() {
   const etat = <EtatEcran {...t} autorise={peut(niveau, 'voir_vue')} />
   const bloque = (t.loading && !donnees) || t.erreur || !niveau || !peut(niveau, 'voir_vue')
   const nomResto = id => donnees?.restaurants.find(r => r.id === id)?.nom || 'Groupe'
-  const reste = d => resteDu(d, parDu[d.id])
+  const reste = d => (d.droit ? Math.max(0, d.fiche.reste) : resteDu(d, parDu[d.id]))
   const enDette = cle => (donnees?.dus || []).filter(d => classement[d.id] === cle)
     .sort((a, b) => (a.echeance || '9999').localeCompare(b.echeance || '9999'))
   const sections = ['dette_recente', ...(peut(niveau, 'voir_dettes') ? ['dette'] : [])]
@@ -132,6 +138,7 @@ export default function TresorerieScreen() {
       ...(peut(niveau, 'voir_dettes') ? [{ titre: 'Dette', lignes: enDette('dette') }] : []),
       { titre: 'Autres charges à payer', lignes: ouvertes.filter(d => d.categorie === 'autre' && classement[d.id] === 'a_payer') },
       { titre: 'Plus tard', lignes: plusTard },
+      { titre: 'Anciens travailleurs', lignes: (donnees?.droits?.dus || []).filter(d => reste(d) > 0) },
     ]
   }
 
@@ -233,14 +240,14 @@ export default function TresorerieScreen() {
             {prev.ouvertes.map(({ prevision: p, du, etat }) => {
               const orange = etat.statut === 'a_payer'
               return (
-                <ItemIcone key={p.id} onPress={() => setDetail(du)}
+                <ItemIcone key={p.id} onPress={() => (du.droit ? router.push('/tresorerie-a-payer?onglet=anciens_travailleurs') : setDetail(du))}
                   icone={styleCategorie(du.categorie).icone} couleur={styleCategorie(du.categorie).couleur}
                   surligne={orange ? colors.warningLight : null}
                   titre={`${LIBELLES_CATEGORIE[du.categorie]} · ${titreDu(du, nomResto)}${du.mois ? ` · ${libelleMoisCourt(du.mois)}` : ''}`}
                   sous={<Text style={[styles.petit, orange && { color: colors.warningDark, fontWeight: '700' }]}>{etat.message}</Text>}
                   droite={`${fmt(etat.reste)} F`}
                   sousDroite={orange && peut(niveau, 'payer') ? (
-                    <Bouton titre="Payer" style={styles.btnPetit} onPress={() => setPaiement({ du, prevision: p })} />
+                    <Bouton titre="Payer" style={styles.btnPetit} onPress={() => (du.droit ? setPayerDroit(du.fiche) : setPaiement({ du, prevision: p }))} />
                   ) : null}
                 />
               )
@@ -355,6 +362,8 @@ export default function TresorerieScreen() {
             onFermer={() => setPrevoir(null)} apres={recharger} />
           <FeuilleChoixLigne visible={choix} groupes={groupesAPrevoir()} nomResto={nomResto} reste={reste}
             onChoisir={du => { setChoix(false); setPrevoir(du) }} onFermer={() => setChoix(false)} />
+          <FeuillePayerDroit fiche={payerDroit} nomResto={nomResto} user={user}
+            onFermer={() => setPayerDroit(null)} apres={recharger} />
           <FeuillePaiement demande={paiement} donnees={donnees} parDu={parDu} nomResto={nomResto} user={user}
             onFermer={() => setPaiement(null)} apres={recharger} />
           <FeuilleTransfertFond

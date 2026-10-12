@@ -23,7 +23,9 @@ import { chargerComptesTresorerie, payerFournisseurAdminDirection } from '../../
 
 const style = styleCategorie(ONGLET_ANCIENS)
 
-export function OngletAnciensTravailleurs({ niveau, user, restaurants = [] }) {
+// onPrevoir(fiche) : ouvre la feuille « Prévoir » de l'écran (même que pour une dette).
+// onModifie() : après chaque enregistrement (l'écran recharge la Trésorerie : prévisions, totaux).
+export function OngletAnciensTravailleurs({ niveau, user, restaurants = [], onPrevoir, onModifie }) {
   const { styles, colors } = useStylesTreso()
   const [donnees, setDonnees] = useState(null)
   const [erreur, setErreur] = useState(null)
@@ -37,6 +39,7 @@ export function OngletAnciensTravailleurs({ niveau, user, restaurants = [] }) {
     try { setDonnees(await chargerDroitsAnciens()) } catch (e) { setErreur(e?.message || 'Chargement impossible.') }
   }, [])
   useEffect(() => { charger() }, [charger])
+  const apres = useCallback(async () => { await charger(); onModifie?.() }, [charger, onModifie])
 
   const parResto = useMemo(
     () => (donnees ? resumeDroitsParResto(donnees.fiches, donnees.transactions) : {}),
@@ -108,18 +111,19 @@ export function OngletAnciensTravailleurs({ niveau, user, restaurants = [] }) {
       )}
 
       {peutSaisir && donnees.anciennes.length > 0 && (
-        <AnciennesFiches fiches={donnees.anciennes} nomResto={nomResto} user={user} apres={charger} />
+        <AnciennesFiches fiches={donnees.anciennes} nomResto={nomResto} user={user} apres={apres} />
       )}
 
       <FeuilleDroit demande={edition} restaurants={restaurants} archives={donnees.archives} user={user}
-        onFermer={() => setEdition(null)} apres={charger} />
+        onFermer={() => setEdition(null)} apres={apres} />
       <FeuilleDetailDroit fiche={detail} transactions={donnees.transactions} nomResto={nomResto}
         peutSaisir={peutSaisir} peutPayer={peutPayer}
         onFermer={() => setDetail(null)}
         onModifier={f => { setDetail(null); setEdition({ fiche: f }) }}
-        onPayer={f => { setDetail(null); setPaiement(f) }} />
+        onPayer={f => { setDetail(null); setPaiement(f) }}
+        onPrevoir={onPrevoir ? f => { setDetail(null); onPrevoir(f) } : null} />
       <FeuillePayerDroit fiche={paiement} nomResto={nomResto} user={user}
-        onFermer={() => setPaiement(null)} apres={charger} />
+        onFermer={() => setPaiement(null)} apres={apres} />
     </>
   )
 }
@@ -221,7 +225,7 @@ function FeuilleDroit({ demande, restaurants, archives, user, onFermer, apres })
 
 // ── Détail : paiements, puis Payer / Modifier ───────────────────────────────
 
-function FeuilleDetailDroit({ fiche, transactions, nomResto, peutSaisir, peutPayer, onFermer, onModifier, onPayer }) {
+function FeuilleDetailDroit({ fiche, transactions, nomResto, peutSaisir, peutPayer, onFermer, onModifier, onPayer, onPrevoir }) {
   const { styles, colors } = useStylesTreso()
   if (!fiche) return null
   const paiements = paiementsDroit(transactions.filter(t => t.fournisseur_id === fiche.id))
@@ -249,6 +253,9 @@ function FeuilleDetailDroit({ fiche, transactions, nomResto, peutSaisir, peutPay
         ))}
       <View style={{ gap: 8, marginTop: 12 }}>
         {peutPayer && fiche.reste > 0 && <Bouton icone="cash-fast" titre="Payer (direction)" onPress={() => onPayer(fiche)} />}
+        {peutPayer && fiche.reste > 0 && onPrevoir && (
+          <Bouton secondaire icone="calendar-plus" titre="Prévoir un paiement" onPress={() => onPrevoir(fiche)} />
+        )}
         {peutSaisir && <Bouton secondaire icone="pencil-outline" titre="Modifier" onPress={() => onModifier(fiche)} />}
       </View>
       <Text style={[styles.petit, { marginTop: 10 }]}>Le gérant paie en espèces dans Déductions gérant → Admin.</Text>
@@ -258,7 +265,8 @@ function FeuilleDetailDroit({ fiche, transactions, nomResto, peutSaisir, peutPay
 
 // ── Paiement par la direction ───────────────────────────────────────────────
 
-function FeuillePayerDroit({ fiche, nomResto, user, onFermer, apres }) {
+// Exportée : l'accueil Trésorerie l'ouvre depuis une prévision orange.
+export function FeuillePayerDroit({ fiche, nomResto, user, onFermer, apres }) {
   const { styles } = useStylesTreso()
   const [comptes, setComptes] = useState([])
   const [source, setSource] = useState(null)

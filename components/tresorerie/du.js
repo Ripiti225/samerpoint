@@ -40,6 +40,7 @@ export function Badge({ c }) {
 }
 
 export function titreDu(d, nomResto) {
+  if (d.droit) return `${d.libelle} · ${nomResto(d.restaurant_id)}`
   if (d.categorie === 'dette') return d.creancier || 'Créancier'
   if (d.categorie === 'autre') return `${d.libelle || 'Autre charge'} · ${d.restaurant_id ? nomResto(d.restaurant_id) : 'Groupe'}`
   if (d.categorie === 'admin') return `${d.libelle || 'Charge admin'}${d.restaurant_id ? ` · ${nomResto(d.restaurant_id)}` : ''}`
@@ -684,5 +685,7 @@ export function FeuillePrevision({ du, donnees, nomResto, user, onFermer, apres 
 }
 
 function paiementsDeLaLigne(donnees, du) {
+  // Droit d'ancien travailleur : ses paiements, répartis sur ses prévisions.
+  if (du?.droit) return (donnees.droits?.paiements || []).filter(p => p.du_id === du.id)
   return du ? (donnees.paiements || []).filter(p => p.du_id === du.id) : []
 }
