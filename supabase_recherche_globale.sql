@@ -14,6 +14,7 @@
 --  documents) et les demandes encore en cours restent visibles. Jamais les
 --  sources réservées au manager (trésorerie direction, coffre, journal, RH…).
 --  Spéc gérant + params : docs/superpowers/specs/2026-10-12-recherche-globale-lot2a-design.md
+--  et lot2b-design.md (seconde vague d'écrans).
 -- =====================================================================
 
 CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA extensions;
@@ -156,7 +157,9 @@ BEGIN
     -- ── Stock ────────────────────────────────────────────────────────────
     UNION ALL
     (SELECT 'Inventaire', i.id, i.restaurant_id, i.date, c.champ, c.texte, NULL::numeric,
-            'gestion-stock', NULL, '{}'::jsonb
+            'gestion-stock', NULL,
+            jsonb_strip_nulls(jsonb_build_object('restaurant_id', i.restaurant_id, 'date', i.date,
+                                                 'produit_id', i.produit_id, 'produit_nom', i.produit_nom))
        FROM inventaires i
        CROSS JOIN LATERAL (SELECT v.champ, v.texte FROM (VALUES
          ('Explication', i.explication), ('Explication écart', i.explication_ecart), ('Fournisseur', i.fournisseur_nom)
@@ -165,7 +168,7 @@ BEGIN
       ORDER BY i.date DESC LIMIT n)
     UNION ALL
     (SELECT 'Déductions vérification', dv.id, dv.restaurant_id, dv.date, c.champ, c.texte, dv.montant,
-            'verification', NULL, '{}'::jsonb
+            'verification', NULL, jsonb_strip_nulls(jsonb_build_object('restaurant_id', dv.restaurant_id, 'point_id', dv.point_id))
        FROM deductions_verification dv
        CROSS JOIN LATERAL (SELECT v.champ, v.texte FROM (VALUES
          ('Explication', dv.explication), ('Produits', dv.produits_resume), ('Caissier', dv.caissier_nom)
@@ -211,7 +214,7 @@ BEGIN
       ORDER BY 4 DESC LIMIT n)
     UNION ALL
     (SELECT 'Permissions et congés', pc.id, pc.restaurant_id, pc.date_debut, c.champ, c.texte, NULL::numeric,
-            'rh', NULL, '{}'::jsonb
+            'equipe', NULL, jsonb_strip_nulls(jsonb_build_object('restaurant_id', pc.restaurant_id, 'focus', pc.travailleur_id))
        FROM permissions_conges pc
        CROSS JOIN LATERAL (SELECT v.champ, v.texte FROM (VALUES
          ('Motif', pc.motif), ('Travailleur', pc.travailleur_nom), ('Type', pc.type)
@@ -220,7 +223,7 @@ BEGIN
       ORDER BY pc.date_debut DESC LIMIT n)
     UNION ALL
     (SELECT 'Contrats', ct.id, ct.restaurant_id, ct.date_debut, c.champ, c.texte, NULL::numeric,
-            'contrats', NULL, '{}'::jsonb
+            'contrats', NULL, jsonb_strip_nulls(jsonb_build_object('restaurant_id', ct.restaurant_id, 'recherche', tr.nom))
        FROM contrats_travailleurs ct LEFT JOIN travailleurs tr ON tr.id = ct.travailleur_id
        CROSS JOIN LATERAL (SELECT v.champ, v.texte FROM (VALUES
          ('Travailleur', tr.nom), ('Motif de clôture', ct.cloture_motif), ('Type', ct.type)
@@ -229,7 +232,7 @@ BEGIN
       ORDER BY ct.date_debut DESC LIMIT n)
     UNION ALL
     (SELECT 'Documents', doc.id, doc.restaurant_id, doc.created_at::date, c.champ, c.texte, NULL::numeric,
-            'documents', NULL, '{}'::jsonb
+            'documents', NULL, jsonb_strip_nulls(jsonb_build_object('restaurant_id', doc.restaurant_id, 'focus', doc.id))
        FROM documents doc
        CROSS JOIN LATERAL (SELECT v.champ, v.texte FROM (VALUES
          ('Titre', doc.titre), ('Description', doc.description), ('Type', doc.type)
@@ -238,7 +241,7 @@ BEGIN
       ORDER BY 4 DESC LIMIT n)
     UNION ALL
     (SELECT 'Documents travailleur', dt.id, tr.restaurant_id, dt.created_at::date, c.champ, c.texte, NULL::numeric,
-            'documents', NULL, '{}'::jsonb
+            'equipe', NULL, jsonb_strip_nulls(jsonb_build_object('restaurant_id', tr.restaurant_id, 'focus', dt.travailleur_id))
        FROM documents_travailleurs dt LEFT JOIN travailleurs tr ON tr.id = dt.travailleur_id
        CROSS JOIN LATERAL (SELECT v.champ, v.texte FROM (VALUES
          ('Travailleur', tr.nom), ('Description', dt.description), ('Type', dt.type_document)
@@ -288,13 +291,14 @@ BEGIN
       ORDER BY l.date DESC LIMIT n)
     UNION ALL
     (SELECT 'Contacts clients', cc.id, cc.restaurant_id, cc.date, 'Numéro', cc.numero, NULL::numeric,
-            'contacts', NULL, '{}'::jsonb
+            'contacts', NULL, jsonb_strip_nulls(jsonb_build_object('restaurant_id', cc.restaurant_id, 'date', cc.date, 'recherche', cc.numero))
        FROM contacts_clients cc
       WHERE rg_norm(cc.numero) LIKE m AND (g OR (cc.restaurant_id = r AND cc.date = v_jour))
       ORDER BY cc.date DESC LIMIT n)
     UNION ALL
     (SELECT 'Avis plateformes', pv.id, pv.restaurant_id, pv.review_date, c.champ, c.texte, NULL::numeric,
-            'avis-plateformes', NULL, '{}'::jsonb
+            'avis-plateformes', NULL,
+            jsonb_strip_nulls(jsonb_build_object('restaurant_id', pv.restaurant_id, 'date', pv.review_date, 'focus', pv.id))
        FROM platform_reviews pv
        CROSS JOIN LATERAL (SELECT v.champ, v.texte FROM (VALUES
          ('Commentaire', pv.comment), ('Auteur', pv.author)
@@ -304,7 +308,7 @@ BEGIN
     -- ── Trésorerie et administration (manager seulement) ─────────────────
     UNION ALL
     (SELECT 'Charges', ch.id, ch.restaurant_id, ch.created_at::date, 'Libellé', ch.libelle, ch.montant,
-            'charges', NULL, '{}'::jsonb
+            'charges', NULL, jsonb_strip_nulls(jsonb_build_object('restaurant_id', ch.restaurant_id, 'mois', ch.mois, 'focus', ch.id))
        FROM charges ch
       WHERE g AND rg_norm(ch.libelle) LIKE m
       ORDER BY ch.created_at DESC LIMIT n)
@@ -337,13 +341,16 @@ BEGIN
     UNION ALL
     (SELECT 'Mouvements restaurant', mv.id, mv.restaurant_id, mv.date, 'Libellé', mv.libelle, mv.montant::numeric,
             'tresorerie-restaurant', NULL,
-            CASE WHEN mv.restaurant_id IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('id', mv.restaurant_id) END
+            jsonb_strip_nulls(jsonb_build_object('id', mv.restaurant_id, 'an', extract(year FROM mv.date)::int,
+                                                 'mois', extract(month FROM mv.date)::int, 'focus', mv.id))
        FROM tresorerie_mouvements mv
       WHERE g AND rg_norm(mv.libelle) LIKE m
       ORDER BY mv.date DESC LIMIT n)
     UNION ALL
     (SELECT 'Transferts de fond', tf.id, tf.restaurant_id, tf.date, c.champ, c.texte, tf.montant::numeric,
-            'tresorerie-restaurant', NULL, jsonb_build_object('id', tf.restaurant_id)
+            'tresorerie-restaurant', NULL,
+            jsonb_strip_nulls(jsonb_build_object('id', tf.restaurant_id, 'an', extract(year FROM tf.date)::int,
+                                                 'mois', extract(month FROM tf.date)::int, 'focus', tf.id))
        FROM transferts_fond tf
        CROSS JOIN LATERAL (SELECT v.champ, v.texte FROM (VALUES
          ('Note', tf.note), ('Destination', tf.destination)
@@ -352,7 +359,7 @@ BEGIN
       ORDER BY tf.date DESC LIMIT n)
     UNION ALL
     (SELECT 'Dépenses direction', dd.id, dd.restaurant_id, dd.date, c.champ, c.texte, dd.montant::numeric,
-            'tresorerie-direction', NULL, '{}'::jsonb
+            'tresorerie-direction', NULL, jsonb_build_object('focus', dd.id)
        FROM tresorerie_depenses_direction dd
        CROSS JOIN LATERAL (SELECT v.champ, v.texte FROM (VALUES
          ('Note', dd.note), ('Catégorie', dd.categorie)
@@ -361,7 +368,8 @@ BEGIN
       ORDER BY dd.date DESC LIMIT n)
     UNION ALL
     (SELECT 'Partenaires', pl.id, pl.restaurant_id, pl.date, c.champ, c.texte, pl.montant::numeric,
-            'tresorerie-partenaires', NULL, jsonb_build_object('partenaire', pl.partenaire)
+            'tresorerie-partenaires', NULL,
+            jsonb_strip_nulls(jsonb_build_object('partenaire', pl.partenaire, 'periode', pl.periode_debut, 'focus', pl.id))
        FROM tresorerie_partenaire_lignes pl
        CROSS JOIN LATERAL (SELECT v.champ, v.texte FROM (VALUES
          ('Note', pl.note), ('Partenaire', pl.partenaire)
@@ -370,13 +378,13 @@ BEGIN
       ORDER BY pl.date DESC LIMIT n)
     UNION ALL
     (SELECT 'Coffre', cm.id, NULL::uuid, cm.date, 'Libellé', cm.libelle, cm.montant::numeric,
-            'tresorerie-coffre', NULL, '{}'::jsonb
+            'tresorerie-coffre', NULL, jsonb_build_object('focus', cm.id)
        FROM tresorerie_coffre_mouvements cm
       WHERE g AND rg_norm(cm.libelle) LIKE m
       ORDER BY cm.date DESC LIMIT n)
     UNION ALL
     (SELECT 'Emprunts au coffre', ce.id, NULL::uuid, ce.date, c.champ, c.texte, ce.montant::numeric,
-            'tresorerie-coffre', NULL, '{}'::jsonb
+            'tresorerie-coffre', NULL, jsonb_build_object('focus', ce.id)
        FROM tresorerie_coffre_emprunts ce
        CROSS JOIN LATERAL (SELECT v.champ, v.texte FROM (VALUES
          ('Note', ce.note), ('Partenaire', ce.rembourser_partenaire)
@@ -385,7 +393,7 @@ BEGIN
       ORDER BY ce.date DESC LIMIT n)
     UNION ALL
     (SELECT 'Journal', j.id, j.restaurant_id, j.created_at::date, c.champ, c.texte, NULL::numeric,
-            'journal', NULL, '{}'::jsonb
+            'journal', NULL, jsonb_build_object('focus', j.id)
        FROM journal_activite j
        CROSS JOIN LATERAL (SELECT v.champ, v.texte FROM (VALUES
          ('Action', j.action), ('Par', j.user_nom), ('Détails', j.details::text)
