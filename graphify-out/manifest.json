@@ -54,9 +54,9 @@
     "semantic_hash": ""
   },
   "app/accueil.js": {
-    "mtime": 1791836062.6614015,
-    "seen": 1791836094.834018,
-    "ast_hash": "3db780c07dda85c0932bfc48f9212220",
+    "mtime": 1791838490.1522326,
+    "seen": 1791838524.8258061,
+    "ast_hash": "157741dc0881575d441e2f2b735b784c",
     "semantic_hash": ""
   },
   "app/brouillons-fournisseurs.js": {
@@ -486,9 +486,9 @@
     "semantic_hash": ""
   },
   "lib/api.js": {
-    "mtime": 1791837289.3888078,
-    "seen": 1791837321.953444,
-    "ast_hash": "0053a5817e33a58f95847acf5da86b82",
+    "mtime": 1791838490.1513917,
+    "seen": 1791838524.825887,
+    "ast_hash": "38d3f808a7334554a2690af93b7b6ab2",
     "semantic_hash": ""
   },
   "lib/basculePOS.js": {
@@ -2994,9 +2994,9 @@
     "semantic_hash": ""
   },
   "app/recherche.js": {
-    "mtime": 1791837289.387698,
-    "seen": 1791837321.953384,
-    "ast_hash": "1a26be22b20a5ba2b062e240249fe633",
+    "mtime": 1791838481.0413165,
+    "seen": 1791838524.825829,
+    "ast_hash": "c8eb83f1f46e78c2b4850118d8108db2",
     "semantic_hash": ""
   },
   "components/BandeauRecherche.js": {
@@ -3012,21 +3012,21 @@
     "semantic_hash": ""
   },
   "lib/rechercheGlobale.js": {
-    "mtime": 1791837828.200248,
-    "seen": 1791837888.701462,
-    "ast_hash": "b9c968a6037e0211dbddf3c2f4e4ede0",
+    "mtime": 1791838455.3612418,
+    "seen": 1791838524.825959,
+    "ast_hash": "47f978509db5916eca4366bbccde56b3",
     "semantic_hash": ""
   },
   "lib/rechercheGlobale.test.mjs": {
-    "mtime": 1791837828.2004724,
-    "seen": 1791837888.701462,
-    "ast_hash": "78a743f9a1c361f24439d0ae6b7f8448",
+    "mtime": 1791838455.361533,
+    "seen": 1791838524.82596,
+    "ast_hash": "05d9c00f31e23bbf019bed5a3a750c54",
     "semantic_hash": ""
   },
   "supabase_recherche_globale.sql": {
-    "mtime": 1791837797.0588744,
-    "seen": 1791837888.701514,
-    "ast_hash": "0813feb7d19580f5f4e6cf0f881e6485",
+    "mtime": 1791838422.487436,
+    "seen": 1791838524.826012,
+    "ast_hash": "ee15473954ceddd2083db6372a949ce2",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-10-12-recherche-globale-lot1.md": {
@@ -3057,6 +3057,12 @@
     "mtime": 1791837797.059126,
     "seen": 1791837888.7015529,
     "ast_hash": "0aee3f6b4d70599b4508a367da846964",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-12-recherche-globale-filtre-resto-design.md": {
+    "mtime": 1791838518.881953,
+    "seen": 1791838524.826051,
+    "ast_hash": "d627736d9920592cdbeb38d29951ecbc",
     "semantic_hash": ""
   }
 }
