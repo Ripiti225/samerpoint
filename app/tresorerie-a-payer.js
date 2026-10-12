@@ -12,7 +12,7 @@
 // ──────────────────────────────────────────────────────────────────────────────
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { router, useLocalSearchParams } from 'expo-router'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, SafeAreaView, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native'
 
 import {
@@ -59,6 +59,15 @@ export default function TresorerieAPayerScreen() {
   useEffect(() => {
     if (onglets.length && !onglets.includes(onglet)) setOnglet(onglets[0])
   }, [onglets.join(','), onglet])
+
+  // Recherche globale : ouvre la fiche du dû cherché.
+  const duRechercheTraite = useRef(false)
+  useEffect(() => {
+    if (!donnees || duRechercheTraite.current || typeof params.focus !== 'string') return
+    duRechercheTraite.current = true
+    const du = donnees.dus.find(d => d.id === params.focus)
+    if (du) setDetail(du)
+  }, [donnees]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const aujourdhui = aujourdhuiISO()
   const moisCourant = premierDuMois(aujourdhui)

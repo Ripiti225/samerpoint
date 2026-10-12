@@ -6,7 +6,7 @@
 // Logique pure : lib/equipe.js — Base : lib/equipeDb.js — Morceaux : components/equipe/
 // ──────────────────────────────────────────────────────────────────────────────
 import { router, useLocalSearchParams } from 'expo-router'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
 import * as XLSX from 'xlsx'
 import FicheTravailleur from '../components/equipe/FicheTravailleur'
@@ -28,6 +28,7 @@ import { aujourdhuiISO } from '../lib/contrats'
 import { proposerDroits } from '../lib/droitsAnciensTravailleurs'
 import { creerDroitAncien } from '../lib/droitsAnciensTravailleursDb'
 import { completerPresences } from '../lib/joursRepos'
+import { supabase } from '../lib/supabase'
 import { enregistrer } from '../lib/exportRapportMensuel'
 
 export default function EquipeScreen() {
@@ -143,6 +144,18 @@ export default function EquipeScreen() {
   // ── Actions ──
   // Depuis une ligne de stats : le travailleur peut être parti (archivé ou
   // transféré hors du restaurant affiché) ; on ouvre alors une fiche minimale.
+  // Recherche globale : ouvre la fiche du travailleur cherché (archivé compris).
+  const ficheRechercheTraitee = useRef(false)
+  useEffect(() => {
+    if (loading || ficheRechercheTraitee.current || typeof params.focus !== 'string') return
+    ficheRechercheTraitee.current = true
+    if (travParId[params.focus]) ouvrirFiche(params.focus)
+    else {
+      supabase.from('travailleurs').select('*').eq('id', params.focus).maybeSingle()
+        .then(({ data }) => { if (data) ouvrirFiche(data.id, data) })
+    }
+  }, [loading, travParId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   function ouvrirFiche(id, repli) {
     setFiche(travParId[id] || { id, nom: repli?.nom, poste: repli?.poste, restaurant_id: repli?.restaurant_id, actif: false })
   }

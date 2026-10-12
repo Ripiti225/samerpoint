@@ -37,6 +37,7 @@
  */
 
 import { retour } from '../lib/navigation'
+import { useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Text, View } from 'react-native'
 import { CarteDemande } from '../components/demandes/Cartes'
@@ -50,6 +51,7 @@ import { FILTRES_DEMANDE, STATUTS_DEMANDE, VIOLET, compterDemandes, filtrerDeman
 import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifDemandeNouvelle } from '../lib/notifications'
 import { supabase } from '../lib/supabase'
+import { useFocusRecherche } from '../lib/useFocusRecherche'
 
 export default function DemandesScreen() {
   const { restaurantId, restaurantNom, userId, userNom, roleActif } = useApp()
@@ -72,6 +74,8 @@ export default function DemandesScreen() {
 
   // Filtres de la liste (compteurs cliquables + recherche)
   const [filtre, setFiltre] = useState(null)
+  // Ouvert depuis la recherche globale : demande encadrée.
+  const focus = useFocusRecherche(useLocalSearchParams().focus)
   const [recherche, setRecherche] = useState('')
   const comptes = useMemo(() => compterDemandes(demandes), [demandes])
   const visibles = useMemo(() => filtrerDemandes(demandes, { statut: filtre, recherche }), [demandes, filtre, recherche])
@@ -180,7 +184,7 @@ export default function DemandesScreen() {
               <Vide icone="📋" styles={styles}
                 texte={demandes.length === 0 ? 'Aucune demande pour ce restaurant' : 'Aucune demande trouvée'}
                 sous={demandes.length === 0 ? 'Touchez « Nouvelle demande » pour en créer une.' : 'Changez le filtre ou la recherche.'} />
-            ) : visibles.map(d => <CarteDemande key={d.id} d={d} styles={styles} />)}
+            ) : visibles.map(d => <CarteDemande key={d.id} d={d} styles={styles} focus={focus} />)}
             <View style={{ height: 40 }} />
           </ScrollView>
         </>

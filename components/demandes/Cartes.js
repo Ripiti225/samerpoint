@@ -5,11 +5,13 @@ import { TYPES_DEMANDE } from '../../lib/constants'
 import { STATUTS_DEMANDE, STATUTS_EXPLICATION, enRetard, fmtDate, fmtMontant } from '../../lib/demandes'
 import { Info, Pastille, teinte } from '../ui/EcranModerne'
 
-export function CarteDemande({ d, restoNom, styles, children }) {
+// `focus` (facultatif) : useFocusRecherche() de l'écran, pour encadrer la carte
+// ouverte depuis la recherche globale.
+export function CarteDemande({ d, restoNom, styles, children, focus }) {
   const cfg = STATUTS_DEMANDE[d.statut] || STATUTS_DEMANDE.en_attente
   const icone = TYPES_DEMANDE.find(t => t.label === d.type)?.icon || '📋'
   return (
-    <View style={styles.carte}>
+    <View {...focus?.props(d.id)} style={[styles.carte, focus?.style(d.id)]}>
       <View style={styles.carteTop}>
         <View style={[styles.bulle, { backgroundColor: teinte(cfg.couleur, '1C') }]}><Text style={styles.bulleTxt}>{icone}</Text></View>
         <View style={{ flex: 1 }}>
@@ -40,11 +42,11 @@ export function CarteDemande({ d, restoNom, styles, children }) {
   )
 }
 
-export function CarteExplication({ d, restoNom, styles, onVoirReponse, libelleReponse, children }) {
+export function CarteExplication({ d, restoNom, styles, onVoirReponse, libelleReponse, children, focus }) {
   const cfg = STATUTS_EXPLICATION[d.statut] || STATUTS_EXPLICATION.en_attente_acceptation
   const retard = enRetard(d)
   return (
-    <View style={[styles.carte, retard && styles.carteAlerte]}>
+    <View {...focus?.props(d.id)} style={[styles.carte, retard && styles.carteAlerte, focus?.style(d.id)]}>
       <View style={styles.carteTop}>
         <View style={[styles.bulle, { backgroundColor: teinte(cfg.couleur, '1C') }]}><Text style={styles.bulleTxt}>📨</Text></View>
         <View style={{ flex: 1 }}>

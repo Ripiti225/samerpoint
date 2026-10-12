@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, Linking, Platform, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import { CarteExplication } from '../components/demandes/Cartes'
 import { Bouton, Champ, Compteurs, EnTete, Feuille, Libelle, Puces, Recherche, Vide, useDemandesStyles } from '../components/ui/EcranModerne'
@@ -10,17 +10,21 @@ import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifExplicationStatut } from '../lib/notifications'
 import { genererPdfExplication } from '../lib/pdfDocuments'
 import { supabase } from '../lib/supabase'
+import { useFocusRecherche } from '../lib/useFocusRecherche'
 
 export default function DemandesExplicationAdminScreen() {
   const { userId, userNom, roleActif } = useApp()
   const { styles, colors, accent } = useDemandesStyles()
   // Arrivée depuis une notification « sans réponse » : onglet + étape imposés.
-  const { onglet: ongletParam, etape: etapeParam } = useLocalSearchParams()
+  const { onglet: ongletParam, etape: etapeParam, restaurant_id: restoParam, focus: focusParam } = useLocalSearchParams()
+  // Ouvert depuis la recherche globale : restaurant + demande encadrée.
+  const focus = useFocusRecherche(focusParam)
+  const focusCherche = useRef(false)
 
   const [onglet, setOnglet] = useState(ongletParam === 'miennes' ? 'miennes' : 'recues') // 'recues' | 'miennes'
   const [demandes, setDemandes] = useState([])
   const [restaurants, setRestaurants] = useState([])
-  const [restoFilter, setRestoFilter] = useState(null)
+  const [restoFilter, setRestoFilter] = useState(typeof restoParam === 'string' ? restoParam : null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -47,6 +51,13 @@ export default function DemandesExplicationAdminScreen() {
 
   useEffect(() => { chargerRestaurants() }, [])
   useEffect(() => { charger() }, [onglet, restoFilter])
+
+  // La demande cherchée n'est pas dans « Reçues » : c'est une des miennes.
+  useEffect(() => {
+    if (loading || focusCherche.current || typeof focusParam !== 'string') return
+    focusCherche.current = true
+    if (onglet === 'recues' && !demandes.some(d => d.id === focusParam)) setOnglet('miennes')
+  }, [loading, demandes]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function chargerRestaurants() {
     const { data } = await supabase.from('restaurants').select('id, nom').order('nom')
@@ -303,7 +314,7 @@ export default function DemandesExplicationAdminScreen() {
                 ? (onglet === 'recues' ? 'Aucune demande reçue des gérants ou du vérificateur.' : "Vous n'avez créé aucune demande.")
                 : 'Changez le filtre ou la recherche.'} />
           ) : visibles.map(d => (
-            <CarteExplication key={d.id} d={d} restoNom={nomResto(d.restaurant_id)} styles={styles}
+            <CarteExplication key={d.id} d={d} restoNom={nomResto(d.restaurant_id)} styles={styles} focus={focus}
               onVoirReponse={voirFichier} libelleReponse="Réponse déposée par le gérant — voir">
               {renderActions(d)}
             </CarteExplication>

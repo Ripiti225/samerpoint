@@ -1,4 +1,4 @@
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useState, useMemo, useRef } from 'react'
 import {
     ActivityIndicator,
@@ -17,6 +17,7 @@ import { journaliser } from '../lib/journal'
 import { archiverSuppressionShift, supprimerLignesArchivees } from '../lib/corbeille'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
+import { useFocusRecherche } from '../lib/useFocusRecherche'
 
 const ONGLETS = ['Résumé', 'Shifts', 'Ventes', 'Dépenses', 'Fournisseurs', 'Présences', 'Dép. Gérant']
 const CATS_DEPENSES = ['Marché', 'Légumes', 'Fruits', 'Dépenses annexes']
@@ -77,12 +78,36 @@ export default function ModifierPointScreen() {
   const [moveDateCible, setMoveDateCible] = useState('')
   const [deplacement, setDeplacement] = useState(false)
 
-  useEffect(() => { chargerRestaurants() }, [])
+  // Ouvert depuis la recherche globale : restaurant + date + onglet + ligne.
+  const params = useLocalSearchParams()
+  const focus = useFocusRecherche(params.focus)
+  const depuisRecherche = useRef(false)
+
+  useEffect(() => { chargerRestaurants() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function chargerRestaurants() {
     const { data } = await supabase.from('restaurants').select('id, nom, couleur, photo_url, localisation').order('nom')
     setRestaurants(data || [])
+    const resto = (data || []).find(r => r.id === params.restaurant_id)
+    if (resto && typeof params.date === 'string') {
+      depuisRecherche.current = true
+      setSelectedResto(resto)
+      setSelectedDate(params.date)
+      chargerDatesAvec(resto.id)
+      if (ONGLETS.includes(params.onglet)) setOngletActif(params.onglet)
+      await chargerPoint(resto.id, params.date)
+    }
   }
+
+  // L'onglet Dép. Gérant charge ses données au toucher : on le fait ici quand
+  // il est ouvert directement par la recherche.
+  useEffect(() => {
+    if (!depuisRecherche.current || !point || ongletActif !== 'Dép. Gérant') return
+    depuisRecherche.current = false
+    const gs = shifts.find(sh => sh.caissier_id === point?.gerant_id)
+    if (gs && !shiftDetails[gs.id]) chargerDetailShift(gs)
+    chargerDepGerant()
+  }, [point, ongletActif]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function chargerDatesAvec(restoId) {
     const { data } = await supabase
@@ -1199,7 +1224,7 @@ export default function ModifierPointScreen() {
             <Text style={styles.sectionTitre}>{cat}</Text>
             <View style={styles.card}>
               {lignes.map((d, i) => (
-                <View key={d.id} style={styles.depLigneBlock}>
+                <View key={d.id} {...focus.props(d.id)} style={[styles.depLigneBlock, focus.style(d.id)]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <View style={{ flex: 1 }}>
                       <TextInput
@@ -1513,7 +1538,7 @@ export default function ModifierPointScreen() {
             <Text style={styles.emptyTxt}>Aucune présence enregistrée</Text>
           </View>
         ) : presences.map((p, i) => (
-          <View key={i} style={styles.presenceCard}>
+          <View key={i} {...focus.props(p.id)} style={[styles.presenceCard, focus.style(p.id)]}>
             <View style={styles.presenceHeader}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarTxt}>

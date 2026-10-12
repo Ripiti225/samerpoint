@@ -1,7 +1,7 @@
 /*
  * Bandeau de rappel de la recherche globale : sur l'écran ouvert depuis un
  * résultat, rappelle ce qu'on cherchait (date · restaurant · extrait) tant que
- * l'écran ne sait pas encore s'ouvrir tout seul au bon endroit (lot 2).
+ * l'écran ne sait pas s'ouvrir tout seul au bon endroit (ECRANS_AU_BON_ENDROIT).
  * Toucher le bandeau = revenir aux résultats ; la croix le ferme.
  */
 
@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { useTheme } from '../context/ThemeContext'
 import { rechercheCourante } from '../lib/rechercheCourante'
-import { dateCourte, extrait, texteLisible } from '../lib/rechercheGlobale'
+import { besoinBandeau, dateCourte, extrait, texteLisible } from '../lib/rechercheGlobale'
 
 const ECRANS_SANS_BANDEAU = ['/recherche', '/accueil', '/login', '/']
 
@@ -22,7 +22,7 @@ export default function BandeauRecherche() {
 
   useEffect(() => rechercheCourante.abonner(setR), [])
 
-  if (!r || ECRANS_SANS_BANDEAU.includes(pathname)) return null
+  if (!besoinBandeau(r) || ECRANS_SANS_BANDEAU.includes(pathname)) return null
   const e = extrait(texteLisible(r.texte), r.terme, 30)
   const entete = [dateCourte(r.date), r.restaurant_nom].filter(Boolean).join(' · ')
 

@@ -1,5 +1,5 @@
 import { retour } from '../lib/navigation'
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator, Alert, Modal, Platform, SafeAreaView,
@@ -12,6 +12,7 @@ import ChampDate from '../components/ChampDate'
 import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
+import { useFocusRecherche } from '../lib/useFocusRecherche'
 import { CATEGORIES_INVENTAIRE } from '../lib/constants'
 import { supabase } from '../lib/supabase'
 import { annulerDeductionInventaire } from '../lib/api'
@@ -140,6 +141,10 @@ export default function LitigesScreen() {
   const isGerant = roleActif === 'gerant'
   const peutRegulariser = roleActif === 'manager' || roleActif === 'directeur'
   const { prendrePhoto, choisirPhoto } = usePhoto()
+  // Ouvert depuis la recherche globale : restaurant, jour, onglet et litige.
+  const params = useLocalSearchParams()
+  const dateRecherche = typeof params.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : null
+  const focus = useFocusRecherche(params.focus)
 
   // ── Restaurant ──────────────────────────────────────────────
   const [restaurants, setRestaurants] = useState([])
@@ -148,7 +153,7 @@ export default function LitigesScreen() {
 
   // ── Période ─────────────────────────────────────────────────
   const [periodeKey, setPeriodeKey] = useState('1jour')
-  const [dateUnique, setDateUnique] = useState(TODAY)
+  const [dateUnique, setDateUnique] = useState(dateRecherche || TODAY)
   const [dateDebut, setDateDebut] = useState(TODAY)
   const [dateFin, setDateFin] = useState(TODAY)
   const [showCalUnique, setShowCalUnique] = useState(false)
@@ -164,7 +169,7 @@ export default function LitigesScreen() {
   const [generatingPdf, setGeneratingPdf] = useState(false)
 
   // ── UI ───────────────────────────────────────────────────────
-  const [onglet, setOnglet] = useState('ecarts')
+  const [onglet, setOnglet] = useState(['glovo', 'yango', 'avis', 'point_pas_fait'].includes(params.onglet) ? params.onglet : 'ecarts')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   // Shifts servant à retrouver le caissier présent à l'heure d'un avis (lib/attributionAvis.js).
@@ -261,9 +266,10 @@ export default function LitigesScreen() {
         chargerDatesAvec(monResto.id)
         chargerUtilisateurs(monResto.id)
       } else {
-        setRestoSelectionne(data[0])
-        chargerDatesAvec(data[0].id)
-        chargerUtilisateurs(data[0].id)
+        const initial = data.find(r => r.id === params.restaurant_id) || data[0]
+        setRestoSelectionne(initial)
+        chargerDatesAvec(initial.id)
+        chargerUtilisateurs(initial.id)
       }
     }
   }
@@ -1596,7 +1602,7 @@ export default function LitigesScreen() {
           </View>
         )}
         {litigesPointPasFait.map(p => (
-          <View key={p.id} style={[styles.ligneCard, { borderColor: colors.error + '44' }]}>
+          <View key={p.id} {...focus.props(p.id)} style={[styles.ligneCard, { borderColor: colors.error + '44' }, focus.style(p.id)]}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.ligneNom, { color: colors.error }]}>Point pas fait</Text>
               {p.responsable_nom ? info('account-outline', p.responsable_nom, styles.ligneSous) : null}
@@ -2058,7 +2064,7 @@ export default function LitigesScreen() {
         {avisClients.map(a => {
           const type = typeAvis(a.type)
           return (
-            <View key={a.id} style={styles.ligneCard}>
+            <View key={a.id} {...focus.props(a.id)} style={[styles.ligneCard, focus.style(a.id)]}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.ligneNom, { color: type?.couleur || colors.text }]}>{type?.label || a.type}</Text>
                 {a.canal ? info('map-marker-outline', canalAvis(a.canal)?.court || a.canal, [styles.ligneSous, { color: canalAvis(a.canal)?.couleur || colors.textMuted, fontWeight: '700' }]) : null}
@@ -2168,7 +2174,7 @@ export default function LitigesScreen() {
         {litigesYango.map(y => {
           const type = TYPES_YANGO.find(t => t.key === y.type)
           return (
-            <View key={y.id} style={styles.ligneCard}>
+            <View key={y.id} {...focus.props(y.id)} style={[styles.ligneCard, focus.style(y.id)]}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.ligneNom, { color: type?.couleur || colors.text }]}>{type?.label || y.type}</Text>
                 {y.responsable_nom ? info('account-outline', y.responsable_nom, styles.ligneSous) : null}
@@ -2212,7 +2218,7 @@ export default function LitigesScreen() {
         {litigesGlovo.map(g => {
           const type = TYPES_GLOVO.find(t => t.key === g.type)
           return (
-            <View key={g.id} style={styles.ligneCard}>
+            <View key={g.id} {...focus.props(g.id)} style={[styles.ligneCard, focus.style(g.id)]}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.ligneNom, { color: type?.couleur || colors.text }]}>{type?.label || g.type}</Text>
                 {g.responsable_nom ? info('account-outline', g.responsable_nom, styles.ligneSous) : null}

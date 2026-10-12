@@ -1,4 +1,4 @@
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
@@ -20,6 +20,7 @@ import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { saveOnePresence } from '../lib/api'
 import { supabase } from '../lib/supabase'
+import { useFocusRecherche } from '../lib/useFocusRecherche'
 
 const STATUTS = ['Présent', 'Absent', 'Repos', 'Congé', 'Malade', 'Permission']
 
@@ -46,6 +47,8 @@ export default function PresencesScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors])
 
   const [travailleurs, setTravailleurs] = useState([])
+  // Ouvert depuis la recherche globale : présence encadrée.
+  const focus = useFocusRecherche(useLocalSearchParams().focus)
   const [presences, setPresences] = useState({}) // { travailleurId: { statut, paye, shift_nom, heure_debut, heure_fin, presenceId } }
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState(null)
@@ -348,9 +351,10 @@ export default function PresencesScreen() {
             const couleurStatut = effectifStatut ? getStatutColor(effectifStatut) : null
 
             return (
-              <View key={t.id} style={[
+              <View key={t.id} {...focus.props(pres?.presenceId)} style={[
                 styles.travCard,
-                effectifStatut && { borderLeftColor: couleurStatut.text, borderLeftWidth: 3 }
+                effectifStatut && { borderLeftColor: couleurStatut.text, borderLeftWidth: 3 },
+                focus.style(pres?.presenceId),
               ]}>
                 {autoStatut && (
                   <View style={styles.autoStatutBanner}>

@@ -1,4 +1,5 @@
 import { retour } from '../lib/navigation'
+import { useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Text, View } from 'react-native'
 import { CarteDemande } from '../components/demandes/Cartes'
@@ -12,6 +13,7 @@ import { FILTRES_DEMANDE, STATUTS_DEMANDE, VIOLET, compterDemandes, filtrerDeman
 import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifDemandeStatut } from '../lib/notifications'
 import { supabase } from '../lib/supabase'
+import { useFocusRecherche } from '../lib/useFocusRecherche'
 
 export default function DemandesAdminScreen() {
   const { userId, userNom, roleActif } = useApp()
@@ -20,7 +22,10 @@ export default function DemandesAdminScreen() {
   const peutAnnuler = roleActif === 'rh' || roleActif === 'directeur' || roleActif === 'manager'
 
   const [restaurants, setRestaurants] = useState([])
-  const [restoFilter, setRestoFilter] = useState(null)
+  // Ouvert depuis la recherche globale : restaurant + demande encadrée.
+  const params = useLocalSearchParams()
+  const focus = useFocusRecherche(params.focus)
+  const [restoFilter, setRestoFilter] = useState(typeof params.restaurant_id === 'string' ? params.restaurant_id : null)
   const [demandes, setDemandes] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -270,7 +275,7 @@ export default function DemandesAdminScreen() {
             <Vide icone="📋" styles={styles} texte="Aucune demande trouvée"
               sous={demandes.length === 0 ? 'Aucune demande pour ce choix de restaurant.' : 'Changez le filtre ou la recherche.'} />
           ) : visibles.map(d => (
-            <CarteDemande key={d.id} d={d} restoNom={nomResto(d.restaurant_id)} styles={styles}>
+            <CarteDemande key={d.id} d={d} restoNom={nomResto(d.restaurant_id)} styles={styles} focus={focus}>
               {d.statut === 'en_attente' && (
                 <View style={styles.actions}>
                   <Bouton label="✅ Valider" couleur="#3B8D2F" flex styles={styles} onPress={() => demanderValidation(d)} disabled={saving} />

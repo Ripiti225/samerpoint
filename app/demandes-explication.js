@@ -1,6 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker'
 import * as ImagePicker from 'expo-image-picker'
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Alert, Linking, Platform, SafeAreaView, ScrollView, Text, View } from 'react-native'
 import { CarteExplication } from '../components/demandes/Cartes'
@@ -13,6 +13,7 @@ import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifExplicationNouvelle } from '../lib/notifications'
 import { genererPdfExplication } from '../lib/pdfDocuments'
 import { supabase } from '../lib/supabase'
+import { useFocusRecherche } from '../lib/useFocusRecherche'
 
 export default function DemandesExplicationScreen() {
   const { restaurantId, restaurantNom, userId, userNom, roleActif } = useApp()
@@ -34,6 +35,8 @@ export default function DemandesExplicationScreen() {
   const [recherche, setRecherche] = useState('')
   const comptes = useMemo(() => compterExplications(demandes), [demandes])
   const visibles = useMemo(() => filtrerExplications(demandes, { etape, recherche }), [demandes, etape, recherche])
+  // Ouvert depuis la recherche globale : demande encadrée.
+  const focus = useFocusRecherche(useLocalSearchParams().focus)
 
   useEffect(() => {
     if (restaurantId) charger()
@@ -191,7 +194,7 @@ export default function DemandesExplicationScreen() {
               const peutPdf = ['acceptee', 'envoyee', 'relancee', 'reponse_recuperee'].includes(d.statut)
               const peutDeposer = !d.reponse_fichier_url && ['envoyee', 'relancee'].includes(d.statut)
               return (
-              <CarteExplication key={d.id} d={d} styles={styles} onVoirReponse={voirFichier} libelleReponse="Réponse déposée — voir">
+              <CarteExplication key={d.id} d={d} styles={styles} focus={focus} onVoirReponse={voirFichier} libelleReponse="Réponse déposée — voir">
                 {peutPdf || peutDeposer ? (
                   <View style={styles.actions}>
                     {peutPdf && (

@@ -14,7 +14,7 @@ import * as FileSystem from 'expo-file-system/legacy'
 import * as Print from 'expo-print'
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router'
 import * as Sharing from 'expo-sharing'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator, Alert, Modal, Platform,
   SafeAreaView, ScrollView, StyleSheet,
@@ -42,6 +42,7 @@ import { journaliser } from '../lib/journal'
 import { chargerDerniersRestes } from '../lib/derniersRestesFournisseurs'
 import { supabase } from '../lib/supabase'
 import { aujourdhuiISO } from '../lib/tresorerie'
+import { useFocusRecherche } from '../lib/useFocusRecherche'
 
 let _restoFilterCache = null
 
@@ -104,6 +105,9 @@ export default function CreditsFournisseursScreen() {
   const [restoFilter, setRestoFilter] = useState(() => _restoFilterCache)
   const [showRestoPicker, setShowRestoPicker] = useState(false)
   const [fournisseurs, setFournisseurs] = useState([])
+  // Ouvert depuis la recherche globale : fiche (historique) du fournisseur.
+  const focus = useFocusRecherche(params.fournisseur_id)
+  const fournRechercheTraite = useRef(false)
   const [loading, setLoading] = useState(true)
 
   const [selectedFourn, setSelectedFourn] = useState(null)
@@ -183,6 +187,23 @@ export default function CreditsFournisseursScreen() {
     } catch {}
     setLoading(false)
   }
+
+  // Recherche globale : ouvre l'historique du fournisseur cherché (sur le bon
+  // onglet), même s'il n'est pas dans la liste affichée (autre restaurant filtré).
+  useEffect(() => {
+    if (loading || fournRechercheTraite.current || !params.fournisseur_id) return
+    fournRechercheTraite.current = true
+    const ouvrirFiche = f => {
+      setOngletCredits(estAdministratif(f) ? 'administratifs' : 'fournisseurs')
+      chargerHistorique(f)
+    }
+    const trouve = fournisseurs.find(f => f.id === params.fournisseur_id)
+    if (trouve) ouvrirFiche(trouve)
+    else {
+      supabase.from('fournisseurs').select('*').eq('id', params.fournisseur_id).maybeSingle()
+        .then(({ data }) => { if (data) ouvrirFiche(data) })
+    }
+  }, [loading, fournisseurs]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Mouvements enregistrés d'un mois (factures + paiements) ──────────────
   useEffect(() => {
@@ -685,7 +706,7 @@ ${mouvements.map(m => {
     const initiales = (f.nom || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(m => m[0]).join('').toUpperCase()
 
     return (
-      <View key={f.id} style={[styles.card, !isSolde && { borderColor: ton.c + '40' }]}>
+      <View key={f.id} {...focus.props(f.id)} style={[styles.card, !isSolde && { borderColor: ton.c + '40' }, focus.style(f.id)]}>
         <TouchableOpacity style={styles.cardHeader} onPress={() => chargerHistorique(f)} activeOpacity={0.7}>
           <View style={[styles.avatar, { backgroundColor: ton.bg }]}>
             <Text style={[styles.avatarTxt, { color: ton.c }]}>{initiales}</Text>

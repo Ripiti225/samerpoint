@@ -30,7 +30,7 @@ function montantTexte(m) {
 export default function Recherche() {
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
-  const { roleActif, restaurantId } = useApp()
+  const { roleActif, restaurantId, dateJour } = useApp()
   const manager = roleActif === 'manager'
 
   const [terme, setTerme] = useState('')
@@ -62,7 +62,7 @@ export default function Recherche() {
     setEtat(e => ({ ...e, statut: 'chargement' }))
     const minuteur = setTimeout(async () => {
       try {
-        const r = await rechercheGlobale(t, { restaurantId, manager })
+        const r = await rechercheGlobale(t, { restaurantId, manager, date: dateJour })
         if (numero !== numeroRequete.current) return // une frappe plus récente a pris le relais
         setEtat({ statut: r.horsLigne ? 'horsLigne' : 'ok', resultats: r.resultats })
       } catch {
@@ -70,7 +70,7 @@ export default function Recherche() {
       }
     }, DELAI_FRAPPE)
     return () => clearTimeout(minuteur)
-  }, [terme, restaurantId, manager])
+  }, [terme, restaurantId, manager, dateJour])
 
   const groupes = useMemo(() => grouperParSource(etat.resultats), [etat.resultats])
   // Liste à plat : une bannière par source, puis ses cartes.
@@ -140,7 +140,9 @@ export default function Recherche() {
           <Text style={styles.videSous}>
             {manager
               ? 'Dépenses, fournisseurs, trésorerie, points, équipe, litiges, journal… tous les restaurants.'
-              : 'Dépenses, fournisseurs, points, équipe, litiges… de ton restaurant.'}
+              : dateJour
+                ? `Ta journée du ${dateCourte(dateJour)} (dépenses, présences, litiges…), tes fournisseurs, ton équipe et tes demandes en cours.`
+                : "Aucune journée ouverte : seulement tes fournisseurs, ton équipe et tes demandes en cours."}
           </Text>
         </>
       )

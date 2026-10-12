@@ -1,5 +1,6 @@
+import { useLocalSearchParams } from 'expo-router'
 import { retour } from '../lib/navigation'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Modal, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native'
 import DetailShiftCaissier from '../components/DetailShiftCaissier'
 import { useApp } from '../context/AppContext'
@@ -27,6 +28,9 @@ export default function PointCaissierScreen() {
   const { restaurantId, roleActif } = useApp()
   const estAdmin = roleActif === 'manager' || roleActif === 'directeur'
   const styles = useMemo(() => makeStyles(colors), [colors])
+  // Ouvert depuis la recherche globale : restaurant + shift à afficher.
+  const params = useLocalSearchParams()
+  const focusTraite = useRef(false)
 
   const [restaurants, setRestaurants] = useState([])
   const [restoChoisi, setRestoChoisi] = useState(null)
@@ -46,9 +50,10 @@ export default function PointCaissierScreen() {
     if (!estAdmin) return
     supabase.from('restaurants').select('id, nom').order('nom').then(({ data }) => {
       setRestaurants(data || [])
-      setRestoChoisi(prev => prev || data?.[0]?.id || null)
+      const demande = (data || []).find(r => r.id === params.restaurant_id)?.id
+      setRestoChoisi(prev => prev || demande || data?.[0]?.id || null)
     })
-  }, [estAdmin])
+  }, [estAdmin]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const restoActif = estAdmin ? restoChoisi : restaurantId
 
@@ -89,6 +94,18 @@ export default function PointCaissierScreen() {
     const data = await chargerDetailShift(shift)
     setDetail({ ...data, loading: false })
   }
+
+  // Recherche globale : ouvre le détail du shift cherché, même s'il a plus de trois jours.
+  useEffect(() => {
+    if (loading || focusTraite.current || !params.focus) return
+    focusTraite.current = true
+    const trouve = groupes.flatMap(g => g.shifts).find(x => x.id === params.focus)
+    if (trouve) ouvrir(trouve)
+    else {
+      supabase.from('points_shifts').select('*').eq('id', params.focus).maybeSingle()
+        .then(({ data }) => { if (data) ouvrir(data) })
+    }
+  }, [loading, groupes]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalShifts = groupes.reduce((somme, g) => somme + g.shifts.length, 0)
 
