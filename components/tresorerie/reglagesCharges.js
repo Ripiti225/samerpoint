@@ -1,6 +1,7 @@
 // ──────────────────────────────────────────────────────────────────────────────
 // Trésorerie — réglages des charges à échéance (RH et propriétaire) :
-// loyers, jour limite commun, montants fixes (impôts, ITS, TEE).
+// loyers, jour limite commun, montants fixes (timbre, ITS, TEE), mois dus par
+// restaurant (TEE, ITS, timbre, CNPS).
 // Les baux se saisissent par année : components/tresorerie/saisieGroupee.js.
 // Tout se paie après coup : la charge du mois M est due au jour limite de M+1.
 // Spéc : docs/superpowers/specs/2026-10-02-nouvelle-tresorerie-design.md
@@ -9,10 +10,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { Alert, Text, TouchableOpacity, View } from 'react-native'
 
 import {
-  LIBELLES_CATEGORIE, aujourdhuiISO, dusAMettreAJour, fmt, jourCommun, libelleMois, moisEntre,
-  paiementsParDu, planReglageLoyer, premierDuMois, resteDu, resumeLoyersParRestaurant,
+  CATEGORIES_MONTANT_FIXE, LIBELLES_CATEGORIE, aujourdhuiISO, dusAMettreAJour, fmt, jourCommun, libelleMois, moisEntre,
+  paiementsParDu, planReglageLoyer, planReglageMois, premierDuMois, resteDu, resumeLoyersParRestaurant,
 } from '../../lib/tresorerie'
-import { enregistrerChargeFixe, enregistrerEcheance, enregistrerLoyer } from '../../lib/tresorerieDb'
+import { enregistrerChargeFixe, enregistrerEcheance, enregistrerLoyer, enregistrerMoisCharge } from '../../lib/tresorerieDb'
 import { Bouton, Champ, ChampMontant, Feuille, useStylesTreso } from './commun'
 
 const NOMS_MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
@@ -20,6 +21,54 @@ const NOMS_MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juill
 function lireJour(texte) {
   const j = parseInt(texte, 10)
   return j >= 1 && j <= 31 ? j : null
+}
+
+// Les 12 mois passés (le mois en cours n'est dû que le mois prochain : il se crée seul).
+function moisPassesProposes(courant) {
+  return moisEntre('2000-01-01', courant).slice(-13, -1)
+}
+
+// Mois passés d'un restaurant : vide → dû → déjà payé → vide. Un mois entamé
+// (vrai paiement, pas « avant ») ne se change plus d'ici.
+function basculerMois(m, { entame, moisCoches, moisPayes, setMoisCoches, setMoisPayes }) {
+  if (entame(m)) {
+    Alert.alert('Mois déjà entamé', `Un paiement existe pour ${libelleMois(m)}. Annulez-le d'abord depuis le détail du mois.`)
+    return
+  }
+  if (moisCoches.includes(m)) {
+    setMoisCoches(l => l.filter(x => x !== m))
+    setMoisPayes(l => [...l, m])
+  } else if (moisPayes.includes(m)) {
+    setMoisPayes(l => l.filter(x => x !== m))
+  } else {
+    setMoisCoches(l => [...l, m])
+  }
+}
+
+function PucesMois({ moisProposes, moisCoches, moisPayes, entame, onBasculer }) {
+  const { styles, colors } = useStylesTreso()
+  return (
+    <>
+      <Text style={styles.label}>Mois passés (appuyez : dû → déjà payé → rien)</Text>
+      <View style={styles.puces}>
+        {[...moisProposes].reverse().map(m => {
+          const du = moisCoches.includes(m)
+          const paye = moisPayes.includes(m)
+          return (
+            <TouchableOpacity key={m} onPress={() => onBasculer(m)}
+              style={[styles.puce, du && styles.puceActive, paye && { backgroundColor: colors.successLight, borderColor: colors.success }]}>
+              <Text style={[styles.puceTxt, du && styles.puceTxtActive, paye && { color: colors.successDark }]}>
+                {libelleMois(m)}{du ? ' · dû' : paye ? ' · payé' : ''}{entame(m) ? ' · entamé' : ''}
+              </Text>
+            </TouchableOpacity>
+          )
+        })}
+      </View>
+      <Text style={[styles.petit, { marginBottom: 6 }]}>
+        « Payé » = déjà payé avant la trésorerie : compte dans le résultat net, sans dette ni mouvement en banque.
+      </Text>
+    </>
+  )
 }
 
 // ── Loyers ───────────────────────────────────────────────────────────────────
@@ -37,8 +86,7 @@ export function FeuilleReglageLoyers({ visible, donnees, user, onFermer, apres }
   const [occupe, setOccupe] = useState(false)
 
   const courant = premierDuMois(aujourdhuiISO())
-  // Les 12 mois passés (le mois en cours n'est dû que le mois prochain : il se crée seul).
-  const moisProposes = moisEntre('2000-01-01', courant).slice(-13, -1)
+  const moisProposes = moisPassesProposes(courant)
   const parDu = useMemo(() => paiementsParDu(donnees.paiements), [donnees])
   const dusResto = donnees.dus.filter(d => d.categorie === 'loyer' && d.restaurant_id === restaurantId)
   // Entamé = un vrai paiement (pas « avant ») : ce mois-là ne se change plus d'ici.
@@ -59,19 +107,7 @@ export function FeuilleReglageLoyers({ visible, donnees, user, onFermer, apres }
   if (!visible) return null
 
   function basculer(m) {
-    if (entame(m)) {
-      Alert.alert('Mois déjà entamé', `Un paiement existe pour ${libelleMois(m)}. Annulez-le d'abord depuis le détail du mois.`)
-      return
-    }
-    // Vide → dû → déjà payé → vide.
-    if (moisCoches.includes(m)) {
-      setMoisCoches(l => l.filter(x => x !== m))
-      setMoisPayes(l => [...l, m])
-    } else if (moisPayes.includes(m)) {
-      setMoisPayes(l => l.filter(x => x !== m))
-    } else {
-      setMoisCoches(l => [...l, m])
-    }
+    basculerMois(m, { entame, moisCoches, moisPayes, setMoisCoches, setMoisPayes })
   }
 
   async function enregistrer() {
@@ -134,24 +170,7 @@ export function FeuilleReglageLoyers({ visible, donnees, user, onFermer, apres }
           <Text style={[styles.itemTitre, { marginBottom: 10 }]}>{donnees.restaurants.find(r => r.id === restaurantId)?.nom}</Text>
           <ChampMontant label="Loyer mensuel" valeur={montant} onChange={setMontant} />
           <Champ label="Jour limite dans le mois suivant (1 à 31)" value={jour} onChangeText={t => setJour(t.replace(/[^\d]/g, ''))} keyboardType="number-pad" />
-          <Text style={styles.label}>Mois passés (appuyez : dû → déjà payé → rien)</Text>
-          <View style={styles.puces}>
-            {[...moisProposes].reverse().map(m => {
-              const du = moisCoches.includes(m)
-              const paye = moisPayes.includes(m)
-              return (
-                <TouchableOpacity key={m} onPress={() => basculer(m)}
-                  style={[styles.puce, du && styles.puceActive, paye && { backgroundColor: colors.successLight, borderColor: colors.success }]}>
-                  <Text style={[styles.puceTxt, du && styles.puceTxtActive, paye && { color: colors.successDark }]}>
-                    {libelleMois(m)}{du ? ' · dû' : paye ? ' · payé' : ''}{entame(m) ? ' · entamé' : ''}
-                  </Text>
-                </TouchableOpacity>
-              )
-            })}
-          </View>
-          <Text style={[styles.petit, { marginBottom: 6 }]}>
-            « Payé » = déjà payé avant la trésorerie : compte dans le résultat net, sans dette ni mouvement en banque.
-          </Text>
+          <PucesMois moisProposes={moisProposes} moisCoches={moisCoches} moisPayes={moisPayes} entame={entame} onBasculer={basculer} />
           <View style={[styles.ligne, { marginBottom: 10 }]}>
             <Text style={styles.ligneLabel}>Total dû pour ces mois</Text>
             <Text style={[styles.ligneValeur, { color: totalCoche ? colors.error : colors.success }]}>{fmt(totalCoche)} F</Text>
@@ -167,7 +186,7 @@ export function FeuilleReglageLoyers({ visible, donnees, user, onFermer, apres }
   )
 }
 
-// ── Jour limite commun (salaires, CNPS, impôts, ITS, TEE) ────────────────────
+// ── Jour limite commun (salaires, CNPS, timbre, ITS, TEE) ────────────────────
 
 export function FeuilleEcheance({ categorie, donnees, user, onFermer, apres }) {
   const { styles } = useStylesTreso()
@@ -211,7 +230,7 @@ export function FeuilleEcheance({ categorie, donnees, user, onFermer, apres }) {
   )
 }
 
-// ── Montants fixes (impôts, ITS, TEE) ────────────────────────────────────────
+// ── Montants fixes (timbre, ITS, TEE) ────────────────────────────────────────
 
 export function FeuilleMontantsFixes({ categorie, donnees, user, onFermer, apres }) {
   const { styles } = useStylesTreso()
@@ -277,6 +296,147 @@ export function FeuilleMontantsFixes({ categorie, donnees, user, onFermer, apres
           onChange={v => setValeurs(x => ({ ...x, [r.id]: v }))} placeholder="Pas de montant" />
       ))}
       <Bouton titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
+    </Feuille>
+  )
+}
+
+// ── Mois dus par restaurant (TEE, ITS, timbre, CNPS) ────────────────────────
+
+// Chaque restaurant n'est pas en retard du même nombre de mois : comme pour le
+// loyer, on dit pour chacun quels mois passés sont encore dus et lesquels ont
+// été payés avant la trésorerie. TEE, ITS, timbre : un montant mensuel fixe
+// (enregistré aussi comme montant du restaurant) ; CNPS : un montant par mois.
+export function FeuilleMoisRestaurants({ categorie, donnees, user, onFermer, apres }) {
+  const { styles, colors } = useStylesTreso()
+  const [restaurantId, setRestaurantId] = useState(null)
+  const [montant, setMontant] = useState('')
+  const [montants, setMontants] = useState({})
+  const [moisCoches, setMoisCoches] = useState([])
+  const [moisPayes, setMoisPayes] = useState([])
+  const [occupe, setOccupe] = useState(false)
+
+  const fixe = CATEGORIES_MONTANT_FIXE.includes(categorie)
+  const courant = premierDuMois(aujourdhuiISO())
+  const moisProposes = moisPassesProposes(courant)
+  const parDu = useMemo(() => paiementsParDu(donnees.paiements), [donnees])
+  const dusResto = donnees.dus.filter(d => d.categorie === categorie && d.restaurant_id === restaurantId)
+  const entame = m => dusResto.some(d => d.mois === m && (parDu[d.id] || []).some(p => p.source !== 'avant'))
+  const payeAvant = d => (parDu[d.id] || []).length > 0 && (parDu[d.id] || []).every(p => p.source === 'avant')
+  const resume = useMemo(
+    () => resumeLoyersParRestaurant(donnees.dus, donnees.paiements, courant, categorie),
+    [donnees, courant, categorie],
+  )
+  const fixeDe = id => (donnees.chargesFixes || []).find(f => f.categorie === categorie && f.restaurant_id === id)
+  // CNPS : un mois ajouté reprend le dernier montant connu du restaurant.
+  const dernierMontant = [...dusResto].sort((a, b) => (b.mois || '').localeCompare(a.mois || ''))[0]?.montant_du
+
+  useEffect(() => {
+    setRestaurantId(null)
+  }, [categorie])
+
+  useEffect(() => {
+    if (!restaurantId) return
+    const f = fixeDe(restaurantId)
+    setMontant(f?.actif ? String(f.montant) : '')
+    const proposes = dusResto.filter(d => moisProposes.includes(d.mois))
+    setMontants(Object.fromEntries(proposes.map(d => [d.mois, String(d.montant_du)])))
+    setMoisPayes(proposes.filter(payeAvant).map(d => d.mois))
+    setMoisCoches(proposes.filter(d => !payeAvant(d)).map(d => d.mois))
+  }, [restaurantId])
+
+  if (!categorie) return null
+
+  function basculer(m) {
+    basculerMois(m, { entame, moisCoches, moisPayes, setMoisCoches, setMoisPayes })
+    if (!fixe && !montants[m] && dernierMontant) setMontants(x => ({ ...x, [m]: String(dernierMontant) }))
+  }
+
+  const lire = t => (t ? parseInt(t, 10) || 0 : 0)
+  const voulus = [...moisCoches, ...moisPayes].sort().reverse()
+
+  async function enregistrer() {
+    if (!restaurantId) { Alert.alert('Restaurant manquant', 'Choisissez le restaurant.'); return }
+    const v = lire(montant)
+    if (fixe && !v) { Alert.alert('Montant manquant', 'Saisissez le montant mensuel.'); return }
+    if (!fixe) {
+      const vide = voulus.find(m => !entame(m) && !lire(montants[m]))
+      if (vide) { Alert.alert('Montant manquant', `Saisissez la CNPS de ${libelleMois(vide)}.`); return }
+    }
+    const plan = planReglageMois({
+      categorie, restaurantId, montant: v,
+      montantsParMois: fixe ? {} : Object.fromEntries(voulus.map(m => [m, lire(montants[m])])),
+      jourEcheance: jourCommun(donnees.echeances, categorie),
+      moisCoches, moisPayes, moisProposes, dusExistants: donnees.dus, paiements: donnees.paiements,
+    })
+    // Montant fixe : le mois en cours suit aussi le nouveau montant, s'il n'est pas entamé.
+    const enCours = fixe ? dusAMettreAJour({
+      categorie, restaurantId, montant: v,
+      dus: donnees.dus.filter(d => d.mois >= courant), paiements: donnees.paiements, aujourdhui: aujourdhuiISO(),
+    }) : []
+    setOccupe(true)
+    try {
+      await enregistrerMoisCharge({
+        categorie, restaurantId,
+        plan: { ...plan, aModifier: [...plan.aModifier, ...enCours] },
+        chargeFixe: fixe ? { montant: v, moisDepart: courant, actif: true } : null,
+      }, user)
+      await apres()
+      setRestaurantId(null)
+    } catch (e) {
+      Alert.alert('Non enregistré', e?.message || 'Réessayez.')
+      // Une partie a pu être enregistrée : repartir de l'état réel.
+      apres().catch(() => {})
+    } finally {
+      setOccupe(false)
+    }
+  }
+
+  const totalCoche = moisCoches.reduce((s, m) => {
+    const d = dusResto.find(x => x.mois === m)
+    if (d && entame(m)) return s + resteDu(d, parDu[d.id])
+    return s + (fixe ? lire(montant) : lire(montants[m]))
+  }, 0)
+  const nom = LIBELLES_CATEGORIE[categorie]
+
+  return (
+    <Feuille visible onFermer={onFermer} titre={`${nom} · mois dus par restaurant`}>
+      <Text style={[styles.petit, { marginBottom: 12 }]}>
+        Chaque restaurant a son propre retard : choisissez-le, puis indiquez les mois encore dus et ceux déjà payés.
+      </Text>
+      {donnees.restaurants.map(r => {
+        const f = fixeDe(r.id)
+        const doit = resume[r.id]?.reste || 0
+        const infos = [fixe ? (f?.actif ? `${fmt(f.montant)} F / mois` : 'pas de montant') : null, doit ? `doit ${fmt(doit)} F` : 'à jour']
+        return (
+          <TouchableOpacity key={r.id} style={[styles.item, restaurantId === r.id && { backgroundColor: colors.primaryLight }]}
+            onPress={() => setRestaurantId(r.id)}>
+            <Text style={[styles.itemTitre, { flex: 1 }]}>{r.nom}</Text>
+            <Text style={[styles.petit, doit ? { color: colors.error } : null]}>{infos.filter(Boolean).join(' · ')}</Text>
+          </TouchableOpacity>
+        )
+      })}
+
+      {restaurantId && (
+        <View style={[styles.carte, { marginTop: 12 }]}>
+          <Text style={[styles.itemTitre, { marginBottom: 10 }]}>{donnees.restaurants.find(r => r.id === restaurantId)?.nom}</Text>
+          {fixe && <ChampMontant label={`${nom} mensuel`} valeur={montant} onChange={setMontant} />}
+          <PucesMois moisProposes={moisProposes} moisCoches={moisCoches} moisPayes={moisPayes} entame={entame} onBasculer={basculer} />
+          {!fixe && voulus.filter(m => !entame(m)).map(m => (
+            <ChampMontant key={m} label={`${libelleMois(m)}${moisPayes.includes(m) ? ' · déjà payé' : ' · dû'}`}
+              valeur={montants[m] || ''} onChange={t => setMontants(x => ({ ...x, [m]: t }))} />
+          ))}
+          <View style={[styles.ligne, { marginBottom: 10 }]}>
+            <Text style={styles.ligneLabel}>Total dû pour ces mois</Text>
+            <Text style={[styles.ligneValeur, { color: totalCoche ? colors.error : colors.success }]}>{fmt(totalCoche)} F</Text>
+          </View>
+          <Text style={[styles.petit, { marginBottom: 10 }]}>
+            {fixe
+              ? `Le mois en cours et les suivants s'ajoutent tout seuls, dus le ${jourCommun(donnees.echeances, categorie)} du mois suivant.`
+              : `Le mois en cours se saisit avec « Saisir la CNPS d'un mois ».`}
+          </Text>
+          <Bouton titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
+        </View>
+      )}
     </Feuille>
   )
 }

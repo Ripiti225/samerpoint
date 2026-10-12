@@ -101,7 +101,7 @@ export default function TresorerieScreen() {
     [donnees, aujourdhui],
   )
 
-  // Le RH ne saisit que les charges (loyers, salaires, CNPS, impôts…) : on l'y
+  // Le RH ne saisit que les charges (loyers, salaires, CNPS, timbre…) : on l'y
   // emmène directement. <Redirect> plutôt que router.replace dans un effet : ce
   // dernier plantait quand la page était chargée directement (navigation avant
   // le montage du layout).
@@ -317,7 +317,7 @@ export default function TresorerieScreen() {
           <View style={styles.tuiles}>
             <Tuile icone="bank" couleur="#0E9F6E" titre="Banque et espèces" sous={`${fmt(s.banque + s.especes + s.tetes)} F`} detail="BACI · SIB · espèces · têtes de fond" route="/tresorerie-banque" />
             <Tuile icone="moped" couleur="#E11D48" titre="Partenaires" sous={`${fmt(s.partenaires)} F`} detail="à recevoir" route="/tresorerie-partenaires" />
-            <Tuile icone="clipboard-list" couleur="#2563EB" titre="À payer" detail="Loyers · salaires · CNPS · impôts…" route="/tresorerie-a-payer" />
+            <Tuile icone="clipboard-list" couleur="#2563EB" titre="À payer" detail="Loyers · salaires · CNPS · timbre…" route="/tresorerie-a-payer" />
             {peut(niveau, 'voir_dettes') && (
               <Tuile icone="notebook" couleur="#DC2626" titre="Dettes" sous={`${fmt(enDette('dette').reduce((x, d) => x + reste(d), 0))} F`} detail="à rembourser" route="/tresorerie-a-payer?onglet=dette" />
             )}
@@ -557,7 +557,7 @@ function FeuilleDroits({ visible, onFermer, droits, user, apres }) {
     <Feuille visible={visible} titre="Droits de la trésorerie" onFermer={onFermer}>
       <View style={styles.avert}>
         <Text style={styles.avertTxt}>
-          Par défaut : managers et directeur en lecture, RH en saisie des charges (loyers, salaires, CNPS, impôts, ITS, TEE, bail).
+          Par défaut : managers et directeur en lecture, RH en saisie des charges (loyers, salaires, CNPS, timbre, ITS, TEE, bail).
           Tant qu'aucun propriétaire n'est désigné, tous les managers ont tout.
           Ces droits règlent l'affichage dans l'app, pas l'accès à la base.
         </Text>

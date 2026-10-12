@@ -325,7 +325,7 @@ export default function AccueilManager({ items, role, userId, restaurantId }) {
 
 // ── Bandeau du compte RH : ses demandes et les charges à échéance ────────────
 // Les points des restaurants ne le concernent pas : à la place, les demandes
-// en attente et les échéances (salaires, CNPS, impôts…) d'aujourd'hui et demain.
+// en attente et les échéances (salaires, CNPS, timbre…) d'aujourd'hui et demain.
 
 function BandeauRH({ etat, styles, colors }) {
   const { demandes, treso } = etat

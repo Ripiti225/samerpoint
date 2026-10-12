@@ -1,6 +1,6 @@
 // ──────────────────────────────────────────────────────────────────────────────
 // Trésorerie — saisie groupée : tous les restaurants sur un seul écran.
-//  - un mois de salaires, CNPS, impôts, ITS ou TEE : un montant par restaurant ;
+//  - un mois de salaires, CNPS, timbre, ITS ou TEE : un montant par restaurant ;
 //  - une année de baux : montant + date limite par restaurant.
 // Une ligne déjà saisie apparaît préremplie et se corrige ici, sauf si un
 // paiement a déjà été fait (elle se corrige alors depuis son détail).
@@ -25,7 +25,7 @@ import { Bouton, Feuille, Puces, useStylesTreso } from './commun'
 const TITRES = {
   salaire: 'État de salaires',
   cnps: 'Déclaration CNPS',
-  impot: 'Impôts du mois',
+  impot: 'Timbre du mois',
   its: 'ITS du mois',
   tee: 'TEE du mois',
 }
@@ -93,7 +93,7 @@ export function FeuilleSaisieMois({ categorie, donnees, user, onFermer, apres })
   }, [categorie])
 
   // Préremplissage : la ligne du mois si elle existe ; sinon, pour un montant
-  // fixe (impôts, ITS, TEE), le montant réglé du restaurant.
+  // fixe (timbre, ITS, TEE), le montant réglé du restaurant.
   useEffect(() => {
     if (!categorie || !mois) return
     const fixes = Object.fromEntries((donnees.chargesFixes || [])

@@ -1,5 +1,5 @@
 // ──────────────────────────────────────────────────────────────────────────────
-// Trésorerie — À payer : loyers, salaires, CNPS, impôts, ITS, TEE, baux, puis
+// Trésorerie — À payer : loyers, salaires, CNPS, timbre, ITS, TEE, baux, puis
 // la dette récente et les dettes.
 //
 // Tout se paie après coup : la charge du mois M est due au jour limite de M+1.
@@ -20,7 +20,7 @@ import {
 } from '../components/tresorerie/commun'
 import { Badge, FeuilleDetail, FeuillePaiement, FeuillePrevision, couleursStatut, titreDu } from '../components/tresorerie/du'
 import { HistoriqueDettesRemboursees, HistoriqueLoyersPayes } from '../components/tresorerie/historique'
-import { FeuilleEcheance, FeuilleMontantsFixes, FeuilleReglageLoyers } from '../components/tresorerie/reglagesCharges'
+import { FeuilleEcheance, FeuilleMoisRestaurants, FeuilleMontantsFixes, FeuilleReglageLoyers } from '../components/tresorerie/reglagesCharges'
 import { FeuilleSaisieBaux, FeuilleSaisieMois } from '../components/tresorerie/saisieGroupee'
 import {
   CATEGORIES_JOUR_COMMUN, CATEGORIES_MONTANT_FIXE, CATEGORIES_SERIE, LIBELLES_CATEGORIE, LIBELLES_ONGLET,
@@ -41,6 +41,9 @@ const TITRES_SAISIE = {
 
 const EN_RETARD = ['dette_recente', 'dette']
 
+// Chaque restaurant a son propre retard : mois dus / déjà payés, un par un.
+const MOIS_PAR_RESTAURANT = ['tee', 'its', 'impot', 'cnps']
+
 export default function TresorerieAPayerScreen() {
   const { styles, colors } = useStylesTreso()
   const params = useLocalSearchParams()
@@ -54,7 +57,7 @@ export default function TresorerieAPayerScreen() {
   const [edition, setEdition] = useState(null)      // dû en création / modification
   const [paiement, setPaiement] = useState(null)    // { du, prevision? } ou { categorie: 'loyer', restaurantId }
   const [prevoir, setPrevoir] = useState(null)      // dû dont on prévoit le paiement
-  const [reglage, setReglage] = useState(null)      // 'loyer' | 'echeance' | 'montants' | 'bail' | 'mois'
+  const [reglage, setReglage] = useState(null)      // 'loyer' | 'echeance' | 'montants' | 'moisResto' | 'bail' | 'mois'
 
   useEffect(() => {
     if (onglets.length && !onglets.includes(onglet)) setOnglet(onglets[0])
@@ -167,6 +170,9 @@ export default function TresorerieAPayerScreen() {
               {onglet === 'bail' && peut(niveau, 'saisir_charges') && (
                 <Bouton icone="file-sign" titre="Saisir les baux d'une année" onPress={() => setReglage('bail')} />
               )}
+              {MOIS_PAR_RESTAURANT.includes(onglet) && peut(niveau, 'saisir_charges') && (
+                <Bouton secondaire icone="calendar-month" titre="Mois dus par restaurant" onPress={() => setReglage('moisResto')} />
+              )}
               {CATEGORIES_JOUR_COMMUN.includes(onglet) && peut(niveau, 'saisir_charges') && (
                 <Bouton secondaire icone="calendar-edit" titre="Changer la date limite" onPress={() => setReglage('echeance')} />
               )}
@@ -205,6 +211,8 @@ export default function TresorerieAPayerScreen() {
           <FeuilleEcheance categorie={reglage === 'echeance' ? onglet : null} donnees={donnees} user={user}
             onFermer={() => setReglage(null)} apres={recharger} />
           <FeuilleMontantsFixes categorie={reglage === 'montants' ? onglet : null} donnees={donnees} user={user}
+            onFermer={() => setReglage(null)} apres={recharger} />
+          <FeuilleMoisRestaurants categorie={reglage === 'moisResto' ? onglet : null} donnees={donnees} user={user}
             onFermer={() => setReglage(null)} apres={recharger} />
           <FeuilleSaisieBaux visible={reglage === 'bail'} donnees={donnees} user={user}
             onFermer={() => setReglage(null)} apres={recharger} />
@@ -298,7 +306,7 @@ function ListeLoyers({ dus, loyers, paiements, parDu, classement, aujourdhui, no
   )
 }
 
-// ── Salaires, CNPS, impôts, ITS, TEE, baux : regroupés par mois consommé ────
+// ── Salaires, CNPS, timbre, ITS, TEE, baux : regroupés par mois consommé ────
 
 function ListeDus({ categorie, dus, parDu, classement, aujourdhui, moisCourant, nomResto, restantsSeulement, onOuvrir }) {
   const { styles, colors } = useStylesTreso()

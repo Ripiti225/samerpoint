@@ -1,6 +1,6 @@
 // ──────────────────────────────────────────────────────────────────────────────
 // Trésorerie — historique d'un restaurant : tout ce qu'il a dû et payé, mois par
-// mois (loyer, salaires, CNPS, impôts, ITS, TEE, bail, autres charges), et tout
+// mois (loyer, salaires, CNPS, timbre, ITS, TEE, bail, autres charges), et tout
 // ce qui a circulé avec lui (fonds donnés, dépenses direction, espèces reprises,
 // partenaires reçus, pubs, cotisations), avec le choix du mois ou de l'année.
 // Un appui sur une charge ouvre son détail.
