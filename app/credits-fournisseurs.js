@@ -1,7 +1,9 @@
 /*
  * SQL: Tables already exist (créées par le fichier d'origine).
  * Statut automatique : credit_actuel >= 0 → Fournisseur / credit_actuel < 0 → Cotisation
- * Champ "type" supprimé — plus de sélection manuelle.
+ * Fournisseurs administratifs (type « administratif » : TEE, CNPS, bail…) à part,
+ * onglet Administratifs ; « Dû aux fournisseurs » et « Dû aux administrations »
+ * côte à côte en haut (lib/fournisseursAdmin.js).
  *
  * Optionnel pour enrichir l'historique :
  *   ALTER TABLE historique_credit_fournisseurs ADD COLUMN IF NOT EXISTS montant NUMERIC
@@ -10,7 +12,7 @@
 
 import * as FileSystem from 'expo-file-system/legacy'
 import * as Print from 'expo-print'
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import * as Sharing from 'expo-sharing'
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -21,6 +23,8 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import * as XLSX from 'xlsx'
 import ChampDate from '../components/ChampDate'
+import FeuilleFournisseurAdmin from '../components/fournisseurs/FeuilleFournisseurAdmin'
+import FeuillePaiementDirection from '../components/fournisseurs/FeuillePaiementDirection'
 import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
@@ -31,6 +35,7 @@ import {
   restaurerPhotosFacturesDepuisPoints,
 } from '../lib/creditsFournisseurs'
 import { appliquerFacturesMensuelles } from '../lib/facturesMensuelles'
+import { estAdministratif, libelleEcheance, separerFournisseurs, totalDu as totalDuListe } from '../lib/fournisseursAdmin'
 import { journaliser } from '../lib/journal'
 import { chargerDerniersRestes } from '../lib/derniersRestesFournisseurs'
 import { supabase } from '../lib/supabase'
@@ -85,6 +90,12 @@ export default function CreditsFournisseursScreen() {
   const isRH = roleActif === 'rh'
   const peutModifier = roleActif === 'manager' || roleActif === 'directeur'
   const peutVoirRestaurants = peutModifier || isRH
+  // Créer / régler les fournisseurs administratifs : RH aussi.
+  const peutGererAdmin = peutModifier || isRH
+  const params = useLocalSearchParams()
+  const [ongletCredits, setOngletCredits] = useState(params.onglet === 'administratifs' ? 'administratifs' : 'fournisseurs')
+  const [feuilleAdmin, setFeuilleAdmin] = useState(null)       // { f: fiche | null }
+  const [paiementDirection, setPaiementDirection] = useState(null) // fiche administrative
 
   const [restaurants, setRestaurants] = useState([])
   const [restoFilter, setRestoFilter] = useState(() => _restoFilterCache)
@@ -151,8 +162,9 @@ export default function CreditsFournisseursScreen() {
       restos.forEach(r => { restoMap[r.id] = r.nom })
       if (isGerant) restoMap[restaurantId] = restaurantNom || ''
 
+      // '*' : type, échéance automatique (colonnes ajoutées par migration).
       let query = supabase.from('fournisseurs')
-        .select('id, nom, credit_actuel, restaurant_id')
+        .select('*')
         .eq('actif', true)
       if (isGerant) query = query.eq('restaurant_id', restaurantId)
       else if (restoFilter) query = query.eq('restaurant_id', restoFilter)
@@ -420,8 +432,10 @@ export default function CreditsFournisseursScreen() {
     try {
       const { fourn, mouvements, restoMap } = await fetchExportData()
       const { dateDebut, dateFin, restoId } = exportFilters
-      const fournList = fourn.filter(f => (f.credit_actuel || 0) >= 0)
-      const cotisList = fourn.filter(f => (f.credit_actuel || 0) < 0)
+      const { marchandise, administratifs: adminList } = separerFournisseurs(fourn)
+      const fournList = marchandise.filter(f => (f.credit_actuel || 0) >= 0)
+      const cotisList = marchandise.filter(f => (f.credit_actuel || 0) < 0)
+      const totalAdmin = totalDuListe(adminList)
       const totalDu = fournList.reduce((s, f) => s + (f.credit_actuel || 0), 0)
       const totalAvances = cotisList.reduce((s, f) => s + Math.abs(f.credit_actuel || 0), 0)
       const fournMap = {}
@@ -441,10 +455,11 @@ td{padding:6px;border-bottom:0.5px solid #eee;font-size:10px}
 .rouge{color:#A32D2D;font-weight:700}.vert{color:#3B6D11;font-weight:700}
 .ft{font-size:9px;color:#aaa;text-align:center;margin-top:20px}
 </style></head><body>
-<h1>📋 Fournisseurs &amp; Cotisations</h1>
+<h1>📋 Fournisseurs, cotisations &amp; administrations</h1>
 <div class="sub">Période : ${fmtDate(dateDebut)} → ${fmtDate(dateFin)}${restoId ? ' · ' + (restoMap[restoId] || '') : ''}</div>
 <div class="kpis">
-  <div class="kpi"><div class="kl">Total dû</div><div class="kv rouge">${fmt(totalDu)}</div></div>
+  <div class="kpi"><div class="kl">Dû aux fournisseurs</div><div class="kv rouge">${fmt(totalDu)}</div></div>
+  <div class="kpi"><div class="kl">Dû aux administrations</div><div class="kv rouge">${fmt(totalAdmin)}</div></div>
   <div class="kpi"><div class="kl">Avances reçues</div><div class="kv vert">${fmt(totalAvances)}</div></div>
   <div class="kpi"><div class="kl">Fournisseurs actifs</div><div class="kv">${fourn.length}</div></div>
 </div>
@@ -461,6 +476,13 @@ ${cotisList.length === 0 ? '<tr><td colspan="4" style="color:#999">Aucune</td></
   `<tr><td><strong>${f.nom}</strong></td><td>${f.restaurant_nom || ''}</td><td class="vert">${fmt(Math.abs(f.credit_actuel || 0))}</td><td>🟢 Avance</td></tr>`
 ).join('')}
 ${cotisList.length > 0 ? `<tr class="tot"><td colspan="2">Total</td><td class="vert">${fmt(totalAvances)}</td><td></td></tr>` : ''}
+</tbody></table>
+<h2 style="background:#EDE9FE;color:#5B21B6">🏛 ADMINISTRATIONS (impôts, CNPS, bail…)</h2>
+<table><thead><tr><th>Fournisseur</th><th>Restaurant</th><th>Crédit dû</th><th>Statut</th></tr></thead><tbody>
+${adminList.length === 0 ? '<tr><td colspan="4" style="color:#999">Aucun</td></tr>' : adminList.map(f =>
+  `<tr><td><strong>${f.nom}</strong></td><td>${f.restaurant_nom || ''}</td><td class="${(f.credit_actuel || 0) < 0 ? 'vert' : 'rouge'}">${fmt(Math.abs(f.credit_actuel || 0))}</td><td>${(f.credit_actuel || 0) > 0 ? '🔴 Doit' : (f.credit_actuel || 0) < 0 ? '🟢 Avance' : '✅ Soldé'}</td></tr>`
+).join('')}
+${adminList.length > 0 ? `<tr class="tot"><td colspan="2">Total dû</td><td class="rouge">${fmt(totalAdmin)}</td><td></td></tr>` : ''}
 </tbody></table>
 ${mouvements.length > 0 ? `
 <h2 style="background:#f0f0f8;color:#534AB7">📋 Mouvements de la période</h2>
@@ -504,8 +526,10 @@ ${mouvements.map(m => {
       const fournMap = {}
       fourn.forEach(f => { fournMap[f.id] = f })
 
-      const fournList = fourn.filter(f => (f.credit_actuel || 0) >= 0)
-      const cotisList = fourn.filter(f => (f.credit_actuel || 0) < 0)
+      const { marchandise, administratifs: adminList } = separerFournisseurs(fourn)
+      const fournList = marchandise.filter(f => (f.credit_actuel || 0) >= 0)
+      const cotisList = marchandise.filter(f => (f.credit_actuel || 0) < 0)
+      const aujourdhui = aujourdhuiISO()
 
       const sheetFourn = [
         ['Fournisseur', 'Restaurant', 'Crédit dû', 'Statut'],
@@ -518,6 +542,12 @@ ${mouvements.map(m => {
         ...cotisList.map(f => [f.nom, f.restaurant_nom, Math.abs(f.credit_actuel || 0), 'Avance']),
         ['', '', '', ''],
         ['TOTAL', '', cotisList.reduce((s, f) => s + Math.abs(f.credit_actuel || 0), 0), ''],
+      ]
+      const sheetAdmin = [
+        ['Fournisseur', 'Restaurant', 'Crédit dû', 'Échéance'],
+        ...adminList.map(f => [f.nom, f.restaurant_nom, f.credit_actuel || 0, libelleEcheance(f, aujourdhui)]),
+        ['', '', '', ''],
+        ['TOTAL DÛ', '', totalDuListe(adminList), ''],
       ]
       const sheetMouv = [
         ['Date', 'Fournisseur', 'Restaurant', 'Mouvement', 'Solde après', 'Motif'],
@@ -538,6 +568,7 @@ ${mouvements.map(m => {
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetFourn), 'Fournisseurs')
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetCotis), 'Cotisations')
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetAdmin), 'Administrations')
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetMouv), 'Mouvements')
 
       const filename = `fournisseurs-credits-${dateDebut}-${dateFin}.xlsx`
@@ -658,6 +689,9 @@ ${mouvements.map(m => {
             {peutVoirRestaurants && f.restaurant_nom ? (
               <Text style={styles.cardResto} numberOfLines={1}>{f.restaurant_nom}</Text>
             ) : null}
+            {estAdministratif(f) ? (
+              <Text style={styles.cardResto} numberOfLines={1}>{libelleEcheance(f, aujourdhuiISO())}</Text>
+            ) : null}
           </View>
           <View style={[styles.badge, { backgroundColor: ton.bg }]}>
             <MaterialCommunityIcons name={ton.icone} size={13} color={ton.c} />
@@ -688,7 +722,22 @@ ${mouvements.map(m => {
               <Text style={[styles.cardBtnTxt, { color: colors.primary }]}>Modifier</Text>
             </TouchableOpacity>
           )}
-          {isCotisation && peutModifier && (
+          {estAdministratif(f) && peutModifier && (
+            <TouchableOpacity
+              style={[styles.cardBtn, { backgroundColor: colors.successLight }]}
+              onPress={() => setPaiementDirection(f)}
+            >
+              <MaterialCommunityIcons name="cash-check" size={16} color={colors.successDark} />
+              <Text style={[styles.cardBtnTxt, { color: colors.successDark }]}>Payé par la direction</Text>
+            </TouchableOpacity>
+          )}
+          {peutGererAdmin && (
+            <TouchableOpacity style={styles.cardBtn} onPress={() => setFeuilleAdmin({ f })}>
+              <MaterialCommunityIcons name={estAdministratif(f) ? 'cog-outline' : 'bank-transfer'} size={16} color={colors.textSecondary} />
+              <Text style={styles.cardBtnTxt}>{estAdministratif(f) ? 'Réglages' : 'Passer en administratif'}</Text>
+            </TouchableOpacity>
+          )}
+          {isCotisation && peutModifier && !estAdministratif(f) && (
             <TouchableOpacity
               style={[styles.cardBtn, { backgroundColor: colors.successLight }]}
               onPress={() => remettreAZero(f)}
@@ -779,7 +828,7 @@ ${mouvements.map(m => {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        {entete('Crédits et cotisations')}
+        {entete('Crédits')}
         <View style={styles.loadingBox}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
@@ -787,10 +836,19 @@ ${mouvements.map(m => {
     )
   }
 
-  const fournList = fournisseurs.filter(f => (f.credit_actuel || 0) >= 0)
-  const cotisList = fournisseurs.filter(f => (f.credit_actuel || 0) < 0)
+  const { marchandise, administratifs } = separerFournisseurs(fournisseurs)
+  const fournList = marchandise.filter(f => (f.credit_actuel || 0) >= 0)
+  const cotisList = marchandise.filter(f => (f.credit_actuel || 0) < 0)
   const totalDu = fournList.reduce((s, f) => s + (f.credit_actuel || 0), 0)
   const totalAvances = cotisList.reduce((s, f) => s + Math.abs(f.credit_actuel || 0), 0)
+  const totalAdmin = totalDuListe(administratifs)
+  const ongletAdmin = ongletCredits === 'administratifs'
+
+  // Mouvements d'un mois : ceux de l'onglet choisi seulement.
+  const idsAdmin = new Set(administratifs.map(f => f.id))
+  const mouvAffiches = (mouvMois?.parFourn || []).filter(g => idsAdmin.has(g.id) === ongletAdmin)
+  const totalFactureMois = mouvAffiches.reduce((s, g) => s + (g.facture || 0), 0)
+  const totalPayeMois = mouvAffiches.reduce((s, g) => s + (g.paye || 0), 0)
 
   // Aperçu en temps réel dans le formulaire
   if (roleActif === 'caissier') return null
@@ -801,13 +859,26 @@ ${mouvements.map(m => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {entete(`Crédits et cotisations · ${fournisseurs.length} actif${fournisseurs.length > 1 ? 's' : ''}`)}
+      {entete(`Crédits · ${fournisseurs.length} actif${fournisseurs.length > 1 ? 's' : ''}`)}
 
       <ScrollView style={styles.body} contentContainerStyle={styles.bodyContenu} showsVerticalScrollIndicator={false}>
         {/* Résumé */}
+        {/* Ce qu'on doit vraiment aux fournisseurs, et ce qu'on doit aux administrations */}
         <View style={styles.kpiRow}>
-          {tuileKpi('alert-circle-outline', 'Total dû', fmt(totalDu), colors.error, colors.errorLight)}
-          {tuileKpi('arrow-down-circle-outline', 'Avances reçues', fmt(totalAvances), colors.successDark, colors.successLight)}
+          {tuileKpi('truck-outline', 'Dû aux fournisseurs', fmt(totalDu), colors.error, colors.errorLight)}
+          {tuileKpi('bank-outline', 'Dû aux administrations', fmt(totalAdmin), '#7C3AED', '#EDE9FE')}
+        </View>
+
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+          {[
+            { cle: 'fournisseurs', label: `Fournisseurs · ${marchandise.length}` },
+            { cle: 'administratifs', label: `Administratifs · ${administratifs.length}` },
+          ].map(o => (
+            <TouchableOpacity key={o.cle} style={[styles.moisChip, { flex: 1, alignItems: 'center' }, ongletCredits === o.cle && styles.moisChipActive]}
+              onPress={() => setOngletCredits(o.cle)}>
+              <Text style={[styles.moisChipTxt, ongletCredits === o.cle && styles.moisChipTxtActive]}>{o.label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         {/* Outils du manager */}
@@ -867,16 +938,16 @@ ${mouvements.map(m => {
           ) : (
             <>
               <View style={styles.kpiRow}>
-                {tuileKpi('receipt-text-outline', `Factures ${moisLabel(moisSel)}`, fmt(mouvMois?.totalFacture || 0), colors.error, colors.errorLight)}
-                {tuileKpi('cash-check', `Payé ${moisLabel(moisSel)}`, fmt(mouvMois?.totalPaye || 0), colors.successDark, colors.successLight)}
+                {tuileKpi('receipt-text-outline', `Factures ${moisLabel(moisSel)}`, fmt(totalFactureMois), colors.error, colors.errorLight)}
+                {tuileKpi('cash-check', `Payé ${moisLabel(moisSel)}`, fmt(totalPayeMois), colors.successDark, colors.successLight)}
               </View>
-              {titreSection('calendar-month-outline', 'Mouvements du mois', `${mouvMois?.parFourn?.length || 0} fournisseur(s)`, colors.primary, colors.primaryLight)}
-              {(mouvMois?.parFourn?.length || 0) === 0 ? (
+              {titreSection('calendar-month-outline', 'Mouvements du mois', `${mouvAffiches.length} fournisseur(s)`, colors.primary, colors.primaryLight)}
+              {mouvAffiches.length === 0 ? (
                 <View style={styles.emptySection}>
                   <Text style={styles.emptySectionTxt}>Aucun mouvement enregistré ce mois</Text>
                 </View>
               ) : (
-                mouvMois.parFourn.map(g => (
+                mouvAffiches.map(g => (
                   <View key={g.id} style={styles.moisCard}>
                     <View style={styles.moisCardHeader}>
                       <Text style={styles.moisCardNom} numberOfLines={1}>{g.nom}</Text>
@@ -917,6 +988,24 @@ ${mouvements.map(m => {
               )}
             </>
           )
+        ) : ongletAdmin ? (
+          <>
+            {/* ─── Section Administrations ─── */}
+            {titreSection('bank-outline', 'Administrations', `${administratifs.length} · ${fmt(totalAdmin)}`, '#7C3AED', '#EDE9FE')}
+            {peutGererAdmin && (
+              <TouchableOpacity style={[styles.outilBtn, { marginBottom: 10 }]} onPress={() => setFeuilleAdmin({ f: null })}>
+                <MaterialCommunityIcons name="plus" size={17} color={colors.primary} />
+                <Text style={styles.outilTxt}>Fournisseur administratif</Text>
+              </TouchableOpacity>
+            )}
+            {administratifs.length === 0 ? (
+              <View style={styles.emptySection}>
+                <Text style={styles.emptySectionTxt}>Aucun fournisseur administratif. Créez-en un, ou « Passer en administratif » sur une fiche de l'onglet Fournisseurs (CNPS, TEE, ITS, Impôt, Bail…).</Text>
+              </View>
+            ) : (
+              administratifs.map(f => renderCard(f))
+            )}
+          </>
         ) : (
           <>
             {/* ─── Section Fournisseurs ─── */}
@@ -1331,6 +1420,18 @@ ${mouvements.map(m => {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      <FeuilleFournisseurAdmin
+        visible={!!feuilleAdmin} fournisseur={feuilleAdmin?.f || null} restaurants={restaurants}
+        restaurantParDefaut={isGerant ? restaurantId : restoFilter} userId={userId} userNom={userNom} styles={styles}
+        onFermer={() => setFeuilleAdmin(null)}
+        onEnregistre={() => { setFeuilleAdmin(null); charger() }}
+      />
+      <FeuillePaiementDirection
+        fournisseur={paiementDirection} userId={userId} userNom={userNom} styles={styles}
+        onFermer={() => setPaiementDirection(null)}
+        onEnregistre={() => { setPaiementDirection(null); charger() }}
+      />
 
       {/* ── Modal : Export ── */}
       <Modal visible={showExportModal} animationType="slide" presentationStyle="formSheet">
