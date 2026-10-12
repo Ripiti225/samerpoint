@@ -31,6 +31,7 @@ import { decisionEcartShiftPOS, SOURCE_DECISION_POS } from '../lib/ecartPOS'
 import { preparerEntreesVerification } from '../lib/entreesVerification'
 import { venteRetenue, venteTheorique } from '../lib/venteMachine'
 import VenteDouble from '../components/ui/VenteDouble'
+import FeuilleTransfertFond from '../components/tresorerie/FeuilleTransfertFond'
 import { photosCanalDisponibles } from '../lib/photosVerification'
 import {
   alertesPoint, bornesDuMois, libelleMoisLong, moisVoisin, organiserPoints, ventesParCanal,
@@ -94,6 +95,7 @@ export default function VerificationScreen() {
   const [refreshing, setRefreshing] = useState(false)
   const [pointSelectionne, setPointSelectionne] = useState(null)
   const [modalPoint, setModalPoint] = useState(false)
+  const [transfertFondOuvert, setTransfertFondOuvert] = useState(false) // « Remettre le fond à 0 »
   const [detailPoint, setDetailPoint] = useState(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [modalPhoto, setModalPhoto] = useState(false)
@@ -2074,6 +2076,14 @@ export default function VerificationScreen() {
                         <Text style={[styles.recapLabel, { fontWeight: '700' }]}>Reste + Fc</Text>
                         <Text style={[styles.recapVal, { color: colors.primary, fontWeight: '700' }]}>{fmt((p?.reste_fc || 0) + (p?.ajustement_fond || 0))}</Text>
                       </View>
+                      {/* Fond négatif : le manager le remet à 0 (dette administration ou Report caisse). */}
+                      {roleActif === 'manager' && ((p?.reste_fc || 0) + (p?.ajustement_fond || 0)) < 0 && (
+                        <TouchableOpacity onPress={() => setTransfertFondOuvert(true)}
+                          style={{ alignSelf: 'flex-end', paddingVertical: 8 }}
+                          accessibilityRole="button" accessibilityLabel="Remettre le fond à 0">
+                          <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>Remettre le fond à 0 →</Text>
+                        </TouchableOpacity>
+                      )}
 
                       <View style={styles.recapSep} />
 
@@ -4029,6 +4039,19 @@ export default function VerificationScreen() {
               </TouchableOpacity>
             </View>
           </Modal>
+
+          {/* Dans la modale du point : sur iOS, une modale ouverte depuis une autre doit y être rendue. */}
+          <FeuilleTransfertFond
+            restaurantId={transfertFondOuvert ? pointSelectionne?.restaurant_id : null}
+            nomResto={(restaurants.find(r => r.id === pointSelectionne?.restaurant_id)?.nom || '').trim()}
+            user={{ userId, userNom }}
+            peutTransferer={roleActif === 'manager'}
+            onFermer={() => setTransfertFondOuvert(false)}
+            apres={async () => {
+              const { data } = await supabase.from('points').select('*').eq('id', pointSelectionne.id).single()
+              if (data) setPointSelectionne(prev => (prev?.id === data.id ? { ...prev, ...data } : prev))
+            }}
+          />
 
         </SafeAreaView>
       </Modal>
