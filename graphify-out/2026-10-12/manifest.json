@@ -306,9 +306,9 @@
     "semantic_hash": ""
   },
   "app/verification.js": {
-    "mtime": 1791369624.05077,
-    "seen": 1791369656.187277,
-    "ast_hash": "513d2a4c876da5993c6b6316e4cc374e",
+    "mtime": 1791808960.8496087,
+    "seen": 1791809003.185256,
+    "ast_hash": "685fac7048f3341e8a621fa2a99732ca",
     "semantic_hash": ""
   },
   "components/FicheContrat.js": {
@@ -1506,9 +1506,9 @@
     "semantic_hash": ""
   },
   "app/tresorerie.js": {
-    "mtime": 1791724827.822677,
-    "seen": 1791724875.171707,
-    "ast_hash": "92ddd276e4926c65495365f36c0c7b81",
+    "mtime": 1791808935.0202072,
+    "seen": 1791809003.1852539,
+    "ast_hash": "16d3063d31e9dc9034e14aa2864f5469",
     "semantic_hash": ""
   },
   "components/BarreComparaison.js": {
@@ -1692,15 +1692,15 @@
     "semantic_hash": ""
   },
   "lib/alertes.js": {
-    "mtime": 1791236471.2595537,
-    "seen": 1791236483.812855,
-    "ast_hash": "f11f4cbf5f34fcca8d09164defd64b36",
+    "mtime": 1791808823.5365813,
+    "seen": 1791809003.185299,
+    "ast_hash": "83ad2d24595a4c8233549101eb6f1da8",
     "semantic_hash": ""
   },
   "lib/alertes.test.mjs": {
-    "mtime": 1791236471.2597752,
-    "seen": 1791236483.812855,
-    "ast_hash": "992052b4c27224341919eefa3c1a9a0c",
+    "mtime": 1791808802.7417257,
+    "seen": 1791809003.185299,
+    "ast_hash": "61a14f14ffcdb2178e2abb0ca1074133",
     "semantic_hash": ""
   },
   "lib/alertesDb.js": {
@@ -2847,6 +2847,48 @@
     "mtime": 1791727211.446594,
     "seen": 1791727305.206777,
     "ast_hash": "45e2a67434e3dec2614853d6dd889474",
+    "semantic_hash": ""
+  },
+  "components/tresorerie/FeuilleTransfertFond.js": {
+    "mtime": 1791808912.6937902,
+    "seen": 1791809003.185282,
+    "ast_hash": "90bfdda8e5343bf508f20490957f56cf",
+    "semantic_hash": ""
+  },
+  "lib/transfertFond.js": {
+    "mtime": 1791808822.4981816,
+    "seen": 1791809003.1853812,
+    "ast_hash": "e59a172335500bc9a46b2ff1ff7363fd",
+    "semantic_hash": ""
+  },
+  "lib/transfertFond.test.mjs": {
+    "mtime": 1791808803.775401,
+    "seen": 1791809003.185382,
+    "ast_hash": "e4addad30b055e9e4ea97205cabc46f0",
+    "semantic_hash": ""
+  },
+  "lib/transfertFondDb.js": {
+    "mtime": 1791808912.6936784,
+    "seen": 1791809003.185382,
+    "ast_hash": "154ed01d9a3de11a97fa509fae3b07e5",
+    "semantic_hash": ""
+  },
+  "supabase_fond_transferts.sql": {
+    "mtime": 1791808903.7843153,
+    "seen": 1791809003.185411,
+    "ast_hash": "2bae6c332f5892c75046b263fa938e65",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-12-fond-negatif-transfert.md": {
+    "mtime": 1791808903.7847924,
+    "seen": 1791809003.185445,
+    "ast_hash": "fac0f89150ac701454c86e18f065b631",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-12-fond-negatif-transfert-design.md": {
+    "mtime": 1791808616.1488771,
+    "seen": 1791809003.185455,
+    "ast_hash": "508d16b71c258add249d2c6c060647b7",
     "semantic_hash": ""
   }
 }
