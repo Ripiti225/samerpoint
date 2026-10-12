@@ -35,6 +35,7 @@ import {
   restaurerPhotosFacturesDepuisPoints,
 } from '../lib/creditsFournisseurs'
 import { appliquerFacturesMensuelles } from '../lib/facturesMensuelles'
+import { estDroitAncienTravailleur, sousTitreDepart } from '../lib/droitsAnciensTravailleurs'
 import { estAdministratif, libelleEcheance, separerFournisseurs, totalDu as totalDuListe } from '../lib/fournisseursAdmin'
 import { journaliser } from '../lib/journal'
 import { chargerDerniersRestes } from '../lib/derniersRestesFournisseurs'
@@ -480,7 +481,7 @@ ${cotisList.length > 0 ? `<tr class="tot"><td colspan="2">Total</td><td class="v
 <h2 style="background:#EDE9FE;color:#5B21B6">🏛 ADMINISTRATIONS (impôts, CNPS, bail…)</h2>
 <table><thead><tr><th>Fournisseur</th><th>Restaurant</th><th>Crédit dû</th><th>Statut</th></tr></thead><tbody>
 ${adminList.length === 0 ? '<tr><td colspan="4" style="color:#999">Aucun</td></tr>' : adminList.map(f =>
-  `<tr><td><strong>${f.nom}</strong></td><td>${f.restaurant_nom || ''}</td><td class="${(f.credit_actuel || 0) < 0 ? 'vert' : 'rouge'}">${fmt(Math.abs(f.credit_actuel || 0))}</td><td>${(f.credit_actuel || 0) > 0 ? '🔴 Doit' : (f.credit_actuel || 0) < 0 ? '🟢 Avance' : '✅ Soldé'}</td></tr>`
+  `<tr><td><strong>${f.nom}</strong>${estDroitAncienTravailleur(f) ? ` <span style="color:#999">(${sousTitreDepart(f)})</span>` : ''}</td><td>${f.restaurant_nom || ''}</td><td class="${(f.credit_actuel || 0) < 0 ? 'vert' : 'rouge'}">${fmt(Math.abs(f.credit_actuel || 0))}</td><td>${(f.credit_actuel || 0) > 0 ? '🔴 Doit' : (f.credit_actuel || 0) < 0 ? '🟢 Avance' : '✅ Soldé'}</td></tr>`
 ).join('')}
 ${adminList.length > 0 ? `<tr class="tot"><td colspan="2">Total dû</td><td class="rouge">${fmt(totalAdmin)}</td><td></td></tr>` : ''}
 </tbody></table>
@@ -545,7 +546,7 @@ ${mouvements.map(m => {
       ]
       const sheetAdmin = [
         ['Fournisseur', 'Restaurant', 'Crédit dû', 'Échéance'],
-        ...adminList.map(f => [f.nom, f.restaurant_nom, f.credit_actuel || 0, libelleEcheance(f, aujourdhui)]),
+        ...adminList.map(f => [f.nom, f.restaurant_nom, f.credit_actuel || 0, estDroitAncienTravailleur(f) ? sousTitreDepart(f) : libelleEcheance(f, aujourdhui)]),
         ['', '', '', ''],
         ['TOTAL DÛ', '', totalDuListe(adminList), ''],
       ]
@@ -690,7 +691,9 @@ ${mouvements.map(m => {
               <Text style={styles.cardResto} numberOfLines={1}>{f.restaurant_nom}</Text>
             ) : null}
             {estAdministratif(f) ? (
-              <Text style={styles.cardResto} numberOfLines={1}>{libelleEcheance(f, aujourdhuiISO())}</Text>
+              <Text style={styles.cardResto} numberOfLines={1}>
+                {estDroitAncienTravailleur(f) ? `Ancien travailleur · ${sousTitreDepart(f)}` : libelleEcheance(f, aujourdhuiISO())}
+              </Text>
             ) : null}
           </View>
           <View style={[styles.badge, { backgroundColor: ton.bg }]}>
@@ -731,7 +734,7 @@ ${mouvements.map(m => {
               <Text style={[styles.cardBtnTxt, { color: colors.successDark }]}>Payé par la direction</Text>
             </TouchableOpacity>
           )}
-          {peutGererAdmin && (
+          {peutGererAdmin && !estDroitAncienTravailleur(f) && (
             <TouchableOpacity style={styles.cardBtn} onPress={() => setFeuilleAdmin({ f })}>
               <MaterialCommunityIcons name={estAdministratif(f) ? 'cog-outline' : 'bank-transfer'} size={16} color={colors.textSecondary} />
               <Text style={styles.cardBtnTxt}>{estAdministratif(f) ? 'Réglages' : 'Passer en administratif'}</Text>
@@ -842,6 +845,9 @@ ${mouvements.map(m => {
   const totalDu = fournList.reduce((s, f) => s + (f.credit_actuel || 0), 0)
   const totalAvances = cotisList.reduce((s, f) => s + Math.abs(f.credit_actuel || 0), 0)
   const totalAdmin = totalDuListe(administratifs)
+  // Droits d'anciens travailleurs : section à part, soldés cachés (historique dans À payer).
+  const droitsAnciens = administratifs.filter(f => estDroitAncienTravailleur(f) && (f.credit_actuel || 0) > 0)
+  const adminSansDroits = administratifs.filter(f => !estDroitAncienTravailleur(f))
   const ongletAdmin = ongletCredits === 'administratifs'
 
   // Mouvements d'un mois : ceux de l'onglet choisi seulement.
@@ -998,12 +1004,20 @@ ${mouvements.map(m => {
                 <Text style={styles.outilTxt}>Fournisseur administratif</Text>
               </TouchableOpacity>
             )}
-            {administratifs.length === 0 ? (
+            {adminSansDroits.length === 0 ? (
               <View style={styles.emptySection}>
                 <Text style={styles.emptySectionTxt}>Aucun fournisseur administratif. Créez-en un, ou « Passer en administratif » sur une fiche de l'onglet Fournisseurs (CNPS, TEE, ITS, Impôt, Bail…).</Text>
               </View>
             ) : (
-              administratifs.map(f => renderCard(f))
+              adminSansDroits.map(f => renderCard(f))
+            )}
+            {droitsAnciens.length > 0 && (
+              <>
+                <View style={{ height: 8 }} />
+                {titreSection('account-arrow-right-outline', 'Anciens travailleurs',
+                  `${droitsAnciens.length} · ${fmt(droitsAnciens.reduce((s, f) => s + (f.credit_actuel || 0), 0))}`, '#B45309', '#FEF3C7')}
+                {droitsAnciens.map(f => renderCard(f))}
+              </>
             )}
           </>
         ) : (
