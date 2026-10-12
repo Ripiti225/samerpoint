@@ -264,6 +264,7 @@ export const STYLE_DEPENSE = {
   equipement: { icone: 'stove', couleur: '#7C3AED' },
   investissement: { icone: 'office-building-cog-outline', couleur: '#0891B2' },
   retrait_perso: { icone: 'account-arrow-right-outline', couleur: '#64748B' },
+  administratif: { icone: 'bank-outline', couleur: '#7C3AED' },
   divers: { icone: 'dots-horizontal-circle-outline', couleur: '#64748B' },
 }
 export const styleDepense = id => STYLE_DEPENSE[id] || STYLE_DEPENSE.divers

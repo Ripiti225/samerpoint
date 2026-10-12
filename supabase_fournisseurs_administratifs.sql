@@ -8,6 +8,11 @@
 --  • administratif_depuis : 1er du mois où la fiche est devenue administrative
 --    (posé par trigger). Le résultat net ne compte un administratif qu'à partir
 --    de ce mois : les mois passés ne bougent pas.
+--  • Payé par la direction (banque, espèces de la trésorerie, coffre) :
+--    tresorerie_payer_fournisseur_admin() crée en une fois la dépense direction
+--    « administratif » (charge du restaurant dans le résultat net), sa sortie
+--    et le paiement sur le crédit du fournisseur. Supprimer la dépense retire
+--    aussi le paiement ; la modifier est refusé (supprimer puis ressaisir).
 --  Spéc : docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md
 -- =====================================================================
 
@@ -95,6 +100,94 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION appliquer_factures_mensuelles() TO anon, authenticated;
+
+-- ── Payé par la direction ───────────────────────────────────────────────────
+ALTER TABLE tresorerie_depenses_direction DROP CONSTRAINT IF EXISTS tresorerie_depenses_direction_categorie_check;
+ALTER TABLE tresorerie_depenses_direction ADD CONSTRAINT tresorerie_depenses_direction_categorie_check
+  CHECK (categorie IN ('fond','fond_nature','reparation','materiel','equipement','investissement','retrait_perso','administratif'));
+ALTER TABLE tresorerie_depenses_direction
+  ADD COLUMN IF NOT EXISTS fournisseur_id uuid REFERENCES fournisseurs(id) ON DELETE SET NULL;
+ALTER TABLE tresorerie_depenses_direction
+  ADD COLUMN IF NOT EXISTS transaction_id uuid REFERENCES transactions_fournisseurs(id) ON DELETE SET NULL;
+
+CREATE OR REPLACE FUNCTION tresorerie_payer_fournisseur_admin(
+  p_fournisseur uuid, p_date date, p_montant bigint, p_source text, p_compte_id uuid,
+  p_note text, p_user_id text, p_user_nom text
+) RETURNS uuid
+LANGUAGE plpgsql AS $$
+DECLARE
+  fo record;
+  v_libelle text;
+  v_mvt uuid;
+  v_coffre uuid;
+  v_tx uuid;
+  v_id uuid;
+BEGIN
+  SELECT id, nom, type, restaurant_id INTO fo FROM fournisseurs WHERE id = p_fournisseur;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Fournisseur introuvable.'; END IF;
+  IF fo.type IS DISTINCT FROM 'administratif' THEN
+    RAISE EXCEPTION 'Seul un fournisseur administratif se paie depuis la direction.';
+  END IF;
+  IF p_montant IS NULL OR p_montant <= 0 THEN RAISE EXCEPTION 'Montant manquant'; END IF;
+  IF p_source = 'compte' AND p_compte_id IS NULL THEN RAISE EXCEPTION 'Choisissez le compte.'; END IF;
+
+  v_libelle := 'Administratif · ' || fo.nom || coalesce(' · ' || nullif(trim(p_note), ''), '');
+  IF p_source = 'compte' THEN
+    INSERT INTO tresorerie_mouvements (compte_id, date, montant, type, libelle, cree_par, cree_par_nom)
+    VALUES (p_compte_id, p_date, -p_montant, 'direction', v_libelle, p_user_id, p_user_nom)
+    RETURNING id INTO v_mvt;
+  ELSIF p_source = 'coffre' THEN
+    INSERT INTO tresorerie_coffre_mouvements (date, montant, type, source, libelle, cree_par, cree_par_nom)
+    VALUES (p_date, -p_montant, 'depense', 'coffre', v_libelle, p_user_id, p_user_nom)
+    RETURNING id INTO v_coffre;
+  END IF;
+
+  v_tx := inserer_transaction_hors_point(fo.id, p_date, 0, p_montant, 'direction', 'paiement_direction', p_user_nom);
+
+  INSERT INTO tresorerie_depenses_direction (date, categorie, restaurant_id, montant, source, compte_id, mouvement_id,
+    coffre_mouvement_id, note, fournisseur_id, transaction_id, cree_par, cree_par_nom)
+  VALUES (p_date, 'administratif', fo.restaurant_id, p_montant, p_source,
+    CASE WHEN p_source = 'compte' THEN p_compte_id END, v_mvt, v_coffre,
+    coalesce(fo.nom || coalesce(' · ' || nullif(trim(p_note), ''), ''), p_note), fo.id, v_tx, p_user_id, p_user_nom)
+  RETURNING id INTO v_id;
+  RETURN v_id;
+END $$;
+
+-- Supprimer une dépense direction : sa sortie, et le paiement du fournisseur administratif.
+CREATE OR REPLACE FUNCTION tresorerie_depense_direction_supprimer(p_id uuid)
+RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+  v_mvt uuid;
+  v_coffre uuid;
+  v_tx uuid;
+BEGIN
+  SELECT mouvement_id, coffre_mouvement_id, transaction_id INTO v_mvt, v_coffre, v_tx
+    FROM tresorerie_depenses_direction WHERE id = p_id;
+  DELETE FROM tresorerie_depenses_direction WHERE id = p_id;
+  IF v_mvt IS NOT NULL THEN DELETE FROM tresorerie_mouvements WHERE id = v_mvt; END IF;
+  IF v_coffre IS NOT NULL THEN DELETE FROM tresorerie_coffre_mouvements WHERE id = v_coffre; END IF;
+  IF v_tx IS NOT NULL THEN PERFORM retirer_transaction_hors_point(v_tx); END IF;
+END $$;
+
+-- Un paiement de fournisseur administratif ne se modifie pas (son crédit suivrait mal).
+CREATE OR REPLACE FUNCTION tresorerie_depense_admin_figee()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF OLD.categorie = 'administratif' AND OLD.transaction_id IS NOT NULL
+     AND (NEW.categorie, NEW.montant, NEW.date, NEW.restaurant_id, NEW.fournisseur_id)
+         IS DISTINCT FROM (OLD.categorie, OLD.montant, OLD.date, OLD.restaurant_id, OLD.fournisseur_id) THEN
+    RAISE EXCEPTION 'Paiement d''un fournisseur administratif : supprimez-le puis ressaisissez-le.';
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS trg_tresorerie_depense_admin_figee ON tresorerie_depenses_direction;
+CREATE TRIGGER trg_tresorerie_depense_admin_figee
+  BEFORE UPDATE ON tresorerie_depenses_direction
+  FOR EACH ROW EXECUTE FUNCTION tresorerie_depense_admin_figee();
+
+GRANT EXECUTE ON FUNCTION tresorerie_payer_fournisseur_admin(uuid, date, bigint, text, uuid, text, text, text) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION tresorerie_depense_direction_supprimer(uuid) TO anon, authenticated;
 NOTIFY pgrst, 'reload schema';
 
 -- Contrôle : fournisseurs administratifs.

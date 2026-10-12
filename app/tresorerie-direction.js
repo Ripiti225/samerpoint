@@ -67,6 +67,10 @@ export default function TresorerieDirectionScreen() {
   const origineDe = dep => (d?.depenses || []).find(x => x.id === dep.origine_id)
 
   function ouvrir(dep) {
+    if (dep.categorie === 'administratif') {
+      Alert.alert('Fournisseur administratif', 'Ce paiement a fait baisser le crédit du fournisseur. Pour le corriger, supprimez-le (appui long) puis ressaisissez-le depuis Crédits fournisseurs.')
+      return
+    }
     if (!dep.origine_id) { setEdition(dep); return }
     const o = origineDe(dep)
     Alert.alert('Ligne de correction', `Elle corrige le fond${o ? ` du ${formatDateFR(o.date)}` : ''}. Pour l'annuler, supprimez la dépense d'origine (ses corrections partent avec).`)
@@ -77,7 +81,7 @@ export default function TresorerieDirectionScreen() {
     const dejaCompte = dep.categorie === 'fond' && dep.point_id
       ? ' Ce fond est déjà compté dans un point validé : corrigez aussi ce point (Modifier le point).' : ''
     const corrections = enfantsDe(dep).length ? ' Ses lignes de correction sont supprimées aussi.' : ''
-    Alert.alert('Supprimer cette dépense ?', `${categorieDirection(dep.categorie)?.label} · ${fmt(dep.montant)} F. La sortie liée (banque ou coffre) est retirée aussi.${dejaCompte}${corrections}`, [
+    Alert.alert('Supprimer cette dépense ?', `${categorieDirection(dep.categorie)?.label} · ${fmt(dep.montant)} F. La sortie liée (banque ou coffre) est retirée aussi.${dep.categorie === 'administratif' ? ' Le crédit du fournisseur remonte d\'autant.' : ''}${dejaCompte}${corrections}`, [
       { text: 'Garder', style: 'cancel' },
       {
         text: 'Supprimer', style: 'destructive', onPress: async () => {
@@ -330,7 +334,7 @@ function FeuilleDepense({ visible, depense, enfants, donnees, user, onFermer, ap
         <>
           <Text style={styles.label}>Catégorie</Text>
           {/* « Fond en nature » se choisit sous « Fond » (comment est donné le fond). */}
-          <Puces options={CATEGORIES_DIRECTION.filter(c => c.id !== 'fond_nature').map(c => ({ valeur: c.id, label: c.label }))}
+          <Puces options={CATEGORIES_DIRECTION.filter(c => c.id !== 'fond_nature' && c.manuel !== false).map(c => ({ valeur: c.id, label: c.label }))}
             valeur={estFond ? 'fond' : categorie} onChange={choisirCategorie} />
           {estFond && (
             <>
