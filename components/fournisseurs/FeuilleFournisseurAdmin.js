@@ -1,7 +1,8 @@
 // Créer un fournisseur administratif (TEE, CNPS, bail, mairie…), régler son
 // échéance automatique, ou transformer un fournisseur existant (son crédit et
 // son historique ne bougent pas). RH, manager, directeur — depuis Crédits.
-// Le retard déjà dû se saisit ensuite avec « Modifier » sur la fiche.
+// À la création ou au passage en administratif : « Déjà dû avant aujourd'hui »
+// (le retard) — une correction (ajustement_manager), pas une charge du mois.
 // styles : ceux de l'écran Crédits fournisseurs (même apparence).
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useEffect, useState } from 'react'
@@ -9,6 +10,8 @@ import { ActivityIndicator, Alert, Modal, SafeAreaView, ScrollView, Text, TextIn
 import { useTheme } from '../../context/ThemeContext'
 import { libelleMois } from '../../lib/facturesMensuelles'
 import { TYPE_ADMIN, champsEcheance, choixMoisDepart, estAdministratif } from '../../lib/fournisseursAdmin'
+import { ecritureAjustementCredit } from '../../lib/creditsFournisseurs'
+import { chargerDerniersRestes } from '../../lib/derniersRestesFournisseurs'
 import { journaliser } from '../../lib/journal'
 import { supabase } from '../../lib/supabase'
 import { aujourdhuiISO } from '../../lib/tresorerie'
@@ -28,7 +31,7 @@ function Puce({ styles, actif, label, onPress }) {
  * restaurants : [{ id, nom }] · restaurantParDefaut : id présélectionné (création).
  */
 export default function FeuilleFournisseurAdmin({
-  visible, fournisseur, restaurants = [], restaurantParDefaut, userId, userNom, styles, onFermer, onEnregistre,
+  visible, fournisseur, restaurants = [], restaurantParDefaut, roleActif, userId, userNom, styles, onFermer, onEnregistre,
 }) {
   const { colors } = useTheme()
   const [nom, setNom] = useState('')
@@ -36,6 +39,7 @@ export default function FeuilleFournisseurAdmin({
   const [montant, setMontant] = useState('')
   const [periodicite, setPeriodicite] = useState('mensuel')
   const [depuis, setDepuis] = useState(null)
+  const [dejaDu, setDejaDu] = useState('')            // retard avant aujourd'hui ; vide = ne pas toucher
   const [occupe, setOccupe] = useState(false)
   const [erreur, setErreur] = useState(null)
 
@@ -50,6 +54,7 @@ export default function FeuilleFournisseurAdmin({
     setMontant(Number(f.facture_mensuelle) > 0 ? String(f.facture_mensuelle) : '')
     setPeriodicite(f.facture_periodicite === 'annuel' ? 'annuel' : 'mensuel')
     setDepuis(f.facture_mensuelle_depuis || null)
+    setDejaDu('')
     setErreur(null)
   }, [visible, fournisseur, restaurantParDefaut])
 
@@ -64,7 +69,8 @@ export default function FeuilleFournisseurAdmin({
     setErreur(null)
     try {
       const champs = { nom: nom.trim(), type: TYPE_ADMIN, ...champsEcheance({ montant, periodicite, depuis: moisChoisi }, aujourdhui) }
-      let resto = fournisseur?.restaurant_id || restaurantId
+      const resto = fournisseur?.restaurant_id || restaurantId
+      let nouveauId = null
       if (fournisseur?.id) {
         const { error } = await supabase.from('fournisseurs').update(champs).eq('id', fournisseur.id)
         if (error) throw error
@@ -72,10 +78,12 @@ export default function FeuilleFournisseurAdmin({
         const { data, error } = await supabase.from('fournisseurs')
           .insert({ ...champs, restaurant_id: resto, actif: true }).select('id').single()
         if (error) throw error
+        nouveauId = data.id
         await supabase.from('fournisseurs_restaurants').upsert(
           { fournisseur_id: data.id, restaurant_id: resto, credit_actuel: 0 },
           { onConflict: 'fournisseur_id,restaurant_id' })
       }
+      if (!dejaAdmin && dejaDu !== '') await poserDejaDu(fournisseur?.id || nouveauId, Number(dejaDu) || 0, champs.nom)
       journaliser(fournisseur?.id ? (dejaAdmin ? 'fournisseur_admin_modifie' : 'fournisseur_passe_administratif') : 'fournisseur_admin_cree', {
         nom: champs.nom, montant: champs.facture_mensuelle, periodicite: champs.facture_periodicite,
         depuis: champs.facture_mensuelle_depuis,
@@ -85,6 +93,28 @@ export default function FeuilleFournisseurAdmin({
       setErreur(/facture_periodicite|administratif_depuis/.test(e?.message || '') ? MIGRATION : (e?.message || 'Enregistrement impossible. Réessayez.'))
     }
     setOccupe(false)
+  }
+
+  // Amène le crédit au retard saisi par une écriture datée du jour, depuis le
+  // solde de l'historique (ce que voit le gérant), comme « Modifier ».
+  async function poserDejaDu(id, voulu, nomF) {
+    const derniers = await chargerDerniersRestes(supabase, [id])
+    const enregistre = Number(fournisseur?.credit_actuel) || 0
+    const solde = derniers[id] ? Number(derniers[id].reste) || 0 : enregistre
+    const e = ecritureAjustementCredit(voulu - solde)
+    if (!e) return
+    const { data: txId, error } = await supabase.rpc('inserer_transaction_hors_point', {
+      p_fournisseur: id, p_date: aujourdhui, p_facture: e.facture, p_paye: e.paye,
+      p_saisi_par: roleActif || 'manager', p_source: 'ajustement_manager', p_caissier_nom: userNom || null,
+    })
+    if (error) throw error
+    // credit_actuel avait pu dériver de l'historique : on l'aligne sur le retard saisi.
+    if (fournisseur?.id && enregistre !== solde) await supabase.from('fournisseurs').update({ credit_actuel: voulu }).eq('id', id)
+    if (txId) {
+      await supabase.from('transactions_fournisseurs')
+        .update({ facture_correction_raison: 'Dû avant le passage en administratif' }).eq('id', txId)
+    }
+    journaliser('fournisseur_admin_deja_du', { nom: nomF, avant: solde, du: voulu }, { restaurantId: fournisseur?.restaurant_id || restaurantId, userId, userNom }).catch(() => {})
   }
 
   function repasserNormal() {
@@ -136,11 +166,29 @@ export default function FeuilleFournisseurAdmin({
             )}
           </View>
 
+          {!dejaAdmin && (
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Déjà dû avant aujourd'hui (FCFA)</Text>
+              <TextInput style={[styles.formInput, { fontSize: 18, fontWeight: '700' }]} value={dejaDu}
+                onChangeText={v => setDejaDu(v.replace(/[^0-9]/g, ''))} keyboardType="numeric"
+                placeholder={fournisseur ? `Vide = garder ${Math.round(Number(fournisseur.credit_actuel) || 0).toLocaleString('fr-FR')} F` : 'Vide = 0'}
+                placeholderTextColor={colors.textPlaceholder} />
+              <Text style={[styles.traceNoteTxt, { marginTop: 6 }]}>
+                Le retard accumulé jusqu'ici. Ce n'est pas une charge du mois (déjà comptée avant).
+              </Text>
+            </View>
+          )}
+
           <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>Montant de chaque échéance (FCFA)</Text>
+            <Text style={styles.formLabel}>{dejaAdmin ? 'Montant de chaque échéance (FCFA)' : 'Puis, montant qui s\'ajoute à chaque échéance (FCFA)'}</Text>
             <TextInput style={[styles.formInput, { fontSize: 18, fontWeight: '700' }]} value={montant}
               onChangeText={v => setMontant(v.replace(/[^0-9]/g, ''))} keyboardType="numeric"
               placeholder="Vide = pas d'échéance automatique" placeholderTextColor={colors.textPlaceholder} />
+            {!(Number(montant) > 0) && (
+              <Text style={[styles.traceNoteTxt, { marginTop: 6 }]}>
+                Sans montant automatique : chaque mois, ajoutez ce qui est dû avec « Ajouter un montant dû » sur la fiche.
+              </Text>
+            )}
           </View>
 
           {Number(montant) > 0 && (
@@ -175,8 +223,7 @@ export default function FeuilleFournisseurAdmin({
           <View style={styles.traceNote}>
             <MaterialCommunityIcons name="information-outline" size={16} color={colors.textSecondary} />
             <Text style={styles.traceNoteTxt}>
-              Ce que le restaurant doit déjà (le retard) se règle ensuite avec « Modifier » sur sa fiche.
-              Le gérant le paie dans Déductions gérant → Administratifs ; la direction avec « Payé par la direction ».
+              {dejaAdmin ? 'Pour corriger le retard, « Modifier » sur la fiche (manager). ' : ''}Le gérant le paie dans Déductions gérant → Administratifs ; la direction avec « Payé par la direction ».
             </Text>
           </View>
 

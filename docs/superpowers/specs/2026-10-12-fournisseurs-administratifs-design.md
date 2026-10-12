@@ -99,6 +99,17 @@ l'inventaire et des brouillons fournisseurs.
   serveur `rappels-tresorerie`, à redéployer à la publication) ignorent ces
   catégories.
 
+## 4 bis. Montant dû sans échéance automatique, et retard de départ
+
+- **Ajouter un montant dû** (RH, manager, directeur) sur une fiche
+  administrative : montant, date, motif facultatif, sans facture. Ligne
+  `inserer_transaction_hors_point` source `montant_du_admin` : charge du mois
+  de la date choisie dans le résultat net (≠ « Modifier », correction exclue).
+- **Déjà dû avant aujourd'hui** : demandé à la création et au passage en
+  administratif, avant le montant automatique. Écriture `ajustement_manager`
+  datée du jour (motif « Dû avant le passage en administratif ») : vieux
+  retard, pas une charge du mois. Vide = crédit inchangé.
+
 ## 5 bis. Payé par la direction
 
 Sur une fiche administrative de Crédits fournisseurs (manager, directeur) :

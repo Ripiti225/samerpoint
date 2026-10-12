@@ -24,6 +24,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import * as XLSX from 'xlsx'
 import ChampDate from '../components/ChampDate'
 import FeuilleFournisseurAdmin from '../components/fournisseurs/FeuilleFournisseurAdmin'
+import FeuilleMontantDu from '../components/fournisseurs/FeuilleMontantDu'
 import FeuillePaiementDirection from '../components/fournisseurs/FeuillePaiementDirection'
 import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
@@ -97,6 +98,7 @@ export default function CreditsFournisseursScreen() {
   const [ongletCredits, setOngletCredits] = useState(params.onglet === 'administratifs' ? 'administratifs' : 'fournisseurs')
   const [feuilleAdmin, setFeuilleAdmin] = useState(null)       // { f: fiche | null }
   const [paiementDirection, setPaiementDirection] = useState(null) // fiche administrative
+  const [montantDu, setMontantDu] = useState(null)                 // fiche administrative
 
   const [restaurants, setRestaurants] = useState([])
   const [restoFilter, setRestoFilter] = useState(() => _restoFilterCache)
@@ -725,6 +727,12 @@ ${mouvements.map(m => {
               <Text style={[styles.cardBtnTxt, { color: colors.primary }]}>Modifier</Text>
             </TouchableOpacity>
           )}
+          {estAdministratif(f) && peutGererAdmin && (
+            <TouchableOpacity style={[styles.cardBtn, { backgroundColor: colors.errorLight }]} onPress={() => setMontantDu(f)}>
+              <MaterialCommunityIcons name="calendar-plus" size={16} color={colors.error} />
+              <Text style={[styles.cardBtnTxt, { color: colors.error }]}>Ajouter un montant dû</Text>
+            </TouchableOpacity>
+          )}
           {estAdministratif(f) && peutModifier && (
             <TouchableOpacity
               style={[styles.cardBtn, { backgroundColor: colors.successLight }]}
@@ -1121,6 +1129,8 @@ ${mouvements.map(m => {
                   facture_mensuelle: { icon: 'calendar-refresh', label: 'Facture mensuelle', bg: colors.primaryLight, txt: colors.primary },
                   cotisation_remise: { icon: 'bank-transfer-in', label: 'Cotisation reçue (RH)', bg: colors.successLight, txt: colors.successDark },
                   ajustement_manager: { icon: 'pencil-outline', label: 'Modifié directement', bg: colors.surfaceAlt, txt: colors.textMuted },
+                  montant_du_admin: { icon: 'calendar-plus', label: 'Montant dû ajouté', bg: colors.errorLight, txt: colors.error },
+                  paiement_direction: { icon: 'bank-outline', label: 'Payé par la direction', bg: colors.successLight, txt: colors.successDark },
                 }[src] || { icon: 'pencil-outline', label: src, bg: colors.surfaceAlt, txt: colors.textMuted }
                 const facture = Number(m.facture) || 0
                 const paye = Number(m.paye) || 0
@@ -1158,7 +1168,7 @@ ${mouvements.map(m => {
                       </View>
                     )}
 
-                    {src === 'ajustement_manager' && m.facture_correction_raison && (
+                    {(src === 'ajustement_manager' || src === 'montant_du_admin') && m.facture_correction_raison && (
                       <Text style={{ fontSize: 12, color: colors.textMuted, fontStyle: 'italic', marginBottom: 6 }}>
                         « {m.facture_correction_raison} »
                       </Text>
@@ -1437,9 +1447,14 @@ ${mouvements.map(m => {
 
       <FeuilleFournisseurAdmin
         visible={!!feuilleAdmin} fournisseur={feuilleAdmin?.f || null} restaurants={restaurants}
-        restaurantParDefaut={isGerant ? restaurantId : restoFilter} userId={userId} userNom={userNom} styles={styles}
+        restaurantParDefaut={isGerant ? restaurantId : restoFilter} roleActif={roleActif} userId={userId} userNom={userNom} styles={styles}
         onFermer={() => setFeuilleAdmin(null)}
         onEnregistre={() => { setFeuilleAdmin(null); charger() }}
+      />
+      <FeuilleMontantDu
+        fournisseur={montantDu} roleActif={roleActif} userId={userId} userNom={userNom} styles={styles}
+        onFermer={() => setMontantDu(null)}
+        onEnregistre={() => { setMontantDu(null); charger() }}
       />
       <FeuillePaiementDirection
         fournisseur={paiementDirection} userId={userId} userNom={userNom} styles={styles}
