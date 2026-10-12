@@ -28,6 +28,7 @@ leurs cotisations et la « cotisation reçue (RH) ».
 | Fournisseurs existants | Transformables en administratifs (et inversement), crédit et historique conservés |
 | Cotisations CNPS/TEE/ITS/Impôt | Deviennent administratives |
 | Où va l'argent payé | Directement à l'organisme : sortie de caisse, rien d'autre |
+| Payé par la direction | Possible (ajout du 12/10) : compté comme charge du restaurant à la fin du mois |
 | Trésorerie TEE/ITS/Timbre/CNPS/Bail | Disparaît (bail ajouté le 12/10) |
 | Crédits fournisseurs | « Dû aux fournisseurs » et « Dû aux administrations » côte à côte, toujours visibles |
 
@@ -97,6 +98,24 @@ l'inventaire et des brouillons fournisseurs.
 - L'alerte « CNPS en retard » disparaît ; les rappels (y compris la fonction
   serveur `rappels-tresorerie`, à redéployer à la publication) ignorent ces
   catégories.
+
+## 5 bis. Payé par la direction
+
+Sur une fiche administrative de Crédits fournisseurs (manager, directeur) :
+« Payé par la direction » — montant, date, compte (BACI, SIB, Espèces, têtes
+de fond, Coffre), note. La RPC `tresorerie_payer_fournisseur_admin` crée en
+une transaction : la sortie (banque ou coffre), le paiement sur le crédit du
+fournisseur (`inserer_transaction_hors_point`, source `paiement_direction`) et
+une dépense direction de catégorie `administratif` (avec `fournisseur_id`,
+`transaction_id`), qui **compte dans le résultat** du restaurant.
+
+Résultat du mois : échéance (+ crédit) − paiement direction (− crédit) = 0 de
+variation ; la dépense direction porte la charge. Une échéance n'est donc
+comptée qu'une fois, qu'elle soit payée par le gérant (encaissé) ou par la
+direction (dépense direction).
+
+Supprimer la dépense (Dépenses direction, appui long) retire aussi le paiement
+du crédit ; la modifier est refusé par un trigger (supprimer puis ressaisir).
 
 ## 6. Résultat net
 
