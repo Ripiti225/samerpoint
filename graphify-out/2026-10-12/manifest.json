@@ -1494,9 +1494,9 @@
     "semantic_hash": ""
   },
   "app/tresorerie-a-payer.js": {
-    "mtime": 1791825333.0326843,
-    "seen": 1791825471.009592,
-    "ast_hash": "eb5d235793e3ec6393aad4bc03ea7081",
+    "mtime": 1791825693.032409,
+    "seen": 1791825729.787286,
+    "ast_hash": "5a6a204a40f7ea7345e807c8bb919835",
     "semantic_hash": ""
   },
   "app/tresorerie-banque.js": {
@@ -1506,9 +1506,9 @@
     "semantic_hash": ""
   },
   "app/tresorerie.js": {
-    "mtime": 1791824301.273965,
-    "seen": 1791824740.706696,
-    "ast_hash": "35c4d5549fba8c35a425dcb1bd580466",
+    "mtime": 1791825665.2487118,
+    "seen": 1791825729.7872908,
+    "ast_hash": "ed52eada9741717737f7d934545681d4",
     "semantic_hash": ""
   },
   "components/BarreComparaison.js": {
@@ -1578,9 +1578,9 @@
     "semantic_hash": ""
   },
   "lib/tresorerie.js": {
-    "mtime": 1791825313.567814,
-    "seen": 1791825471.009728,
-    "ast_hash": "959a82f02becfc2836b9c3d96a161d4c",
+    "mtime": 1791825641.5386484,
+    "seen": 1791825729.7874439,
+    "ast_hash": "4a22909dc27384cb2d120bbfcc2845e4",
     "semantic_hash": ""
   },
   "lib/tresorerie.test.mjs": {
@@ -1590,9 +1590,9 @@
     "semantic_hash": ""
   },
   "lib/tresorerieDb.js": {
-    "mtime": 1791824444.723513,
-    "seen": 1791824740.706827,
-    "ast_hash": "0f445ead249f4a8be3f7de85337932c9",
+    "mtime": 1791825627.9658904,
+    "seen": 1791825729.787446,
+    "ast_hash": "f217f5a7177cc447d4674eef1d1d3374",
     "semantic_hash": ""
   },
   "supabase_tresorerie.sql": {
@@ -1746,9 +1746,9 @@
     "semantic_hash": ""
   },
   "components/tresorerie/du.js": {
-    "mtime": 1791817674.9229708,
-    "seen": 1791817711.354777,
-    "ast_hash": "70a10b2f3f1bd5605ff4c7a2b4123f83",
+    "mtime": 1791825641.5390315,
+    "seen": 1791825729.7873259,
+    "ast_hash": "4b76eda6c47a22c3c2a18d4fc603fae3",
     "semantic_hash": ""
   },
   "components/tresorerie/reglagesCharges.js": {
@@ -2934,9 +2934,9 @@
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-10-12-droits-anciens-travailleurs-design.md": {
-    "mtime": 1791825168.9777539,
-    "seen": 1791825471.009804,
-    "ast_hash": "9b9002c31240505d3031e0f729deca2a",
+    "mtime": 1791825721.4278555,
+    "seen": 1791825729.787532,
+    "ast_hash": "2bb6cdcc16df5f3ec44357a0668f0168",
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md": {
@@ -2952,21 +2952,21 @@
     "semantic_hash": ""
   },
   "components/tresorerie/anciensTravailleurs.js": {
-    "mtime": 1791825333.0324008,
-    "seen": 1791825471.009624,
-    "ast_hash": "4f137719149e31607840c2353f0c7562",
+    "mtime": 1791825693.0322125,
+    "seen": 1791825729.787325,
+    "ast_hash": "4d7e63d016368ca1c77d7887ad014085",
     "semantic_hash": ""
   },
   "lib/droitsAnciensTravailleurs.js": {
-    "mtime": 1791825258.4213133,
-    "seen": 1791825471.009676,
-    "ast_hash": "ccdcfdeaad0e041625f90be2c44baf18",
+    "mtime": 1791825604.0165548,
+    "seen": 1791825729.787385,
+    "ast_hash": "d90f699f7ab982e729631543695dab08",
     "semantic_hash": ""
   },
   "lib/droitsAnciensTravailleurs.test.mjs": {
-    "mtime": 1791825254.5582201,
-    "seen": 1791825471.0096772,
-    "ast_hash": "b1785c9b43c1a5096f7c63941b8f3b52",
+    "mtime": 1791825593.0657065,
+    "seen": 1791825729.787385,
+    "ast_hash": "73d8ef65b9bf1611e2db2b41f2ae1d49",
     "semantic_hash": ""
   },
   "lib/droitsAnciensTravailleursDb.js": {
@@ -2976,9 +2976,9 @@
     "semantic_hash": ""
   },
   "supabase_droits_anciens_travailleurs.sql": {
-    "mtime": 1791825265.3470843,
-    "seen": 1791825471.009755,
-    "ast_hash": "8c636b76bbcfa6da3140e75a08ac5d57",
+    "mtime": 1791825612.4953804,
+    "seen": 1791825729.7874749,
+    "ast_hash": "7b5e082c5713d0d411639ef678f92179",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-10-12-droits-anciens-travailleurs.md": {

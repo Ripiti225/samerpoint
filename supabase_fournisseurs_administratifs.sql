@@ -6,8 +6,9 @@
 --  • La facture automatique devient mensuelle OU annuelle : facture_periodicite.
 --    Annuelle = le mois de facture_mensuelle_depuis, puis tous les 12 mois.
 --  • administratif_depuis : 1er du mois où la fiche est devenue administrative
---    (posé par trigger). Le résultat net ne compte un administratif qu'à partir
---    de ce mois : les mois passés ne bougent pas.
+--    (posé par trigger). Le résultat net écarte un administratif de la
+--    variation du crédit à partir de ce mois (son montant dû n'est pas une
+--    charge, seul son paiement l'est) : les mois passés ne bougent pas.
 --  • Payé par la direction (banque, espèces de la trésorerie, coffre) :
 --    tresorerie_payer_fournisseur_admin() crée en une fois la dépense direction
 --    « administratif » (charge du restaurant dans le résultat net), sa sortie

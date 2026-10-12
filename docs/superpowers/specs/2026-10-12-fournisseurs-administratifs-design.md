@@ -29,6 +29,7 @@ leurs cotisations et la « cotisation reçue (RH) ».
 | Cotisations CNPS/TEE/ITS/Impôt | Deviennent administratives |
 | Où va l'argent payé | Directement à l'organisme : sortie de caisse, rien d'autre |
 | Payé par la direction | Possible (ajout du 12/10) : compté comme charge du restaurant à la fin du mois |
+| Qu'est-ce qui est une charge ? | Seul le paiement (règle du 12/10) : par la caisse du gérant (déjà dans ses dépenses) ou par la direction (dépense direction). Un montant dû non payé n'est jamais une charge. |
 | Trésorerie TEE/ITS/Timbre/CNPS/Bail | Disparaît (bail ajouté le 12/10) |
 | Crédits fournisseurs | « Dû aux fournisseurs » et « Dû aux administrations » côte à côte, toujours visibles |
 
@@ -103,8 +104,8 @@ l'inventaire et des brouillons fournisseurs.
 
 - **Ajouter un montant dû** (RH, manager, directeur) sur une fiche
   administrative : montant, date, motif facultatif, sans facture. Ligne
-  `inserer_transaction_hors_point` source `montant_du_admin` : charge du mois
-  de la date choisie dans le résultat net (≠ « Modifier », correction exclue).
+  `inserer_transaction_hors_point` source `montant_du_admin` : monte le dû,
+  n'est pas une charge (seul le paiement l'est).
 - **Déjà dû avant aujourd'hui** : demandé à la création et au passage en
   administratif, avant le montant automatique. Écriture `ajustement_manager`
   datée du jour (motif « Dû avant le passage en administratif ») : vieux
@@ -120,33 +121,28 @@ fournisseur (`inserer_transaction_hors_point`, source `paiement_direction`) et
 une dépense direction de catégorie `administratif` (avec `fournisseur_id`,
 `transaction_id`), qui **compte dans le résultat** du restaurant.
 
-Résultat du mois : échéance (+ crédit) − paiement direction (− crédit) = 0 de
-variation ; la dépense direction porte la charge. Une échéance n'est donc
-comptée qu'une fois, qu'elle soit payée par le gérant (encaissé) ou par la
-direction (dépense direction).
+Résultat du mois : la dépense direction porte la charge (le crédit des
+administratifs est hors calcul). Un paiement n'est compté qu'une fois, qu'il
+vienne du gérant (encaissé) ou de la direction (dépense direction).
 
 Supprimer la dépense (Dépenses direction, appui long) retire aussi le paiement
 du crédit ; la modifier est refusé par un trigger (supprimer puis ressaisir).
 
-## 6. Résultat net
+## 6. Résultat net (règle corrigée le 12/10/2026)
 
-- Le résultat part de l'encaissé (paiements déjà retirés) et retire la
-  variation du crédit fournisseurs (`lib/creditFournisseursMois.js`). Un
-  fournisseur administratif y entre comme un fournisseur normal : paiement +
-  hausse du crédit = échéances du mois. Les corrections `ajustement_manager`
-  (dont le crédit de départ) sont déjà retirées depuis octobre 2026.
-- `estFournisseurCharge` écarte aujourd'hui CNPS, TEE, ITS, Impôt **par le
-  nom** : elle doit d'abord regarder le type — un `administratif` n'est jamais
-  écarté.
-- `lib/chargesMois.js` continue de compter les dûs TEE/ITS/Timbre/CNPS déjà
-  créés (mois passés, déjà comptés) ; comme aucun nouveau n'est généré, il n'y
-  a pas de double comptage tant que la 1re échéance automatique d'un
-  administratif tombe après le dernier mois déjà dans la Trésorerie.
-- Texte d'aide de l'écran Résultats mis à jour.
+Seul le **paiement** d'un fournisseur administratif est une charge :
+- payé par le gérant avec la caisse : déjà retiré par l'encaissé
+  (`depenses_gerant_caisse_total`), rien de plus ;
+- payé par la direction : la dépense direction `administratif` compte
+  (`compteDansResultat`).
 
-À vérifier pendant le plan : comment le résultat traite aujourd'hui les
-paiements faits aux fournisseurs « cotisation », pour qu'un administratif
-payé ne soit ni compté deux fois ni oublié.
+`lib/creditFournisseursMois.js` écarte donc les administratifs de la variation
+du crédit fournisseurs à partir de `administratif_depuis` (échéance, montant
+ajouté par le RH, retard : jamais une charge). Avant leur bascule, l'ancienne
+règle par le nom : un fournisseur jusque-là compté (ODP…) le reste pour les
+mois passés ; un administratif sans date de bascule n'est jamais compté.
+`lib/chargesMois.js` continue de compter les anciens dûs TEE/ITS/Timbre/CNPS/
+Bail de la Trésorerie (mois passés) ; aucun nouveau n'est créé.
 
 ## 7. Tests
 

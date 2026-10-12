@@ -1,8 +1,8 @@
 // Fournisseur administratif sans montant automatique : le RH (ou le manager)
 // ajoute chaque mois ce qui est dû, sans facture. Crée une vraie ligne de
-// transaction (source « montant_du_admin ») : charge du restaurant dans le
-// résultat net, à la date choisie — à la différence de « Modifier », qui est
-// une correction et n'y compte pas.
+// transaction (source « montant_du_admin ») qui monte le dû. Ce n'est pas une
+// charge (règle du 12/10/2026) : seul le paiement l'est — caisse du gérant
+// (déjà dans ses dépenses) ou direction (dépense direction « administratif »).
 // styles : ceux de l'écran Crédits fournisseurs (même apparence).
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useEffect, useState } from 'react'
@@ -87,7 +87,7 @@ export default function FeuilleMontantDu({ fournisseur, roleActif, userId, userN
                 placeholder="0" placeholderTextColor={colors.textPlaceholder} />
             </View>
 
-            <ChampDate label="Date (mois de la charge)" styleLabel={styles.formLabel} valeur={date} onChange={setDate} />
+            <ChampDate label="Date" styleLabel={styles.formLabel} valeur={date} onChange={setDate} />
 
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Motif (facultatif)</Text>
@@ -99,7 +99,7 @@ export default function FeuilleMontantDu({ fournisseur, roleActif, userId, userN
               <MaterialCommunityIcons name="information-outline" size={16} color={colors.textSecondary} />
               <Text style={styles.traceNoteTxt}>
                 {v > 0 ? `Après l'ajout : ${fmt(apres)} dû. ` : ''}
-                Une ligne est créée dans l'historique, sans facture. Elle compte comme une charge du restaurant le mois de la date choisie.
+                Une ligne est créée dans l'historique, sans facture. Ce n'est pas encore une charge : seul le paiement en sera une (par la caisse du gérant ou par la direction).
               </Text>
             </View>
 

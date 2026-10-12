@@ -1,7 +1,7 @@
 # Graph Report - samtrackly  (2026-10-12)
 
 ## Corpus Check
-- 473 files · ~637,388 words
+- 473 files · ~637,497 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `5ea11c67`
+- Built from commit: `f6ff7d80`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -722,7 +722,7 @@ Nodes (14): 1. Données (migration `supabase_droits_anciens_travailleurs.sql`, i
 
 ### Community 113 - "Fournisseurs administratifs — conception"
 Cohesion: 0.14
-Nodes (13): 1. Données (migration `supabase_fournisseurs_administratifs.sql`, idempotente), 2. Création et modification, 3. Crédits fournisseurs, 4 bis. Montant dû sans échéance automatique, et retard de départ, 4. Déductions gérant, 5 bis. Payé par la direction, 5. Trésorerie, 6. Résultat net (+5 more)
+Nodes (13): 1. Données (migration `supabase_fournisseurs_administratifs.sql`, idempotente), 2. Création et modification, 3. Crédits fournisseurs, 4 bis. Montant dû sans échéance automatique, et retard de départ, 4. Déductions gérant, 5 bis. Payé par la direction, 5. Trésorerie, 6. Résultat net (règle corrigée le 12/10/2026) (+5 more)
 
 ### Community 114 - "gestion-stock.js"
 Cohesion: 0.15

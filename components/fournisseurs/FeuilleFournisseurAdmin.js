@@ -174,7 +174,7 @@ export default function FeuilleFournisseurAdmin({
                 placeholder={fournisseur ? `Vide = garder ${Math.round(Number(fournisseur.credit_actuel) || 0).toLocaleString('fr-FR')} F` : 'Vide = 0'}
                 placeholderTextColor={colors.textPlaceholder} />
               <Text style={[styles.traceNoteTxt, { marginTop: 6 }]}>
-                Le retard accumulé jusqu'ici. Ce n'est pas une charge du mois (déjà comptée avant).
+                Le retard accumulé jusqu'ici. Un montant dû n'est jamais une charge : seul son paiement l'est.
               </Text>
             </View>
           )}

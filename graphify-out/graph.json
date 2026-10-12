@@ -11374,7 +11374,7 @@
       "file_type": "code",
       "norm_label": "separerfournisseurs()",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L26"
+      "source_location": "L27"
     },
     {
       "id": "lib_decisioninventaire_calculerdecisioninventaire",
@@ -24310,7 +24310,7 @@
       "file_type": "code",
       "norm_label": "creditfournisseursparrestomois()",
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L77"
+      "source_location": "L76"
     },
     {
       "id": "lib_creditfournisseursmois_estfournisseurcharge",
@@ -24322,7 +24322,7 @@
       "file_type": "code",
       "norm_label": "estfournisseurcharge()",
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L56"
+      "source_location": "L55"
     },
     {
       "id": "lib_creditfournisseursmois_jourde",
@@ -24334,7 +24334,7 @@
       "file_type": "code",
       "norm_label": "jourde()",
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L67"
+      "source_location": "L66"
     },
     {
       "id": "lib_creditfournisseursmois_moissuivant",
@@ -24346,7 +24346,7 @@
       "file_type": "code",
       "norm_label": "moissuivant()",
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L62"
+      "source_location": "L61"
     },
     {
       "id": "lib_creditfournisseursmois_normaliser",
@@ -24358,7 +24358,7 @@
       "file_type": "code",
       "norm_label": "normaliser()",
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L47"
+      "source_location": "L46"
     },
     {
       "id": "lib_creditfournisseursmois_test_tx",
@@ -25174,7 +25174,7 @@
       "file_type": "code",
       "norm_label": "champsecheance()",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L80"
+      "source_location": "L81"
     },
     {
       "id": "lib_fournisseursadmin_choixmoisdepart",
@@ -25186,7 +25186,7 @@
       "file_type": "code",
       "norm_label": "choixmoisdepart()",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L71"
+      "source_location": "L72"
     },
     {
       "id": "lib_fournisseursadmin_decaler",
@@ -25198,7 +25198,7 @@
       "file_type": "code",
       "norm_label": "decaler()",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L41"
+      "source_location": "L42"
     },
     {
       "id": "lib_fournisseursadmin_estadministratif",
@@ -25210,7 +25210,7 @@
       "file_type": "code",
       "norm_label": "estadministratif()",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L22"
+      "source_location": "L23"
     },
     {
       "id": "lib_fournisseursadmin_fmtf",
@@ -25222,7 +25222,7 @@
       "file_type": "code",
       "norm_label": "fmtf()",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L60"
+      "source_location": "L61"
     },
     {
       "id": "lib_fournisseursadmin_libelleecheance",
@@ -25234,7 +25234,7 @@
       "file_type": "code",
       "norm_label": "libelleecheance()",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L63"
+      "source_location": "L64"
     },
     {
       "id": "lib_fournisseursadmin_libmois",
@@ -25246,7 +25246,7 @@
       "file_type": "code",
       "norm_label": "libmois()",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L59"
+      "source_location": "L60"
     },
     {
       "id": "lib_fournisseursadmin_n",
@@ -25258,7 +25258,7 @@
       "file_type": "code",
       "norm_label": "n()",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L20"
+      "source_location": "L21"
     },
     {
       "id": "lib_fournisseursadmin_premierdu",
@@ -25270,7 +25270,7 @@
       "file_type": "code",
       "norm_label": "premierdu()",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L40"
+      "source_location": "L41"
     },
     {
       "id": "lib_fournisseursadmin_prochaineecheance",
@@ -25282,7 +25282,7 @@
       "file_type": "code",
       "norm_label": "prochaineecheance()",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L48"
+      "source_location": "L49"
     },
     {
       "id": "lib_fournisseursadmin_totaldu",
@@ -25294,7 +25294,7 @@
       "file_type": "code",
       "norm_label": "totaldu()",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L34"
+      "source_location": "L35"
     },
     {
       "id": "app_recap_point_calcvariation",
@@ -29561,7 +29561,7 @@
       "node_kind": "heading",
       "norm_label": "1. donnees (migration `supabase_fournisseurs_administratifs.sql`, idempotente)",
       "source_file": "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md",
-      "source_location": "L35"
+      "source_location": "L36"
     },
     {
       "id": "docs_superpowers_specs_2026_10_12_fournisseurs_administratifs_design_2_cr\u00e9ation_et_modification",
@@ -29573,7 +29573,7 @@
       "node_kind": "heading",
       "norm_label": "2. creation et modification",
       "source_file": "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md",
-      "source_location": "L53"
+      "source_location": "L54"
     },
     {
       "id": "docs_superpowers_specs_2026_10_12_fournisseurs_administratifs_design_3_cr\u00e9dits_fournisseurs",
@@ -29585,7 +29585,7 @@
       "node_kind": "heading",
       "norm_label": "3. credits fournisseurs",
       "source_file": "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md",
-      "source_location": "L66"
+      "source_location": "L67"
     },
     {
       "id": "docs_superpowers_specs_2026_10_12_fournisseurs_administratifs_design_4_bis_montant_d\u00fb_sans_\u00e9ch\u00e9ance_automatique_et_retard_de_d\u00e9part",
@@ -29597,7 +29597,7 @@
       "node_kind": "heading",
       "norm_label": "4 bis. montant du sans echeance automatique, et retard de depart",
       "source_file": "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md",
-      "source_location": "L102"
+      "source_location": "L103"
     },
     {
       "id": "docs_superpowers_specs_2026_10_12_fournisseurs_administratifs_design_4_d\u00e9ductions_g\u00e9rant",
@@ -29609,7 +29609,7 @@
       "node_kind": "heading",
       "norm_label": "4. deductions gerant",
       "source_file": "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md",
-      "source_location": "L77"
+      "source_location": "L78"
     },
     {
       "id": "docs_superpowers_specs_2026_10_12_fournisseurs_administratifs_design_5_bis_pay\u00e9_par_la_direction",
@@ -29621,7 +29621,7 @@
       "node_kind": "heading",
       "norm_label": "5 bis. paye par la direction",
       "source_file": "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md",
-      "source_location": "L113"
+      "source_location": "L114"
     },
     {
       "id": "docs_superpowers_specs_2026_10_12_fournisseurs_administratifs_design_5_tr\u00e9sorerie",
@@ -29633,17 +29633,17 @@
       "node_kind": "heading",
       "norm_label": "5. tresorerie",
       "source_file": "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md",
-      "source_location": "L88"
+      "source_location": "L89"
     },
     {
-      "id": "docs_superpowers_specs_2026_10_12_fournisseurs_administratifs_design_6_r\u00e9sultat_net",
-      "label": "6. R\u00e9sultat net",
+      "id": "docs_superpowers_specs_2026_10_12_fournisseurs_administratifs_design_6_r\u00e9sultat_net_r\u00e8gle_corrig\u00e9e_le_12_10_2026",
+      "label": "6. R\u00e9sultat net (r\u00e8gle corrig\u00e9e le 12/10/2026)",
       "_origin": "ast",
       "community": 113,
       "community_name": "Fournisseurs administratifs \u2014 conception",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "6. resultat net",
+      "norm_label": "6. resultat net (regle corrigee le 12/10/2026)",
       "source_file": "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md",
       "source_location": "L131"
     },
@@ -29657,7 +29657,7 @@
       "node_kind": "heading",
       "norm_label": "7. tests",
       "source_file": "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md",
-      "source_location": "L151"
+      "source_location": "L147"
     },
     {
       "id": "docs_superpowers_specs_2026_10_12_fournisseurs_administratifs_design_8_livraison",
@@ -29669,7 +29669,7 @@
       "node_kind": "heading",
       "norm_label": "8. livraison",
       "source_file": "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md",
-      "source_location": "L161"
+      "source_location": "L157"
     },
     {
       "id": "docs_superpowers_specs_2026_10_12_fournisseurs_administratifs_design_but",
@@ -34497,7 +34497,7 @@
       "file_type": "code",
       "norm_label": "tresorerie_depense_direction_supprimer()",
       "source_file": "supabase_fournisseurs_administratifs.sql",
-      "source_location": "L157"
+      "source_location": "L158"
     },
     {
       "id": "supabase_tresorerie_direction",
@@ -41199,7 +41199,7 @@
       "file_type": "code",
       "norm_label": "appliquer_factures_mensuelles()",
       "source_file": "supabase_fournisseurs_administratifs.sql",
-      "source_location": "L57"
+      "source_location": "L58"
     },
     {
       "id": "supabase_fournisseurs_administratifs_fournisseurs_administratif_depuis",
@@ -41210,7 +41210,7 @@
       "file_type": "code",
       "norm_label": "fournisseurs_administratif_depuis()",
       "source_file": "supabase_fournisseurs_administratifs.sql",
-      "source_location": "L35"
+      "source_location": "L36"
     },
     {
       "id": "supabase_fournisseurs_administratifs_sql_fournisseurs",
@@ -41232,7 +41232,7 @@
       "file_type": "code",
       "norm_label": "tresorerie_depense_admin_figee()",
       "source_file": "supabase_fournisseurs_administratifs.sql",
-      "source_location": "L174"
+      "source_location": "L175"
     },
     {
       "id": "supabase_fournisseurs_administratifs_tresorerie_payer_fournisseur_admin",
@@ -41243,7 +41243,7 @@
       "file_type": "code",
       "norm_label": "tresorerie_payer_fournisseur_admin()",
       "source_file": "supabase_fournisseurs_administratifs.sql",
-      "source_location": "L113"
+      "source_location": "L114"
     },
     {
       "id": "supabase_fournisseurs_administratifs_trg_fournisseurs_administratif_depuis",
@@ -41254,7 +41254,7 @@
       "file_type": "code",
       "norm_label": "trg_fournisseurs_administratif_depuis",
       "source_file": "supabase_fournisseurs_administratifs.sql",
-      "source_location": "L52"
+      "source_location": "L53"
     },
     {
       "id": "supabase_fournisseurs_administratifs_trg_tresorerie_depense_admin_figee",
@@ -41265,7 +41265,7 @@
       "file_type": "code",
       "norm_label": "trg_tresorerie_depense_admin_figee",
       "source_file": "supabase_fournisseurs_administratifs.sql",
-      "source_location": "L185"
+      "source_location": "L186"
     },
     {
       "id": "components_fichecontrat",
@@ -47058,7 +47058,7 @@
       "file_type": "code",
       "norm_label": "mois_formule_normale",
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L53"
+      "source_location": "L52"
     },
     {
       "id": "lib_creditfournisseursmois_source_ajustement",
@@ -47069,7 +47069,7 @@
       "file_type": "code",
       "norm_label": "source_ajustement",
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L69"
+      "source_location": "L68"
     },
     {
       "id": "lib_creditfournisseursmois_test",
@@ -47928,7 +47928,7 @@
       "file_type": "code",
       "norm_label": "mois",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L58"
+      "source_location": "L59"
     },
     {
       "id": "lib_fournisseursadmin_source_montant_du",
@@ -47939,7 +47939,7 @@
       "file_type": "code",
       "norm_label": "source_montant_du",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L18"
+      "source_location": "L19"
     },
     {
       "id": "lib_fournisseursadmin_test",
@@ -80076,7 +80076,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L85",
+      "source_location": "L84",
       "weight": 1.0
     },
     {
@@ -80088,7 +80088,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L86",
+      "source_location": "L85",
       "weight": 1.0
     },
     {
@@ -80100,7 +80100,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L89",
+      "source_location": "L87",
       "weight": 1.0
     },
     {
@@ -80124,7 +80124,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L57",
+      "source_location": "L56",
       "weight": 1.0
     },
     {
@@ -84180,7 +84180,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L81",
+      "source_location": "L82",
       "weight": 1.0
     },
     {
@@ -84192,7 +84192,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L85",
+      "source_location": "L86",
       "weight": 1.0
     },
     {
@@ -84204,7 +84204,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L72",
+      "source_location": "L73",
       "weight": 1.0
     },
     {
@@ -84216,7 +84216,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L74",
+      "source_location": "L75",
       "weight": 1.0
     },
     {
@@ -84228,7 +84228,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L60",
+      "source_location": "L61",
       "weight": 1.0
     },
     {
@@ -84240,7 +84240,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L64",
+      "source_location": "L65",
       "weight": 1.0
     },
     {
@@ -84252,7 +84252,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L67",
+      "source_location": "L68",
       "weight": 1.0
     },
     {
@@ -84264,7 +84264,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L67",
+      "source_location": "L68",
       "weight": 1.0
     },
     {
@@ -84276,7 +84276,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L49",
+      "source_location": "L50",
       "weight": 1.0
     },
     {
@@ -84288,7 +84288,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L51",
+      "source_location": "L52",
       "weight": 1.0
     },
     {
@@ -84300,7 +84300,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L54",
+      "source_location": "L55",
       "weight": 1.0
     },
     {
@@ -84312,7 +84312,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L29",
+      "source_location": "L30",
       "weight": 1.0
     },
     {
@@ -84324,7 +84324,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L36",
+      "source_location": "L37",
       "weight": 1.0
     },
     {
@@ -119076,7 +119076,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L43",
+      "source_location": "L42",
       "weight": 1.0
     },
     {
@@ -119088,7 +119088,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L44",
+      "source_location": "L43",
       "weight": 1.0
     },
     {
@@ -119100,7 +119100,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L45",
+      "source_location": "L44",
       "weight": 1.0
     },
     {
@@ -134388,7 +134388,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L43",
+      "source_location": "L42",
       "weight": 1.0
     },
     {
@@ -134400,7 +134400,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L44",
+      "source_location": "L43",
       "weight": 1.0
     },
     {
@@ -134412,7 +134412,7 @@
       "confidence_score": 1.0,
       "context": "import",
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L45",
+      "source_location": "L44",
       "weight": 1.0
     },
     {
@@ -153167,7 +153167,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md",
-      "source_location": "L102",
+      "source_location": "L103",
       "weight": 1.0
     },
     {
@@ -153178,12 +153178,12 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md",
-      "source_location": "L113",
+      "source_location": "L114",
       "weight": 1.0
     },
     {
       "source": "docs_superpowers_specs_2026_10_12_fournisseurs_administratifs_design_fournisseurs_administratifs_conception",
-      "target": "docs_superpowers_specs_2026_10_12_fournisseurs_administratifs_design_6_r\u00e9sultat_net",
+      "target": "docs_superpowers_specs_2026_10_12_fournisseurs_administratifs_design_6_r\u00e9sultat_net_r\u00e8gle_corrig\u00e9e_le_12_10_2026",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -153200,7 +153200,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md",
-      "source_location": "L151",
+      "source_location": "L147",
       "weight": 1.0
     },
     {
@@ -153211,7 +153211,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md",
-      "source_location": "L161",
+      "source_location": "L157",
       "weight": 1.0
     },
     {
@@ -153233,7 +153233,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md",
-      "source_location": "L35",
+      "source_location": "L36",
       "weight": 1.0
     },
     {
@@ -153255,7 +153255,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md",
-      "source_location": "L53",
+      "source_location": "L54",
       "weight": 1.0
     },
     {
@@ -153266,7 +153266,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md",
-      "source_location": "L66",
+      "source_location": "L67",
       "weight": 1.0
     },
     {
@@ -153277,7 +153277,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md",
-      "source_location": "L77",
+      "source_location": "L78",
       "weight": 1.0
     },
     {
@@ -153288,7 +153288,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md",
-      "source_location": "L88",
+      "source_location": "L89",
       "weight": 1.0
     },
     {
@@ -157534,7 +157534,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L47",
+      "source_location": "L46",
       "weight": 1.0
     },
     {
@@ -157545,7 +157545,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L53",
+      "source_location": "L52",
       "weight": 1.0
     },
     {
@@ -157556,7 +157556,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L56",
+      "source_location": "L55",
       "weight": 1.0
     },
     {
@@ -157567,7 +157567,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L62",
+      "source_location": "L61",
       "weight": 1.0
     },
     {
@@ -157578,7 +157578,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L67",
+      "source_location": "L66",
       "weight": 1.0
     },
     {
@@ -157589,7 +157589,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L69",
+      "source_location": "L68",
       "weight": 1.0
     },
     {
@@ -157600,7 +157600,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/creditFournisseursMois.js",
-      "source_location": "L77",
+      "source_location": "L76",
       "weight": 1.0
     },
     {
@@ -160548,7 +160548,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L18",
+      "source_location": "L19",
       "weight": 1.0
     },
     {
@@ -160559,7 +160559,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L20",
+      "source_location": "L21",
       "weight": 1.0
     },
     {
@@ -160570,7 +160570,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L22",
+      "source_location": "L23",
       "weight": 1.0
     },
     {
@@ -160581,7 +160581,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L26",
+      "source_location": "L27",
       "weight": 1.0
     },
     {
@@ -160592,7 +160592,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L34",
+      "source_location": "L35",
       "weight": 1.0
     },
     {
@@ -160603,7 +160603,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L40",
+      "source_location": "L41",
       "weight": 1.0
     },
     {
@@ -160614,7 +160614,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L41",
+      "source_location": "L42",
       "weight": 1.0
     },
     {
@@ -160625,7 +160625,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L48",
+      "source_location": "L49",
       "weight": 1.0
     },
     {
@@ -160636,7 +160636,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L58",
+      "source_location": "L59",
       "weight": 1.0
     },
     {
@@ -160647,7 +160647,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L59",
+      "source_location": "L60",
       "weight": 1.0
     },
     {
@@ -160658,7 +160658,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L60",
+      "source_location": "L61",
       "weight": 1.0
     },
     {
@@ -160669,7 +160669,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L63",
+      "source_location": "L64",
       "weight": 1.0
     },
     {
@@ -160680,7 +160680,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L71",
+      "source_location": "L72",
       "weight": 1.0
     },
     {
@@ -160691,7 +160691,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/fournisseursAdmin.js",
-      "source_location": "L80",
+      "source_location": "L81",
       "weight": 1.0
     },
     {
@@ -169414,7 +169414,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "supabase_fournisseurs_administratifs.sql",
-      "source_location": "L113",
+      "source_location": "L114",
       "weight": 1.0
     },
     {
@@ -169425,7 +169425,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "supabase_fournisseurs_administratifs.sql",
-      "source_location": "L157",
+      "source_location": "L158",
       "weight": 1.0
     },
     {
@@ -169436,7 +169436,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "supabase_fournisseurs_administratifs.sql",
-      "source_location": "L174",
+      "source_location": "L175",
       "weight": 1.0
     },
     {
@@ -169447,7 +169447,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "supabase_fournisseurs_administratifs.sql",
-      "source_location": "L185",
+      "source_location": "L186",
       "weight": 1.0
     },
     {
@@ -169458,7 +169458,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "supabase_fournisseurs_administratifs.sql",
-      "source_location": "L35",
+      "source_location": "L36",
       "weight": 1.0
     },
     {
@@ -169469,7 +169469,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "supabase_fournisseurs_administratifs.sql",
-      "source_location": "L52",
+      "source_location": "L53",
       "weight": 1.0
     },
     {
@@ -169480,7 +169480,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "supabase_fournisseurs_administratifs.sql",
-      "source_location": "L57",
+      "source_location": "L58",
       "weight": 1.0
     },
     {
@@ -171561,7 +171561,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "supabase_fournisseurs_administratifs.sql",
-      "source_location": "L72",
+      "source_location": "L73",
       "weight": 1.0
     },
     {
@@ -171572,7 +171572,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "supabase_fournisseurs_administratifs.sql",
-      "source_location": "L166",
+      "source_location": "L167",
       "weight": 1.0
     },
     {
@@ -171583,7 +171583,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "supabase_fournisseurs_administratifs.sql",
-      "source_location": "L126",
+      "source_location": "L127",
       "weight": 1.0
     },
     {
@@ -172705,7 +172705,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "supabase_fournisseurs_administratifs.sql",
-      "source_location": "L52",
+      "source_location": "L53",
       "weight": 1.0
     },
     {
@@ -172716,7 +172716,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "supabase_fournisseurs_administratifs.sql",
-      "source_location": "L185",
+      "source_location": "L186",
       "weight": 1.0
     },
     {
@@ -173978,5 +173978,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "5ea11c6731a91558e245d05850bce07f2c9349c4"
+  "built_at_commit": "f6ff7d80018652904fc360ab554696413bd199ec"
 }

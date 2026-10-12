@@ -1668,9 +1668,9 @@
     "semantic_hash": ""
   },
   "app/tresorerie-resultats.js": {
-    "mtime": 1791825289.0496871,
-    "seen": 1791825471.009595,
-    "ast_hash": "07f820132f4b81d3fa7a4cbdf1c143a1",
+    "mtime": 1791825836.9258864,
+    "seen": 1791825866.424181,
+    "ast_hash": "e710a1111463de90a607f67f51f87a3c",
     "semantic_hash": ""
   },
   "lib/direction.js": {
@@ -2832,15 +2832,15 @@
     "semantic_hash": ""
   },
   "lib/creditFournisseursMois.js": {
-    "mtime": 1791825274.5726016,
-    "seen": 1791825471.0096672,
-    "ast_hash": "4b659b0a48d0d0b478024666b2da3d07",
+    "mtime": 1791825805.879967,
+    "seen": 1791825866.424256,
+    "ast_hash": "eeb0ee01ee30a2c190c7073d93669bd4",
     "semantic_hash": ""
   },
   "lib/creditFournisseursMois.test.mjs": {
-    "mtime": 1791825381.4553766,
-    "seen": 1791825471.009668,
-    "ast_hash": "4dc65cf0dd36f3edb80c0ce00fa02159",
+    "mtime": 1791825805.8802328,
+    "seen": 1791825866.424257,
+    "ast_hash": "a0f11a30710d3999c2f34f7876137e79",
     "semantic_hash": ""
   },
   "supabase_litiges_erreurs_saisie.sql": {
@@ -2898,9 +2898,9 @@
     "semantic_hash": ""
   },
   "components/fournisseurs/FeuilleFournisseurAdmin.js": {
-    "mtime": 1791825433.9057593,
-    "seen": 1791825471.0096152,
-    "ast_hash": "507cf68df44f29e92cd369408714bd6c",
+    "mtime": 1791825836.926283,
+    "seen": 1791825866.424203,
+    "ast_hash": "8421213ffdf8f0c25c4db7a801d83494",
     "semantic_hash": ""
   },
   "components/fournisseurs/FeuillePaiementDirection.js": {
@@ -2910,9 +2910,9 @@
     "semantic_hash": ""
   },
   "lib/fournisseursAdmin.js": {
-    "mtime": 1791825381.455127,
-    "seen": 1791825471.009686,
-    "ast_hash": "b748dc4f52f2882d704e947b1aa56199",
+    "mtime": 1791825836.926528,
+    "seen": 1791825866.424278,
+    "ast_hash": "6d4464de1e9ef9c6ac1e6d48f71cb830",
     "semantic_hash": ""
   },
   "lib/fournisseursAdmin.test.mjs": {
@@ -2922,9 +2922,9 @@
     "semantic_hash": ""
   },
   "supabase_fournisseurs_administratifs.sql": {
-    "mtime": 1791824404.759025,
-    "seen": 1791824740.7068548,
-    "ast_hash": "86ab30a02f94472c345b68e62789011c",
+    "mtime": 1791825844.135669,
+    "seen": 1791825866.4243488,
+    "ast_hash": "c3d5c2ba2dbfa71db46ba0d372c03404",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-10-12-fournisseurs-administratifs.md": {
@@ -2940,15 +2940,15 @@
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-10-12-fournisseurs-administratifs-design.md": {
-    "mtime": 1791825466.2579122,
-    "seen": 1791825471.009805,
-    "ast_hash": "1fe7d0fcdad78b0446186d8e175efe83",
+    "mtime": 1791825836.9267936,
+    "seen": 1791825866.424396,
+    "ast_hash": "494097b77eecb6c7fa843936e616da80",
     "semantic_hash": ""
   },
   "components/fournisseurs/FeuilleMontantDu.js": {
-    "mtime": 1791825361.8909016,
-    "seen": 1791825471.009616,
-    "ast_hash": "23c4b0ee290b41020eca4525f14b76eb",
+    "mtime": 1791825836.926088,
+    "seen": 1791825866.424203,
+    "ast_hash": "44db0b41d4cfd6dc0569afbce64efb35",
     "semantic_hash": ""
   },
   "components/tresorerie/anciensTravailleurs.js": {
