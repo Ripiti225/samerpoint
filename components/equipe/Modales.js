@@ -267,6 +267,51 @@ export function ModalArchive({ trav, styles, peutSupprimer, onFermer, onArchiver
   )
 }
 
+// ── Droits dus après l'archivage d'un CDI ────────────────────────────────────
+// Deux vrais boutons, pas d'Alert (un menu à 3 choix perd le 3e sur le web).
+export function ModalDroitsDus({ trav, motif, styles, onFermer, onEnregistrer }) {
+  const [montant, setMontant] = useState('')
+  const [saving, setSaving] = useState(false)
+  useEffect(() => { if (trav) setMontant('') }, [trav])
+  if (!trav) return null
+  const v = parseInt(montant, 10) || 0
+
+  async function enregistrer() {
+    if (v <= 0) return
+    setSaving(true)
+    await onEnregistrer(v)
+    setSaving(false)
+  }
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onFermer}>
+      <FondModal styles={styles}>
+        <ScrollView style={styles.modal} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <EnTete styles={styles} titre="Lui doit-on de l'argent ?" onFermer={onFermer} />
+          <Text style={styles.modalLabel}>{trav.nom} (CDI) · {motif}</Text>
+          <Text style={styles.modalLabel}>Montant dû (FCFA)</Text>
+          <TextInput style={[styles.modalInput, { fontSize: 18, fontWeight: '700' }]} value={montant}
+            onChangeText={t => setMontant(t.replace(/[^0-9]/g, ''))} keyboardType="numeric"
+            placeholder="0" placeholderTextColor="#999" />
+          <Text style={[styles.modalLabel, { fontWeight: '400' }]}>
+            Le droit s'ajoute dans Trésorerie → À payer → Anciens travailleurs. Le gérant pourra le payer en caisse.
+          </Text>
+          <View style={{ gap: 8, marginTop: 6 }}>
+            <TouchableOpacity style={[styles.modalConfirm, { flex: 0 }, (v <= 0 || saving) && { opacity: 0.5 }]}
+              onPress={enregistrer} disabled={v <= 0 || saving}>
+              <Text style={styles.modalConfirmTxt}>{saving ? 'Enregistrement…' : 'Enregistrer ce montant dû'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.modalCancel, { flex: 0 }]} onPress={onFermer}>
+              <Text style={styles.modalCancelTxt}>Rien n'est dû</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={{ height: 30 }} />
+        </ScrollView>
+      </FondModal>
+    </Modal>
+  )
+}
+
 // ── Transfert ─────────────────────────────────────────────────────────────────
 export function ModalTransfert({ trav, restaurants, styles, onFermer, onTransferer }) {
   const [cible, setCible] = useState(null)

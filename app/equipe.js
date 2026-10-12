@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
 import * as XLSX from 'xlsx'
 import FicheTravailleur from '../components/equipe/FicheTravailleur'
-import { ModalArchive, ModalCalendrier, ModalFormTravailleur, ModalTransfert } from '../components/equipe/Modales'
+import { ModalArchive, ModalCalendrier, ModalDroitsDus, ModalFormTravailleur, ModalTransfert } from '../components/equipe/Modales'
 import OngletArchives from '../components/equipe/OngletArchives'
 import OngletDashboard from '../components/equipe/OngletDashboard'
 import OngletPresences from '../components/equipe/OngletPresences'
@@ -25,13 +25,15 @@ import {
 } from '../lib/equipe'
 import * as db from '../lib/equipeDb'
 import { aujourdhuiISO } from '../lib/contrats'
+import { proposerDroits } from '../lib/droitsAnciensTravailleurs'
+import { creerDroitAncien } from '../lib/droitsAnciensTravailleursDb'
 import { completerPresences } from '../lib/joursRepos'
 import { enregistrer } from '../lib/exportRapportMensuel'
 
 export default function EquipeScreen() {
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
-  const { roleActif, isManager } = useApp() ?? {}
+  const { roleActif, isManager, userId, userNom } = useApp() ?? {}
   const params = useLocalSearchParams()
 
   // Lecture seule pour les rôles à qui la tuile a été donnée dans Paramètres.
@@ -59,6 +61,7 @@ export default function EquipeScreen() {
   const [form, setForm] = useState({ visible: false, edition: null })
   const [aArchiver, setAArchiver] = useState(null)
   const [aTransferer, setATransferer] = useState(null)
+  const [droitsDus, setDroitsDus] = useState(null)   // { trav, motif } après archivage d'un CDI
   const [calendrier, setCalendrier] = useState(false)
 
   const tous = restoId === null
@@ -148,7 +151,23 @@ export default function EquipeScreen() {
     await db.archiverTravailleur(trav, motif)
     setAArchiver(null); setFiche(null)
     charger()
-    Alert.alert('Archivé', `${trav.nom} a été archivé.`)
+    // CDI : ses droits de fin de contrat se saisissent tout de suite.
+    if (proposerDroits(trav)) setDroitsDus({ trav, motif })
+    else Alert.alert('Archivé', `${trav.nom} a été archivé.`)
+  }
+
+  async function enregistrerDroits(montant) {
+    const { trav, motif } = droitsDus
+    try {
+      await creerDroitAncien({
+        restaurantId: trav.restaurant_id, nom: trav.nom, travailleurId: trav.id,
+        departLe: aujourdhuiISO(), motif, montant,
+      }, { userId, userNom })
+      setDroitsDus(null)
+      Alert.alert('Enregistré', `${trav.nom} a été archivé. Ses droits sont dans Trésorerie → À payer → Anciens travailleurs.`)
+    } catch (e) {
+      Alert.alert('Droits non enregistrés', `${trav.nom} est bien archivé. ${e?.message || 'Réessayez depuis Trésorerie → À payer.'}`)
+    }
   }
 
   async function transferer(trav, cible) {
@@ -350,6 +369,9 @@ export default function EquipeScreen() {
       />
       <ModalArchive trav={aArchiver} styles={styles} peutSupprimer={peutSupprimer}
         onFermer={() => setAArchiver(null)} onArchiver={archiver} onSupprimer={supprimer} />
+      <ModalDroitsDus trav={droitsDus?.trav} motif={droitsDus?.motif} styles={styles}
+        onFermer={() => { const t = droitsDus?.trav; setDroitsDus(null); if (t) Alert.alert('Archivé', `${t.nom} a été archivé.`) }}
+        onEnregistrer={enregistrerDroits} />
       <ModalTransfert trav={aTransferer} restaurants={restaurants} styles={styles}
         onFermer={() => setATransferer(null)} onTransferer={transferer} />
       <ModalCalendrier visible={calendrier} styles={styles} colors={colors}
