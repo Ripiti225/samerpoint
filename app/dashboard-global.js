@@ -27,8 +27,8 @@ import { progressionObjectif, variation } from '../lib/objectifs'
 import { venteRetenue, venteTheorique } from '../lib/venteMachine'
 import VenteDouble, { TexteTheorique } from '../components/ui/VenteDouble'
 import {
-  JOURS_COURTS, ORDRE_HEURES, faitsMarquants, grilleSemaine, heurePic, heuresDuService, joursForts, libelleCreneau,
-  mixCanaux, mixPaiements, ticketMoyen,
+  JOURS_COURTS, ORDRE_HEURES, canauxParHeure, faitsMarquants, grilleSemaine, heurePic, heuresDuService, joursForts,
+  libelleCreneau, mixCanaux, mixPaiements, ticketMoyen,
 } from '../lib/statsPOS'
 import { POS_NON_INSTALLE, chargerStatsPOS } from '../lib/statsPOSDb'
 import { supabase } from '../lib/supabase'
@@ -1173,6 +1173,7 @@ export default function DashboardGlobalScreen() {
     const heures = heuresDuService(pos.par_heure)
     const maxH = Math.max(1, ...heures.map(h => h.nb))
     const iPic = picPOS ? heures.findIndex(h => h.h === picPOS.h) : null
+    const canauxHeure = canauxParHeure(pos.par_heure_type)
     const { grille, max: maxGrille } = grilleSemaine(pos.semaine)
     const { parJour, meilleur } = joursForts(pos.semaine)
     const canaux = mixCanaux(pos.par_type)
@@ -1217,7 +1218,7 @@ export default function DashboardGlobalScreen() {
 
       <CarteGraphique icone="fire" couleur="#E11D48" titre="Heures de pointe" sous="Commandes par heure, de 6 h du matin à 5 h">
         {l => (
-          <Barres largeur={l} hauteur={200} format={v => `${Math.round(v)}`}
+          <Barres largeur={l} hauteur={pos.par_heure_type ? 270 : 200} format={v => `${Math.round(v)}`}
             etiquettes={heures.map(h => `${h.h}h`)} surligne={iPic} attenuer={false} valeurSurligne={picPOS ? `${picPOS.nb} cmd` : null}
             detail={i => ({
               titre: libelleCreneau(heures[i].h),
@@ -1226,6 +1227,10 @@ export default function DashboardGlobalScreen() {
                 { label: 'Encaissé', valeur: fmt(heures[i].ca) },
                 { label: 'Ticket moyen', valeur: heures[i].nb ? `${Math.round(heures[i].ca / heures[i].nb).toLocaleString('fr-FR')} F` : '—' },
                 { label: 'Part de la journée', valeur: `${Math.round((heures[i].nb / Math.max(1, Number(t.nb))) * 100)} %` },
+                ...(canauxHeure[heures[i].h]?.length ? [{ label: 'Par canal', valeur: '' }] : []),
+                ...(canauxHeure[heures[i].h] || []).map(c => ({
+                  couleur: c.couleur, label: c.nom, valeur: `${c.nb} cmd · ${fmt(c.ca)}`,
+                })),
               ],
             })}
             series={[{ nom: 'Commandes', valeurs: heures.map(h => h.nb), couleur: '#E11D48',

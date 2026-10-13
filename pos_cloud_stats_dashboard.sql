@@ -53,6 +53,11 @@ select jsonb_build_object(
   'par_heure', (select coalesce(jsonb_agg(x order by x.h), '[]') from (
       select extract(hour from created_at)::int as h, count(*) as nb, sum(total) as ca
       from payees group by 1) x),
+  -- Même découpage, canal par canal : la bulle « Heures de pointe » montre
+  -- par où sont sorties les commandes de chaque heure.
+  'par_heure_type', (select coalesce(jsonb_agg(x), '[]') from (
+      select extract(hour from created_at)::int as h, type, partenaire, origine, count(*) as nb, sum(total) as ca
+      from payees group by 1, 2, 3, 4) x),
   'semaine', (select coalesce(jsonb_agg(x), '[]') from (
       select extract(isodow from jour_service)::int as j, extract(hour from created_at)::int as h, count(*) as nb
       from payees group by 1, 2) x),
