@@ -29,7 +29,7 @@ import { etatPointHier, lignesCaissiersHier, texteDemandes } from '../../lib/acc
 import { objectifDuMois } from '../../lib/objectifs'
 import { CHAMPS_VENTE, venteRetenue, venteTheorique, ventesDouble } from '../../lib/venteMachine'
 import BandeauGerant from './BandeauGerant'
-import { resumeContrats } from '../../lib/contrats'
+import { contratsSignes, resumeContrats } from '../../lib/contrats'
 import {
   ICONES_TUILES, etatPointsDuJour, groupeDeTuile, messagesTresorerie, nbAVerifier, organiserAccueil,
 } from '../../lib/groupesAccueil'
@@ -90,10 +90,13 @@ async function chargerTresorerie({ role, userId, hier, auj, demain }) {
 async function chargerContrats(jour) {
   const [t, c] = await Promise.all([
     supabase.from('travailleurs').select('id, actif, statut').neq('statut', 'archive').range(0, 4999),
-    supabase.from('contrats_travailleurs').select('travailleur_id, type, date_debut, date_fin, cloture_le').range(0, 4999),
+    // `*` plutôt qu'une liste : la colonne `statut` n'existe qu'après la
+    // migration des contrats signés, et la nommer casserait le bandeau avant.
+    supabase.from('contrats_travailleurs').select('*').range(0, 4999),
   ])
   if (t.error || c.error) return null
-  return resumeContrats(t.data, c.data, jour)
+  // Un contrat à faire signer, refusé ou annulé ne met personne « sous contrat ».
+  return resumeContrats(t.data, contratsSignes(c.data), jour)
 }
 
 // Points des 7 derniers jours, restaurants, demandes en attente, messages

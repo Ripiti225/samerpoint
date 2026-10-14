@@ -26,7 +26,7 @@ const LIBELLE_DUREE = { 1: '1 mois', 2: '2 mois', 3: '3 mois', 6: '6 mois', 12: 
 
 // Premier contrat : la date d'embauche. Renouvellement : le lendemain de la fin
 // du dernier contrat, pour ne pas laisser de trou par inadvertance.
-function debutParDefaut(travailleur, contratsExistants) {
+export function debutParDefaut(travailleur, contratsExistants) {
   const finsConnues = (contratsExistants || [])
     .map(finEffective)
     .filter(Boolean)

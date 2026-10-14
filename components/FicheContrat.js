@@ -16,8 +16,16 @@ import Avatar from './equipe/Avatar'
 import { Bouton, Info, Libelle, Puces, teinte, useEcranModerne } from './ui/EcranModerne'
 import {
   contratAffiche, statutContrat, rangParType, ordinalFR, formatFR, progressionContrat,
-  joursRestants, aujourdhuiISO, MOTIFS_RUPTURE, validerCloture,
+  joursRestants, aujourdhuiISO, MOTIFS_RUPTURE, validerCloture, estGenere,
 } from '../lib/contrats'
+
+// Contrats générés pas encore signés (lib/contratsSignesDb.js).
+export const STATUTS_CIRCUIT = {
+  a_signer: { emoji: '✍️', label: 'Chez le gérant — à faire signer', couleur: '#E07B00' },
+  signe_a_verifier: { emoji: '🕓', label: 'Signé — à vérifier', couleur: '#2F6FD8' },
+  refuse: { emoji: '⛔', label: 'Refusé par le travailleur', couleur: '#C2462B' },
+  annule: { emoji: '🚫', label: 'Annulé', couleur: '#7A7A86' },
+}
 
 export const STATUTS_CONTRAT = {
   en_cours: { emoji: '🟢', label: 'En cours', couleur: '#3B8D2F' },
@@ -27,13 +35,16 @@ export const STATUTS_CONTRAT = {
 }
 
 export default function FicheContrat({
-  visible, travailleur, contrats, onFermer, onRenouveler, onCorriger, onSupprimer, onRompre,
+  visible, travailleur, contrats, enCircuit = [], onFermer, onRenouveler, onGenerer, onCorriger, onSupprimer, onRompre,
+  onOuvrirCircuit, onAnnulerCircuit,
 }) {
   const { styles, colors, accent, principale } = useEcranModerne('orange')
   const [rupturePour, setRupturePour] = useState(null)   // id du contrat en cours de rupture
   const [dateRupture, setDateRupture] = useState('')
   const [motifRupture, setMotifRupture] = useState('Démission')
   const [motifAutre, setMotifAutre] = useState('')
+  const [annulePour, setAnnulePour] = useState(null)    // id du contrat non signé à annuler
+  const [motifAnnule, setMotifAnnule] = useState('')
 
   const jour = aujourdhuiISO()
   const liste = contrats || []
@@ -138,10 +149,12 @@ export default function FicheContrat({
           )}
         </View>
 
+        {/* Un contrat signé dans l'application est un document remis au
+            travailleur : ni correction ni suppression, seulement la rupture. */}
         <View style={styles.actions}>
-          <Bouton label="✏️ Corriger" couleur={accent} flex styles={styles} onPress={() => onCorriger(c)} />
+          {!estGenere(c) && <Bouton label="✏️ Corriger" couleur={accent} flex styles={styles} onPress={() => onCorriger(c)} />}
           {peutRompre && <Bouton label="⛔ Rompre" couleur="#C2462B" flex styles={styles} onPress={() => ouvrirRupture(c)} />}
-          <Bouton label="🗑 Supprimer" variante="contour" couleur={colors.textMuted} styles={styles} onPress={() => confirmerSuppression(c)} />
+          {!estGenere(c) && <Bouton label="🗑 Supprimer" variante="contour" couleur={colors.textMuted} styles={styles} onPress={() => confirmerSuppression(c)} />}
         </View>
 
         {rupturePour === c.id && (
@@ -190,10 +203,50 @@ export default function FicheContrat({
             </View>
           </View>
 
-          <View style={{ marginBottom: 16 }}>
-            <Bouton label={liste.length === 0 ? '+ Enregistrer un contrat' : '+ Renouveler le contrat'}
-              variante="plein" couleur={principale} grand styles={styles} onPress={onRenouveler} />
+          <View style={{ marginBottom: 16, gap: 8 }}>
+            <Bouton label={liste.length === 0 ? '✍️ Générer un contrat' : '✍️ Renouveler (générer le contrat)'}
+              variante="plein" couleur={principale} grand styles={styles} onPress={onGenerer} />
+            <Bouton label="📷 Enregistrer un contrat papier" variante="contour" couleur={accent} styles={styles} onPress={onRenouveler} />
           </View>
+
+          {enCircuit.length > 0 && <Text style={styles.resultat}>Contrats non signés</Text>}
+          {enCircuit.map(c => {
+            const st = STATUTS_CIRCUIT[c.statut] || STATUTS_CIRCUIT.annule
+            const ouvert = c.statut !== 'annule'
+            return (
+              <View key={c.id} style={[styles.carte, !ouvert && { opacity: 0.6 }]}>
+                <Text style={styles.carteTitre}>
+                  {c.type}{c.date_fin ? ` · ${formatFR(c.date_debut)} → ${formatFR(c.date_fin)}` : ` · dès le ${formatFR(c.date_debut)}`}
+                </Text>
+                <View style={[styles.pastille, { backgroundColor: teinte(st.couleur, '22') }]}>
+                  <Text style={[styles.pastilleTxt, { color: st.couleur }]}>{st.emoji} {st.label}</Text>
+                </View>
+                {c.statut === 'refuse' && c.motif_refus ? <Info icone="💬" styles={styles}>{c.motif_refus}</Info> : null}
+                {c.statut === 'annule' && c.annule_motif ? <Info icone="💬" styles={styles}>{c.annule_motif}</Info> : null}
+                {ouvert && (
+                  <View style={styles.actions}>
+                    {c.statut === 'signe_a_verifier' && <Bouton label="🔍 Vérifier" couleur="#2F6FD8" flex styles={styles} onPress={() => onOuvrirCircuit?.(c)} />}
+                    {c.statut === 'refuse' && <Bouton label="✏️ Corriger et renvoyer" couleur={accent} flex styles={styles} onPress={() => onOuvrirCircuit?.(c)} />}
+                    {c.statut !== 'signe_a_verifier' && (
+                      <Bouton label="🚫 Annuler" variante="contour" couleur={colors.textMuted} styles={styles}
+                        onPress={() => { setAnnulePour(c.id); setMotifAnnule('') }} />
+                    )}
+                  </View>
+                )}
+                {annulePour === c.id && (
+                  <View style={{ marginTop: 10 }}>
+                    <TextInput style={styles.input} placeholder="Pourquoi annuler ce contrat ?" value={motifAnnule}
+                      onChangeText={setMotifAnnule} placeholderTextColor={colors.textPlaceholder} />
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <Bouton label="Retour" variante="contour" couleur={colors.textSecondary} flex styles={styles} onPress={() => setAnnulePour(null)} />
+                      <Bouton label="Confirmer l'annulation" variante="plein" couleur="#C2462B" flex styles={styles} disabled={!motifAnnule.trim()}
+                        onPress={() => { setAnnulePour(null); onAnnulerCircuit?.(c, motifAnnule) }} />
+                    </View>
+                  </View>
+                )}
+              </View>
+            )
+          })}
 
           {liste.length === 0 && (
             <Text style={[styles.infoTxt, { textAlign: 'center', paddingVertical: 20 }]}>Aucun contrat enregistré pour ce travailleur.</Text>

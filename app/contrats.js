@@ -12,20 +12,29 @@ import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 
-import FicheContrat, { STATUTS_CONTRAT } from '../components/FicheContrat'
+import FeuilleBaremes from '../components/contrats/FeuilleBaremes'
+import FeuilleDemandeRH from '../components/contrats/FeuilleDemandeRH'
+import FeuilleVerification from '../components/contrats/FeuilleVerification'
+import FormulaireGeneration from '../components/contrats/FormulaireGeneration'
+import FicheContrat, { STATUTS_CIRCUIT, STATUTS_CONTRAT } from '../components/FicheContrat'
 import FormulaireContrat from '../components/FormulaireContrat'
 import SelecteurTravailleur from '../components/SelecteurTravailleur'
 import Avatar from '../components/equipe/Avatar'
-import { Compteurs, EnTete, Puces, Recherche, Vide, teinte, useEcranModerne } from '../components/ui/EcranModerne'
+import { Bouton, Compteurs, EnTete, Feuille, Puces, Recherche, Vide, teinte, useEcranModerne } from '../components/ui/EcranModerne'
 import Jauge from '../components/ui/Jauge'
 import { useApp } from '../context/AppContext'
 import {
-  FILTRES_CONTRAT, aujourdhuiISO, compterContrats, contratAffiche, correspondFiltreContrat, expireBientot,
+  FILTRES_CONTRAT, aujourdhuiISO, compterContrats, contratAffiche, contratsSignes, correspondFiltreContrat, expireBientot,
   formatFR, ordinalFR, progressionContrat, rangParType, resumeContrats, statutContrat,
 } from '../lib/contrats'
+import { annulerContrat, chargerBaremes, chargerDemandes, chargerTousTravailleurs } from '../lib/contratsSignesDb'
+import { nomComplet } from '../lib/recrutement'
 import { journaliser } from '../lib/journal'
 import { creerNotification } from '../lib/notificationsInterne'
 import { supabase } from '../lib/supabase'
+
+// Une ligne du bloc « À traiter » (demande à valider, contrat à vérifier…).
+const LIGNE_A_TRAITER = { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 }
 
 // Couleur de chaque compteur.
 const COULEURS_FILTRES = {
@@ -34,6 +43,7 @@ const COULEURS_FILTRES = {
 
 export default function ContratsScreen() {
   const { userId, userNom } = useApp() ?? {}
+  const contexteJournal = { userId: userId || null, userNom: userNom || null }
   const { styles, colors, accent, principale } = useEcranModerne('orange')
 
   const [restaurants, setRestaurants] = useState([])
@@ -54,6 +64,18 @@ export default function ContratsScreen() {
   const [formVisible, setFormVisible] = useState(false)
   const [contratEdite, setContratEdite] = useState(null)
 
+  // Circuit des contrats générés (demande → signature → validation).
+  const [circuit, setCircuit] = useState([])          // contrats non signés
+  const [demandes, setDemandes] = useState([])        // demandes à valider
+  const [baremes, setBaremes] = useState([])
+  const [connus, setConnus] = useState([])            // tous les travailleurs, pour les doublons
+  const [modeNouveau, setModeNouveau] = useState('generer')
+  const [choixVisible, setChoixVisible] = useState(false)
+  const [generation, setGeneration] = useState(null)  // { travailleur, contratRefuse?, demandeId? }
+  const [demandeOuverte, setDemandeOuverte] = useState(null)
+  const [verifOuvert, setVerifOuvert] = useState(null)
+  const [baremesVisible, setBaremesVisible] = useState(false)
+
   const jour = aujourdhuiISO()
 
   useEffect(() => {
@@ -63,14 +85,14 @@ export default function ContratsScreen() {
   async function charger() {
     setLoading(true)
     const { data: restos } = await supabase
-      .from('restaurants').select('id, nom, couleur').order('nom')
+      .from('restaurants').select('id, nom, couleur, code, marque').order('nom')
     setRestaurants(restos || [])
 
     // .range explicite : sans lui, PostgREST tronque silencieusement à 1000
     // lignes. Le piège a déjà coûté cher sur d'autres écrans.
     const { data: travs } = await supabase
       .from('travailleurs')
-      .select('*, restaurants(nom, couleur)')
+      .select('*, restaurants(id, nom, couleur, code, marque)')
       .neq('statut', 'archive')
       .order('nom')
       .range(0, 4999)
@@ -81,7 +103,16 @@ export default function ContratsScreen() {
       .select('*')
       .order('date_debut', { ascending: true })
       .range(0, 4999)
-    setContrats(ctrs || [])
+    // Seuls les contrats signés font foi ; les autres sont en circuit.
+    setContrats(contratsSignes(ctrs))
+    setCircuit((ctrs || []).filter(c => c.statut && c.statut !== 'signe'))
+
+    const [dems, bars, tous] = await Promise.all([
+      chargerDemandes().catch(() => []), chargerBaremes(), chargerTousTravailleurs(),
+    ])
+    setDemandes(dems.filter(d => d.statut === 'envoyee'))
+    setBaremes(bars)
+    setConnus(tous)
 
     setLoading(false)
   }
@@ -133,10 +164,34 @@ export default function ContratsScreen() {
     setTravSelectionne(travailleur)
     setContratEdite(null)
     setSelecteurVisible(false)
-    setFormVisible(true)
+    if (modeNouveau === 'generer') setGeneration({ travailleur })
+    else setFormVisible(true)
   }
 
-  const contexteJournal = { userId: userId || null, userNom: userNom || null }
+  const travParId = id => travailleurs.find(t => t.id === id) || null
+  const restoNom = id => restaurants.find(r => r.id === id)?.nom || ''
+  const dansResto = restoId => filtreResto === 'tous' || restoId === filtreResto
+  const aValider = demandes.filter(d => dansResto(d.restaurant_id))
+  const aVerifier = circuit.filter(c => c.statut === 'signe_a_verifier' && dansResto(c.restaurant_id))
+  const refuses = circuit.filter(c => c.statut === 'refuse' && dansResto(c.restaurant_id))
+  const chezGerant = circuit.filter(c => c.statut === 'a_signer' && dansResto(c.restaurant_id))
+
+  function ouvrirCircuit(c) {
+    if (c.statut === 'signe_a_verifier') setVerifOuvert(c)
+    else if (c.statut === 'refuse') {
+      const t = travParId(c.travailleur_id)
+      if (t) setGeneration({ travailleur: t, contratRefuse: c })
+    }
+  }
+
+  async function annulerCircuit(c, motif) {
+    try {
+      await annulerContrat(c, motif, contexteJournal, travParId(c.travailleur_id)?.nom)
+      await charger()
+    } catch (e) {
+      Alert.alert('Annulation impossible', e.message)
+    }
+  }
 
   function messageErreur(error) {
     const txt = String(error?.message || '')
@@ -364,6 +419,42 @@ export default function ContratsScreen() {
           <Compteurs elements={compteurs} actif={filtreEtat} styles={styles}
             onChoisir={cle => setFiltreEtat(cle ?? 'tous')} />
           <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+            {(aValider.length + aVerifier.length + refuses.length + chezGerant.length) > 0 && (
+              <View style={[styles.carte, { borderColor: teinte(principale, '66'), borderWidth: 1.5 }]}>
+                <Text style={[styles.carteTitre, { marginBottom: 8 }]}>À traiter</Text>
+                {aValider.map(d => (
+                  <TouchableOpacity key={d.id} style={LIGNE_A_TRAITER} onPress={() => setDemandeOuverte(d)}>
+                    <Avatar nom={nomComplet(d)} photo={d.photo_url} taille={36} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.infoTxt, { flex: 0, color: colors.text, fontWeight: '700' }]}>🧑‍🍳 {nomComplet(d)} — {d.poste}</Text>
+                      <Text style={[styles.infoTxt, { flex: 0 }]}>Demande d&apos;embauche · {restoNom(d.restaurant_id)}</Text>
+                    </View>
+                    <Text style={{ color: accent, fontWeight: '800' }}>Valider ›</Text>
+                  </TouchableOpacity>
+                ))}
+                {[...aVerifier, ...refuses].map(c => {
+                  const st = STATUTS_CIRCUIT[c.statut]
+                  const t = travParId(c.travailleur_id)
+                  return (
+                    <TouchableOpacity key={c.id} style={LIGNE_A_TRAITER} onPress={() => ouvrirCircuit(c)}>
+                      <Avatar nom={t?.nom} photo={t?.photo_url} taille={36} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.infoTxt, { flex: 0, color: colors.text, fontWeight: '700' }]}>{st.emoji} {t?.nom || 'Travailleur'} — {c.type}</Text>
+                        <Text style={[styles.infoTxt, { flex: 0, color: st.couleur }]}>{st.label}{c.motif_refus && c.statut === 'refuse' ? ` : ${c.motif_refus}` : ''}</Text>
+                      </View>
+                      <Text style={{ color: accent, fontWeight: '800' }}>{c.statut === 'refuse' ? 'Corriger ›' : 'Vérifier ›'}</Text>
+                    </TouchableOpacity>
+                  )
+                })}
+                {chezGerant.length > 0 && (
+                  <Text style={[styles.infoTxt, { flex: 0, marginTop: 6 }]}>
+                    ✍️ {chezGerant.length} contrat{chezGerant.length > 1 ? 's' : ''} chez le gérant, en attente de signature :{' '}
+                    {chezGerant.map(c => travParId(c.travailleur_id)?.nom).filter(Boolean).join(', ')}
+                  </Text>
+                )}
+              </View>
+            )}
+
             <View style={[styles.carte, { flexDirection: 'row', alignItems: 'center', gap: 14, flexWrap: 'wrap' }]}>
               <Jauge pct={resume.pct} taille={150} epaisseur={14} libelle="sous contrat" />
               <View style={{ flex: 1, minWidth: 140, gap: 6 }}>
@@ -377,6 +468,9 @@ export default function ContratsScreen() {
                 )}
                 {resume.aRenouveler > 0 && <Text style={[styles.infoTxt, { color: '#C2462B', fontWeight: '700' }]}>🔁 {resume.aRenouveler} à renouveler</Text>}
                 {resume.sans > 0 && <Text style={[styles.infoTxt, { color: '#C2462B', fontWeight: '700' }]}>⚠ {resume.sans} sans contrat</Text>}
+                <TouchableOpacity onPress={() => setBaremesVisible(true)}>
+                  <Text style={[styles.infoTxt, { color: accent, fontWeight: '700' }]}>💰 Barème des postes ({baremes.length})</Text>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -406,9 +500,18 @@ export default function ContratsScreen() {
         position: 'absolute', bottom: 24, alignSelf: 'center', backgroundColor: principale, borderRadius: 26,
         paddingHorizontal: 24, paddingVertical: 15, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10,
         shadowOffset: { width: 0, height: 4 }, elevation: 4,
-      }} onPress={() => setSelecteurVisible(true)}>
+      }} onPress={() => setChoixVisible(true)}>
         <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15 }}>+ Nouveau contrat</Text>
       </TouchableOpacity>
+
+      {/* Deux vrais boutons : un menu Alert à plusieurs choix perd des options sur le web. */}
+      <Feuille visible={choixVisible} styles={styles} onFermer={() => setChoixVisible(false)} titre="Nouveau contrat">
+        <Bouton grand styles={styles} couleur={principale} variante="plein" label="✍️ Générer un contrat (signature sur l'appareil)"
+          onPress={() => { setModeNouveau('generer'); setChoixVisible(false); setSelecteurVisible(true) }} />
+        <View style={{ height: 10 }} />
+        <Bouton styles={styles} couleur={accent} variante="contour" label="📷 Enregistrer un contrat papier déjà signé"
+          onPress={() => { setModeNouveau('papier'); setChoixVisible(false); setSelecteurVisible(true) }} />
+      </Feuille>
 
       <SelecteurTravailleur
         visible={selecteurVisible}
@@ -422,8 +525,12 @@ export default function ContratsScreen() {
         visible={ficheVisible}
         travailleur={travSelectionne}
         contrats={travSelectionne ? contratsDe(travSelectionne.id) : []}
+        enCircuit={travSelectionne ? circuit.filter(c => c.travailleur_id === travSelectionne.id) : []}
         onFermer={() => setFicheVisible(false)}
         onRenouveler={() => { setContratEdite(null); setFormVisible(true) }}
+        onGenerer={() => { setFicheVisible(false); setGeneration({ travailleur: travSelectionne }) }}
+        onOuvrirCircuit={c => { setFicheVisible(false); ouvrirCircuit(c) }}
+        onAnnulerCircuit={annulerCircuit}
         onCorriger={c => { setContratEdite(c); setFormVisible(true) }}
         onSupprimer={supprimerContrat}
         onRompre={rompreContrat}
@@ -436,6 +543,49 @@ export default function ContratsScreen() {
         contratEdite={contratEdite}
         onFermer={() => { setFormVisible(false); setContratEdite(null) }}
         onEnregistrer={enregistrerContrat}
+      />
+
+      <FormulaireGeneration
+        visible={!!generation}
+        travailleur={generation?.travailleur}
+        contratsExistants={generation?.travailleur ? contratsDe(generation.travailleur.id) : []}
+        contratRefuse={generation?.contratRefuse || null}
+        demandeId={generation?.demandeId || null}
+        baremes={baremes}
+        ctx={contexteJournal}
+        onFermer={() => setGeneration(null)}
+        onGenere={() => { setGeneration(null); charger() }}
+      />
+
+      <FeuilleDemandeRH
+        visible={!!demandeOuverte}
+        demande={demandeOuverte}
+        restaurantNom={demandeOuverte ? restoNom(demandeOuverte.restaurant_id) : ''}
+        travailleursConnus={connus}
+        ctx={contexteJournal}
+        onFermer={() => setDemandeOuverte(null)}
+        onTraitee={async ({ travailleur, generer }) => {
+          const demandeId = demandeOuverte?.id
+          setDemandeOuverte(null)
+          await charger()
+          if (generer && travailleur) setGeneration({ travailleur, demandeId })
+        }}
+      />
+
+      <FeuilleVerification
+        visible={!!verifOuvert}
+        contrat={verifOuvert}
+        travailleurNom={verifOuvert ? travParId(verifOuvert.travailleur_id)?.nom : ''}
+        ctx={contexteJournal}
+        onFermer={() => setVerifOuvert(null)}
+        onValide={() => { setVerifOuvert(null); charger() }}
+      />
+
+      <FeuilleBaremes
+        visible={baremesVisible}
+        baremes={baremes}
+        onFermer={() => setBaremesVisible(false)}
+        onChange={async () => setBaremes(await chargerBaremes())}
       />
     </SafeAreaView>
   )
