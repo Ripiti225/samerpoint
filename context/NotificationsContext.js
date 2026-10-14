@@ -34,6 +34,13 @@ const ROUTE_MAP = {
   explication_machine_annulee: 'recap-point',
   nouveau_document: 'documents',
   nouveau_travailleur: 'equipe',
+  // Recrutement + contrats signés (lib/contratsSignesDb.js)
+  demande_trav_nouvelle: 'contrats',
+  demande_trav_acceptee: 'recrutement',
+  demande_trav_refusee: 'recrutement',
+  contrat_a_signer: 'recrutement',
+  contrat_signe_a_verifier: 'contrats',
+  contrat_refuse: 'contrats',
 }
 
 // Rôles qui suivent les demandes d'explication restées sans réponse.
