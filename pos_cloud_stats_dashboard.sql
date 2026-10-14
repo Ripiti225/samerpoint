@@ -73,6 +73,18 @@ select jsonb_build_object(
       from commande_items i join payees on payees.id = i.commande_id
       where coalesce(i.statut_cuisine, '') <> 'ANNULE'
       group by 1 order by 2 desc limit 10) x),
+  -- Les mêmes plats, canal par canal : la jauge « Plats les plus vendus »
+  -- montre par où chacun est sorti (sur place, Glovo, Yango…).
+  'top_type', (select coalesce(jsonb_agg(x), '[]') from (
+      select i.nom_snapshot as nom, payees.type, payees.partenaire, payees.origine,
+             sum(i.quantite) as qte, sum(i.quantite * i.prix_unitaire) as ca
+      from commande_items i join payees on payees.id = i.commande_id
+      where coalesce(i.statut_cuisine, '') <> 'ANNULE'
+        and i.nom_snapshot in (
+          select i2.nom_snapshot from commande_items i2 join payees p2 on p2.id = i2.commande_id
+          where coalesce(i2.statut_cuisine, '') <> 'ANNULE'
+          group by 1 order by sum(i2.quantite) desc limit 10)
+      group by 1, 2, 3, 4) x),
   'annulations_cuisine', (select jsonb_build_object('nb', count(*), 'montant', coalesce(sum(i.quantite * i.prix_unitaire), 0))
       from commande_items i join c on c.id = i.commande_id
       where i.statut_cuisine = 'ANNULE' and i.envoye_le is not null),

@@ -27,7 +27,7 @@ import { progressionObjectif, variation } from '../lib/objectifs'
 import { venteRetenue, venteTheorique } from '../lib/venteMachine'
 import VenteDouble, { TexteTheorique } from '../components/ui/VenteDouble'
 import {
-  JOURS_COURTS, ORDRE_HEURES, canauxParHeure, faitsMarquants, grilleSemaine, heurePic, heuresDuService, joursForts,
+  JOURS_COURTS, ORDRE_HEURES, canauxParHeure, canauxParPlat, faitsMarquants, grilleSemaine, heurePic, heuresDuService, joursForts,
   libelleCreneau, mixCanaux, mixPaiements, ticketMoyen,
 } from '../lib/statsPOS'
 import { POS_NON_INSTALLE, chargerStatsPOS } from '../lib/statsPOSDb'
@@ -1174,6 +1174,7 @@ export default function DashboardGlobalScreen() {
     const maxH = Math.max(1, ...heures.map(h => h.nb))
     const iPic = picPOS ? heures.findIndex(h => h.h === picPOS.h) : null
     const canauxHeure = canauxParHeure(pos.par_heure_type)
+    const canauxPlat = canauxParPlat(pos.top_type)
     const { grille, max: maxGrille } = grilleSemaine(pos.semaine)
     const { parJour, meilleur } = joursForts(pos.semaine)
     const canaux = mixCanaux(pos.par_type)
@@ -1292,12 +1293,13 @@ export default function DashboardGlobalScreen() {
         )}
       </CarteGraphique>
 
-      <CarteGraphique icone="silverware-fork-knife" couleur="#EF9F27" titre="Plats les plus vendus" sous="Par quantité">
+      <CarteGraphique icone="silverware-fork-knife" couleur="#EF9F27" titre="Plats les plus vendus" sous={pos.top_type ? 'Par quantité · couleur = canal de vente' : 'Par quantité'}>
         {() => (
           <BarresHorizontales rangs donnees={(pos.top || []).map((p, i, arr) => ({
             cle: p.nom, nom: p.nom, valeur: Number(p.qte) || 0,
             couleur: melangerCouleurs('#FCD34D', '#EA580C', arr.length > 1 ? 1 - i / (arr.length - 1) : 1),
             droite: `${Number(p.qte).toLocaleString('fr-FR')} vendus`, sous: fmt(Number(p.ca) || 0),
+            segments: (canauxPlat[p.nom] || []).map(c => ({ nom: c.nom, valeur: c.qte, couleur: c.couleur, texte: `${c.qte} · ${c.part} %` })),
           }))} />
         )}
       </CarteGraphique>

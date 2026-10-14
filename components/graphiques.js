@@ -316,7 +316,9 @@ export function Barres({
 }
 
 /**
- * Barres horizontales classées. donnees = [{ cle, nom, valeur, couleur, sous?, droite? }]
+ * Barres horizontales classées. donnees = [{ cle, nom, valeur, couleur, sous?, droite?, segments? }]
+ * segments = [{ nom, valeur, couleur, texte }] : la barre est découpée en morceaux de couleur,
+ * avec une légende « nom texte » en dessous.
  * echelle : valeur d'une barre pleine (ex. 100 pour des pourcentages) ; par défaut la plus grande valeur.
  */
 export function BarresHorizontales({ donnees, format = fmtCourt, rangs = false, echelle }) {
@@ -352,9 +354,26 @@ export function BarresHorizontales({ donnees, format = fmtCourt, rangs = false, 
               </Text>
             </View>
             <View style={{ height: vise ? 12 : 10, borderRadius: 6, backgroundColor: vise ? colors.border : colors.surfaceAlt, overflow: 'hidden' }}>
-              <View style={{ height: '100%', width: `${Math.max(2, (Math.abs(d.valeur) / max) * 100)}%`, borderRadius: 6, backgroundColor: d.couleur }} />
+              {d.segments?.length ? (
+                // Barre découpée (ex. un plat par canal) : chaque morceau garde sa couleur.
+                <View style={{ height: '100%', width: `${Math.max(2, (Math.abs(d.valeur) / max) * 100)}%`, borderRadius: 6, overflow: 'hidden', flexDirection: 'row', gap: 1 }}>
+                  {d.segments.map(s => <View key={s.nom} style={{ flex: s.valeur, backgroundColor: s.couleur }} />)}
+                </View>
+              ) : (
+                <View style={{ height: '100%', width: `${Math.max(2, (Math.abs(d.valeur) / max) * 100)}%`, borderRadius: 6, backgroundColor: d.couleur }} />
+              )}
             </View>
             {d.sous ? <Text style={{ fontSize: 11.5, color: vise ? colors.textSecondary : colors.textMuted, marginTop: 3, fontWeight: vise ? '700' : '400' }}>{d.sous}</Text> : null}
+            {d.segments?.length ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 2, marginTop: 3 }}>
+                {d.segments.map(s => (
+                  <View key={s.nom} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: s.couleur }} />
+                    <Text style={{ fontSize: 11, color: vise ? colors.textSecondary : colors.textMuted, fontWeight: vise ? '700' : '400' }}>{s.nom} {s.texte}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
           </Pressable>
         )
       })}
