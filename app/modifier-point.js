@@ -15,6 +15,7 @@ import { Calendar } from 'react-native-calendars'
 import { supabase } from '../lib/supabase'
 import { journaliser } from '../lib/journal'
 import { archiverSuppressionShift, supprimerLignesArchivees } from '../lib/corbeille'
+import { majPointsDeplacement } from '../lib/deplacementShift'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { useFocusRecherche } from '../lib/useFocusRecherche'
@@ -442,17 +443,33 @@ export default function ModifierPointScreen() {
           .eq('caissier_id', shift.caissier_id)
       }
 
-      // 6. Recalculer vente_total sur le point source (point courant)
-      const { data: shiftsSource } = await supabase
-        .from('points_shifts').select('vente_shift').eq('point_id', shift.point_id)
-      const totalSource = (shiftsSource || []).reduce((s, r) => s + (r.vente_shift || 0), 0)
-      await supabase.from('points').update({ vente_total: totalSource }).eq('id', shift.point_id)
+      // 6. Points validés : le shift emporte encaissements, dépenses + salaires
+      //    et espèces, et le fond des jours entre les deux suit (lib/deplacementShift).
+      const [debut, fin] = [selectedDate, dateCible].sort()
+      const { data: pointsPeriode, error: errPeriode } = await supabase
+        .from('points')
+        .select('id, date, valide, vente_total, depense_total, kdo, retour, yango_cse, glovo_cse, wave, om, djamo, fc_veille, reste_especes, reste_fc, benefice_sc')
+        .eq('restaurant_id', selectedResto.id)
+        .gte('date', debut)
+        .lte('date', fin)
+      if (errPeriode) throw errPeriode
+      const majs = majPointsDeplacement({
+        shift, sourceId: shift.point_id, cibleId: pointCible.id, points: pointsPeriode,
+      })
+      for (const { id, maj } of majs) {
+        const { error: errMaj } = await supabase.from('points').update(maj).eq('id', id)
+        if (errMaj) throw errMaj
+      }
 
-      // 7. Recalculer vente_total sur le point cible
-      const { data: shiftsCible } = await supabase
-        .from('points_shifts').select('vente_shift').eq('point_id', pointCible.id)
-      const totalCible = (shiftsCible || []).reduce((s, r) => s + (r.vente_shift || 0), 0)
-      await supabase.from('points').update({ vente_total: totalCible }).eq('id', pointCible.id)
+      // 7. Points non validés : seule la vente est stockée d'avance, la
+      //    validation recalculera le reste depuis les shifts.
+      for (const p of [{ id: shift.point_id, valide: !!point?.valide }, pointCible]) {
+        if (p.valide) continue
+        const { data: shiftsPoint } = await supabase
+          .from('points_shifts').select('vente_shift').eq('point_id', p.id)
+        const total = (shiftsPoint || []).reduce((s, r) => s + (r.vente_shift || 0), 0)
+        await supabase.from('points').update({ vente_total: total }).eq('id', p.id)
+      }
 
       journaliser('deplacement_shift', {
         caissier: shift.caissier_nom,
