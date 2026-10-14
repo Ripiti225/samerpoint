@@ -1,11 +1,16 @@
 // Supabase Edge Function : rappel-contrats
 //
 // Deux passes, tous les jours à 07:00 (Abidjan est à UTC+0) :
-//   1. alertes d'échéance à J-15, J-7 et J-3, une seule fois par palier ;
+//   1. alertes d'échéance une semaine avant, 3 jours avant et la veille,
+//      une seule fois par palier ;
 //   2. archivage des travailleurs dont plus aucun contrat ne court.
 //
-// Déploiement :
-//   supabase functions deploy rappel-contrats --no-verify-jwt
+// Seuls les contrats SIGNÉS comptent : un contrat à faire signer, refusé ou
+// annulé ne déclenche ni alerte ni désactivation.
+//
+// Déploiement — TOUJOURS avec --project-ref : le CLI est lié au projet POS, et
+// la fonction y a été déployée par erreur le 22/08/2026 (aucune alerte partie).
+//   supabase functions deploy rappel-contrats --no-verify-jwt --project-ref wlwotzxnzowbkbfcpnyi
 // Planification : voir le bloc pg_cron dans supabase_contrats_travailleurs.sql
 //
 // La logique reproduit lib/contrats.js. Les tests de référence sont dans
@@ -15,7 +20,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
 const ROLES_ADMIN = ['manager', 'directeur', 'rh']
-const PALIERS = [15, 7, 3]
+const PALIERS = [7, 3, 1]
 const JOUR_MS = 24 * 60 * 60 * 1000
 
 type Contrat = {
@@ -53,8 +58,8 @@ function palierAEnvoyer(c: Contrat, jour: string): number | null {
   if (restants === null || restants < 0) return null
   const envoyes = c.rappels_envoyes || []
   // Ordre croissant, comme lib/contrats.js : on veut le palier applicable le
-  // plus SERRÉ non encore envoyé. Parcourir [15,7,3] tel quel enverrait J-15
-  // pour un contrat saisi à 5 jours de sa fin — cf. lib/contrats.test.mjs.
+  // plus SERRÉ non encore envoyé. Parcourir [7,3,1] tel quel enverrait J-7
+  // pour un contrat saisi à 2 jours de sa fin — cf. lib/contrats.test.mjs.
   for (const p of [...PALIERS].reverse()) {
     if (restants <= p && !envoyes.includes(p)) return p
   }
@@ -74,6 +79,8 @@ Deno.serve(async () => {
     const { data: contrats, error } = await supabase
       .from('contrats_travailleurs')
       .select('*, travailleurs(nom, actif, restaurant_id)')
+      .eq('statut', 'signe')
+      .range(0, 4999)
     if (error) throw error
     const tous = (contrats || []) as Contrat[]
 
@@ -87,24 +94,23 @@ Deno.serve(async () => {
       const nom = c.travailleurs?.nom || 'un travailleur'
       const resto = c.restaurant_id || c.travailleurs?.restaurant_id || null
       const quand = c.date_fin ? formatFR(c.date_fin) : ''
-      const titre = `⏰ Fin de contrat dans ${palier} jours`
+      const titre = palier === 1 ? '⏰ Fin de contrat demain' : `⏰ Fin de contrat dans ${palier} jours`
 
-      // Deux notifications : les admins peuvent ouvrir l'écran RH, le gérant non.
-      // Lui envoyer `screen: 'rh'` le mènerait sur un écran auquel il n'a pas
-      // accès — sa notification est volontairement sans navigation.
+      // Deux notifications : les admins peuvent ouvrir l'écran Contrats, le
+      // gérant non — sa notification est volontairement sans navigation.
       await supabase.from('notifications').insert({
         type: 'contrat_echeance',
         titre,
-        message: `${c.type} de ${nom} — se termine le ${quand}`,
+        message: `${c.type} de ${nom} — se termine le ${quand}. Renouveler depuis l'écran Contrats.`,
         restaurant_id: resto,
         cible_role: ROLES_ADMIN,
         lu_par: [],
-        screen: 'rh',
+        screen: 'contrats',
       })
       await supabase.from('notifications').insert({
         type: 'contrat_echeance',
         titre,
-        message: `${nom} (${c.type}) — contrat terminé le ${quand}`,
+        message: `${nom} (${c.type}) — contrat qui se termine le ${quand}`,
         restaurant_id: resto,
         cible_role: ['gerant'],
         lu_par: [],
@@ -155,7 +161,7 @@ Deno.serve(async () => {
         restaurant_id: resto,
         cible_role: ROLES_ADMIN,
         lu_par: [],
-        screen: 'rh',
+        screen: 'contrats',
       })
       await supabase.from('notifications').insert({
         type: 'contrat_desactivation',
@@ -183,7 +189,7 @@ Deno.serve(async () => {
         ].filter(Boolean).join(' · ')
         const messages = tokens.map((t: { token: string }) => ({
           to: t.token, title: '📋 Contrats', body: corps,
-          sound: 'default', data: { screen: 'rh' },
+          sound: 'default', data: { screen: 'contrats' },
         }))
         for (let i = 0; i < messages.length; i += 100) {
           await fetch(EXPO_PUSH_URL, {
