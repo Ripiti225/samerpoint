@@ -46,7 +46,8 @@ CREATE TABLE IF NOT EXISTS demandes_travailleurs (
   date_embauche      date,
   -- La photo du travailleur est obligatoire ; les papiers ne le sont pas.
   photo_url          text NOT NULL,
-  papiers_urls       text[] NOT NULL DEFAULT '{}',
+  piece_identite_urls text[] NOT NULL DEFAULT '{}',   -- photos de la CNI (recto, verso)
+  papiers_urls       text[] NOT NULL DEFAULT '{}',   -- autres papiers
   statut             text NOT NULL DEFAULT 'envoyee' CHECK (statut IN ('envoyee','acceptee','refusee')),
   motif_refus        text,
   historique_refus   jsonb NOT NULL DEFAULT '[]',
