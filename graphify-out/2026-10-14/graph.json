@@ -2677,6 +2677,42 @@
       "source_location": "L334"
     },
     {
+      "id": "app_tresorerie_banque_feuillevirement",
+      "label": "FeuilleVirement()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 104,
+      "community_name": "aujourdhuiISO",
+      "file_type": "code",
+      "norm_label": "feuillevirement()",
+      "source_file": "app/tresorerie-banque.js",
+      "source_location": "L399"
+    },
+    {
+      "id": "app_tresorerie_banque_feuillevirement_enregistrer",
+      "label": "enregistrer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 104,
+      "community_name": "aujourdhuiISO",
+      "file_type": "code",
+      "norm_label": "enregistrer()",
+      "source_file": "app/tresorerie-banque.js",
+      "source_location": "L415"
+    },
+    {
+      "id": "app_tresorerie_banque_feuillevirement_fermer",
+      "label": "fermer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 104,
+      "community_name": "aujourdhuiISO",
+      "file_type": "code",
+      "norm_label": "fermer()",
+      "source_file": "app/tresorerie-banque.js",
+      "source_location": "L410"
+    },
+    {
       "id": "app_tresorerie_coffre_feuilleemprunt",
       "label": "FeuilleEmprunt()",
       "_callable": true,
@@ -2699,54 +2735,6 @@
       "norm_label": "enregistrer()",
       "source_file": "app/tresorerie-coffre.js",
       "source_location": "L268"
-    },
-    {
-      "id": "app_tresorerie_coffre_feuilleepargne",
-      "label": "FeuilleEpargne()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "feuilleepargne()",
-      "source_file": "app/tresorerie-coffre.js",
-      "source_location": "L177"
-    },
-    {
-      "id": "app_tresorerie_coffre_feuilleepargne_enregistrer",
-      "label": "enregistrer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "enregistrer()",
-      "source_file": "app/tresorerie-coffre.js",
-      "source_location": "L188"
-    },
-    {
-      "id": "app_tresorerie_coffre_feuilleremboursement",
-      "label": "FeuilleRemboursement()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "feuilleremboursement()",
-      "source_file": "app/tresorerie-coffre.js",
-      "source_location": "L316"
-    },
-    {
-      "id": "app_tresorerie_coffre_feuilleremboursement_enregistrer",
-      "label": "enregistrer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "enregistrer()",
-      "source_file": "app/tresorerie-coffre.js",
-      "source_location": "L325"
     },
     {
       "id": "app_tresorerie_coffre_nompartenaire",
@@ -2845,54 +2833,6 @@
       "source_location": "L313"
     },
     {
-      "id": "app_tresorerie_direction_tresoreriedirectionscreen",
-      "label": "TresorerieDirectionScreen()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "tresoreriedirectionscreen()",
-      "source_file": "app/tresorerie-direction.js",
-      "source_location": "L35"
-    },
-    {
-      "id": "app_tresorerie_direction_tresoreriedirectionscreen_ouvrir",
-      "label": "ouvrir()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "ouvrir()",
-      "source_file": "app/tresorerie-direction.js",
-      "source_location": "L73"
-    },
-    {
-      "id": "app_tresorerie_direction_tresoreriedirectionscreen_supprimer",
-      "label": "supprimer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "supprimer()",
-      "source_file": "app/tresorerie-direction.js",
-      "source_location": "L83"
-    },
-    {
-      "id": "app_tresorerie_resultats_tresorerieresultatsscreen",
-      "label": "TresorerieResultatsScreen()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "tresorerieresultatsscreen()",
-      "source_file": "app/tresorerie-resultats.js",
-      "source_location": "L24"
-    },
-    {
       "id": "lib_direction_bornesmois",
       "label": "bornesMois()",
       "_callable": true,
@@ -2903,18 +2843,6 @@
       "norm_label": "bornesmois()",
       "source_file": "lib/direction.js",
       "source_location": "L219"
-    },
-    {
-      "id": "lib_direction_categoriedirection",
-      "label": "categorieDirection()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "categoriedirection()",
-      "source_file": "lib/direction.js",
-      "source_location": "L44"
     },
     {
       "id": "lib_direction_comptedansresultat",
@@ -5245,18 +5173,6 @@
       "source_location": "L36"
     },
     {
-      "id": "components_accueil_accueilmanager_chargertresorerie",
-      "label": "chargerTresorerie()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "chargertresorerie()",
-      "source_file": "components/accueil/AccueilManager.js",
-      "source_location": "L61"
-    },
-    {
       "id": "components_tresorerie_reglagescharges_basculermois",
       "label": "basculerMois()",
       "_callable": true,
@@ -5617,18 +5533,6 @@
       "source_location": "L79"
     },
     {
-      "id": "lib_rappelstresorerie_destinatairesrappels",
-      "label": "destinatairesRappels()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "destinatairesrappels()",
-      "source_file": "lib/rappelsTresorerie.js",
-      "source_location": "L72"
-    },
-    {
       "id": "lib_rappelstresorerie_elementsdujour",
       "label": "elementsDuJour()",
       "_callable": true,
@@ -5639,30 +5543,6 @@
       "norm_label": "elementsdujour()",
       "source_file": "lib/rappelsTresorerie.js",
       "source_location": "L36"
-    },
-    {
-      "id": "lib_rappelstresorerie_messagepour",
-      "label": "messagePour()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "messagepour()",
-      "source_file": "lib/rappelsTresorerie.js",
-      "source_location": "L87"
-    },
-    {
-      "id": "lib_rappelstresorerie_test_nomresto",
-      "label": "nomResto()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "nomresto()",
-      "source_file": "lib/rappelsTresorerie.test.mjs",
-      "source_location": "L12"
     },
     {
       "id": "lib_tresorerie_bailsacreer",
@@ -5941,18 +5821,6 @@
       "source_location": "L63"
     },
     {
-      "id": "lib_tresorerie_niveautresorerie",
-      "label": "niveauTresorerie()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "niveautresorerie()",
-      "source_file": "lib/tresorerie.js",
-      "source_location": "L545"
-    },
-    {
       "id": "lib_tresorerie_paiementspardu",
       "label": "paiementsParDu()",
       "_callable": true,
@@ -6061,18 +5929,6 @@
       "source_location": "L487"
     },
     {
-      "id": "lib_tresorerie_sanschargesadministratives",
-      "label": "sansChargesAdministratives()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "sanschargesadministratives()",
-      "source_file": "lib/tresorerie.js",
-      "source_location": "L22"
-    },
-    {
       "id": "lib_tresorerie_soldecompte",
       "label": "soldeCompte()",
       "_callable": true,
@@ -6107,66 +5963,6 @@
       "norm_label": "totalpaye()",
       "source_file": "lib/tresorerie.js",
       "source_location": "L67"
-    },
-    {
-      "id": "supabase_functions_rappels_tresorerie_index_envoyerexpo",
-      "label": "envoyerExpo()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "envoyerexpo()",
-      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
-      "source_location": "L46"
-    },
-    {
-      "id": "supabase_functions_rappels_tresorerie_index_envoyerweb",
-      "label": "envoyerWeb()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "envoyerweb()",
-      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
-      "source_location": "L59"
-    },
-    {
-      "id": "supabase_functions_rappels_tresorerie_index_facultatif",
-      "label": "facultatif()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "facultatif()",
-      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
-      "source_location": "L44"
-    },
-    {
-      "id": "supabase_functions_rappels_tresorerie_index_json",
-      "label": "json()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "json()",
-      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
-      "source_location": "L26"
-    },
-    {
-      "id": "supabase_functions_rappels_tresorerie_index_toutes",
-      "label": "toutes()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "toutes()",
-      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
-      "source_location": "L30"
     },
     {
       "id": "app_parametres_parametresscreen_gererconnexiononedrive",
@@ -7810,7 +7606,7 @@
       "file_type": "code",
       "norm_label": "makestyles()",
       "source_file": "app/presences.js",
-      "source_location": "L631"
+      "source_location": "L632"
     },
     {
       "id": "app_presences_presencesscreen",
@@ -9875,18 +9671,6 @@
       "norm_label": "ligneperiode()",
       "source_file": "app/tresorerie-partenaires.js",
       "source_location": "L207"
-    },
-    {
-      "id": "app_tresorerie_partenaires_tresoreriepartenairesscreen",
-      "label": "TresoreriePartenairesScreen()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 193,
-      "community_name": "tresorerie-partenaires.js",
-      "file_type": "code",
-      "norm_label": "tresoreriepartenairesscreen()",
-      "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L43"
     },
     {
       "id": "lib_lireexcel_choisiretlireexcel",
@@ -12946,7 +12730,7 @@
       "file_type": "code",
       "norm_label": "makestyles()",
       "source_file": "app/livraisons.js",
-      "source_location": "L266"
+      "source_location": "L267"
     },
     {
       "id": "lib_api_getcommandes",
@@ -13522,7 +13306,7 @@
       "file_type": "code",
       "norm_label": "champ()",
       "source_file": "components/ui/EcranModerne.js",
-      "source_location": "L169"
+      "source_location": "L175"
     },
     {
       "id": "components_ui_ecranmoderne_champdates",
@@ -13534,7 +13318,7 @@
       "file_type": "code",
       "norm_label": "champdates()",
       "source_file": "components/ui/EcranModerne.js",
-      "source_location": "L177"
+      "source_location": "L183"
     },
     {
       "id": "components_ui_ecranmoderne_compteurs",
@@ -13570,7 +13354,7 @@
       "file_type": "code",
       "norm_label": "feuille()",
       "source_file": "components/ui/EcranModerne.js",
-      "source_location": "L136"
+      "source_location": "L142"
     },
     {
       "id": "components_ui_ecranmoderne_info",
@@ -13594,7 +13378,7 @@
       "file_type": "code",
       "norm_label": "libelle()",
       "source_file": "components/ui/EcranModerne.js",
-      "source_location": "L165"
+      "source_location": "L171"
     },
     {
       "id": "components_ui_ecranmoderne_makestyles",
@@ -13606,7 +13390,7 @@
       "file_type": "code",
       "norm_label": "makestyles()",
       "source_file": "components/ui/EcranModerne.js",
-      "source_location": "L213"
+      "source_location": "L219"
     },
     {
       "id": "components_ui_ecranmoderne_pastille",
@@ -14029,54 +13813,6 @@
       "source_location": "L7"
     },
     {
-      "id": "app_tresorerie_a_payer_listedettes",
-      "label": "ListeDettes()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "listedettes()",
-      "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L363"
-    },
-    {
-      "id": "app_tresorerie_a_payer_listedus",
-      "label": "ListeDus()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "listedus()",
-      "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L308"
-    },
-    {
-      "id": "app_tresorerie_a_payer_listeloyers",
-      "label": "ListeLoyers()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "listeloyers()",
-      "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L234"
-    },
-    {
-      "id": "app_tresorerie_a_payer_texteretard",
-      "label": "texteRetard()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "texteretard()",
-      "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L225"
-    },
-    {
       "id": "app_tresorerie_bloc",
       "label": "Bloc()",
       "_callable": true,
@@ -14089,88 +13825,76 @@
       "source_location": "L397"
     },
     {
-      "id": "app_tresorerie_coffre_tresoreriecoffrescreen_annuler",
-      "label": "annuler()",
+      "id": "app_tresorerie_direction_feuillechargeapayer",
+      "label": "FeuilleChargeAPayer()",
       "_callable": true,
       "_origin": "ast",
       "community": 243,
       "community_name": "useStylesTreso",
       "file_type": "code",
-      "norm_label": "annuler()",
-      "source_file": "app/tresorerie-coffre.js",
-      "source_location": "L71"
+      "norm_label": "feuillechargeapayer()",
+      "source_file": "app/tresorerie-direction.js",
+      "source_location": "L425"
     },
     {
-      "id": "app_tresorerie_coffre_tresoreriecoffrescreen_annulerunemprunt",
-      "label": "annulerUnEmprunt()",
+      "id": "app_tresorerie_direction_feuillechargeapayer_enregistrer",
+      "label": "enregistrer()",
       "_callable": true,
       "_origin": "ast",
       "community": 243,
       "community_name": "useStylesTreso",
       "file_type": "code",
-      "norm_label": "annulerunemprunt()",
-      "source_file": "app/tresorerie-coffre.js",
-      "source_location": "L59"
+      "norm_label": "enregistrer()",
+      "source_file": "app/tresorerie-direction.js",
+      "source_location": "L446"
     },
     {
-      "id": "app_tresorerie_feuillechoixligne",
-      "label": "FeuilleChoixLigne()",
+      "id": "app_tresorerie_feuillenouvelledette",
+      "label": "FeuilleNouvelleDette()",
       "_callable": true,
       "_origin": "ast",
       "community": 243,
       "community_name": "useStylesTreso",
       "file_type": "code",
-      "norm_label": "feuillechoixligne()",
+      "norm_label": "feuillenouvelledette()",
       "source_file": "app/tresorerie.js",
-      "source_location": "L430"
+      "source_location": "L454"
     },
     {
-      "id": "app_tresorerie_lignedu",
-      "label": "LigneDu()",
+      "id": "app_tresorerie_feuillenouvelledette_enregistrer",
+      "label": "enregistrer()",
       "_callable": true,
       "_origin": "ast",
       "community": 243,
       "community_name": "useStylesTreso",
       "file_type": "code",
-      "norm_label": "lignedu()",
+      "norm_label": "enregistrer()",
       "source_file": "app/tresorerie.js",
-      "source_location": "L495"
+      "source_location": "L467"
     },
     {
-      "id": "app_tresorerie_restaurant_decriremouvement",
-      "label": "decrireMouvement()",
+      "id": "app_tresorerie_feuillenouvelledette_fermer",
+      "label": "fermer()",
       "_callable": true,
       "_origin": "ast",
       "community": 243,
       "community_name": "useStylesTreso",
       "file_type": "code",
-      "norm_label": "decriremouvement()",
-      "source_file": "app/tresorerie-restaurant.js",
-      "source_location": "L306"
+      "norm_label": "fermer()",
+      "source_file": "app/tresorerie.js",
+      "source_location": "L465"
     },
     {
-      "id": "app_tresorerie_restaurant_ongletpartenaires",
-      "label": "OngletPartenaires()",
+      "id": "app_tresorerie_partenaires_tresoreriepartenairesscreen",
+      "label": "TresoreriePartenairesScreen()",
       "_callable": true,
       "_origin": "ast",
       "community": 243,
       "community_name": "useStylesTreso",
       "file_type": "code",
-      "norm_label": "ongletpartenaires()",
-      "source_file": "app/tresorerie-restaurant.js",
-      "source_location": "L225"
-    },
-    {
-      "id": "app_tresorerie_restaurant_tresorerierestaurantscreen",
-      "label": "TresorerieRestaurantScreen()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "tresorerierestaurantscreen()",
-      "source_file": "app/tresorerie-restaurant.js",
-      "source_location": "L36"
+      "norm_label": "tresoreriepartenairesscreen()",
+      "source_file": "app/tresorerie-partenaires.js",
+      "source_location": "L43"
     },
     {
       "id": "app_tresorerie_resultats_detail",
@@ -14185,6 +13909,18 @@
       "source_location": "L138"
     },
     {
+      "id": "app_tresorerie_resultats_tresorerieresultatsscreen",
+      "label": "TresorerieResultatsScreen()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 243,
+      "community_name": "useStylesTreso",
+      "file_type": "code",
+      "norm_label": "tresorerieresultatsscreen()",
+      "source_file": "app/tresorerie-resultats.js",
+      "source_location": "L24"
+    },
+    {
       "id": "app_tresorerie_tuile",
       "label": "Tuile()",
       "_callable": true,
@@ -14197,42 +13933,6 @@
       "source_location": "L510"
     },
     {
-      "id": "components_tresorerie_ancienstravailleurs_anciennesfiches",
-      "label": "AnciennesFiches()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "anciennesfiches()",
-      "source_file": "components/tresorerie/anciensTravailleurs.js",
-      "source_location": "L325"
-    },
-    {
-      "id": "components_tresorerie_ancienstravailleurs_anciennesfiches_remplacer",
-      "label": "remplacer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "remplacer()",
-      "source_file": "components/tresorerie/anciensTravailleurs.js",
-      "source_location": "L329"
-    },
-    {
-      "id": "components_tresorerie_ancienstravailleurs_feuilledetaildroit",
-      "label": "FeuilleDetailDroit()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "feuilledetaildroit()",
-      "source_file": "components/tresorerie/anciensTravailleurs.js",
-      "source_location": "L231"
-    },
-    {
       "id": "components_tresorerie_ancienstravailleurs_feuillepayerdroit",
       "label": "FeuillePayerDroit()",
       "_callable": true,
@@ -14243,18 +13943,6 @@
       "norm_label": "feuillepayerdroit()",
       "source_file": "components/tresorerie/anciensTravailleurs.js",
       "source_location": "L272"
-    },
-    {
-      "id": "components_tresorerie_ancienstravailleurs_feuillepayerdroit_enregistrer",
-      "label": "enregistrer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "enregistrer()",
-      "source_file": "components/tresorerie/anciensTravailleurs.js",
-      "source_location": "L291"
     },
     {
       "id": "components_tresorerie_ancienstravailleurs_ongletancienstravailleurs",
@@ -14461,30 +14149,6 @@
       "source_location": "L131"
     },
     {
-      "id": "components_tresorerie_commun_stylecategorie",
-      "label": "styleCategorie()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "stylecategorie()",
-      "source_file": "components/tresorerie/commun.js",
-      "source_location": "L248"
-    },
-    {
-      "id": "components_tresorerie_commun_styledepense",
-      "label": "styleDepense()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "styledepense()",
-      "source_file": "components/tresorerie/commun.js",
-      "source_location": "L271"
-    },
-    {
       "id": "components_tresorerie_commun_titresection",
       "label": "TitreSection()",
       "_callable": true,
@@ -14509,6 +14173,18 @@
       "source_location": "L64"
     },
     {
+      "id": "components_tresorerie_commun_usetresorerie",
+      "label": "useTresorerie()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 243,
+      "community_name": "useStylesTreso",
+      "file_type": "code",
+      "norm_label": "usetresorerie()",
+      "source_file": "components/tresorerie/commun.js",
+      "source_location": "L22"
+    },
+    {
       "id": "components_tresorerie_du_badge",
       "label": "Badge()",
       "_callable": true,
@@ -14519,114 +14195,6 @@
       "norm_label": "badge()",
       "source_file": "components/tresorerie/du.js",
       "source_location": "L32"
-    },
-    {
-      "id": "components_tresorerie_du_couleursstatut",
-      "label": "couleursStatut()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "couleursstatut()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L23"
-    },
-    {
-      "id": "components_tresorerie_du_feuilledetail",
-      "label": "FeuilleDetail()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "feuilledetail()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L59"
-    },
-    {
-      "id": "components_tresorerie_du_feuilledetail_annuler",
-      "label": "annuler()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "annuler()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L73"
-    },
-    {
-      "id": "components_tresorerie_du_feuilledetail_basculer",
-      "label": "basculer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "basculer()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L125"
-    },
-    {
-      "id": "components_tresorerie_du_feuilledetail_dejapaye",
-      "label": "dejaPaye()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "dejapaye()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L109"
-    },
-    {
-      "id": "components_tresorerie_du_feuilledetail_retirerprevision",
-      "label": "retirerPrevision()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "retirerprevision()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L134"
-    },
-    {
-      "id": "components_tresorerie_du_feuilledetail_supprimer",
-      "label": "supprimer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "supprimer()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L91"
-    },
-    {
-      "id": "components_tresorerie_du_feuillepaiement",
-      "label": "FeuillePaiement()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "feuillepaiement()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L460"
-    },
-    {
-      "id": "components_tresorerie_du_feuillepaiement_enregistrer",
-      "label": "enregistrer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "enregistrer()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L524"
     },
     {
       "id": "components_tresorerie_du_feuilleprevision",
@@ -14665,126 +14233,6 @@
       "source_location": "L52"
     },
     {
-      "id": "components_tresorerie_du_sectioncotisation_annuler",
-      "label": "annuler()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "annuler()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L393"
-    },
-    {
-      "id": "components_tresorerie_du_titredu",
-      "label": "titreDu()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "titredu()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L42"
-    },
-    {
-      "id": "components_tresorerie_historique_blochistorique",
-      "label": "BlocHistorique()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "blochistorique()",
-      "source_file": "components/tresorerie/historique.js",
-      "source_location": "L42"
-    },
-    {
-      "id": "components_tresorerie_historique_choixperiode",
-      "label": "ChoixPeriode()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "choixperiode()",
-      "source_file": "components/tresorerie/historique.js",
-      "source_location": "L26"
-    },
-    {
-      "id": "components_tresorerie_historique_comptesde",
-      "label": "comptesDe()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "comptesde()",
-      "source_file": "components/tresorerie/historique.js",
-      "source_location": "L58"
-    },
-    {
-      "id": "components_tresorerie_historique_historiquedettesremboursees",
-      "label": "HistoriqueDettesRemboursees()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "historiquedettesremboursees()",
-      "source_file": "components/tresorerie/historique.js",
-      "source_location": "L88"
-    },
-    {
-      "id": "components_tresorerie_historique_historiqueloyerspayes",
-      "label": "HistoriqueLoyersPayes()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "historiqueloyerspayes()",
-      "source_file": "components/tresorerie/historique.js",
-      "source_location": "L64"
-    },
-    {
-      "id": "components_tresorerie_historique_libelleperiode",
-      "label": "libellePeriode()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "libelleperiode()",
-      "source_file": "components/tresorerie/historique.js",
-      "source_location": "L21"
-    },
-    {
-      "id": "components_tresorerie_historique_periodepardefaut",
-      "label": "periodeParDefaut()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "periodepardefaut()",
-      "source_file": "components/tresorerie/historique.js",
-      "source_location": "L17"
-    },
-    {
-      "id": "components_tresorerie_reglagescharges_pucesmois",
-      "label": "PucesMois()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "pucesmois()",
-      "source_file": "components/tresorerie/reglagesCharges.js",
-      "source_location": "L48"
-    },
-    {
       "id": "lib_droitsancienstravailleursdb_chargerdroitsanciens",
       "label": "chargerDroitsAnciens()",
       "_callable": true,
@@ -14797,66 +14245,6 @@
       "source_location": "L17"
     },
     {
-      "id": "lib_historique_anneesdisponibles",
-      "label": "anneesDisponibles()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "anneesdisponibles()",
-      "source_file": "lib/historique.js",
-      "source_location": "L29"
-    },
-    {
-      "id": "lib_tresorerie_fmt",
-      "label": "fmt()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "fmt()",
-      "source_file": "lib/tresorerie.js",
-      "source_location": "L574"
-    },
-    {
-      "id": "lib_tresorerie_formatdatefr",
-      "label": "formatDateFR()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "formatdatefr()",
-      "source_file": "lib/tresorerie.js",
-      "source_location": "L215"
-    },
-    {
-      "id": "lib_tresorerie_libellemois",
-      "label": "libelleMois()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "libellemois()",
-      "source_file": "lib/tresorerie.js",
-      "source_location": "L205"
-    },
-    {
-      "id": "lib_tresorerie_libellemoiscourt",
-      "label": "libelleMoisCourt()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "libellemoiscourt()",
-      "source_file": "lib/tresorerie.js",
-      "source_location": "L210"
-    },
-    {
       "id": "lib_tresorerie_peut",
       "label": "peut()",
       "_callable": true,
@@ -14867,6 +14255,18 @@
       "norm_label": "peut()",
       "source_file": "lib/tresorerie.js",
       "source_location": "L556"
+    },
+    {
+      "id": "lib_tresoreriedb_enregistrerdu",
+      "label": "enregistrerDu()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 243,
+      "community_name": "useStylesTreso",
+      "file_type": "code",
+      "norm_label": "enregistrerdu()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L323"
     },
     {
       "id": "lib_contactsclientspos_datedepart",
@@ -15334,7 +14734,7 @@
       "file_type": "code",
       "norm_label": "modalcalendrier()",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L357"
+      "source_location": "L361"
     },
     {
       "id": "components_equipe_ongletarchives_ongletarchives",
@@ -16570,7 +15970,7 @@
       "file_type": "code",
       "norm_label": "makestyles()",
       "source_file": "app/parametres.js",
-      "source_location": "L1886"
+      "source_location": "L1888"
     },
     {
       "id": "app_parametres_parametresscreen",
@@ -17458,7 +16858,7 @@
       "file_type": "code",
       "norm_label": "enregistrer()",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L105"
+      "source_location": "L109"
     },
     {
       "id": "lib_equipedb_aplatirpoint",
@@ -19429,6 +18829,702 @@
       "source_location": "L19"
     },
     {
+      "id": "app_tresorerie_a_payer_listedettes",
+      "label": "ListeDettes()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "listedettes()",
+      "source_file": "app/tresorerie-a-payer.js",
+      "source_location": "L363"
+    },
+    {
+      "id": "app_tresorerie_a_payer_listedus",
+      "label": "ListeDus()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "listedus()",
+      "source_file": "app/tresorerie-a-payer.js",
+      "source_location": "L308"
+    },
+    {
+      "id": "app_tresorerie_a_payer_listeloyers",
+      "label": "ListeLoyers()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "listeloyers()",
+      "source_file": "app/tresorerie-a-payer.js",
+      "source_location": "L234"
+    },
+    {
+      "id": "app_tresorerie_a_payer_texteretard",
+      "label": "texteRetard()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "texteretard()",
+      "source_file": "app/tresorerie-a-payer.js",
+      "source_location": "L225"
+    },
+    {
+      "id": "app_tresorerie_coffre_tresoreriecoffrescreen_annuler",
+      "label": "annuler()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "annuler()",
+      "source_file": "app/tresorerie-coffre.js",
+      "source_location": "L71"
+    },
+    {
+      "id": "app_tresorerie_coffre_tresoreriecoffrescreen_annulerunemprunt",
+      "label": "annulerUnEmprunt()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "annulerunemprunt()",
+      "source_file": "app/tresorerie-coffre.js",
+      "source_location": "L59"
+    },
+    {
+      "id": "app_tresorerie_direction_tresoreriedirectionscreen",
+      "label": "TresorerieDirectionScreen()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "tresoreriedirectionscreen()",
+      "source_file": "app/tresorerie-direction.js",
+      "source_location": "L35"
+    },
+    {
+      "id": "app_tresorerie_direction_tresoreriedirectionscreen_ouvrir",
+      "label": "ouvrir()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "ouvrir()",
+      "source_file": "app/tresorerie-direction.js",
+      "source_location": "L73"
+    },
+    {
+      "id": "app_tresorerie_direction_tresoreriedirectionscreen_supprimer",
+      "label": "supprimer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "supprimer()",
+      "source_file": "app/tresorerie-direction.js",
+      "source_location": "L83"
+    },
+    {
+      "id": "app_tresorerie_feuillechoixligne",
+      "label": "FeuilleChoixLigne()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "feuillechoixligne()",
+      "source_file": "app/tresorerie.js",
+      "source_location": "L430"
+    },
+    {
+      "id": "app_tresorerie_lignedu",
+      "label": "LigneDu()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "lignedu()",
+      "source_file": "app/tresorerie.js",
+      "source_location": "L495"
+    },
+    {
+      "id": "app_tresorerie_partenaires_feuilleperiode_annuler",
+      "label": "annuler()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "annuler()",
+      "source_file": "app/tresorerie-partenaires.js",
+      "source_location": "L279"
+    },
+    {
+      "id": "app_tresorerie_restaurant_decriremouvement",
+      "label": "decrireMouvement()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "decriremouvement()",
+      "source_file": "app/tresorerie-restaurant.js",
+      "source_location": "L306"
+    },
+    {
+      "id": "app_tresorerie_restaurant_ongletpartenaires",
+      "label": "OngletPartenaires()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "ongletpartenaires()",
+      "source_file": "app/tresorerie-restaurant.js",
+      "source_location": "L225"
+    },
+    {
+      "id": "app_tresorerie_restaurant_tresorerierestaurantscreen",
+      "label": "TresorerieRestaurantScreen()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "tresorerierestaurantscreen()",
+      "source_file": "app/tresorerie-restaurant.js",
+      "source_location": "L36"
+    },
+    {
+      "id": "components_tresorerie_ancienstravailleurs_anciennesfiches",
+      "label": "AnciennesFiches()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "anciennesfiches()",
+      "source_file": "components/tresorerie/anciensTravailleurs.js",
+      "source_location": "L325"
+    },
+    {
+      "id": "components_tresorerie_ancienstravailleurs_anciennesfiches_remplacer",
+      "label": "remplacer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "remplacer()",
+      "source_file": "components/tresorerie/anciensTravailleurs.js",
+      "source_location": "L329"
+    },
+    {
+      "id": "components_tresorerie_ancienstravailleurs_feuilledetaildroit",
+      "label": "FeuilleDetailDroit()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "feuilledetaildroit()",
+      "source_file": "components/tresorerie/anciensTravailleurs.js",
+      "source_location": "L231"
+    },
+    {
+      "id": "components_tresorerie_ancienstravailleurs_feuillepayerdroit_enregistrer",
+      "label": "enregistrer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "enregistrer()",
+      "source_file": "components/tresorerie/anciensTravailleurs.js",
+      "source_location": "L291"
+    },
+    {
+      "id": "components_tresorerie_commun_stylecategorie",
+      "label": "styleCategorie()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "stylecategorie()",
+      "source_file": "components/tresorerie/commun.js",
+      "source_location": "L248"
+    },
+    {
+      "id": "components_tresorerie_commun_styledepense",
+      "label": "styleDepense()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "styledepense()",
+      "source_file": "components/tresorerie/commun.js",
+      "source_location": "L271"
+    },
+    {
+      "id": "components_tresorerie_du_couleursstatut",
+      "label": "couleursStatut()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "couleursstatut()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L23"
+    },
+    {
+      "id": "components_tresorerie_du_feuilledetail",
+      "label": "FeuilleDetail()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "feuilledetail()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L59"
+    },
+    {
+      "id": "components_tresorerie_du_feuilledetail_annuler",
+      "label": "annuler()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "annuler()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L73"
+    },
+    {
+      "id": "components_tresorerie_du_feuilledetail_basculer",
+      "label": "basculer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "basculer()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L125"
+    },
+    {
+      "id": "components_tresorerie_du_feuilledetail_dejapaye",
+      "label": "dejaPaye()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "dejapaye()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L109"
+    },
+    {
+      "id": "components_tresorerie_du_feuilledetail_retirerprevision",
+      "label": "retirerPrevision()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "retirerprevision()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L134"
+    },
+    {
+      "id": "components_tresorerie_du_feuilledetail_supprimer",
+      "label": "supprimer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "supprimer()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L91"
+    },
+    {
+      "id": "components_tresorerie_du_feuillepaiement",
+      "label": "FeuillePaiement()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "feuillepaiement()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L460"
+    },
+    {
+      "id": "components_tresorerie_du_feuillepaiement_enregistrer",
+      "label": "enregistrer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "enregistrer()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L524"
+    },
+    {
+      "id": "components_tresorerie_du_sectioncotisation",
+      "label": "SectionCotisation()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "sectioncotisation()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L347"
+    },
+    {
+      "id": "components_tresorerie_du_sectioncotisation_annuler",
+      "label": "annuler()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "annuler()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L393"
+    },
+    {
+      "id": "components_tresorerie_du_sectioncotisation_enregistrer",
+      "label": "enregistrer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "enregistrer()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L373"
+    },
+    {
+      "id": "components_tresorerie_du_titredu",
+      "label": "titreDu()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "titredu()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L42"
+    },
+    {
+      "id": "components_tresorerie_historique_blochistorique",
+      "label": "BlocHistorique()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "blochistorique()",
+      "source_file": "components/tresorerie/historique.js",
+      "source_location": "L42"
+    },
+    {
+      "id": "components_tresorerie_historique_choixperiode",
+      "label": "ChoixPeriode()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "choixperiode()",
+      "source_file": "components/tresorerie/historique.js",
+      "source_location": "L26"
+    },
+    {
+      "id": "components_tresorerie_historique_comptesde",
+      "label": "comptesDe()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "comptesde()",
+      "source_file": "components/tresorerie/historique.js",
+      "source_location": "L58"
+    },
+    {
+      "id": "components_tresorerie_historique_historiquedettesremboursees",
+      "label": "HistoriqueDettesRemboursees()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "historiquedettesremboursees()",
+      "source_file": "components/tresorerie/historique.js",
+      "source_location": "L88"
+    },
+    {
+      "id": "components_tresorerie_historique_historiqueloyerspayes",
+      "label": "HistoriqueLoyersPayes()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "historiqueloyerspayes()",
+      "source_file": "components/tresorerie/historique.js",
+      "source_location": "L64"
+    },
+    {
+      "id": "components_tresorerie_historique_libelleperiode",
+      "label": "libellePeriode()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "libelleperiode()",
+      "source_file": "components/tresorerie/historique.js",
+      "source_location": "L21"
+    },
+    {
+      "id": "components_tresorerie_historique_periodepardefaut",
+      "label": "periodeParDefaut()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "periodepardefaut()",
+      "source_file": "components/tresorerie/historique.js",
+      "source_location": "L17"
+    },
+    {
+      "id": "components_tresorerie_reglagescharges_pucesmois",
+      "label": "PucesMois()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "pucesmois()",
+      "source_file": "components/tresorerie/reglagesCharges.js",
+      "source_location": "L48"
+    },
+    {
+      "id": "lib_direction_categoriedirection",
+      "label": "categorieDirection()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "categoriedirection()",
+      "source_file": "lib/direction.js",
+      "source_location": "L44"
+    },
+    {
+      "id": "lib_historique_anneesdisponibles",
+      "label": "anneesDisponibles()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "anneesdisponibles()",
+      "source_file": "lib/historique.js",
+      "source_location": "L29"
+    },
+    {
+      "id": "lib_tresorerie_fmt",
+      "label": "fmt()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "fmt()",
+      "source_file": "lib/tresorerie.js",
+      "source_location": "L574"
+    },
+    {
+      "id": "lib_tresorerie_formatdatefr",
+      "label": "formatDateFR()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "formatdatefr()",
+      "source_file": "lib/tresorerie.js",
+      "source_location": "L215"
+    },
+    {
+      "id": "lib_tresorerie_libellemois",
+      "label": "libelleMois()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "libellemois()",
+      "source_file": "lib/tresorerie.js",
+      "source_location": "L205"
+    },
+    {
+      "id": "lib_tresorerie_libellemoiscourt",
+      "label": "libelleMoisCourt()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 306,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "libellemoiscourt()",
+      "source_file": "lib/tresorerie.js",
+      "source_location": "L210"
+    },
+    {
+      "id": "components_accueil_accueilmanager_chargertresorerie",
+      "label": "chargerTresorerie()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 307,
+      "community_name": "rappelsTresorerie.js",
+      "file_type": "code",
+      "norm_label": "chargertresorerie()",
+      "source_file": "components/accueil/AccueilManager.js",
+      "source_location": "L61"
+    },
+    {
+      "id": "lib_rappelstresorerie_destinatairesrappels",
+      "label": "destinatairesRappels()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 307,
+      "community_name": "rappelsTresorerie.js",
+      "file_type": "code",
+      "norm_label": "destinatairesrappels()",
+      "source_file": "lib/rappelsTresorerie.js",
+      "source_location": "L72"
+    },
+    {
+      "id": "lib_rappelstresorerie_messagepour",
+      "label": "messagePour()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 307,
+      "community_name": "rappelsTresorerie.js",
+      "file_type": "code",
+      "norm_label": "messagepour()",
+      "source_file": "lib/rappelsTresorerie.js",
+      "source_location": "L87"
+    },
+    {
+      "id": "lib_rappelstresorerie_test_nomresto",
+      "label": "nomResto()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 307,
+      "community_name": "rappelsTresorerie.js",
+      "file_type": "code",
+      "norm_label": "nomresto()",
+      "source_file": "lib/rappelsTresorerie.test.mjs",
+      "source_location": "L12"
+    },
+    {
+      "id": "lib_tresorerie_niveautresorerie",
+      "label": "niveauTresorerie()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 307,
+      "community_name": "rappelsTresorerie.js",
+      "file_type": "code",
+      "norm_label": "niveautresorerie()",
+      "source_file": "lib/tresorerie.js",
+      "source_location": "L545"
+    },
+    {
+      "id": "supabase_functions_rappels_tresorerie_index_envoyerexpo",
+      "label": "envoyerExpo()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 307,
+      "community_name": "rappelsTresorerie.js",
+      "file_type": "code",
+      "norm_label": "envoyerexpo()",
+      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
+      "source_location": "L46"
+    },
+    {
+      "id": "supabase_functions_rappels_tresorerie_index_envoyerweb",
+      "label": "envoyerWeb()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 307,
+      "community_name": "rappelsTresorerie.js",
+      "file_type": "code",
+      "norm_label": "envoyerweb()",
+      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
+      "source_location": "L59"
+    },
+    {
+      "id": "supabase_functions_rappels_tresorerie_index_facultatif",
+      "label": "facultatif()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 307,
+      "community_name": "rappelsTresorerie.js",
+      "file_type": "code",
+      "norm_label": "facultatif()",
+      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
+      "source_location": "L44"
+    },
+    {
+      "id": "supabase_functions_rappels_tresorerie_index_json",
+      "label": "json()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 307,
+      "community_name": "rappelsTresorerie.js",
+      "file_type": "code",
+      "norm_label": "json()",
+      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
+      "source_location": "L26"
+    },
+    {
+      "id": "supabase_functions_rappels_tresorerie_index_toutes",
+      "label": "toutes()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 307,
+      "community_name": "rappelsTresorerie.js",
+      "file_type": "code",
+      "norm_label": "toutes()",
+      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
+      "source_location": "L30"
+    },
+    {
       "id": "app_login_loginscreen",
       "label": "LoginScreen()",
       "_callable": true,
@@ -20051,42 +20147,6 @@
       "norm_label": "fermer()",
       "source_file": "app/tresorerie-banque.js",
       "source_location": "L237"
-    },
-    {
-      "id": "app_tresorerie_banque_feuillevirement",
-      "label": "FeuilleVirement()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 313,
-      "community_name": "FeuilleMouvement",
-      "file_type": "code",
-      "norm_label": "feuillevirement()",
-      "source_file": "app/tresorerie-banque.js",
-      "source_location": "L399"
-    },
-    {
-      "id": "app_tresorerie_banque_feuillevirement_enregistrer",
-      "label": "enregistrer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 313,
-      "community_name": "FeuilleMouvement",
-      "file_type": "code",
-      "norm_label": "enregistrer()",
-      "source_file": "app/tresorerie-banque.js",
-      "source_location": "L415"
-    },
-    {
-      "id": "app_tresorerie_banque_feuillevirement_fermer",
-      "label": "fermer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 313,
-      "community_name": "FeuilleMouvement",
-      "file_type": "code",
-      "norm_label": "fermer()",
-      "source_file": "app/tresorerie-banque.js",
-      "source_location": "L410"
     },
     {
       "id": "app_tresorerie_banque_stylecompte",
@@ -21649,78 +21709,6 @@
       "source_location": "L7"
     },
     {
-      "id": "app_tresorerie_direction_feuillechargeapayer",
-      "label": "FeuilleChargeAPayer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 332,
-      "community_name": "enregistrerDu",
-      "file_type": "code",
-      "norm_label": "feuillechargeapayer()",
-      "source_file": "app/tresorerie-direction.js",
-      "source_location": "L425"
-    },
-    {
-      "id": "app_tresorerie_direction_feuillechargeapayer_enregistrer",
-      "label": "enregistrer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 332,
-      "community_name": "enregistrerDu",
-      "file_type": "code",
-      "norm_label": "enregistrer()",
-      "source_file": "app/tresorerie-direction.js",
-      "source_location": "L446"
-    },
-    {
-      "id": "app_tresorerie_feuillenouvelledette",
-      "label": "FeuilleNouvelleDette()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 332,
-      "community_name": "enregistrerDu",
-      "file_type": "code",
-      "norm_label": "feuillenouvelledette()",
-      "source_file": "app/tresorerie.js",
-      "source_location": "L454"
-    },
-    {
-      "id": "app_tresorerie_feuillenouvelledette_enregistrer",
-      "label": "enregistrer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 332,
-      "community_name": "enregistrerDu",
-      "file_type": "code",
-      "norm_label": "enregistrer()",
-      "source_file": "app/tresorerie.js",
-      "source_location": "L467"
-    },
-    {
-      "id": "app_tresorerie_feuillenouvelledette_fermer",
-      "label": "fermer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 332,
-      "community_name": "enregistrerDu",
-      "file_type": "code",
-      "norm_label": "fermer()",
-      "source_file": "app/tresorerie.js",
-      "source_location": "L465"
-    },
-    {
-      "id": "lib_tresoreriedb_enregistrerdu",
-      "label": "enregistrerDu()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 332,
-      "community_name": "enregistrerDu",
-      "file_type": "code",
-      "norm_label": "enregistrerdu()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L323"
-    },
-    {
       "id": "app_rapports_ongletmensuel_exporter",
       "label": "exporter()",
       "_callable": true,
@@ -22330,7 +22318,7 @@
       "file_type": "code",
       "norm_label": "entete()",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L48"
+      "source_location": "L52"
     },
     {
       "id": "components_equipe_modales_fondmodal",
@@ -22342,7 +22330,7 @@
       "file_type": "code",
       "norm_label": "fondmodal()",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L39"
+      "source_location": "L43"
     },
     {
       "id": "components_equipe_modales_formdepuis",
@@ -22378,7 +22366,7 @@
       "file_type": "code",
       "norm_label": "modalarchive()",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L218"
+      "source_location": "L222"
     },
     {
       "id": "components_equipe_modales_modalarchive_archiver",
@@ -22390,7 +22378,7 @@
       "file_type": "code",
       "norm_label": "archiver()",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L225"
+      "source_location": "L229"
     },
     {
       "id": "components_equipe_modales_modaldroitsdus",
@@ -22402,7 +22390,7 @@
       "file_type": "code",
       "norm_label": "modaldroitsdus()",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L272"
+      "source_location": "L276"
     },
     {
       "id": "components_equipe_modales_modaldroitsdus_enregistrer",
@@ -22414,7 +22402,7 @@
       "file_type": "code",
       "norm_label": "enregistrer()",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L279"
+      "source_location": "L283"
     },
     {
       "id": "components_equipe_modales_modalformtravailleur",
@@ -22426,7 +22414,7 @@
       "file_type": "code",
       "norm_label": "modalformtravailleur()",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L58"
+      "source_location": "L62"
     },
     {
       "id": "components_equipe_modales_modalformtravailleur_ajouterpapier",
@@ -22438,7 +22426,7 @@
       "file_type": "code",
       "norm_label": "ajouterpapier()",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L84"
+      "source_location": "L88"
     },
     {
       "id": "components_equipe_modales_modalformtravailleur_photoprofil",
@@ -22450,7 +22438,7 @@
       "file_type": "code",
       "norm_label": "photoprofil()",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L77"
+      "source_location": "L81"
     },
     {
       "id": "components_equipe_modales_modaltransfert",
@@ -22462,7 +22450,7 @@
       "file_type": "code",
       "norm_label": "modaltransfert()",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L316"
+      "source_location": "L320"
     },
     {
       "id": "components_equipe_modales_modaltransfert_confirmer",
@@ -22474,7 +22462,7 @@
       "file_type": "code",
       "norm_label": "confirmer()",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L323"
+      "source_location": "L327"
     },
     {
       "id": "app_brouillons_fournisseurs_brouillonsfournisseursscreen",
@@ -27265,6 +27253,30 @@
       "source_location": "L339"
     },
     {
+      "id": "app_tresorerie_coffre_feuilleepargne",
+      "label": "FeuilleEpargne()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "feuilleepargne()",
+      "source_file": "app/tresorerie-coffre.js",
+      "source_location": "L177"
+    },
+    {
+      "id": "app_tresorerie_coffre_feuilleepargne_enregistrer",
+      "label": "enregistrer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "enregistrer()",
+      "source_file": "app/tresorerie-coffre.js",
+      "source_location": "L188"
+    },
+    {
       "id": "app_tresorerie_coffre_feuilleobjectif",
       "label": "FeuilleObjectif()",
       "_callable": true,
@@ -27287,6 +27299,30 @@
       "norm_label": "enregistrer()",
       "source_file": "app/tresorerie-coffre.js",
       "source_location": "L229"
+    },
+    {
+      "id": "app_tresorerie_coffre_feuilleremboursement",
+      "label": "FeuilleRemboursement()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "feuilleremboursement()",
+      "source_file": "app/tresorerie-coffre.js",
+      "source_location": "L316"
+    },
+    {
+      "id": "app_tresorerie_coffre_feuilleremboursement_enregistrer",
+      "label": "enregistrer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "enregistrer()",
+      "source_file": "app/tresorerie-coffre.js",
+      "source_location": "L325"
     },
     {
       "id": "app_tresorerie_feuilledroits",
@@ -27335,18 +27371,6 @@
       "norm_label": "feuilleperiode()",
       "source_file": "app/tresorerie-partenaires.js",
       "source_location": "L263"
-    },
-    {
-      "id": "app_tresorerie_partenaires_feuilleperiode_annuler",
-      "label": "annuler()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "annuler()",
-      "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L279"
     },
     {
       "id": "app_tresorerie_partenaires_feuilleperiode_retirerimport",
@@ -27409,42 +27433,6 @@
       "source_location": "L14"
     },
     {
-      "id": "components_tresorerie_commun_usetresorerie",
-      "label": "useTresorerie()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "usetresorerie()",
-      "source_file": "components/tresorerie/commun.js",
-      "source_location": "L22"
-    },
-    {
-      "id": "components_tresorerie_du_sectioncotisation",
-      "label": "SectionCotisation()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "sectioncotisation()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L347"
-    },
-    {
-      "id": "components_tresorerie_du_sectioncotisation_enregistrer",
-      "label": "enregistrer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "enregistrer()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L373"
-    },
-    {
       "id": "lib_journal_journaliser",
       "label": "journaliser()",
       "_callable": true,
@@ -27479,6 +27467,18 @@
       "norm_label": "nomligne()",
       "source_file": "lib/rappelsTresorerie.js",
       "source_location": "L27"
+    },
+    {
+      "id": "lib_tresorerie_sanschargesadministratives",
+      "label": "sansChargesAdministratives()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "sanschargesadministratives()",
+      "source_file": "lib/tresorerie.js",
+      "source_location": "L22"
     },
     {
       "id": "lib_tresoreriedb_ajouterdepensedirection",
@@ -29110,7 +29110,7 @@
       "file_type": "code",
       "norm_label": "makestyles()",
       "source_file": "app/charges.js",
-      "source_location": "L633"
+      "source_location": "L634"
     },
     {
       "id": "scripts_transactions_fournisseurs_date_fmt",
@@ -30328,50 +30328,6 @@
       "norm_label": "equipe",
       "source_file": "lib/sourcePoint.test.mjs",
       "source_location": "L17"
-    },
-    {
-      "id": "app_tresorerie_coffre",
-      "label": "tresorerie-coffre.js",
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "tresorerie-coffre.js",
-      "source_file": "app/tresorerie-coffre.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "app_tresorerie_coffre_icones",
-      "label": "ICONES",
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "icones",
-      "source_file": "app/tresorerie-coffre.js",
-      "source_location": "L27"
-    },
-    {
-      "id": "app_tresorerie_coffre_libelles",
-      "label": "LIBELLES",
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "libelles",
-      "source_file": "app/tresorerie-coffre.js",
-      "source_location": "L26"
-    },
-    {
-      "id": "app_tresorerie_coffre_partenaires",
-      "label": "PARTENAIRES",
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "partenaires",
-      "source_file": "app/tresorerie-coffre.js",
-      "source_location": "L29"
     },
     {
       "id": "lib_direction",
@@ -32041,6 +31997,17 @@
       "source_location": "L1"
     },
     {
+      "id": "lib_previsions_partenaires_prevision",
+      "label": "PARTENAIRES_PREVISION",
+      "_origin": "ast",
+      "community": 12,
+      "community_name": "lib/tresorerie.js",
+      "file_type": "code",
+      "norm_label": "partenaires_prevision",
+      "source_file": "lib/previsions.js",
+      "source_location": "L16"
+    },
+    {
       "id": "lib_previsions_test",
       "label": "previsions.test.mjs",
       "_origin": "ast",
@@ -32061,94 +32028,6 @@
       "norm_label": "du",
       "source_file": "lib/previsions.test.mjs",
       "source_location": "L13"
-    },
-    {
-      "id": "lib_rappelstresorerie",
-      "label": "rappelsTresorerie.js",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "rappelstresorerie.js",
-      "source_file": "lib/rappelsTresorerie.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "lib_rappelstresorerie_mois_courts",
-      "label": "MOIS_COURTS",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "mois_courts",
-      "source_file": "lib/rappelsTresorerie.js",
-      "source_location": "L22"
-    },
-    {
-      "id": "lib_rappelstresorerie_noms",
-      "label": "NOMS",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "noms",
-      "source_file": "lib/rappelsTresorerie.js",
-      "source_location": "L23"
-    },
-    {
-      "id": "lib_rappelstresorerie_test",
-      "label": "rappelsTresorerie.test.mjs",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "rappelstresorerie.test.mjs",
-      "source_file": "lib/rappelsTresorerie.test.mjs",
-      "source_location": "L1"
-    },
-    {
-      "id": "lib_rappelstresorerie_test_base",
-      "label": "base",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "base",
-      "source_file": "lib/rappelsTresorerie.test.mjs",
-      "source_location": "L16"
-    },
-    {
-      "id": "lib_rappelstresorerie_test_loyerlav",
-      "label": "loyerLav",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "loyerlav",
-      "source_file": "lib/rappelsTresorerie.test.mjs",
-      "source_location": "L14"
-    },
-    {
-      "id": "lib_rappelstresorerie_test_salkms",
-      "label": "salKms",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "salkms",
-      "source_file": "lib/rappelsTresorerie.test.mjs",
-      "source_location": "L15"
-    },
-    {
-      "id": "lib_rappelstresorerie_types_par_niveau",
-      "label": "TYPES_PAR_NIVEAU",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "types_par_niveau",
-      "source_file": "lib/rappelsTresorerie.js",
-      "source_location": "L81"
     },
     {
       "id": "lib_tresorerie",
@@ -32184,6 +32063,17 @@
       "source_location": "L36"
     },
     {
+      "id": "lib_tresorerie_categories_jour_commun",
+      "label": "CATEGORIES_JOUR_COMMUN",
+      "_origin": "ast",
+      "community": 12,
+      "community_name": "lib/tresorerie.js",
+      "file_type": "code",
+      "norm_label": "categories_jour_commun",
+      "source_file": "lib/tresorerie.js",
+      "source_location": "L27"
+    },
+    {
       "id": "lib_tresorerie_categories_mensuelles",
       "label": "CATEGORIES_MENSUELLES",
       "_origin": "ast",
@@ -32204,6 +32094,17 @@
       "norm_label": "categories_montant_fixe",
       "source_file": "lib/tresorerie.js",
       "source_location": "L30"
+    },
+    {
+      "id": "lib_tresorerie_categories_serie",
+      "label": "CATEGORIES_SERIE",
+      "_origin": "ast",
+      "community": 12,
+      "community_name": "lib/tresorerie.js",
+      "file_type": "code",
+      "norm_label": "categories_serie",
+      "source_file": "lib/tresorerie.js",
+      "source_location": "L14"
     },
     {
       "id": "lib_tresorerie_categories_tresorerie",
@@ -32239,6 +32140,17 @@
       "source_location": "L56"
     },
     {
+      "id": "lib_tresorerie_libelles_onglet",
+      "label": "LIBELLES_ONGLET",
+      "_origin": "ast",
+      "community": 12,
+      "community_name": "lib/tresorerie.js",
+      "file_type": "code",
+      "norm_label": "libelles_onglet",
+      "source_file": "lib/tresorerie.js",
+      "source_location": "L564"
+    },
+    {
       "id": "lib_tresorerie_mois_noms",
       "label": "MOIS_NOMS",
       "_origin": "ast",
@@ -32248,6 +32160,17 @@
       "norm_label": "mois_noms",
       "source_file": "lib/tresorerie.js",
       "source_location": "L58"
+    },
+    {
+      "id": "lib_tresorerie_niveaux",
+      "label": "NIVEAUX",
+      "_origin": "ast",
+      "community": 12,
+      "community_name": "lib/tresorerie.js",
+      "file_type": "code",
+      "norm_label": "niveaux",
+      "source_file": "lib/tresorerie.js",
+      "source_location": "L524"
     },
     {
       "id": "lib_tresorerie_onglets_a_payer",
@@ -32281,28 +32204,6 @@
       "norm_label": "tresorerie.test.mjs",
       "source_file": "lib/tresorerie.test.mjs",
       "source_location": "L1"
-    },
-    {
-      "id": "supabase_functions_rappels_tresorerie_index",
-      "label": "rappels-tresorerie/index.ts",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "rappels-tresorerie/index.ts",
-      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "supabase_functions_rappels_tresorerie_index_admin",
-      "label": "admin",
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "admin",
-      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
-      "source_location": "L24"
     },
     {
       "id": "supabase_litiges_plateformes_auto_sql_litiges_glovo",
@@ -37047,6 +36948,39 @@
       "source_location": "L49"
     },
     {
+      "id": "supabase_tresorerie_previsions",
+      "label": "supabase_tresorerie_previsions.sql",
+      "_origin": "ast",
+      "community": 209,
+      "community_name": "tresorerie_mouvements",
+      "file_type": "code",
+      "norm_label": "supabase_tresorerie_previsions.sql",
+      "source_file": "supabase_tresorerie_previsions.sql",
+      "source_location": null
+    },
+    {
+      "id": "supabase_tresorerie_previsions_tresorerie_payer",
+      "label": "tresorerie_payer()",
+      "_origin": "ast",
+      "community": 209,
+      "community_name": "tresorerie_mouvements",
+      "file_type": "code",
+      "norm_label": "tresorerie_payer()",
+      "source_file": "supabase_tresorerie_previsions.sql",
+      "source_location": "L29"
+    },
+    {
+      "id": "supabase_tresorerie_previsions_tresorerie_previsions",
+      "label": "tresorerie_previsions",
+      "_origin": "ast",
+      "community": 209,
+      "community_name": "tresorerie_mouvements",
+      "file_type": "code",
+      "norm_label": "tresorerie_previsions",
+      "source_file": "supabase_tresorerie_previsions.sql",
+      "source_location": "L11"
+    },
+    {
       "id": "supabase_tresorerie_sql_restaurants",
       "label": "restaurants",
       "_origin": "ast",
@@ -40074,6 +40008,50 @@
       "source_location": "L40"
     },
     {
+      "id": "app_tresorerie_coffre",
+      "label": "tresorerie-coffre.js",
+      "_origin": "ast",
+      "community": 243,
+      "community_name": "useStylesTreso",
+      "file_type": "code",
+      "norm_label": "tresorerie-coffre.js",
+      "source_file": "app/tresorerie-coffre.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "app_tresorerie_coffre_icones",
+      "label": "ICONES",
+      "_origin": "ast",
+      "community": 243,
+      "community_name": "useStylesTreso",
+      "file_type": "code",
+      "norm_label": "icones",
+      "source_file": "app/tresorerie-coffre.js",
+      "source_location": "L27"
+    },
+    {
+      "id": "app_tresorerie_coffre_libelles",
+      "label": "LIBELLES",
+      "_origin": "ast",
+      "community": 243,
+      "community_name": "useStylesTreso",
+      "file_type": "code",
+      "norm_label": "libelles",
+      "source_file": "app/tresorerie-coffre.js",
+      "source_location": "L26"
+    },
+    {
+      "id": "app_tresorerie_coffre_partenaires",
+      "label": "PARTENAIRES",
+      "_origin": "ast",
+      "community": 243,
+      "community_name": "useStylesTreso",
+      "file_type": "code",
+      "norm_label": "partenaires",
+      "source_file": "app/tresorerie-coffre.js",
+      "source_location": "L29"
+    },
+    {
       "id": "app_tresorerie_direction",
       "label": "tresorerie-direction.js",
       "_origin": "ast",
@@ -40083,28 +40061,6 @@
       "norm_label": "tresorerie-direction.js",
       "source_file": "app/tresorerie-direction.js",
       "source_location": "L1"
-    },
-    {
-      "id": "app_tresorerie_restaurant",
-      "label": "tresorerie-restaurant.js",
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "tresorerie-restaurant.js",
-      "source_file": "app/tresorerie-restaurant.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "app_tresorerie_restaurant_onglets",
-      "label": "ONGLETS",
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "onglets",
-      "source_file": "app/tresorerie-restaurant.js",
-      "source_location": "L218"
     },
     {
       "id": "app_tresorerie_resultats",
@@ -40184,61 +40140,6 @@
       "source_location": "L1"
     },
     {
-      "id": "components_tresorerie_historique",
-      "label": "tresorerie/historique.js",
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "tresorerie/historique.js",
-      "source_file": "components/tresorerie/historique.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "components_tresorerie_historique_mois_courts",
-      "label": "MOIS_COURTS",
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "mois_courts",
-      "source_file": "components/tresorerie/historique.js",
-      "source_location": "L15"
-    },
-    {
-      "id": "lib_previsions_partenaires_prevision",
-      "label": "PARTENAIRES_PREVISION",
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "partenaires_prevision",
-      "source_file": "lib/previsions.js",
-      "source_location": "L16"
-    },
-    {
-      "id": "lib_tresorerie_categories_jour_commun",
-      "label": "CATEGORIES_JOUR_COMMUN",
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "categories_jour_commun",
-      "source_file": "lib/tresorerie.js",
-      "source_location": "L27"
-    },
-    {
-      "id": "lib_tresorerie_categories_serie",
-      "label": "CATEGORIES_SERIE",
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "categories_serie",
-      "source_file": "lib/tresorerie.js",
-      "source_location": "L14"
-    },
-    {
       "id": "lib_tresorerie_libelles_categorie",
       "label": "LIBELLES_CATEGORIE",
       "_origin": "ast",
@@ -40248,28 +40149,6 @@
       "norm_label": "libelles_categorie",
       "source_file": "lib/tresorerie.js",
       "source_location": "L38"
-    },
-    {
-      "id": "lib_tresorerie_libelles_onglet",
-      "label": "LIBELLES_ONGLET",
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "libelles_onglet",
-      "source_file": "lib/tresorerie.js",
-      "source_location": "L564"
-    },
-    {
-      "id": "lib_tresorerie_niveaux",
-      "label": "NIVEAUX",
-      "_origin": "ast",
-      "community": 243,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "niveaux",
-      "source_file": "lib/tresorerie.js",
-      "source_location": "L524"
     },
     {
       "id": "docs_superpowers_plans_2026_10_02_tresorerie_etape4_previsions",
@@ -44443,59 +44322,158 @@
       "source_location": "L1"
     },
     {
-      "id": "package_dependencies_expo_device",
-      "label": "expo-device",
+      "id": "app_tresorerie_restaurant",
+      "label": "tresorerie-restaurant.js",
       "_origin": "ast",
       "community": 306,
-      "community_name": "expo-device",
+      "community_name": "fmt",
       "file_type": "code",
-      "norm_label": "expo-device",
-      "source_file": "package.json",
-      "source_location": "L27"
+      "norm_label": "tresorerie-restaurant.js",
+      "source_file": "app/tresorerie-restaurant.js",
+      "source_location": "L1"
     },
     {
-      "id": "expo_device",
-      "label": "expo-device",
+      "id": "app_tresorerie_restaurant_onglets",
+      "label": "ONGLETS",
       "_origin": "ast",
       "community": 306,
-      "community_name": "expo-device",
-      "file_type": "concept",
-      "norm_label": "expo-device",
-      "source_file": "package.json",
-      "source_location": "L27"
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "onglets",
+      "source_file": "app/tresorerie-restaurant.js",
+      "source_location": "L218"
     },
     {
-      "id": "supabase_tresorerie_previsions",
-      "label": "supabase_tresorerie_previsions.sql",
+      "id": "components_tresorerie_historique",
+      "label": "tresorerie/historique.js",
       "_origin": "ast",
-      "community": 307,
-      "community_name": "tresorerie_previsions",
+      "community": 306,
+      "community_name": "fmt",
       "file_type": "code",
-      "norm_label": "supabase_tresorerie_previsions.sql",
-      "source_file": "supabase_tresorerie_previsions.sql",
-      "source_location": null
+      "norm_label": "tresorerie/historique.js",
+      "source_file": "components/tresorerie/historique.js",
+      "source_location": "L1"
     },
     {
-      "id": "supabase_tresorerie_previsions_tresorerie_payer",
-      "label": "tresorerie_payer()",
+      "id": "components_tresorerie_historique_mois_courts",
+      "label": "MOIS_COURTS",
       "_origin": "ast",
-      "community": 307,
-      "community_name": "tresorerie_previsions",
+      "community": 306,
+      "community_name": "fmt",
       "file_type": "code",
-      "norm_label": "tresorerie_payer()",
-      "source_file": "supabase_tresorerie_previsions.sql",
-      "source_location": "L29"
+      "norm_label": "mois_courts",
+      "source_file": "components/tresorerie/historique.js",
+      "source_location": "L15"
     },
     {
-      "id": "supabase_tresorerie_previsions_tresorerie_previsions",
-      "label": "tresorerie_previsions",
+      "id": "lib_rappelstresorerie",
+      "label": "rappelsTresorerie.js",
       "_origin": "ast",
       "community": 307,
-      "community_name": "tresorerie_previsions",
+      "community_name": "rappelsTresorerie.js",
       "file_type": "code",
-      "norm_label": "tresorerie_previsions",
-      "source_file": "supabase_tresorerie_previsions.sql",
-      "source_location": "L11"
+      "norm_label": "rappelstresorerie.js",
+      "source_file": "lib/rappelsTresorerie.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "lib_rappelstresorerie_mois_courts",
+      "label": "MOIS_COURTS",
+      "_origin": "ast",
+      "community": 307,
+      "community_name": "rappelsTresorerie.js",
+      "file_type": "code",
+      "norm_label": "mois_courts",
+      "source_file": "lib/rappelsTresorerie.js",
+      "source_location": "L22"
+    },
+    {
+      "id": "lib_rappelstresorerie_noms",
+      "label": "NOMS",
+      "_origin": "ast",
+      "community": 307,
+      "community_name": "rappelsTresorerie.js",
+      "file_type": "code",
+      "norm_label": "noms",
+      "source_file": "lib/rappelsTresorerie.js",
+      "source_location": "L23"
+    },
+    {
+      "id": "lib_rappelstresorerie_test",
+      "label": "rappelsTresorerie.test.mjs",
+      "_origin": "ast",
+      "community": 307,
+      "community_name": "rappelsTresorerie.js",
+      "file_type": "code",
+      "norm_label": "rappelstresorerie.test.mjs",
+      "source_file": "lib/rappelsTresorerie.test.mjs",
+      "source_location": "L1"
+    },
+    {
+      "id": "lib_rappelstresorerie_test_base",
+      "label": "base",
+      "_origin": "ast",
+      "community": 307,
+      "community_name": "rappelsTresorerie.js",
+      "file_type": "code",
+      "norm_label": "base",
+      "source_file": "lib/rappelsTresorerie.test.mjs",
+      "source_location": "L16"
+    },
+    {
+      "id": "lib_rappelstresorerie_test_loyerlav",
+      "label": "loyerLav",
+      "_origin": "ast",
+      "community": 307,
+      "community_name": "rappelsTresorerie.js",
+      "file_type": "code",
+      "norm_label": "loyerlav",
+      "source_file": "lib/rappelsTresorerie.test.mjs",
+      "source_location": "L14"
+    },
+    {
+      "id": "lib_rappelstresorerie_test_salkms",
+      "label": "salKms",
+      "_origin": "ast",
+      "community": 307,
+      "community_name": "rappelsTresorerie.js",
+      "file_type": "code",
+      "norm_label": "salkms",
+      "source_file": "lib/rappelsTresorerie.test.mjs",
+      "source_location": "L15"
+    },
+    {
+      "id": "lib_rappelstresorerie_types_par_niveau",
+      "label": "TYPES_PAR_NIVEAU",
+      "_origin": "ast",
+      "community": 307,
+      "community_name": "rappelsTresorerie.js",
+      "file_type": "code",
+      "norm_label": "types_par_niveau",
+      "source_file": "lib/rappelsTresorerie.js",
+      "source_location": "L81"
+    },
+    {
+      "id": "supabase_functions_rappels_tresorerie_index",
+      "label": "rappels-tresorerie/index.ts",
+      "_origin": "ast",
+      "community": 307,
+      "community_name": "rappelsTresorerie.js",
+      "file_type": "code",
+      "norm_label": "rappels-tresorerie/index.ts",
+      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
+      "source_location": "L1"
+    },
+    {
+      "id": "supabase_functions_rappels_tresorerie_index_admin",
+      "label": "admin",
+      "_origin": "ast",
+      "community": 307,
+      "community_name": "rappelsTresorerie.js",
+      "file_type": "code",
+      "norm_label": "admin",
+      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
+      "source_location": "L24"
     },
     {
       "id": "package_dependencies_expo_symbols",
@@ -44608,17 +44586,6 @@
       "source_location": "L14"
     },
     {
-      "id": "package_dependencies_exceljs",
-      "label": "exceljs",
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "dependencies",
-      "file_type": "code",
-      "norm_label": "exceljs",
-      "source_file": "package.json",
-      "source_location": "L23"
-    },
-    {
       "id": "package_dependencies_expo_constants",
       "label": "expo-constants",
       "_origin": "ast",
@@ -44628,6 +44595,17 @@
       "norm_label": "expo-constants",
       "source_file": "package.json",
       "source_location": "L25"
+    },
+    {
+      "id": "package_dependencies_expo_device",
+      "label": "expo-device",
+      "_origin": "ast",
+      "community": 31,
+      "community_name": "dependencies",
+      "file_type": "code",
+      "norm_label": "expo-device",
+      "source_file": "package.json",
+      "source_location": "L27"
     },
     {
       "id": "package_dependencies_expo_file_system",
@@ -44729,6 +44707,17 @@
       "source_location": "L25"
     },
     {
+      "id": "expo_device",
+      "label": "expo-device",
+      "_origin": "ast",
+      "community": 31,
+      "community_name": "dependencies",
+      "file_type": "concept",
+      "norm_label": "expo-device",
+      "source_file": "package.json",
+      "source_location": "L27"
+    },
+    {
       "id": "expo_file_system",
       "label": "expo-file-system",
       "_origin": "ast",
@@ -44760,17 +44749,6 @@
       "norm_label": "expo-status-bar",
       "source_file": "package.json",
       "source_location": "L41"
-    },
-    {
-      "id": "package_json_exceljs",
-      "label": "exceljs",
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "dependencies",
-      "file_type": "concept",
-      "norm_label": "exceljs",
-      "source_file": "package.json",
-      "source_location": "L23"
     },
     {
       "id": "package_json_pptxgenjs",
@@ -46449,6 +46427,28 @@
       "norm_label": "litigesresume.test.mjs",
       "source_file": "lib/litigesResume.test.mjs",
       "source_location": "L1"
+    },
+    {
+      "id": "package_dependencies_exceljs",
+      "label": "exceljs",
+      "_origin": "ast",
+      "community": 332,
+      "community_name": "exceljs",
+      "file_type": "code",
+      "norm_label": "exceljs",
+      "source_file": "package.json",
+      "source_location": "L23"
+    },
+    {
+      "id": "package_json_exceljs",
+      "label": "exceljs",
+      "_origin": "ast",
+      "community": 332,
+      "community_name": "exceljs",
+      "file_type": "concept",
+      "norm_label": "exceljs",
+      "source_file": "package.json",
+      "source_location": "L23"
     },
     {
       "id": "supabase_droits_anciens_travailleurs",
@@ -76568,7 +76568,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L386",
+      "source_location": "L390",
       "weight": 1.0
     },
     {
@@ -76580,7 +76580,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L166",
+      "source_location": "L170",
       "weight": 1.0
     },
     {
@@ -76592,7 +76592,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L59",
+      "source_location": "L63",
       "weight": 1.0
     },
     {
@@ -76604,7 +76604,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L60",
+      "source_location": "L64",
       "weight": 1.0
     },
     {
@@ -76616,7 +76616,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L69",
+      "source_location": "L73",
       "weight": 1.0
     },
     {
@@ -76628,7 +76628,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L97",
+      "source_location": "L101",
       "weight": 1.0
     },
     {
@@ -76640,7 +76640,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L110",
+      "source_location": "L114",
       "weight": 1.0
     },
     {
@@ -76652,7 +76652,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L79",
+      "source_location": "L83",
       "weight": 1.0
     },
     {
@@ -81380,7 +81380,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "components/ui/EcranModerne.js",
-      "source_location": "L186",
+      "source_location": "L192",
       "weight": 1.0
     },
     {
@@ -81404,7 +81404,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "components/ui/EcranModerne.js",
-      "source_location": "L275",
+      "source_location": "L281",
       "weight": 1.0
     },
     {
@@ -104396,7 +104396,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L84",
+      "source_location": "L88",
       "weight": 1.0
     },
     {
@@ -147982,7 +147982,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/charges.js",
-      "source_location": "L633",
+      "source_location": "L634",
       "weight": 1.0
     },
     {
@@ -151810,7 +151810,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/livraisons.js",
-      "source_location": "L266",
+      "source_location": "L267",
       "weight": 1.0
     },
     {
@@ -152283,7 +152283,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/parametres.js",
-      "source_location": "L1886",
+      "source_location": "L1888",
       "weight": 1.0
     },
     {
@@ -152855,7 +152855,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/presences.js",
-      "source_location": "L631",
+      "source_location": "L632",
       "weight": 1.0
     },
     {
@@ -156298,7 +156298,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L218",
+      "source_location": "L222",
       "weight": 1.0
     },
     {
@@ -156309,7 +156309,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L272",
+      "source_location": "L276",
       "weight": 1.0
     },
     {
@@ -156331,7 +156331,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L316",
+      "source_location": "L320",
       "weight": 1.0
     },
     {
@@ -156342,7 +156342,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L357",
+      "source_location": "L361",
       "weight": 1.0
     },
     {
@@ -156353,7 +156353,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L39",
+      "source_location": "L43",
       "weight": 1.0
     },
     {
@@ -156364,7 +156364,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L48",
+      "source_location": "L52",
       "weight": 1.0
     },
     {
@@ -156375,7 +156375,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L58",
+      "source_location": "L62",
       "weight": 1.0
     },
     {
@@ -156386,7 +156386,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L225",
+      "source_location": "L229",
       "weight": 1.0
     },
     {
@@ -156397,7 +156397,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L279",
+      "source_location": "L283",
       "weight": 1.0
     },
     {
@@ -156408,7 +156408,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L105",
+      "source_location": "L109",
       "weight": 1.0
     },
     {
@@ -156419,7 +156419,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L77",
+      "source_location": "L81",
       "weight": 1.0
     },
     {
@@ -156430,7 +156430,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "components/equipe/Modales.js",
-      "source_location": "L323",
+      "source_location": "L327",
       "weight": 1.0
     },
     {
@@ -158756,17 +158756,6 @@
     },
     {
       "source": "components_ui_ecranmoderne",
-      "target": "components_ui_ecranmoderne_feuille",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "components/ui/EcranModerne.js",
-      "source_location": "L136",
-      "weight": 1.0
-    },
-    {
-      "source": "components_ui_ecranmoderne",
       "target": "components_ui_ecranmoderne_teinte",
       "relation": "contains",
       "_origin": "ast",
@@ -158774,6 +158763,17 @@
       "confidence_score": 1.0,
       "source_file": "components/ui/EcranModerne.js",
       "source_location": "L14",
+      "weight": 1.0
+    },
+    {
+      "source": "components_ui_ecranmoderne",
+      "target": "components_ui_ecranmoderne_feuille",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "components/ui/EcranModerne.js",
+      "source_location": "L142",
       "weight": 1.0
     },
     {
@@ -158795,7 +158795,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "components/ui/EcranModerne.js",
-      "source_location": "L165",
+      "source_location": "L171",
       "weight": 1.0
     },
     {
@@ -158806,7 +158806,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "components/ui/EcranModerne.js",
-      "source_location": "L169",
+      "source_location": "L175",
       "weight": 1.0
     },
     {
@@ -158817,7 +158817,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "components/ui/EcranModerne.js",
-      "source_location": "L177",
+      "source_location": "L183",
       "weight": 1.0
     },
     {
@@ -158828,7 +158828,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "components/ui/EcranModerne.js",
-      "source_location": "L213",
+      "source_location": "L219",
       "weight": 1.0
     },
     {
@@ -188468,5 +188468,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "e8f36133054e012d51030755000aa4baeca8b7f5"
+  "built_at_commit": "c1a814a81b2b23842802c80c05e1ec6a3bdc4170"
 }

@@ -1,16 +1,16 @@
 # Graph Report - samtrackly  (2026-10-14)
 
 ## Corpus Check
-- 511 files · ~678,899 words
+- 511 files · ~679,167 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 4501 nodes · 11611 edges · 339 communities (252 shown, 87 thin omitted)
+- 4501 nodes · 11611 edges · 339 communities (253 shown, 86 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 111 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `e8f36133`
+- Built from commit: `c1a814a8`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -276,8 +276,8 @@
 - Recherche globale — lot 2, vague A — design
 - Global Constraints
 - animations.js
-- expo-device
-- tresorerie_previsions
+- fmt
+- rappelsTresorerie.js
 - expo-symbols
 - supabase_litiges_plateformes_auto.sql
 - LoginScreen
@@ -302,7 +302,7 @@
 - ios
 - external-link.tsx
 - litigesResume.js
-- enregistrerDu
+- exceljs
 - fournisseurs
 - expo
 - demandes_travailleurs
@@ -336,7 +336,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (339 total, 87 thin omitted)
+## Communities (339 total, 86 thin omitted)
 
 ### Community 0 - "LitigesScreen"
 Cohesion: 0.10
@@ -387,8 +387,8 @@ Cohesion: 0.05
 Nodes (74): BlocKdo(), couleurEcart(), DETAIL_VIDE, fmt(), makeStyles(), PointCaissierScreen(), ouvrir(), titreJour() (+66 more)
 
 ### Community 12 - "lib/tresorerie.js"
-Cohesion: 0.05
-Nodes (93): FeuilleEdition(), echeanceDe(), enregistrer(), TresorerieAPayerScreen(), TresorerieScreen(), chargerTresorerie(), basculerMois(), FeuilleEcheance() (+85 more)
+Cohesion: 0.06
+Nodes (84): FeuilleEdition(), echeanceDe(), enregistrer(), TresorerieAPayerScreen(), TresorerieScreen(), basculerMois(), FeuilleEcheance(), enregistrer() (+76 more)
 
 ### Community 13 - "biometrieWeb.js"
 Cohesion: 0.12
@@ -464,7 +464,7 @@ Nodes (23): jourDe(), planEcriture(), RETENUES_FOURNIES, admin, aujourdhui(), ca
 
 ### Community 31 - "dependencies"
 Cohesion: 0.10
-Nodes (21): expo-constants, expo-file-system, expo-splash-screen, expo-status-bar, dependencies, exceljs, expo-constants, expo-file-system (+13 more)
+Nodes (21): expo-constants, expo-device, expo-file-system, expo-splash-screen, expo-status-bar, dependencies, expo-constants, expo-device (+13 more)
 
 ### Community 32 - "Gestion des contrats de travail (RH)"
 Cohesion: 0.10
@@ -640,7 +640,7 @@ Nodes (7): exampleDirPath, fs, oldDirs, path, readline, rl, root
 
 ### Community 78 - "journaliser"
 Cohesion: 0.08
-Nodes (78): FeuilleEntreeEspeces(), enregistrer(), FeuilleObjectif(), enregistrer(), FeuilleDroits(), changer(), confirmer(), FeuillePeriode() (+70 more)
+Nodes (79): FeuilleEntreeEspeces(), enregistrer(), FeuilleEpargne(), enregistrer(), FeuilleObjectif(), enregistrer(), FeuilleRemboursement(), enregistrer() (+71 more)
 
 ### Community 80 - "inventaires_shifts"
 Cohesion: 0.32
@@ -711,8 +711,8 @@ Cohesion: 0.12
 Nodes (17): VentesScreen(), allerAuRecap(), gererPhoto(), sauvegarderEtContinuer(), sauvegarderPhotosPoints(), syncLitigesResponsables(), CHAMPS_REMPLIS_PAR_LE_POS, estRempliParLePOS() (+9 more)
 
 ### Community 104 - "aujourdhuiISO"
-Cohesion: 0.11
-Nodes (42): fermer(), FeuilleEmprunt(), enregistrer(), FeuilleEpargne(), enregistrer(), FeuilleRemboursement(), enregistrer(), ICONES (+34 more)
+Cohesion: 0.13
+Nodes (33): fermer(), FeuilleVirement(), enregistrer(), fermer(), FeuilleEmprunt(), enregistrer(), nomPartenaire(), TresorerieCoffreScreen() (+25 more)
 
 ### Community 105 - "depensesSalairesShift"
 Cohesion: 0.16
@@ -791,8 +791,8 @@ Cohesion: 0.19
 Nodes (16): chargerMois(), OngletFournisseurs(), agregerMouvementsMensuels(), ecrituresFicheFournisseur(), facturesGerantSansPhoto(), photoConsultable(), preparerHistoriqueFournisseur(), restaurerPhotosFacturesDepuisPoints() (+8 more)
 
 ### Community 193 - "tresorerie-partenaires.js"
-Cohesion: 0.12
-Nodes (37): CartePartenaire(), FeuilleImport(), choisir(), FeuillePub(), enregistrer(), FeuilleReception(), enregistrer(), FeuilleReceptionTete() (+29 more)
+Cohesion: 0.13
+Nodes (36): CartePartenaire(), FeuilleImport(), choisir(), FeuillePub(), enregistrer(), FeuilleReception(), enregistrer(), FeuilleReceptionTete() (+28 more)
 
 ### Community 195 - "supabase_tresorerie_alertes.sql"
 Cohesion: 0.50
@@ -835,8 +835,8 @@ Cohesion: 0.40
 Nodes (4): Answer, Outcome, Q: Dans espace caissier détails de chaque caissier, afficher son manquant, son explication et l'explication d'inventaire, Source Nodes
 
 ### Community 209 - "tresorerie_mouvements"
-Cohesion: 0.19
-Nodes (13): fournisseurs, restaurants, transactions_fournisseurs, tresorerie_cotisations_recues, tresorerie_annuler_pret(), restaurants, tresorerie_annuler_paiement(), tresorerie_comptes (+5 more)
+Cohesion: 0.15
+Nodes (14): fournisseurs, restaurants, transactions_fournisseurs, tresorerie_cotisations_recues, tresorerie_annuler_pret(), tresorerie_previsions, restaurants, tresorerie_annuler_paiement() (+6 more)
 
 ### Community 212 - "supabase_factures_mensuelles.sql"
 Cohesion: 0.39
@@ -931,8 +931,8 @@ Cohesion: 0.35
 Nodes (8): sauvegarderAvis(), caissierAuMoment(), cleCaissier(), jours(), minutes(), normaliserHeure(), phraseAttribution(), shifts
 
 ### Community 243 - "useStylesTreso"
-Cohesion: 0.09
-Nodes (86): EN_RETARD, ListeDettes(), ListeDus(), ListeLoyers(), texteRetard(), TITRES_SAISIE, ICONES_TYPE, LIBELLES_TYPE (+78 more)
+Cohesion: 0.13
+Nodes (50): EN_RETARD, TITRES_SAISIE, ICONES_TYPE, LIBELLES_TYPE, LIES, Bloc(), ICONES, LIBELLES (+42 more)
 
 ### Community 244 - "Trésorerie étape 4 — Prévisions — Implementation Plan"
 Cohesion: 0.33
@@ -1070,6 +1070,14 @@ Nodes (7): Global Constraints, Refonte Déductions gérant & Saisie des ventes �
 Cohesion: 0.20
 Nodes (6): makeStyles(), MenuCard(), SPRINGS, staggerDelay(), colonnesPour(), useLargeurCase()
 
+### Community 306 - "fmt"
+Cohesion: 0.11
+Nodes (50): ListeDettes(), ListeDus(), ListeLoyers(), texteRetard(), annuler(), annulerUnEmprunt(), TresorerieDirectionScreen(), ouvrir() (+42 more)
+
+### Community 307 - "rappelsTresorerie.js"
+Cohesion: 0.13
+Nodes (13): chargerTresorerie(), destinatairesRappels(), messagePour(), MOIS_COURTS, NOMS, base, loyerLav, salKms (+5 more)
+
 ### Community 309 - "supabase_litiges_plateformes_auto.sql"
 Cohesion: 0.33
 Nodes (6): commandes_plateformes, correspondances_plats, journees_litiges_plateformes, litiges_auto_annules, plats_pos_vus, restaurants
@@ -1087,8 +1095,8 @@ Cohesion: 0.15
 Nodes (13): backgroundColor, foregroundImage, adaptiveIcon, googleServicesFile, package, permissions, versionCode, android (+5 more)
 
 ### Community 313 - "FeuilleMouvement"
-Cohesion: 0.25
-Nodes (11): estEspeces(), estTete(), FeuilleMouvement(), enregistrer(), fermer(), FeuilleVirement(), enregistrer(), fermer() (+3 more)
+Cohesion: 0.36
+Nodes (8): estEspeces(), estTete(), FeuilleMouvement(), enregistrer(), fermer(), styleCompte(), TresorerieBanqueScreen(), confirmerSuppression()
 
 ### Community 314 - "Recrutement et contrats signés dans l'application — conception"
 Cohesion: 0.13
@@ -1154,10 +1162,6 @@ Nodes (4): plugins, ExternalLink(), Props, expo-web-browser
 Cohesion: 0.46
 Nodes (5): CATEGORIES_LITIGES, lignesNominatives(), n(), restoSansLitige(), resumeLitiges()
 
-### Community 332 - "enregistrerDu"
-Cohesion: 0.53
-Nodes (6): FeuilleChargeAPayer(), enregistrer(), FeuilleNouvelleDette(), enregistrer(), fermer(), enregistrerDu()
-
 ### Community 336 - "demandes_travailleurs"
 Cohesion: 0.40
 Nodes (4): baremes_postes, demandes_travailleurs, restaurants, travailleurs
@@ -1165,16 +1169,16 @@ Nodes (4): baremes_postes, demandes_travailleurs, restaurants, travailleurs
 ## Knowledge Gaps
 - **977 isolated node(s):** `name`, `slug`, `version`, `orientation`, `icon` (+972 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **87 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **86 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `useTheme()` connect `useTheme` to `LitigesScreen`, `InventaireScreen`, `app/contrats.js`, `brouillons-fournisseurs.js`, `ModifierPointScreen`, `dashboard.js`, `recherche.js`, `stats-caissiers.js`, `VerificationScreen`, `FournisseursScreen`, `litigesPlateformes.js`, `DashboardGlobalScreen`, `credits-fournisseurs.js`, `rapports.js`, `dashboard-global.js`, `contacts.js`, `app/journal.js`, `ModifierInventaireScreen`, `EquipeScreen`, `DashboardScreen`, `ParametresScreen`, `verification.js`, `accueil.js`, `RecapPointScreen`, `deductions-gerant.js`, `AvisPlateformes`, `comparaisonDashboard.js`, `animations.js`, `CorrectionPointScreen`, `components/graphiques.js`, `LoginScreen`, `parametres.js`, `dashboardGlobal.js`, `fournisseursAdmin.js`, `AccueilManager.js`, `VerificateurScreen`, `PointShiftScreen`, `journaliser`, `ChargesScreen`, `login.js`, `LivraisonsScreen`, `depensesSalairesShift`, `app/bouton-avis.js`, `useStylesTreso`, `app/equipe.js`?**
   _High betweenness centrality (0.114) - this node is a cross-community bridge._
-- **Why does `useApp()` connect `useTheme` to `LitigesScreen`, `InventaireScreen`, `app/contrats.js`, `brouillons-fournisseurs.js`, `ContactsScreen`, `ModifierPointScreen`, `dashboard.js`, `recherche.js`, `stats-caissiers.js`, `VerificationScreen`, `FournisseursScreen`, `litigesPlateformes.js`, `credits-fournisseurs.js`, `contacts.js`, `app/journal.js`, `ParametresScreen`, `EquipeScreen`, `DashboardScreen`, `verification.js`, `accueil.js`, `RecapPointScreen`, `deductions-gerant.js`, `AvisPlateformes`, `DocumentsScreen`, `CorrectionPointScreen`, `LoginScreen`, `parametres.js`, `app/_layout.tsx`, `VerificateurScreen`, `RecapVerifications`, `PointShiftScreen`, `journaliser`, `ChargesScreen`, `login.js`, `DeductionsGerantScreen`, `LivraisonsScreen`, `creerNotification`, `VentesScreen`, `app/bouton-avis.js`, `useStylesTreso`, `app/equipe.js`, `DemandesExplicationAdminScreen`?**
+- **Why does `useApp()` connect `useTheme` to `LitigesScreen`, `InventaireScreen`, `app/contrats.js`, `brouillons-fournisseurs.js`, `ContactsScreen`, `ModifierPointScreen`, `dashboard.js`, `recherche.js`, `stats-caissiers.js`, `VerificationScreen`, `FournisseursScreen`, `litigesPlateformes.js`, `credits-fournisseurs.js`, `contacts.js`, `app/journal.js`, `ParametresScreen`, `EquipeScreen`, `DashboardScreen`, `verification.js`, `accueil.js`, `RecapPointScreen`, `deductions-gerant.js`, `AvisPlateformes`, `DocumentsScreen`, `CorrectionPointScreen`, `LoginScreen`, `parametres.js`, `app/_layout.tsx`, `VerificateurScreen`, `RecapVerifications`, `PointShiftScreen`, `ChargesScreen`, `login.js`, `DeductionsGerantScreen`, `LivraisonsScreen`, `creerNotification`, `VentesScreen`, `app/bouton-avis.js`, `useStylesTreso`, `app/equipe.js`, `DemandesExplicationAdminScreen`?**
   _High betweenness centrality (0.093) - this node is a cross-community bridge._
-- **Why does `expo-router` connect `useTheme` to `app/contrats.js`, `brouillons-fournisseurs.js`, `dashboard.js`, `recherche.js`, `stats-caissiers.js`, `credits-fournisseurs.js`, `dashboard-global.js`, `contacts.js`, `app/journal.js`, `verification.js`, `accueil.js`, `deductions-gerant.js`, `parametres.js`, `app/_layout.tsx`, `explore.tsx`, `AccueilManager.js`, `tresorerie-partenaires.js`, `external-link.tsx`, `login.js`, `parallax-scroll-view.tsx`, `creerNotification`, `aujourdhuiISO`, `useStylesTreso`, `app/equipe.js`?**
+- **Why does `expo-router` connect `useTheme` to `app/contrats.js`, `brouillons-fournisseurs.js`, `dashboard.js`, `recherche.js`, `stats-caissiers.js`, `credits-fournisseurs.js`, `dashboard-global.js`, `contacts.js`, `app/journal.js`, `verification.js`, `accueil.js`, `deductions-gerant.js`, `fmt`, `parametres.js`, `app/_layout.tsx`, `explore.tsx`, `AccueilManager.js`, `tresorerie-partenaires.js`, `external-link.tsx`, `login.js`, `parallax-scroll-view.tsx`, `creerNotification`, `useStylesTreso`, `app/equipe.js`?**
   _High betweenness centrality (0.059) - this node is a cross-community bridge._
 - **What connects `name`, `slug`, `version` to the rest of the system?**
   _977 weakly-connected nodes found - possible documentation gaps or missing edges._
