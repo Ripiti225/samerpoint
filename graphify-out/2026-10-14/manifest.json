@@ -234,9 +234,9 @@
     "semantic_hash": ""
   },
   "app/modifier-point.js": {
-    "mtime": 1791837299.600124,
-    "seen": 1791837321.953376,
-    "ast_hash": "067ad11402b37837d9ba49e861432887",
+    "mtime": 1791987710.9618433,
+    "seen": 1791987819.058678,
+    "ast_hash": "ff1861122c7989aac42a9ef5b062b72b",
     "semantic_hash": ""
   },
   "app/parametres.js": {
@@ -3063,6 +3063,18 @@
     "mtime": 1791839011.0253253,
     "seen": 1791839015.751373,
     "ast_hash": "94aefeb372288b987e2c37f33217a950",
+    "semantic_hash": ""
+  },
+  "lib/deplacementShift.js": {
+    "mtime": 1791987685.7221153,
+    "seen": 1791987819.058774,
+    "ast_hash": "70b3acc6b05c156b7e73a723df94a76b",
+    "semantic_hash": ""
+  },
+  "lib/deplacementShift.test.mjs": {
+    "mtime": 1791987665.2652128,
+    "seen": 1791987819.058775,
+    "ast_hash": "543978ae137220fa35e3d6fdd51114f2",
     "semantic_hash": ""
   }
 }

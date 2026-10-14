@@ -84,9 +84,9 @@
     "semantic_hash": ""
   },
   "app/contrats.js": {
-    "mtime": 1791837797.0594187,
-    "seen": 1791837888.701313,
-    "ast_hash": "14797346534cd4deee83adc8f1a9f850",
+    "mtime": 1791994128.8405087,
+    "seen": 1791994155.455212,
+    "ast_hash": "1177cfb2723ded2464d59b1f1f61c0b6",
     "semantic_hash": ""
   },
   "app/corbeille.js": {
@@ -312,15 +312,15 @@
     "semantic_hash": ""
   },
   "components/FicheContrat.js": {
-    "mtime": 1791066538.6445615,
-    "seen": 1791066613.955302,
-    "ast_hash": "19b03af9c1335c3b589ed9a34ea944b5",
+    "mtime": 1791993987.1751559,
+    "seen": 1791994155.455243,
+    "ast_hash": "8a77565557e02f558abc26d2b226bfdc",
     "semantic_hash": ""
   },
   "components/FormulaireContrat.js": {
-    "mtime": 1791066562.148171,
-    "seen": 1791066613.955303,
-    "ast_hash": "65216dd8e0f56c4858ff9a49baf9b2f4",
+    "mtime": 1791993838.216004,
+    "seen": 1791994155.455243,
+    "ast_hash": "ec88a128d71402d098c44f319563d8e8",
     "semantic_hash": ""
   },
   "components/FormulaireTravailleur.js": {
@@ -432,9 +432,9 @@
     "semantic_hash": ""
   },
   "context/NotificationsContext.js": {
-    "mtime": 1791101308.3502645,
-    "seen": 1791101364.57826,
-    "ast_hash": "b1d9d55fd2c1fe85af7fc246aa5288cb",
+    "mtime": 1791993775.5449667,
+    "seen": 1791994155.455282,
+    "ast_hash": "998511b1410fdefd234493f9fedee397",
     "semantic_hash": ""
   },
   "context/ThemeContext.js": {
@@ -516,15 +516,15 @@
     "semantic_hash": ""
   },
   "lib/contrats.js": {
-    "mtime": 1791066849.5933607,
-    "seen": 1791066964.414224,
-    "ast_hash": "9a117edc8eb6187d11796fb1d1606eda",
+    "mtime": 1791992869.6212158,
+    "seen": 1791994155.455311,
+    "ast_hash": "aaad77ac22e639e8df4e46d7476c19f3",
     "semantic_hash": ""
   },
   "lib/contrats.test.mjs": {
-    "mtime": 1791066849.6142306,
-    "seen": 1791066964.414224,
-    "ast_hash": "f6717a9c5c3274b139cdf60c183f0d22",
+    "mtime": 1791992864.019917,
+    "seen": 1791994155.455311,
+    "ast_hash": "7ab404d1d4c631d5a536d83181210d3b",
     "semantic_hash": ""
   },
   "lib/corbeille.js": {
@@ -612,9 +612,9 @@
     "semantic_hash": ""
   },
   "lib/menus.js": {
-    "mtime": 1791239277.7887752,
-    "seen": 1791239301.3353631,
-    "ast_hash": "19ac880e7e23ab526fd53f1df2eda3b2",
+    "mtime": 1791993775.5443583,
+    "seen": 1791994155.455351,
+    "ast_hash": "ab9bb6b5b0ec122c4b162c57509b2556",
     "semantic_hash": ""
   },
   "lib/networkStatus.js": {
@@ -768,9 +768,9 @@
     "semantic_hash": ""
   },
   "supabase/functions/rappel-contrats/index.ts": {
-    "mtime": 1787567987.5175068,
-    "seen": 1788454354.111367,
-    "ast_hash": "3d8407f4f5db137dfc9ba2f404d8c12a",
+    "mtime": 1791994128.840187,
+    "seen": 1791994155.4553978,
+    "ast_hash": "0396cde4a532252db91d204e31cc62fb",
     "semantic_hash": ""
   },
   "supabase/functions/rappel-explications/index.ts": {
@@ -1962,9 +1962,9 @@
     "semantic_hash": ""
   },
   "components/accueil/AccueilManager.js": {
-    "mtime": 1791824246.3059525,
-    "seen": 1791824740.7067049,
-    "ast_hash": "abb10e2de99c69ee3ba93efc388e81f6",
+    "mtime": 1791994059.257177,
+    "seen": 1791994155.4552472,
+    "ast_hash": "e71ab53130b98eae78955511f3ea7ef4",
     "semantic_hash": ""
   },
   "components/ui/Survol.js": {
@@ -2226,9 +2226,9 @@
     "semantic_hash": ""
   },
   "lib/equipeDb.js": {
-    "mtime": 1791162250.5575671,
-    "seen": 1791162271.834474,
-    "ast_hash": "9f2d024ff3b668bcfad8e2923e83480a",
+    "mtime": 1791994073.0252318,
+    "seen": 1791994155.4553301,
+    "ast_hash": "9418827598c3c7c94688d3665c81d8aa",
     "semantic_hash": ""
   },
   "lib/joursRepos.js": {
@@ -3075,6 +3075,156 @@
     "mtime": 1791987665.2652128,
     "seen": 1791987819.058775,
     "ast_hash": "543978ae137220fa35e3d6fdd51114f2",
+    "semantic_hash": ""
+  },
+  "app/recrutement.js": {
+    "mtime": 1791993775.5437162,
+    "seen": 1791994155.455231,
+    "ast_hash": "9b875ecea454d769b944aada9f34e2e6",
+    "semantic_hash": ""
+  },
+  "components/contrats/ApercuContrat.js": {
+    "mtime": 1791993637.519989,
+    "seen": 1791994155.455251,
+    "ast_hash": "68bab67e89664d3f68882446e98441a0",
+    "semantic_hash": ""
+  },
+  "components/contrats/FeuilleBaremes.js": {
+    "mtime": 1791993953.5452478,
+    "seen": 1791994155.455252,
+    "ast_hash": "bb0a14fdd9cd1e2dbfa966d42208546e",
+    "semantic_hash": ""
+  },
+  "components/contrats/FeuilleDemandeRH.js": {
+    "mtime": 1791993924.2889333,
+    "seen": 1791994155.455252,
+    "ast_hash": "16769892d8ee215157b52cef54a84196",
+    "semantic_hash": ""
+  },
+  "components/contrats/FeuilleSignature.js": {
+    "mtime": 1791993737.435354,
+    "seen": 1791994155.455253,
+    "ast_hash": "4bdad8c4ffcf65eb713f1e1baa61bad0",
+    "semantic_hash": ""
+  },
+  "components/contrats/FeuilleVerification.js": {
+    "mtime": 1791993957.30821,
+    "seen": 1791994155.455253,
+    "ast_hash": "da0dac0a71a356ba6976cec60a113012",
+    "semantic_hash": ""
+  },
+  "components/contrats/FormulaireDemande.js": {
+    "mtime": 1791993707.0179737,
+    "seen": 1791994155.455253,
+    "ast_hash": "c44fcfdcc0e5a1ea44426656b8750d92",
+    "semantic_hash": ""
+  },
+  "components/contrats/FormulaireGeneration.js": {
+    "mtime": 1791993887.164155,
+    "seen": 1791994155.455254,
+    "ast_hash": "deb404a78c9de0ce1851c68c1595cfa0",
+    "semantic_hash": ""
+  },
+  "components/contrats/PadSignature.js": {
+    "mtime": 1791993636.4881058,
+    "seen": 1791994155.455254,
+    "ast_hash": "806c03a19b1295660cd01730e997b9e5",
+    "semantic_hash": ""
+  },
+  "lib/baremes.js": {
+    "mtime": 1791992947.7540781,
+    "seen": 1791994155.455295,
+    "ast_hash": "5216a94ff1af3c4176fce8805a313cc0",
+    "semantic_hash": ""
+  },
+  "lib/baremes.test.mjs": {
+    "mtime": 1791992946.724096,
+    "seen": 1791994155.455296,
+    "ast_hash": "3d2b1af9e303cd16d0d1f0327abbff0f",
+    "semantic_hash": ""
+  },
+  "lib/cachetsContrat.js": {
+    "mtime": 1791993197.3869517,
+    "seen": 1791994155.455301,
+    "ast_hash": "c405f07c494e1055bef67e20fc162fa7",
+    "semantic_hash": ""
+  },
+  "lib/contratsSignesDb.js": {
+    "mtime": 1791993589.610543,
+    "seen": 1791994155.4553118,
+    "ast_hash": "c3c957cb2d60c98ec8637f4478c79fc1",
+    "semantic_hash": ""
+  },
+  "lib/modelesContrat.js": {
+    "mtime": 1791993522.007539,
+    "seen": 1791994155.455351,
+    "ast_hash": "010d41dbe2e69cbb88e19c6105861c89",
+    "semantic_hash": ""
+  },
+  "lib/modelesContrat.test.mjs": {
+    "mtime": 1791993522.0071485,
+    "seen": 1791994155.455352,
+    "ast_hash": "faaa88af4c47c9462d917cea3826c933",
+    "semantic_hash": ""
+  },
+  "lib/pdfContrat.js": {
+    "mtime": 1791993257.6876037,
+    "seen": 1791994155.455363,
+    "ast_hash": "33b99e3b40b315841e900b4ddc376c35",
+    "semantic_hash": ""
+  },
+  "lib/pdfContrat.test.mjs": {
+    "mtime": 1791993302.1043985,
+    "seen": 1791994155.455363,
+    "ast_hash": "7f1d2a805aa2b698c0e4889d2df10191",
+    "semantic_hash": ""
+  },
+  "lib/recrutement.js": {
+    "mtime": 1791992915.3043766,
+    "seen": 1791994155.455372,
+    "ast_hash": "9c1b2cd1e0f2786821c557fd44cb3b34",
+    "semantic_hash": ""
+  },
+  "lib/recrutement.test.mjs": {
+    "mtime": 1791992896.9991794,
+    "seen": 1791994155.455373,
+    "ast_hash": "8c24b4acfc391788e1e570395922b28b",
+    "semantic_hash": ""
+  },
+  "scripts/cachets-contrat.sh": {
+    "mtime": 1791993196.382754,
+    "seen": 1791994155.455393,
+    "ast_hash": "40dca331f16ac900424ef3b4a2f6e6e6",
+    "semantic_hash": ""
+  },
+  "supabase_recrutement_contrats_signes.sql": {
+    "mtime": 1791993522.0068533,
+    "seen": 1791994155.455425,
+    "ast_hash": "aa4880e01b194829de985063cb624cb6",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-14-recrutement-contrats-signes.md": {
+    "mtime": 1791992795.724533,
+    "seen": 1791994155.455453,
+    "ast_hash": "83070e41245f65549478e0836be46660",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-14-recrutement-contrats-signes-design.md": {
+    "mtime": 1791992602.1909559,
+    "seen": 1791994155.455467,
+    "ast_hash": "ece105684803677c799acb4668454dd9",
+    "semantic_hash": ""
+  },
+  "assets/cachets-contrat/cachet-contrat-alkayan.jpg": {
+    "mtime": 1791993196.3804958,
+    "seen": 1791994155.455474,
+    "ast_hash": "44756db3b3a723fe45d861c09fc6a40c",
+    "semantic_hash": ""
+  },
+  "assets/cachets-contrat/cachet-contrat-samer.jpg": {
+    "mtime": 1791993196.3782961,
+    "seen": 1791994155.455474,
+    "ast_hash": "ef30e0e5d4cd3cb52b27613e6ac4a493",
     "semantic_hash": ""
   }
 }
