@@ -24,7 +24,7 @@ import { Bouton, Compteurs, EnTete, Feuille, Puces, Recherche, Vide, teinte, use
 import Jauge from '../components/ui/Jauge'
 import { useApp } from '../context/AppContext'
 import {
-  FILTRES_CONTRAT, aujourdhuiISO, compterContrats, contratAffiche, contratsSignes, correspondFiltreContrat, expireBientot,
+  FILTRES_CONTRAT, TYPES_CONTRAT, aujourdhuiISO, compterContrats, contratAffiche, contratsSignes, correspondFiltreContrat, expireBientot,
   formatFR, ordinalFR, progressionContrat, rangParType, resumeContrats, statutContrat,
 } from '../lib/contrats'
 import { annulerContrat, chargerBaremes, chargerDemandes, chargerTousTravailleurs } from '../lib/contratsSignesDb'
@@ -57,6 +57,7 @@ export default function ContratsScreen() {
   const [recherche, setRecherche] = useState(typeof params.recherche === 'string' ? params.recherche : '')
   const [filtreResto, setFiltreResto] = useState(typeof params.restaurant_id === 'string' ? params.restaurant_id : 'tous')
   const [filtreEtat, setFiltreEtat] = useState('tous')
+  const [filtreType, setFiltreType] = useState('tous')
 
   const [ficheVisible, setFicheVisible] = useState(false)
   const [travSelectionne, setTravSelectionne] = useState(null)
@@ -144,7 +145,9 @@ export default function ContratsScreen() {
   // ou sans contrat : c'est la vue d'entrée, celle où l'on cherche quelqu'un par
   // son nom. Aucune exception de type : un journalier sans contrat est un
   // travailleur sans contrat, tant qu'on ne lui en a pas enregistré un.
-  const affichees = lignes.filter(l => correspondFiltreContrat(filtreEtat, l.contrat, jour))
+  const affichees = lignes
+    .filter(l => correspondFiltreContrat(filtreEtat, l.contrat, jour))
+    .filter(l => filtreType === 'tous' || l.contrat?.type === filtreType)
 
   // Une carte « Sans contrat » ouvre la fiche du travailleur, d'où le bouton
   // « + Enregistrer un contrat » mène droit au formulaire : le sélecteur de
@@ -418,6 +421,8 @@ export default function ContratsScreen() {
         <>
           <Compteurs elements={compteurs} actif={filtreEtat} styles={styles}
             onChoisir={cle => setFiltreEtat(cle ?? 'tous')} />
+          <Puces ligne petit styles={styles} actif={filtreType} onChoisir={setFiltreType}
+            elements={[{ cle: 'tous', label: 'Tous types' }, ...TYPES_CONTRAT.map(t => ({ cle: t, label: t }))]} />
           <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
             {(aValider.length + aVerifier.length + refuses.length + chezGerant.length) > 0 && (
               <View style={[styles.carte, { borderColor: teinte(principale, '66'), borderWidth: 1.5 }]}>

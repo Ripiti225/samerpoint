@@ -101,11 +101,13 @@ Deno.serve(async () => {
       await supabase.from('notifications').insert({
         type: 'contrat_echeance',
         titre,
-        message: `${c.type} de ${nom} — se termine le ${quand}. Renouveler depuis l'écran Contrats.`,
+        message: `${c.type} de ${nom} — se termine le ${quand}. Touchez pour renouveler.`,
         restaurant_id: resto,
         cible_role: ROLES_ADMIN,
         lu_par: [],
         screen: 'contrats',
+        // Ouvre directement la fiche du travailleur (bouton « Renouveler »).
+        params: { travailleur_id: c.travailleur_id },
       })
       await supabase.from('notifications').insert({
         type: 'contrat_echeance',
