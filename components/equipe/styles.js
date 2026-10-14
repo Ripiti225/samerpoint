@@ -143,7 +143,9 @@ export function makeStyles(colors) {
 
     // ── Modales ──
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    modal: { backgroundColor: colors.surface, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 22, paddingBottom: 36, maxHeight: '92%' },
+    // Plafond sur l'enveloppe (hauteur connue), pas sur la fenêtre : voir FondModal.
+    enveloppeModal: { width: '100%', maxHeight: '92%' },
+    modal: { backgroundColor: colors.surface, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 22, paddingBottom: 36, flexShrink: 1 },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
     modalTitre: { fontSize: 18, fontWeight: '800', color: colors.text, flex: 1 },
     modalClose: { fontSize: 18, color: colors.textMuted, padding: 4 },

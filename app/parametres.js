@@ -1845,9 +1845,11 @@ export default function ParametresScreen() {
       <Modal visible={modal.visible} transparent animationType="slide">
         <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
           <View style={styles.modalOverlay}>
+            {/* Plafond sur l'enveloppe (hauteur connue) : posé sur la fenêtre, il valait
+                92 % d'un parent sans hauteur, et le haut du formulaire sortait de l'écran. */}
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={{ width: '100%' }}
+              style={{ width: '100%', maxHeight: '92%' }}
             >
               <ScrollView
                 style={styles.modal}
@@ -1949,7 +1951,7 @@ function makeStyles(colors) { return StyleSheet.create({
   typeTxtCotis: { color: '#185FA5' },
   typeTxtAdmin: { color: '#7C3AED' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modal: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '90%' },
+  modal: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, flexShrink: 1 },
   modalTitre: { fontSize: 18, fontWeight: '600', color: colors.text, marginBottom: 20 },
   modalLabel: {
     fontSize: 11, fontWeight: '600', color: colors.textMuted,

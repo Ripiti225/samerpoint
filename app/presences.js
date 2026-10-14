@@ -510,9 +510,10 @@ export default function PresencesScreen() {
           <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss}>
             <View style={{ flex: 1 }} />
           </TouchableWithoutFeedback>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          {/* Plafond sur l'enveloppe : sans lui, un long formulaire sort par le haut de l'écran. */}
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%', maxHeight: '92%' }}>
             <ScrollView
-              style={styles.modal}
+              style={[styles.modal, { flexShrink: 1 }]}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >

@@ -132,11 +132,17 @@ export function Bouton({ label, onPress, couleur = VIOLET, variante = 'teinte', 
   )
 }
 
-/** Feuille qui monte du bas, avec titre et bouton de fermeture. */
+/**
+ * Feuille qui monte du bas, avec titre et bouton de fermeture.
+ * Le plafond « 92 % de l'écran » est porté par l'enveloppe, dont la hauteur
+ * est connue. Posé sur la feuille elle-même, il valait 92 % d'un parent sans
+ * hauteur, donc rien : un long formulaire poussait son haut hors de l'écran,
+ * impossible à atteindre (constaté le 14/10/2026 sur l'ajout d'un travailleur).
+ */
 export function Feuille({ visible, titre, sous, onFermer, children, styles }) {
   const contenu = (
     <View style={styles.modalOverlay}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ width: '100%' }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.enveloppeFeuille}>
         <View style={styles.feuille}>
           <View style={styles.poignee} />
           <View style={styles.feuilleHeader}>
@@ -146,7 +152,7 @@ export function Feuille({ visible, titre, sous, onFermer, children, styles }) {
             </View>
             <TouchableOpacity onPress={onFermer} hitSlop={10}><Text style={styles.feuilleClose}>✕</Text></TouchableOpacity>
           </View>
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             {children}
             <View style={{ height: 24 }} />
           </ScrollView>
@@ -281,7 +287,9 @@ function makeStyles(colors, accent, principale) {
     boutonTxt: { fontSize: 13.5, fontWeight: '800' },
 
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    feuille: { backgroundColor: colors.surface, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 20, paddingTop: 8, maxHeight: '92%' },
+    // Plafond sur l'enveloppe (hauteur connue), pas sur la feuille : voir Feuille.
+    enveloppeFeuille: { width: '100%', maxHeight: '92%' },
+    feuille: { backgroundColor: colors.surface, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 20, paddingTop: 8, flexShrink: 1 },
     poignee: { alignSelf: 'center', width: 40, height: 5, borderRadius: 3, backgroundColor: colors.border, marginBottom: 12 },
     feuilleHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16, gap: 10 },
     feuilleTitre: { fontSize: 18, fontWeight: '800', color: colors.text },

@@ -36,10 +36,14 @@ function formDepuis(t) {
 
 // Sur iOS, toucher hors d'un champ ferme le clavier ; sur le web, ce wrapper
 // avalerait les clics, on ne le met pas.
+// Le plafond « 92 % de l'écran » est porté par l'enveloppe, dont la hauteur
+// est connue. Posé sur la feuille elle-même, il valait 92 % d'un parent sans
+// hauteur, donc rien : un long formulaire poussait son haut hors de l'écran,
+// impossible à atteindre (constaté le 14/10/2026 sur l'ajout d'un travailleur).
 function FondModal({ styles, children }) {
   const contenu = (
     <View style={styles.modalOverlay}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>{children}</KeyboardAvoidingView>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.enveloppeModal}>{children}</KeyboardAvoidingView>
     </View>
   )
   return Platform.OS === 'web' ? contenu : <TouchableWithoutFeedback onPress={Keyboard.dismiss}>{contenu}</TouchableWithoutFeedback>
@@ -329,7 +333,7 @@ export function ModalTransfert({ trav, restaurants, styles, onFermer, onTransfer
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onFermer}>
       <View style={styles.modalOverlay}>
-        <ScrollView style={styles.modal}>
+        <ScrollView style={[styles.modal, styles.enveloppeModal]}>
           <EnTete styles={styles} titre={`Transférer ${trav.nom}`} onFermer={onFermer} />
           <Text style={styles.modalLabel}>Restaurant de destination</Text>
           {autres.map(r => (
@@ -367,7 +371,7 @@ export function ModalCalendrier({ visible, styles, colors, onFermer, onValider }
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onFermer}>
       <View style={styles.modalOverlay}>
-        <ScrollView style={styles.modal}>
+        <ScrollView style={[styles.modal, styles.enveloppeModal]}>
           <EnTete styles={styles} titre="Choisir une période" onFermer={onFermer} />
           <View style={styles.etapeRow}>
             <View style={[styles.etapeBadge, etape === 'debut' && styles.etapeBadgeActive]}>
