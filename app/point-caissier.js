@@ -200,6 +200,15 @@ export default function PointCaissierScreen() {
                         styles={styles}
                       />
                     )}
+
+                    {/* Achats réglés en points fidélité au POS : dans la vente,
+                        pas dans la caisse — pas d'écart à chercher dans les espèces. */}
+                    {Number(shift.points_fidelite) > 0 && (
+                      <View style={[styles.cardRow, { borderBottomWidth: 0 }]}>
+                        <Text style={styles.cardLabel}>⭐ Payé en points</Text>
+                        <Text style={styles.cardVal}>{fmt(shift.points_fidelite)}</Text>
+                      </View>
+                    )}
                   </TouchableOpacity>
                 ))}
               </View>

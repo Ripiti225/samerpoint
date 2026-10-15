@@ -19,6 +19,7 @@ export default function EtapeTab({ ventesJour, setVente, setVentesJour, modifiab
     { label: 'Orange Money', val: cumulShifts.om },
     { label: 'Djamo', val: cumulShifts.djamo },
     { label: 'KDO', val: cumulShifts.kdo },
+    { label: 'Payé en points', val: cumulShifts.pointsFidelite },
     { label: 'Retours', val: cumulShifts.retour },
     { label: 'Espèces en caisse', val: cumulShifts.espece },
   ].filter(r => r.val > 0) : []
@@ -27,7 +28,7 @@ export default function EtapeTab({ ventesJour, setVente, setVentesJour, modifiab
     <>
       {voitShifts && cumulShifts ? (
         <Bandeau ton="alerte" style={styles.bandeauDansCorps}
-          texte={`${cumulShifts.nbShifts} shift(s) déjà intégrés : Yango/Glovo CSE, Wave, OM, Djamo, KDO, retours et espèces sont pré-chargés. Seuls les canaux TAB restent à saisir.`} />
+          texte={`${cumulShifts.nbShifts} shift(s) déjà intégrés : Yango/Glovo CSE, Wave, OM, Djamo, KDO, payé en points, retours et espèces sont pré-chargés. Seuls les canaux TAB restent à saisir.`} />
       ) : null}
 
       <Rubrique>À saisir</Rubrique>

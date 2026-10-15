@@ -28,7 +28,7 @@ const CATS_DEPENSES = ['Marché', 'Légumes', 'Fruits', 'Dépenses annexes']
 // chaque correction d'un point validé : un formulaire resté sur les anciens
 // chiffres réécrirait l'ancien fond au prochain « Enregistrer ».
 function formDepuisPoint(p) {
-  const champs = ['vente_total', 'depense_total', 'kdo', 'retour', 'yango_cse', 'yango_tab', 'glovo_cse',
+  const champs = ['vente_total', 'depense_total', 'kdo', 'points_fidelite', 'retour', 'yango_cse', 'yango_tab', 'glovo_cse',
     'glovo_tab', 'wave', 'om', 'djamo', 'fc_veille', 'fond_recu']
   return Object.fromEntries(champs.map(c => [c, String(p?.[c] || '')]))
 }
@@ -210,6 +210,8 @@ export default function ModifierPointScreen() {
       + (parseFloat(s.yango_cse) || 0)
       + (parseFloat(s.glovo_cse) || 0)
       + (parseFloat(s.kdo) || 0)
+      // Achats payés en points au POS : dans la vente, comme le KDO.
+      + (parseFloat(s.points_fidelite) || 0)
       + (parseFloat(s.retour) || 0)
       + (parseFloat(s.depenses) || 0)
       + (parseFloat(s.fournisseurs) || 0)
@@ -244,7 +246,7 @@ export default function ModifierPointScreen() {
   // (lib/recalculPointValide.js). Sans ça, seule la vente bougeait.
   async function pointsDepuis(date) {
     const { data, error } = await supabase.from('points')
-      .select('id, date, valide, depense_total, kdo, retour, yango_cse, glovo_cse, wave, om, djamo, fc_veille, reste_especes, reste_fc, benefice_sc')
+      .select('id, date, valide, depense_total, kdo, points_fidelite, retour, yango_cse, glovo_cse, wave, om, djamo, fc_veille, reste_especes, reste_fc, benefice_sc')
       .eq('restaurant_id', selectedResto.id)
       .gte('date', date)
     if (error) throw error
@@ -507,7 +509,7 @@ export default function ModifierPointScreen() {
       const [debut, fin] = [selectedDate, dateCible].sort()
       const { data: pointsPeriode, error: errPeriode } = await supabase
         .from('points')
-        .select('id, date, valide, vente_total, depense_total, kdo, retour, yango_cse, glovo_cse, wave, om, djamo, fc_veille, reste_especes, reste_fc, benefice_sc')
+        .select('id, date, valide, vente_total, depense_total, kdo, points_fidelite, retour, yango_cse, glovo_cse, wave, om, djamo, fc_veille, reste_especes, reste_fc, benefice_sc')
         .eq('restaurant_id', selectedResto.id)
         .gte('date', debut)
         .lte('date', fin)
@@ -570,6 +572,7 @@ export default function ModifierPointScreen() {
         yango_cse: String(shift.yango_cse || ''),
         glovo_cse: String(shift.glovo_cse || ''),
         kdo: String(shift.kdo || ''),
+        points_fidelite: String(shift.points_fidelite || ''),
         retour: String(shift.retour || ''),
         editing: true,
       }
@@ -626,6 +629,7 @@ export default function ModifierPointScreen() {
         yango_cse: parseFloat(edits.yango_cse) || 0,
         glovo_cse: parseFloat(edits.glovo_cse) || 0,
         kdo: parseFloat(edits.kdo) || 0,
+        points_fidelite: parseFloat(edits.points_fidelite) || 0,
         retour: parseFloat(edits.retour) || 0,
         depenses: newDepDenorm,
         fournisseurs: newFournDenorm,
@@ -859,6 +863,7 @@ export default function ModifierPointScreen() {
                     yango_cse: parseFloat(edit.yango_cse) || 0,
                     glovo_cse: parseFloat(edit.glovo_cse) || 0,
                     kdo: parseFloat(edit.kdo) || 0,
+                    points_fidelite: parseFloat(edit.points_fidelite) || 0,
                     retour: parseFloat(edit.retour) || 0,
                     depenses: detLoaded ? shiftDetails[s.id].depenses.reduce((sum, d) => sum + (d.montant || 0), 0) : 0,
                     fournisseurs: detLoaded ? shiftDetails[s.id].fournisseurs.reduce((sum, t) => sum + (t.paye || 0), 0) : 0,
@@ -876,6 +881,7 @@ export default function ModifierPointScreen() {
                         ['Yango CSE', 'yango_cse', true, '0'],
                         ['Glovo CSE', 'glovo_cse', true, '0'],
                         ['KDO', 'kdo', true, '0'],
+                        ['Payé en points', 'points_fidelite', true, '0'],
                         ['Retour', 'retour', true, '0'],
                       ].map(([label, field, numeric, placeholder]) => (
                         <View key={field} style={styles.inputLigne}>
@@ -1004,7 +1010,7 @@ export default function ModifierPointScreen() {
 
   function resteFormule(f) {
     return val(f?.vente_total) - val(f?.depense_total)
-      - val(f?.kdo) - val(f?.retour)
+      - val(f?.kdo) - val(f?.points_fidelite) - val(f?.retour)
       - val(f?.yango_cse) - val(f?.glovo_cse)
       - val(f?.wave) - val(f?.om) - val(f?.djamo)
   }
@@ -1064,6 +1070,7 @@ export default function ModifierPointScreen() {
       vente_total: val(form.vente_total),
       depense_total: val(form.depense_total),
       kdo: val(form.kdo),
+      points_fidelite: val(form.points_fidelite),
       retour: val(form.retour),
       yango_cse: val(form.yango_cse),
       yango_tab: val(form.yango_tab),
@@ -1280,6 +1287,7 @@ export default function ModifierPointScreen() {
         <Text style={styles.sectionTitre}>Déductions</Text>
         <View style={styles.card}>
           <InputLigne label="KDO" champ="kdo" />
+          <InputLigne label="Payé en points" champ="points_fidelite" />
           <InputLigne label="Retour" champ="retour" />
         </View>
 

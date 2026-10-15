@@ -96,7 +96,7 @@ export function AppProvider({ children }) {
     yangoCse: '', yangoTab: '', yangoNbCommandes: '',
     glovoCse: '', glovoTab: '', glovoNbCommandes: '',
     wave: '', om: '', djamo: '',
-    kdo: '', retour: '',
+    kdo: '', pointsFidelite: '', retour: '',
     fcVeille: '', fc_recu: '',
     espece_shifts: 0,
     venteMachine: '',
@@ -215,6 +215,8 @@ export function AppProvider({ children }) {
       - (parseFloat(ventesJour.om) || 0)
       - (parseFloat(ventesJour.djamo) || 0)
       - (parseFloat(ventesJour.kdo) || 0)
+      // Payé en points au POS : dans la vente, jamais dans la caisse (comme le KDO).
+      - (parseFloat(ventesJour.pointsFidelite) || 0)
       - (parseFloat(ventesJour.retour) || 0)
       - deduc)
   }
@@ -236,7 +238,7 @@ export function AppProvider({ children }) {
 
   // Y a-t-il un VRAI brouillon non enregistré en mémoire ? On exclut les champs
   // ventes auto-remplis depuis les shifts (yangoCse, glovoCse, wave, om, djamo,
-  // kdo, retour, fcVeille, espece_shifts) qui ne sont pas des saisies de l'utilisateur.
+  // kdo, pointsFidelite, retour, fcVeille, espece_shifts) qui ne sont pas des saisies de l'utilisateur.
   function aDonneesSaisies() {
     const v = ventesJour || {}
     const champsSaisis = ['venteMachine', 'fc_recu', 'yangoTab', 'glovoTab', 'yangoNbCommandes', 'glovoNbCommandes']
@@ -308,7 +310,7 @@ export function AppProvider({ children }) {
       yangoCse: '', yangoTab: '', yangoNbCommandes: '',
       glovoCse: '', glovoTab: '', glovoNbCommandes: '',
       wave: '', om: '', djamo: '',
-      kdo: '', retour: '',
+      kdo: '', pointsFidelite: '', retour: '',
       fcVeille: '', fc_recu: '',
       espece_shifts: 0,
       venteMachine: '',

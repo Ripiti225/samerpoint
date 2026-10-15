@@ -106,6 +106,7 @@ export default function ChoixDateScreen() {
       const cumulDjamo = shifts.reduce((sum, s) => sum + (s.djamo || 0), 0)
       const cumulOm = shifts.reduce((sum, s) => sum + (s.om || 0), 0)
       const cumulKdo = shifts.reduce((sum, s) => sum + (s.kdo || 0), 0)
+      const cumulPoints = shifts.reduce((sum, s) => sum + (Number(s.points_fidelite) || 0), 0)
       const cumulRetour = shifts.reduce((sum, s) => sum + (s.retour || 0), 0)
 
       // Pré-remplir les ventes avec le cumul des shifts
@@ -117,6 +118,7 @@ export default function ChoixDateScreen() {
         djamo: cumulDjamo > 0 ? String(cumulDjamo) : '',
         om: cumulOm > 0 ? String(cumulOm) : '',
         kdo: cumulKdo > 0 ? String(cumulKdo) : '',
+        pointsFidelite: cumulPoints > 0 ? String(cumulPoints) : '',
         retour: cumulRetour > 0 ? String(cumulRetour) : '',
       }))
     }

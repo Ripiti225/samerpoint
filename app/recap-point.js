@@ -166,6 +166,7 @@ export default function RecapPointScreen() {
         depenses: shiftsData.reduce((sum, s) => sum + depensesSalairesShift(s), 0),
         fournisseurs: shiftsData.reduce((sum, s) => sum + (s.fournisseurs || 0), 0),
         kdo: shiftsData.reduce((sum, s) => sum + (s.kdo || 0), 0),
+        pointsFidelite: shiftsData.reduce((sum, s) => sum + (Number(s.points_fidelite) || 0), 0),
         retour: shiftsData.reduce((sum, s) => sum + (s.retour || 0), 0),
         yangoCse: shiftsData.reduce((sum, s) => sum + (s.yango_cse || 0), 0),
         glovoCse: shiftsData.reduce((sum, s) => sum + (s.glovo_cse || 0), 0),
@@ -261,6 +262,7 @@ export default function RecapPointScreen() {
       - (parseFloat(ventesJour.om) || 0)
       - (parseFloat(ventesJour.djamo) || 0)
       - (parseFloat(ventesJour.kdo) || 0)
+      - (parseFloat(ventesJour.pointsFidelite) || 0)
       - (parseFloat(ventesJour.retour) || 0)
       - deduc
   }
@@ -504,6 +506,7 @@ export default function RecapPointScreen() {
       vente_total: venteTheo,
       depense_total: totalDepensesGlobal(),
       kdo: cumulShifts ? cumulShifts.kdo : (parseFloat(ventesJour.kdo) || 0),
+      points_fidelite: cumulShifts ? cumulShifts.pointsFidelite : (parseFloat(ventesJour.pointsFidelite) || 0),
       retour: cumulShifts ? cumulShifts.retour : (parseFloat(ventesJour.retour) || 0),
       yango_cse: cumulShifts ? cumulShifts.yangoCse : (parseFloat(ventesJour.yangoCse) || 0),
       yango_tab: parseFloat(ventesJour.yangoTab) || 0,
@@ -681,6 +684,7 @@ export default function RecapPointScreen() {
                         { label: 'Dépenses + Salaires', val: depensesSalairesShift(shift) },
                         { label: 'Fournisseurs', val: shift.fournisseurs },
                         { label: 'KDO', val: shift.kdo },
+                        { label: 'Payé en points', val: shift.points_fidelite },
                         { label: 'Retour', val: shift.retour },
                         { label: 'Yango CSE', val: shift.yango_cse },
                         { label: 'Glovo CSE', val: shift.glovo_cse },

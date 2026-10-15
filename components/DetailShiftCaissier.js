@@ -81,6 +81,7 @@ export default function DetailShiftCaissier({ shift, data = DETAIL_VIDE, onClose
                   { label: 'Yango CSE', val: shift?.yango_cse },
                   { label: 'Glovo CSE', val: shift?.glovo_cse },
                   { label: 'KDO offerts', val: shift?.kdo },
+                  { label: 'Payé en points', val: shift?.points_fidelite },
                   { label: 'Retours', val: shift?.retour },
                   { label: 'Dépenses + Salaires', val: shift ? depensesSalairesShift(shift) : 0 },
                   { label: 'Fournisseurs', val: shift?.fournisseurs },

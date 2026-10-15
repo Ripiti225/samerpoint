@@ -2763,6 +2763,7 @@ export default function VerificationScreen() {
                           { label: 'Dépenses + Salaires', val: depensesSalairesShift(shift) },
                           { label: 'Fournisseurs', val: shift.fournisseurs },
                           { label: 'KDO', val: shift.kdo },
+                          { label: 'Payé en points', val: shift.points_fidelite },
                           { label: 'Retour', val: shift.retour },
                           { label: 'Yango CSE', val: shift.yango_cse },
                           { label: 'Glovo CSE', val: shift.glovo_cse },
