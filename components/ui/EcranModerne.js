@@ -17,6 +17,7 @@ export const THEMES = {
   violet: { principale: VIOLET, accentClair: VIOLET, accentSombre: '#A49DF5' },
   orange: { principale: '#E07B00', accentClair: '#B45309', accentSombre: '#F5A54A' },
   beige: { principale: '#A8875C', accentClair: '#7D5F38', accentSombre: '#D9BC8F' },
+  sarcelle: { principale: '#0F766E', accentClair: '#0F766E', accentSombre: '#5EEAD4' },
 }
 
 /** Styles + couleurs d'un écran. theme : une clé de THEMES. */

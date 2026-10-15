@@ -29,7 +29,7 @@ import {
 import { CODES, analyserGlovo, analyserYango } from '../lib/partenairesImport'
 import { aujourdhuiISO, fmt, formatDateFR, peut } from '../lib/tresorerie'
 import {
-  ajouterPub, annulerReception, enregistrerAlias, enregistrerReglagePartenaire, importerExport,
+  ajouterPubs, annulerReception, enregistrerAlias, enregistrerReglagePartenaire, importerExport,
   recevoir, recevoirDetaille, supprimerImport, supprimerLignePub,
 } from '../lib/tresorerieDb'
 import { useFocusRecherche } from '../lib/useFocusRecherche'
@@ -622,27 +622,37 @@ function FeuilleReceptionTete({ visible, partenaire, periode, situation, donnees
 
 // ── Pub ─────────────────────────────────────────────────────────────────────
 
+// Une ligne par restaurant : on tape la pub de chacun (vide = pas de pub) et
+// on enregistre tout d'un coup. L'attendu de chaque restaurant est rappelé,
+// avec ce qu'il deviendra après la pub.
 function FeuillePub({ visible, partenaire, periode, situation, donnees, user, onFermer, apres }) {
-  const { styles } = useStylesTreso()
-  const [restaurantId, setRestaurantId] = useState(null)
-  const [montant, setMontant] = useState('')
+  const { styles, colors } = useStylesTreso()
+  const [valeurs, setValeurs] = useState({})
   const [note, setNote] = useState('')
   const [occupe, setOccupe] = useState(false)
 
-  useEffect(() => { if (visible) { setRestaurantId(null); setMontant(''); setNote('') } }, [visible])
+  const parResto = useMemo(
+    () => Object.fromEntries((situation?.parResto || []).map(r => [r.restaurant_id, r])),
+    [situation],
+  )
+  // Ceux qui ont un attendu d'abord (ils sont sur la plateforme), puis les autres.
+  const restos = useMemo(() => [...(donnees.restaurants || [])]
+    .sort((a, b) => (parResto[b.id]?.attendu ? 1 : 0) - (parResto[a.id]?.attendu ? 1 : 0) || a.nom.localeCompare(b.nom)),
+  [donnees, parResto])
+
+  useEffect(() => { if (visible) { setValeurs({}); setNote('') } }, [visible])
   if (!visible) return null
 
   const info = INFOS_PARTENAIRE[partenaire]
-  const restos = donnees.restaurants.map(r => ({ valeur: r.id, label: r.nom }))
-  const actuel = situation.parResto.find(r => r.restaurant_id === restaurantId)
-  const valeur = montant === '' ? 0 : parseInt(montant, 10)
+  const lire = t => (t === '' || t == null ? 0 : parseInt(t, 10) || 0)
+  const parts = restos.map(r => ({ restaurant_id: r.id, montant: lire(valeurs[r.id]) })).filter(x => x.montant > 0)
+  const total = parts.reduce((t, x) => t + x.montant, 0)
 
   async function enregistrer() {
-    if (!restaurantId) { Alert.alert('Restaurant manquant', 'Choisissez le restaurant concerné par la pub.'); return }
-    if (!valeur) { Alert.alert('Montant manquant', 'Saisissez le montant de la pub.'); return }
+    if (!parts.length) { Alert.alert('Montant manquant', 'Tapez la pub d\'au moins un restaurant.'); return }
     setOccupe(true)
     try {
-      await ajouterPub({ partenaire, periodeDebut: periode.debut, restaurantId, montant: valeur, note: note.trim() }, user)
+      await ajouterPubs({ partenaire, periodeDebut: periode.debut, parts, note: note.trim() }, user)
       await apres()
       onFermer()
     } catch (e) {
@@ -654,20 +664,37 @@ function FeuillePub({ visible, partenaire, periode, situation, donnees, user, on
 
   return (
     <Feuille visible onFermer={onFermer} titre={`Pub ${info.nom} · ${libellePeriode(periode)}`}>
-      <Text style={styles.label}>Restaurant concerné</Text>
-      <Puces options={restos} valeur={restaurantId} onChange={setRestaurantId} />
-      <ChampMontant label="Montant de la pub payée" valeur={montant} onChange={setMontant} />
-      <Champ label="Note (facultatif)" value={note} onChangeText={setNote} />
-      {actuel && valeur > 0 && (
-        <View style={styles.carte}>
-          <Ligne label="Montant actuel à recevoir" valeur={actuel.attendu} />
-          <Ligne label="Après la pub" valeur={actuel.attendu - valeur} fort />
-        </View>
-      )}
+      <Text style={[styles.petit, { marginBottom: 10 }]}>
+        Tapez la pub payée par chaque restaurant, puis enregistrez tout d'un coup. Laissez vide ceux qui n'en ont pas.
+      </Text>
+      {restos.map(r => {
+        const sit = parResto[r.id]
+        const v = lire(valeurs[r.id])
+        return (
+          <View key={r.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.itemTitre}>{r.nom}</Text>
+              <Text style={styles.petit}>
+                {sit ? `à recevoir ${fmt(sit.attendu)}` : 'rien à recevoir'}
+                {sit?.pub ? ` · déjà − ${fmt(sit.pub)} de pub` : ''}
+                {sit && v > 0 ? ` → ${fmt(sit.attendu - v)}` : ''}
+              </Text>
+            </View>
+            <TextInput
+              style={[styles.input, { width: 140, textAlign: 'right', paddingVertical: 9 }]}
+              value={valeurs[r.id] ?? ''} placeholder="0" placeholderTextColor={colors.textMuted} keyboardType="number-pad"
+              onChangeText={t => setValeurs(x => ({ ...x, [r.id]: t.replace(/[^\d]/g, '') }))}
+            />
+          </View>
+        )
+      })}
+      <Champ label="Note (facultatif, pour toutes les lignes)" value={note} onChangeText={setNote} />
       {partenaire === 'glovo' && (
         <Text style={[styles.petit, { marginBottom: 10 }]}>Cette pub s'ajoute aux frais d'annonces déjà déduits dans l'export Glovo.</Text>
       )}
-      <Bouton titre="Enregistrer la pub" onPress={enregistrer} occupe={occupe} />
+      <Bouton
+        titre={parts.length ? `Enregistrer · ${parts.length} restaurant${parts.length > 1 ? 's' : ''} · ${fmt(total)} F` : 'Enregistrer la pub'}
+        onPress={enregistrer} occupe={occupe} />
     </Feuille>
   )
 }

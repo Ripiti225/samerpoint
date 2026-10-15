@@ -41,6 +41,12 @@ const ROUTE_MAP = {
   contrat_a_signer: 'recrutement',
   contrat_signe_a_verifier: 'contrats',
   contrat_refuse: 'contrats',
+  // Supervision (lib/supervisionDb.js)
+  supervision_visite: 'supervision',
+  supervision_grave: 'supervision',
+  supervision_reponse: 'supervision',
+  supervision_contestation: 'supervision',
+  supervision_decision: 'supervision',
 }
 
 // Rôles qui suivent les demandes d'explication restées sans réponse.
@@ -199,7 +205,7 @@ export function NotificationsProvider({ children }) {
   // Ouvre le suivi sur l'onglet où la demande apparaît, filtré « Attente réponse ».
   function ouvrirExplicationEnRetard(d) {
     fermerPanel()
-    const onglet = ['gerant', 'verificateur'].includes(d.cree_par_role) ? 'recues' : 'miennes'
+    const onglet = ['gerant', 'verificateur', 'superviseur'].includes(d.cree_par_role) ? 'recues' : 'miennes'
     router.push({ pathname: '/demandes-explication-admin', params: { onglet, etape: 'attente' } })
   }
 

@@ -71,7 +71,7 @@ export default function DemandesExplicationAdminScreen() {
     // et le vérificateur (demande automatique quand ≥ 40 % des produits comptés
     // sont en écart). Sans 'verificateur' ici, ces demandes n'apparaissaient
     // dans aucun des deux onglets.
-    if (onglet === 'recues') q = q.in('cree_par_role', ['gerant', 'verificateur'])
+    if (onglet === 'recues') q = q.in('cree_par_role', ['gerant', 'verificateur', 'superviseur'])
     else q = q.eq('cree_par_id', userId)
     if (restoFilter) q = q.eq('restaurant_id', restoFilter)
     const { data } = await q

@@ -380,6 +380,8 @@ export default function LoginScreen() {
       router.replace({ pathname: '/accueil', params: { userId: utilisateur.id, nom: utilisateur.nom, role: utilisateur.role } })
     } else if (utilisateur.role === 'verificateur') {
       router.replace({ pathname: '/verificateur', params: { userId: utilisateur.id, nom: utilisateur.nom, role: utilisateur.role } })
+    } else if (utilisateur.role === 'superviseur') {
+      router.replace({ pathname: '/superviseur', params: { userId: utilisateur.id, nom: utilisateur.nom, role: utilisateur.role } })
     } else if (utilisateur.role === 'gerant') {
       router.replace({ pathname: '/choix-date', params: { userId: utilisateur.id, nom: utilisateur.nom, role: utilisateur.role } })
     } else {

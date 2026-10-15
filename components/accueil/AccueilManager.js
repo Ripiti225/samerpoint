@@ -121,7 +121,7 @@ function useEtatDuJour(role, userId, restaurantId) {
         // Objectif du mois : ventes des jours terminés (aujourd'hui exclu).
         const debutMois = isoLocal(new Date(auj.getFullYear(), auj.getMonth(), 1))
         const joursMois = new Date(auj.getFullYear(), auj.getMonth() + 1, 0).getDate()
-        const [pts, corr, dem, expl, aH, aAH, aSP, contactsJours, shiftsHier, resto, ptsMois] = await Promise.all([
+        const [pts, corr, dem, expl, aH, aAH, aSP, contactsJours, shiftsHier, resto, ptsMois, supVisite, supTaches] = await Promise.all([
           supabase.from('points').select(`date, valide, verifie, ${CHAMPS_VENTE}`).eq('restaurant_id', restaurantId).in('date', dates),
           supabase.from('deverouillages_points').select('id', { count: 'exact', head: true })
             .eq('restaurant_id', restaurantId).eq('statut', 'ouvert'),
@@ -138,6 +138,11 @@ function useEtatDuJour(role, userId, restaurantId) {
           supabase.from('restaurants').select('objectif_mensuel').eq('id', restaurantId).maybeSingle(),
           supabase.from('points').select(CHAMPS_VENTE).eq('restaurant_id', restaurantId)
             .gte('date', debutMois).lt('date', isoLocal(auj)),
+          // Supervision : dernière visite et tâches à faire (tables absentes avant la migration → ignoré).
+          supabase.from('supervision_visites').select('debut_at, note, decision, note_corrigee, lu_gerant_at')
+            .eq('restaurant_id', restaurantId).eq('statut', 'terminee').order('debut_at', { ascending: false }).limit(1),
+          supabase.from('supervision_taches').select('id', { count: 'exact', head: true })
+            .eq('restaurant_id', restaurantId).eq('statut', 'a_faire'),
         ])
         if (pts.error) return
         const parDate = Object.fromEntries((pts.data || []).map(x => [x.date, x]))
@@ -166,6 +171,10 @@ function useEtatDuJour(role, userId, restaurantId) {
             objectifMensuel,
             ventesMois: mois.machine,
             ventesMoisTheo: mois.theorique,
+            supervision: supVisite.error ? null : {
+              visite: (supVisite.data || [])[0] || null,
+              taches: supTaches.error ? 0 : supTaches.count || 0,
+            },
           },
           avisHier: texteHier({ hier: aH, avantHier: aAH, semainePrec: aSP }, dates[0]),
           contactsHier: contactsJours === null ? null : texteHier({

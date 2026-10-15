@@ -3,7 +3,7 @@
 //  Objectif du mois en tête (jauge + rythme + montant à faire par jour),
 //  point d'hier (corrections en premier), ventes d'hier et leur évolution
 //  (hausse en vert, baisse en rouge), vente, écart et explication de chaque
-//  caissier d'hier, demandes de son équipe.
+//  caissier d'hier, visite du superviseur, demandes de son équipe.
 //  Textes : lib/accueilGerant.js, lib/hierAccueil.js ; objectif : lib/objectifs.js.
 // ──────────────────────────────────────────────────────────────────────────────
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
@@ -11,6 +11,7 @@ import { router } from 'expo-router'
 import { Text, View } from 'react-native'
 import Animated, { FadeIn } from 'react-native-reanimated'
 import { niveauRythme } from '../../lib/objectifs'
+import { fmtNote, noteRetenueVisite } from '../../lib/supervision'
 import Jauge from '../ui/Jauge'
 import Survol from '../ui/Survol'
 import VenteDouble, { TexteTheorique } from '../ui/VenteDouble'
@@ -25,7 +26,7 @@ function titreObjectif() {
 }
 
 export default function BandeauGerant({ etat, styles, colors }) {
-  const { hier, point, ventes, ventesTheo, ventesEvo, demandes, nbDemandes, caissiers = [], objectif, objectifMensuel, ventesMois, ventesMoisTheo } = etat
+  const { hier, point, ventes, ventesTheo, ventesEvo, demandes, nbDemandes, caissiers = [], objectif, objectifMensuel, ventesMois, ventesMoisTheo, supervision } = etat
   const pointUi = {
     corrections: { icone: 'pencil-alert', couleur: colors.error, route: '/correction-point' },
     verifie: { icone: 'check-decagram', couleur: colors.success },
@@ -108,6 +109,24 @@ export default function BandeauGerant({ etat, styles, colors }) {
           ) : (
             <Indicateur icone={pointUi.icone} couleur={pointUi.couleur} texte={point.texte} styles={styles} />
           )}
+          {supervision && (supervision.visite || supervision.taches > 0) ? (() => {
+            const v = supervision.visite
+            const nouvelle = v && !v.lu_gerant_at
+            const texte = [
+              v ? `Superviseur : ${fmtNote(noteRetenueVisite(v))}/20 le ${new Date(v.debut_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}` : 'Superviseur',
+              nouvelle ? 'nouvelle visite à lire' : null,
+              supervision.taches ? `${supervision.taches} tâche${supervision.taches > 1 ? 's' : ''} à faire` : null,
+            ].filter(Boolean).join(' · ')
+            const couleur = nouvelle || supervision.taches ? colors.warningDark : colors.success
+            return (
+              <Survol onPress={() => router.push('/supervision')} accessibilityRole="button" hitSlop={6}
+                accessibilityLabel={`${texte}. Ouvrir la supervision.`} style={styles.lienTreso} echelle={1.02}
+                styleSurvol={{ backgroundColor: couleur + '14' }}>
+                <Indicateur icone="compass-outline" couleur={couleur} texte={texte} styles={styles} />
+                <MaterialCommunityIcons name="chevron-right" size={16} color={colors.textMuted} />
+              </Survol>
+            )
+          })() : null}
           <Survol onPress={() => router.push('/demandes')} accessibilityRole="button" hitSlop={6}
             accessibilityLabel={`${demandes}. Ouvrir les demandes.`} style={styles.lienTreso} echelle={1.02}
             styleSurvol={{ backgroundColor: colors.primary + '14' }}>

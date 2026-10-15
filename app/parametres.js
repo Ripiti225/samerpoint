@@ -1394,7 +1394,7 @@ export default function ParametresScreen() {
 
         <Text style={styles.modalLabel}>Rôle</Text>
         <View style={styles.contratRow}>
-          {['caissier', 'gerant', 'manager', 'verificateur'].map(r => (
+          {['caissier', 'gerant', 'manager', 'verificateur', 'superviseur'].map(r => (
             <TouchableOpacity
               key={r}
               style={[styles.contratBtn, form.role === r && styles.contratBtnSelected]}

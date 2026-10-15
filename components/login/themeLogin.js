@@ -63,6 +63,7 @@ export function prenom(nom) {
 export function couleurRole(role) {
   if (role === 'gerant') return ORANGE
   if (role === 'verificateur') return '#0E8A6B'
+  if (role === 'superviseur') return '#0F766E'
   if (ROLES_GLOBAUX.includes(role)) return VIOLET
   return '#9A9AA8'
 }
@@ -72,6 +73,7 @@ export function libelleRole(role) {
   if (role === 'rh') return 'RH'
   if (role === 'directeur') return 'Directeur'
   if (role === 'verificateur') return 'Vérificateur'
+  if (role === 'superviseur') return 'Superviseur'
   if (role === 'gerant') return 'Gérant'
   return 'Caissier'
 }
