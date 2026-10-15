@@ -33,6 +33,7 @@ import { venteRetenue, venteTheorique } from '../lib/venteMachine'
 import VenteDouble from '../components/ui/VenteDouble'
 import FeuilleTransfertFond from '../components/tresorerie/FeuilleTransfertFond'
 import { photosCanalDisponibles } from '../lib/photosVerification'
+import { incoherencesPoint } from '../lib/coherencePoint'
 import {
   alertesPoint, bornesDuMois, libelleMoisLong, moisVoisin, organiserPoints, ventesParCanal,
 } from '../lib/verificationListe'
@@ -1961,8 +1962,23 @@ export default function VerificationScreen() {
                 const depGerant = p?.depenses_gerant_caisse_total || 0
                 const depShifts = (p?.depense_total || 0) - depGerant
 
+                // Filet de sécurité : un point validé dont les totaux ne
+                // suivent plus ses lignes réelles est signalé (lib/coherencePoint).
+                const incoherences = incoherencesPoint(p, detailPoint.shifts)
+
                 return (
                   <View style={{ marginBottom: 14 }}>
+                    {incoherences.length > 0 && (
+                      <View style={styles.incoherenceCard} accessibilityRole="alert">
+                        <Text style={styles.incoherenceTitre}>⚠️ Totaux du point à revoir</Text>
+                        {incoherences.map(a => (
+                          <Text key={a.code} style={styles.incoherenceTexte}>
+                            • {a.message} Écart : {fmt(a.ecart)}
+                          </Text>
+                        ))}
+                        <Text style={styles.incoherenceTexte}>Corrigez-le depuis « Modifier le point » avant de vérifier.</Text>
+                      </View>
+                    )}
                     <Text style={styles.sectionTitre}>Récapitulatif Financier</Text>
                     <View style={styles.recapCard}>
                       {/* Ventes */}
@@ -4614,6 +4630,9 @@ function makeStyles(colors) { return StyleSheet.create({
   verifBanner: { borderRadius: 12, padding: 12, marginBottom: 14, borderWidth: 1, alignItems: 'center' },
   verifBannerTxt: { fontSize: 13, fontWeight: '600' },
   // ─── Récapitulatif Financier ───
+  incoherenceCard: { backgroundColor: '#A32D2D1A', borderRadius: 14, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#A32D2D' },
+  incoherenceTitre: { color: '#A32D2D', fontWeight: '700', fontSize: 15, marginBottom: 4 },
+  incoherenceTexte: { color: colors.text, fontSize: 13, lineHeight: 19 },
   recapCard: { backgroundColor: colors.surface, borderRadius: 18, padding: 16, marginBottom: 4, borderWidth: 1, borderColor: colors.borderLight },
   recapRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5' },
   recapRowTotal: { backgroundColor: '#fafafa', marginHorizontal: -4, paddingHorizontal: 4, borderRadius: 6, borderBottomWidth: 0 },

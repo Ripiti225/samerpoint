@@ -16,12 +16,22 @@ import { supabase } from '../lib/supabase'
 import { journaliser } from '../lib/journal'
 import { archiverSuppressionShift, supprimerLignesArchivees } from '../lib/corbeille'
 import { majPointsDeplacement } from '../lib/deplacementShift'
+import { majPointsApresShifts, majReportFond } from '../lib/recalculPointValide'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { useFocusRecherche } from '../lib/useFocusRecherche'
 
 const ONGLETS = ['Résumé', 'Shifts', 'Ventes', 'Dépenses', 'Fournisseurs', 'Présences', 'Dép. Gérant']
 const CATS_DEPENSES = ['Marché', 'Légumes', 'Fruits', 'Dépenses annexes']
+
+// Champs du formulaire « Ventes » lus depuis la ligne `points`. Relu après
+// chaque correction d'un point validé : un formulaire resté sur les anciens
+// chiffres réécrirait l'ancien fond au prochain « Enregistrer ».
+function formDepuisPoint(p) {
+  const champs = ['vente_total', 'depense_total', 'kdo', 'retour', 'yango_cse', 'yango_tab', 'glovo_cse',
+    'glovo_tab', 'wave', 'om', 'djamo', 'fc_veille', 'fond_recu']
+  return Object.fromEntries(champs.map(c => [c, String(p?.[c] || '')]))
+}
 
 export default function ModifierPointScreen() {
   const { userId, userNom } = useApp()
@@ -72,6 +82,8 @@ export default function ModifierPointScreen() {
   // Ajout 2 — onglet Dép. Gérant
   const [depGerant, setDepGerant] = useState([])
   const [fournGerant, setFournGerant] = useState([])
+  // Paiements tels que lus en base : la correction du point se fait sur l'écart.
+  const [fournGerantCharge, setFournGerantCharge] = useState([])
   const [loadingGerant, setLoadingGerant] = useState(false)
   const [subGerant, setSubGerant] = useState('A')
   // Déplacement de shift
@@ -139,21 +151,7 @@ export default function ModifierPointScreen() {
     }
 
     setPoint(pointData)
-    setForm({
-      vente_total: String(pointData.vente_total || ''),
-      depense_total: String(pointData.depense_total || ''),
-      kdo: String(pointData.kdo || ''),
-      retour: String(pointData.retour || ''),
-      yango_cse: String(pointData.yango_cse || ''),
-      yango_tab: String(pointData.yango_tab || ''),
-      glovo_cse: String(pointData.glovo_cse || ''),
-      glovo_tab: String(pointData.glovo_tab || ''),
-      wave: String(pointData.wave || ''),
-      om: String(pointData.om || ''),
-      djamo: String(pointData.djamo || ''),
-      fc_veille: String(pointData.fc_veille || ''),
-      fond_recu: String(pointData.fond_recu || ''),
-    })
+    setForm(formDepuisPoint(pointData))
 
     // Charger dépenses
     const { data: dep } = await supabase
@@ -242,6 +240,47 @@ export default function ModifierPointScreen() {
     return { total, shifts: sh || [] }
   }
 
+  // ── Point déjà validé : les espèces, le bénéfice et le fond suivent ─────
+  // (lib/recalculPointValide.js). Sans ça, seule la vente bougeait.
+  async function pointsDepuis(date) {
+    const { data, error } = await supabase.from('points')
+      .select('id, date, valide, depense_total, kdo, retour, yango_cse, glovo_cse, wave, om, djamo, fc_veille, reste_especes, reste_fc, benefice_sc')
+      .eq('restaurant_id', selectedResto.id)
+      .gte('date', date)
+    if (error) throw error
+    return data || []
+  }
+
+  async function ecrireMajs(majs) {
+    for (const { id, maj } of majs) {
+      const { error } = await supabase.from('points').update(maj).eq('id', id)
+      if (error) throw error
+    }
+  }
+
+  // changements : [{ avant, apres }] — lignes points_shifts complètes,
+  // avant = null pour un shift ajouté, apres = null pour un shift supprimé.
+  async function corrigerPointValideApresShifts(changements) {
+    if (!point?.valide) return
+    const points = await pointsDepuis(point.date)
+    await ecrireMajs(majPointsApresShifts({ pointId: point.id, changements, points }))
+  }
+
+  async function reporterFondPointValide(delta) {
+    if (!point?.valide || !delta) return
+    const points = await pointsDepuis(point.date)
+    await ecrireMajs(majReportFond({ pointId: point.id, delta, points }))
+  }
+
+  // Relit le point après correction, pour que le formulaire n'écrase pas les
+  // nouveaux chiffres avec les anciens.
+  async function rafraichirPoint() {
+    const { data } = await supabase.from('points').select('*').eq('id', point.id).single()
+    if (!data) return
+    setPoint(data)
+    setForm(formDepuisPoint(data))
+  }
+
   async function chargerDetailShift(shift) {
     if (!shift.caissier_nom) {
       setShiftDetails(prev => ({ ...prev, [shift.id]: { depenses: [], fournisseurs: [], loading: false } }))
@@ -270,6 +309,7 @@ export default function ModifierPointScreen() {
       const { data: fourns } = await supabase.from('transactions_fournisseurs')
         .select('*, fournisseurs(nom)').eq('point_id', point.id).eq('saisi_par', 'gerant_caissier')
       setFournGerant(fourns || [])
+      setFournGerantCharge(fourns || [])
     } catch (_) {}
     setLoadingGerant(false)
   }
@@ -294,7 +334,9 @@ export default function ModifierPointScreen() {
       await supabase.from('points_shifts').update({
         depenses: newDepDenorm, fournisseurs: newFournDenorm, vente_shift: nouvelleVente,
       }).eq('id', gerantShift.id)
+      await corrigerPointValideApresShifts([{ avant: gerantShift, apres: { ...updatedShift, vente_shift: nouvelleVente } }])
       const { total } = await rechargerShiftsEtTotal(point.id)
+      await rafraichirPoint()
       setDepenses(prev => prev.map(d => {
         const ed = details.depenses.find(dd => dd.id === d.id)
         return ed ? { ...d, montant: ed.montant, libelle: ed.libelle } : d
@@ -317,19 +359,30 @@ export default function ModifierPointScreen() {
           facture: t.facture, paye: t.paye, reste: (t.facture || 0) - (t.paye || 0),
         }).eq('id', t.id)
       }
-      const totalDep = depGerant.reduce((s, d) => s + (d.montant || 0), 0)
-      const totalFourn = fournGerant.reduce((s, t) => s + (t.paye || 0), 0)
-      const total = totalDep + totalFourn
-      const { data: pt } = await supabase.from('points')
-        .select('vente_total, depense_total, kdo, retour, yango_cse, glovo_cse, wave, om, djamo')
-        .eq('id', point.id).single()
-      const especes = (pt?.vente_total || 0) - (pt?.depense_total || 0)
-        - (pt?.kdo || 0) - (pt?.retour || 0)
-        - (pt?.yango_cse || 0) - (pt?.glovo_cse || 0)
-        - (pt?.wave || 0) - (pt?.om || 0) - (pt?.djamo || 0)
-        - total
-      await supabase.from('points').update({ depenses_gerant_caisse_total: total, reste_especes: especes }).eq('id', point.id)
-      afficherToast(`✅ Déductions gérant — Reste espèces : ${fmt(especes)}`)
+      // Par différence : le point validé compte déjà les déductions d'avant
+      // (dans depense_total ET dans reste_especes). L'ancien calcul les
+      // retirait une seconde fois des espèces (Maroc 14/10 : −1 050 → −158 450).
+      const payeAvant = fournGerantCharge.reduce((s, t) => s + (t.paye || 0), 0)
+      const payeApres = fournGerant.reduce((s, t) => s + (t.paye || 0), 0)
+      const delta = payeApres - payeAvant
+      if (point.valide && delta !== 0) {
+        const { data: pt, error: errPt } = await supabase.from('points')
+          .select('depense_total, reste_especes, reste_fc, benefice_sc, depenses_gerant_caisse_total')
+          .eq('id', point.id).single()
+        if (errPt) throw errPt
+        const { error: errMaj } = await supabase.from('points').update({
+          depenses_gerant_caisse_total: (pt.depenses_gerant_caisse_total || 0) + delta,
+          depense_total: (pt.depense_total || 0) + delta,
+          reste_especes: (pt.reste_especes || 0) - delta,
+          reste_fc: (pt.reste_fc || 0) - delta,
+          benefice_sc: (pt.benefice_sc || 0) - delta,
+        }).eq('id', point.id)
+        if (errMaj) throw errMaj
+        await reporterFondPointValide(-delta)
+      }
+      setFournGerantCharge(fournGerant)
+      await rafraichirPoint()
+      afficherToast(delta === 0 ? '✅ Déductions gérant enregistrées' : `✅ Déductions gérant — ${delta > 0 ? '+' : ''}${fmt(delta)} déduits du fond`)
     } catch (err) { Alert.alert('Erreur', err.message) }
     finally { setLoading(false) }
   }
@@ -342,10 +395,13 @@ export default function ModifierPointScreen() {
       // Archiver d'abord : sans filet, on ne supprime pas. L'archivage renvoie
       // les identifiants exacts à effacer — c'est ce qui empêche d'emporter au
       // passage la facture d'une autre caissière du même point.
+      const { data: avant } = await supabase.from('points_shifts').select('*').eq('id', shift.id).maybeSingle()
       const ids = await archiverSuppressionShift(shift, { userId, userNom })
       await supprimerLignesArchivees(ids)
       setConfirmSupprShift(null)
+      if (avant) await corrigerPointValideApresShifts([{ avant, apres: null }])
       const { total } = await rechargerShiftsEtTotal(point.id)
+      await rafraichirPoint()
       journaliser('suppression_shift', {
         caissier: shift.caissier_nom, vente_avant: venteAvant, vente_apres: total,
         point_valide: !!point?.valide,
@@ -364,11 +420,14 @@ export default function ModifierPointScreen() {
     const selectedShifts = shifts.filter(s => shiftsSelectionnes.has(s.id))
     try {
       // Une archive par shift, pour pouvoir en restaurer un seul plus tard.
+      const { data: avants } = await supabase.from('points_shifts').select('*').in('id', selectedShifts.map(s => s.id))
       const ids = await archiverSuppressionShift(selectedShifts, { userId, userNom })
       await supprimerLignesArchivees(ids)
       setModeSelShifts(false)
       setShiftsSelectionnes(new Set())
+      await corrigerPointValideApresShifts((avants || []).map(avant => ({ avant, apres: null })))
       const { total } = await rechargerShiftsEtTotal(point.id)
+      await rafraichirPoint()
       afficherToast(`✅ Shifts supprimés — Point total recalculé : ${fmt(total)}`)
     } catch (err) {
       Alert.alert('Erreur', err.message)
@@ -575,10 +634,13 @@ export default function ModifierPointScreen() {
       const nouvelleVente = calculerVenteShift(updated, paiesShift(shift))
       updated.vente_shift = nouvelleVente
 
+      const { data: avant } = await supabase.from('points_shifts').select('*').eq('id', shift.id).maybeSingle()
       const { error } = await supabase.from('points_shifts').update(updated).eq('id', shift.id)
       if (error) { Alert.alert('Erreur', error.message); return }
+      if (avant) await corrigerPointValideApresShifts([{ avant, apres: { ...avant, ...updated } }])
 
       const { total } = await rechargerShiftsEtTotal(point.id)
+      await rafraichirPoint()
 
       journaliser('modification_shift', {
         caissier: shift.caissier_nom,
@@ -940,15 +1002,33 @@ export default function ModifierPointScreen() {
 
   function val(v) { return parseFloat(v) || 0 }
 
+  function resteFormule(f) {
+    return val(f?.vente_total) - val(f?.depense_total)
+      - val(f?.kdo) - val(f?.retour)
+      - val(f?.yango_cse) - val(f?.glovo_cse)
+      - val(f?.wave) - val(f?.om) - val(f?.djamo)
+  }
+
+  // Par différence avec le reste enregistré : sur quelques points (dépenses
+  // corrigées après coup, ex. 05/10), la formule ne retombe pas sur le reste
+  // validé. On garde cet écart, pour qu'« Enregistrer » sans rien changer ne
+  // déplace jamais le fond.
   function resteEspeces() {
-    return val(form.vente_total) - val(form.depense_total)
-      - val(form.kdo) - val(form.retour)
-      - val(form.yango_cse) - val(form.glovo_cse)
-      - val(form.wave) - val(form.om) - val(form.djamo)
+    const ecartEnregistre = point ? val(point.reste_especes) - resteFormule(point) : 0
+    return resteFormule(form) + ecartEnregistre
   }
 
   function fc() {
-    return resteEspeces() + val(form.fc_veille) + val(form.fond_recu)
+    // Par différence avec le fond enregistré : il contient aussi le FC reçu de
+    // la journée (`fc_compte`, absent de ce formulaire) et, sur de vieux
+    // points, des écarts saisis à la main. Recalculé en entier, il perdait
+    // tout cela à chaque « Enregistrer » ; ici il ne bouge que de ce que le
+    // manager a changé.
+    if (!point) return resteEspeces() + val(form.fc_veille) + val(form.fond_recu)
+    return val(point.reste_fc)
+      + (resteEspeces() - val(point.reste_especes))
+      + (val(form.fc_veille) - val(point.fc_veille))
+      + (val(form.fond_recu) - val(point.fond_recu))
   }
 
   function beneficeSC() {
@@ -978,6 +1058,8 @@ export default function ModifierPointScreen() {
     const { naviguer } = confirmSauvegarder
     setConfirmSauvegarder(null)
     setLoading(true)
+    // Fond laissé avant / après : l'écart part sur les jours validés suivants.
+    const { data: avantMaj } = await supabase.from('points').select('reste_fc').eq('id', point.id).single()
     const { error } = await supabase.from('points').update({
       vente_total: val(form.vente_total),
       depense_total: val(form.depense_total),
@@ -1000,6 +1082,10 @@ export default function ModifierPointScreen() {
       // jour. Le laisser intact garantit qu'une ré-édition des ventes n'efface jamais une
       // régularisation de fond. Le fond reporté = reste_fc + ajustement_fond.
     }).eq('id', point.id)
+    if (!error && avantMaj) {
+      try { await reporterFondPointValide(fc() - (parseFloat(avantMaj.reste_fc) || 0)) }
+      catch (e) { Alert.alert('Erreur', `Ventes enregistrées, mais le fond des jours suivants n'a pas été reporté : ${e.message}`) }
+    }
     setLoading(false)
     if (error) {
       Alert.alert('Erreur', error.message)
