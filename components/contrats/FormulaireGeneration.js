@@ -225,7 +225,7 @@ export default function FormulaireGeneration({
           )
         }
         if (c.date) {
-          return <ChampDate key={c.cle} label={titre} valeur={valeur} onChange={v => setFiche(f => ({ ...f, [c.cle]: v }))} couleur={principale} />
+          return <ChampDate key={c.cle} label={titre} valeur={valeur} onChange={v => setFiche(f => ({ ...f, [c.cle]: v }))} couleur={principale} naissance={c.cle === 'date_naissance'} />
         }
         return (
           <View key={c.cle}>

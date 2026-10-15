@@ -275,7 +275,7 @@ export default function FormulaireDemande({
       {champTexte('prenoms', 'Prénoms *', { placeholder: 'Ex. Gogre Tanguy' })}
 
       <ChampDate label="Date de naissance" valeur={form.date_naissance} onChange={v => maj('date_naissance', v)}
-        maxDate={new Date().toISOString().slice(0, 10)} couleur={principale} />
+        maxDate={new Date().toISOString().slice(0, 10)} couleur={principale} naissance />
       {champTexte('lieu_naissance', 'Lieu de naissance', { placeholder: 'Ex. Yopougon' })}
       {champTexte('nationalite', 'Nationalité', { placeholder: 'Ex. Ivoirienne' })}
 
