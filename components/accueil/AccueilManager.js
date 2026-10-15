@@ -177,7 +177,7 @@ function useEtatDuJour(role, userId, restaurantId) {
       // Avis Glovo/Yango reçus un jour donné (date de l'avis), sans les charger.
       const nbAvis = jour => supabase.from('platform_reviews').select('id', { count: 'exact', head: true })
         .eq('review_date', isoLocal(jour)).then(x => (x.error ? null : x.count || 0))
-      const [p, r, d, treso, contrats, avisHier, avisAvantHier, avisSemainePrec, contactsJours] = await Promise.all([
+      const [p, r, d, treso, contrats, avisHier, avisAvantHier, avisSemainePrec, contactsJours, embauches] = await Promise.all([
         supabase.from('points').select('restaurant_id, date, valide, verifie')
           .gte('date', isoLocal(depuis)).lte('date', isoLocal(auj)).order('date').range(0, 999),
         supabase.from('restaurants').select('id, nom').order('nom'),
@@ -190,6 +190,9 @@ function useEtatDuJour(role, userId, restaurantId) {
         // Contacts comptés comme l'écran Contacts (compteurs POS par shift).
         chargerContactsPeriode({ debut: isoLocal(semainePrec), fin: isoLocal(hier), restoId: null })
           .then(c => totalParJour(c.lignes, 'contacts')).catch(() => null),
+        // Demandes d'embauche des gérants en attente (tuile « Nouveaux travailleurs »).
+        supabase.from('demandes_travailleurs').select('id', { count: 'exact', head: true }).eq('statut', 'envoyee')
+          .then(x => (x.error ? 0 : x.count || 0), () => 0),
       ])
       if (p.error || r.error) return
       setEtat({
@@ -197,6 +200,7 @@ function useEtatDuJour(role, userId, restaurantId) {
         jour: etatPointsDuJour({ points: p.data, restaurants: r.data, date: isoLocal(hier) }),
         aVerifier: nbAVerifier(p.data),
         demandes: d.error ? 0 : d.count || 0,
+        embauches,
         treso,
         contrats,
         avisHier: avisHier === null ? null
@@ -248,6 +252,7 @@ export default function AccueilManager({ items, role, userId, restaurantId }) {
   const badges = {
     'verification': etat?.aVerifier ? `${etat.aVerifier} à vérifier` : null,
     'demandes-admin': etat?.demandes ? `${etat.demandes} en attente` : null,
+    'embauches': etat?.embauches ? `${etat.embauches} à valider` : null,
   }
   const badgeGroupe = g => {
     const b = g.tuiles.map(t => badges[t.id]).filter(Boolean)

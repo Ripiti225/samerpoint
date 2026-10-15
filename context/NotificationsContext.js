@@ -35,7 +35,7 @@ const ROUTE_MAP = {
   nouveau_document: 'documents',
   nouveau_travailleur: 'equipe',
   // Recrutement + contrats signés (lib/contratsSignesDb.js)
-  demande_trav_nouvelle: 'contrats',
+  demande_trav_nouvelle: 'embauches',
   demande_trav_acceptee: 'recrutement',
   demande_trav_refusee: 'recrutement',
   contrat_a_signer: 'recrutement',
@@ -179,6 +179,9 @@ export function NotificationsProvider({ children }) {
       screen = roleActif === 'gerant' ? 'gerant-caissier' : null
     } else if (notif.type === 'point_valide') {
       screen = (roleActif === 'manager' || roleActif === 'directeur') ? 'verification' : null
+    } else if (notif.type === 'demande_trav_nouvelle') {
+      // Les notifications d'avant le 15/10 portent encore screen 'contrats'.
+      screen = 'embauches'
     } else {
       screen = notif.screen || ROUTE_MAP[notif.type]
     }

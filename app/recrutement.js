@@ -6,7 +6,8 @@
 //   Contrats à faire signer contrats préparés par la RH pour son restaurant :
 //                           le gérant les fait lire et signer au travailleur.
 //
-// La RH traite tout cela depuis l'écran Contrats (app/contrats.js).
+// La RH valide les demandes dans « Nouveaux travailleurs » (app/embauches.js)
+// et prépare les contrats dans l'écran Contrats (app/contrats.js).
 // ──────────────────────────────────────────────────────────────────────────────
 import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'

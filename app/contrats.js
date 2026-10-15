@@ -7,13 +7,16 @@
 //
 // Le filtre « Sans contrat » est le seul à lister des travailleurs plutôt que
 // des contrats — c'est la liste de ce qui reste à faire.
+//
+// Les demandes d'embauche des gérants ne sont PAS ici : elles ont leur écran,
+// « Nouveaux travailleurs » (app/embauches.js). Après acceptation, il revient
+// ici avec `generer=1` pour ouvrir directement la génération du contrat.
 // ──────────────────────────────────────────────────────────────────────────────
 import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 
 import FeuilleBaremes from '../components/contrats/FeuilleBaremes'
-import FeuilleDemandeRH from '../components/contrats/FeuilleDemandeRH'
 import FeuilleVerification from '../components/contrats/FeuilleVerification'
 import FormulaireGeneration from '../components/contrats/FormulaireGeneration'
 import FicheContrat, { STATUTS_CIRCUIT, STATUTS_CONTRAT } from '../components/FicheContrat'
@@ -27,13 +30,12 @@ import {
   FILTRES_CONTRAT, TYPES_CONTRAT, aujourdhuiISO, compterContrats, contratAffiche, contratsSignes, correspondFiltreContrat, expireBientot,
   formatFR, ordinalFR, progressionContrat, rangParType, resumeContrats, statutContrat,
 } from '../lib/contrats'
-import { annulerContrat, chargerBaremes, chargerDemandes, chargerTousTravailleurs } from '../lib/contratsSignesDb'
-import { nomComplet } from '../lib/recrutement'
+import { annulerContrat, chargerBaremes } from '../lib/contratsSignesDb'
 import { journaliser } from '../lib/journal'
 import { creerNotification } from '../lib/notificationsInterne'
 import { supabase } from '../lib/supabase'
 
-// Une ligne du bloc « À traiter » (demande à valider, contrat à vérifier…).
+// Une ligne du bloc « À traiter » (contrat à vérifier, refusé…).
 const LIGNE_A_TRAITER = { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 }
 
 // Couleur de chaque compteur.
@@ -65,15 +67,12 @@ export default function ContratsScreen() {
   const [formVisible, setFormVisible] = useState(false)
   const [contratEdite, setContratEdite] = useState(null)
 
-  // Circuit des contrats générés (demande → signature → validation).
+  // Circuit des contrats générés (génération → signature → validation).
   const [circuit, setCircuit] = useState([])          // contrats non signés
-  const [demandes, setDemandes] = useState([])        // demandes à valider
   const [baremes, setBaremes] = useState([])
-  const [connus, setConnus] = useState([])            // tous les travailleurs, pour les doublons
   const [modeNouveau, setModeNouveau] = useState('generer')
   const [choixVisible, setChoixVisible] = useState(false)
   const [generation, setGeneration] = useState(null)  // { travailleur, contratRefuse?, demandeId? }
-  const [demandeOuverte, setDemandeOuverte] = useState(null)
   const [verifOuvert, setVerifOuvert] = useState(null)
   const [baremesVisible, setBaremesVisible] = useState(false)
 
@@ -108,12 +107,7 @@ export default function ContratsScreen() {
     setContrats(contratsSignes(ctrs))
     setCircuit((ctrs || []).filter(c => c.statut && c.statut !== 'signe'))
 
-    const [dems, bars, tous] = await Promise.all([
-      chargerDemandes().catch(() => []), chargerBaremes(), chargerTousTravailleurs(),
-    ])
-    setDemandes(dems.filter(d => d.statut === 'envoyee'))
-    setBaremes(bars)
-    setConnus(tous)
+    setBaremes(await chargerBaremes())
 
     setLoading(false)
   }
@@ -160,7 +154,12 @@ export default function ContratsScreen() {
   useEffect(() => {
     if (ficheRechercheOuverte.current || typeof params.travailleur_id !== 'string' || !travailleurs.length) return
     const t = travailleurs.find(x => x.id === params.travailleur_id)
-    if (t) { ficheRechercheOuverte.current = true; ouvrirFiche(t) }
+    if (!t) return
+    ficheRechercheOuverte.current = true
+    // Arrivée depuis « Nouveaux travailleurs », juste après l'acceptation.
+    if (params.generer === '1') {
+      setGeneration({ travailleur: t, demandeId: typeof params.demande_id === 'string' && params.demande_id ? params.demande_id : null })
+    } else ouvrirFiche(t)
   }, [travailleurs]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function nouveauContratPour(travailleur) {
@@ -172,9 +171,7 @@ export default function ContratsScreen() {
   }
 
   const travParId = id => travailleurs.find(t => t.id === id) || null
-  const restoNom = id => restaurants.find(r => r.id === id)?.nom || ''
   const dansResto = restoId => filtreResto === 'tous' || restoId === filtreResto
-  const aValider = demandes.filter(d => dansResto(d.restaurant_id))
   const aVerifier = circuit.filter(c => c.statut === 'signe_a_verifier' && dansResto(c.restaurant_id))
   const refuses = circuit.filter(c => c.statut === 'refuse' && dansResto(c.restaurant_id))
   const chezGerant = circuit.filter(c => c.statut === 'a_signer' && dansResto(c.restaurant_id))
@@ -424,19 +421,9 @@ export default function ContratsScreen() {
           <Puces ligne petit styles={styles} actif={filtreType} onChoisir={setFiltreType}
             elements={[{ cle: 'tous', label: 'Tous types' }, ...TYPES_CONTRAT.map(t => ({ cle: t, label: t }))]} />
           <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-            {(aValider.length + aVerifier.length + refuses.length + chezGerant.length) > 0 && (
+            {(aVerifier.length + refuses.length + chezGerant.length) > 0 && (
               <View style={[styles.carte, { borderColor: teinte(principale, '66'), borderWidth: 1.5 }]}>
                 <Text style={[styles.carteTitre, { marginBottom: 8 }]}>À traiter</Text>
-                {aValider.map(d => (
-                  <TouchableOpacity key={d.id} style={LIGNE_A_TRAITER} onPress={() => setDemandeOuverte(d)}>
-                    <Avatar nom={nomComplet(d)} photo={d.photo_url} taille={36} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.infoTxt, { flex: 0, color: colors.text, fontWeight: '700' }]}>🧑‍🍳 {nomComplet(d)} — {d.poste}</Text>
-                      <Text style={[styles.infoTxt, { flex: 0 }]}>Demande d&apos;embauche · {restoNom(d.restaurant_id)}</Text>
-                    </View>
-                    <Text style={{ color: accent, fontWeight: '800' }}>Valider ›</Text>
-                  </TouchableOpacity>
-                ))}
                 {[...aVerifier, ...refuses].map(c => {
                   const st = STATUTS_CIRCUIT[c.statut]
                   const t = travParId(c.travailleur_id)
@@ -560,21 +547,6 @@ export default function ContratsScreen() {
         ctx={contexteJournal}
         onFermer={() => setGeneration(null)}
         onGenere={() => { setGeneration(null); charger() }}
-      />
-
-      <FeuilleDemandeRH
-        visible={!!demandeOuverte}
-        demande={demandeOuverte}
-        restaurantNom={demandeOuverte ? restoNom(demandeOuverte.restaurant_id) : ''}
-        travailleursConnus={connus}
-        ctx={contexteJournal}
-        onFermer={() => setDemandeOuverte(null)}
-        onTraitee={async ({ travailleur, generer }) => {
-          const demandeId = demandeOuverte?.id
-          setDemandeOuverte(null)
-          await charger()
-          if (generer && travailleur) setGeneration({ travailleur, demandeId })
-        }}
       />
 
       <FeuilleVerification

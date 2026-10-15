@@ -12,7 +12,7 @@ import { ActivityIndicator, Alert, Image, Linking, Text, TouchableOpacity, View 
 import { Bouton, Champ, Feuille, Info, Libelle, Puces, teinte, useEcranModerne } from '../ui/EcranModerne'
 import { formatFR } from '../../lib/contrats'
 import { accepterDemande, refuserDemande } from '../../lib/contratsSignesDb'
-import { manquantsDemande, nomComplet, trouverDoublon } from '../../lib/recrutement'
+import { estPdf, manquantsDemande, nomComplet, trouverDoublon } from '../../lib/recrutement'
 
 export default function FeuilleDemandeRH({ visible, demande, restaurantNom, travailleursConnus, ctx, onFermer, onTraitee }) {
   const { styles, colors, accent } = useEcranModerne('orange')
@@ -107,7 +107,14 @@ export default function FeuilleDemandeRH({ visible, demande, restaurantNom, trav
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
           {photos.map(p => (
             <TouchableOpacity key={p.u} onPress={() => Linking.openURL(p.u)}>
-              <Image source={{ uri: p.u }} style={{ width: 84, height: 84, borderRadius: 10, backgroundColor: colors.surfaceAlt }} />
+              {estPdf(p.u)
+                ? (
+                  <View style={{ width: 84, height: 84, borderRadius: 10, backgroundColor: teinte(accent, '1A'), alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 30 }}>📄</Text>
+                    <Text style={{ color: accent, fontWeight: '800', fontSize: 12 }}>PDF</Text>
+                  </View>
+                )
+                : <Image source={{ uri: p.u }} style={{ width: 84, height: 84, borderRadius: 10, backgroundColor: colors.surfaceAlt }} />}
               <Text style={[styles.infoTxt, { flex: 0, fontSize: 11, textAlign: 'center' }]}>{p.l}</Text>
             </TouchableOpacity>
           ))}

@@ -5,15 +5,23 @@
 // Seuls la photo, le nom, les prénoms et le poste sont exigés. Tout le reste
 // est signalé (« Informations incomplètes ») mais n'empêche pas l'envoi : la
 // RH complétera avant de générer le contrat.
+//
+// Photo du travailleur : appareil photo ou galerie. CNI et autres papiers :
+// appareil photo, galerie ou PDF (une carte scannée arrive souvent en PDF).
+// Trois vrais boutons, pas un menu Alert : sur le web, un Alert à plusieurs
+// choix perd des options.
 // ──────────────────────────────────────────────────────────────────────────────
+import * as DocumentPicker from 'expo-document-picker'
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Alert, Image, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, Alert, Image, Linking, Text, TouchableOpacity, View } from 'react-native'
 
 import ChampDate from '../ChampDate'
 import { Bouton, Champ, Feuille, Info, Libelle, Puces, teinte, useEcranModerne } from '../ui/EcranModerne'
+import { uploadFichier } from '../../lib/api'
 import { corrigerEtRenvoyer, envoyerDemande } from '../../lib/contratsSignesDb'
+import { isOnlineNow } from '../../lib/networkStatus'
 import { estPhotoEnAttente } from '../../lib/photoQueue'
-import { CIVILITES, SITUATIONS_FAMILLE, manquantsDemande, trouverDoublon } from '../../lib/recrutement'
+import { CIVILITES, SITUATIONS_FAMILLE, estPdf, manquantsDemande, trouverDoublon } from '../../lib/recrutement'
 import { usePhoto } from '../../lib/usePhoto'
 
 export const POSTES_COURANTS = [
@@ -36,7 +44,7 @@ function depuisDemande(d) {
 
 export default function FormulaireDemande({ visible, demande, restaurant, travailleursConnus, ctx, onFermer, onEnvoye }) {
   const { styles, colors, accent, principale } = useEcranModerne('orange')
-  const { prendrePhoto } = usePhoto()
+  const { prendrePhoto, choisirPhoto } = usePhoto()
   const [form, setForm] = useState(depuisDemande(demande))
   const [envoi, setEnvoi] = useState(false)
   const [photoEnCours, setPhotoEnCours] = useState(null)
@@ -45,18 +53,47 @@ export default function FormulaireDemande({ visible, demande, restaurant, travai
 
   const maj = (cle, val) => setForm(f => ({ ...f, [cle]: val }))
 
+  // mode : 'camera' | 'galerie' | 'pdf'.
   // Une photo prise hors connexion revient sous forme de jeton « en attente » :
   // ici rien ne le remplacerait plus tard par la vraie adresse. On la refuse.
-  async function photo(dossier) {
+  async function joindre(dossier, mode) {
+    if (mode === 'pdf') return joindrePdf(dossier)
     setPhotoEnCours(dossier)
     try {
-      const url = await prendrePhoto(`recrutement/${dossier}`)
+      const url = mode === 'galerie'
+        ? await choisirPhoto(`recrutement/${dossier}`)
+        : await prendrePhoto(`recrutement/${dossier}`, { cameraWeb: true })
       if (!url) return null
       if (estPhotoEnAttente(url)) {
         Alert.alert('Pas de connexion', "La photo n'a pas pu être envoyée. Reprends-la quand le réseau revient.")
         return null
       }
       return url
+    } finally {
+      setPhotoEnCours(null)
+    }
+  }
+
+  async function joindrePdf(dossier) {
+    let uri = null
+    try {
+      const res = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true })
+      if (res.canceled) return null
+      uri = res.assets?.[0]?.uri
+    } catch (_e) {
+      Alert.alert('PDF', "Impossible d'ouvrir le choix du fichier.")
+      return null
+    }
+    if (!uri) return null
+    if (!isOnlineNow()) {
+      Alert.alert('Pas de connexion', "Le PDF n'a pas pu être envoyé. Réessaie quand le réseau revient.")
+      return null
+    }
+    setPhotoEnCours(dossier)
+    try {
+      const url = await uploadFichier(uri, `recrutement/${dossier}`)
+      if (!url) Alert.alert('Envoi impossible', "Le PDF n'a pas pu être envoyé. Réessaie.")
+      return url || null
     } finally {
       setPhotoEnCours(null)
     }
@@ -109,7 +146,16 @@ export default function FormulaireDemande({ visible, demande, restaurant, travai
 
   const vignette = (url, onRetirer) => (
     <View key={url} style={{ marginRight: 8, marginBottom: 8 }}>
-      <Image source={{ uri: url }} style={{ width: 84, height: 84, borderRadius: 10, backgroundColor: colors.surfaceAlt }} />
+      {estPdf(url)
+        ? (
+          <TouchableOpacity onPress={() => Linking.openURL(url)} style={{
+            width: 84, height: 84, borderRadius: 10, backgroundColor: teinte(principale, '1A'), alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Text style={{ fontSize: 30 }}>📄</Text>
+            <Text style={{ color: principale, fontWeight: '800', fontSize: 12 }}>PDF</Text>
+          </TouchableOpacity>
+        )
+        : <Image source={{ uri: url }} style={{ width: 84, height: 84, borderRadius: 10, backgroundColor: colors.surfaceAlt }} />}
       <TouchableOpacity onPress={onRetirer} hitSlop={8} style={{
         position: 'absolute', top: -6, right: -6, backgroundColor: '#C2462B', borderRadius: 11, width: 22, height: 22,
         alignItems: 'center', justifyContent: 'center',
@@ -118,6 +164,22 @@ export default function FormulaireDemande({ visible, demande, restaurant, travai
       </TouchableOpacity>
     </View>
   )
+
+  // Rangée de boutons d'ajout : appareil photo, galerie et, pour les papiers, PDF.
+  const boutonsAjout = (dossier, onAjoute, { pdf = true } = {}) => (photoEnCours === dossier
+    ? <ActivityIndicator color={accent} style={{ marginVertical: 10 }} />
+    : (
+      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 6 }}>
+        <Bouton flex styles={styles} couleur={principale} label="📷 Appareil"
+          onPress={async () => { const u = await joindre(dossier, 'camera'); if (u) onAjoute(u) }} />
+        <Bouton flex styles={styles} couleur={principale} label="🖼️ Galerie"
+          onPress={async () => { const u = await joindre(dossier, 'galerie'); if (u) onAjoute(u) }} />
+        {pdf && (
+          <Bouton flex styles={styles} couleur={principale} label="📄 PDF"
+            onPress={async () => { const u = await joindre(dossier, 'pdf'); if (u) onAjoute(u) }} />
+        )}
+      </View>
+    ))
 
   return (
     <Feuille visible={visible} styles={styles} onFermer={onFermer}
@@ -134,11 +196,10 @@ export default function FormulaireDemande({ visible, demande, restaurant, travai
             </View>
           )}
         <View style={{ flex: 1 }}>
-          {photoEnCours === 'photos'
-            ? <ActivityIndicator color={accent} />
-            : <Bouton styles={styles} couleur={principale} variante="plein" label={form.photo_url ? '📷 Reprendre la photo' : '📷 Prendre la photo'}
-              onPress={async () => { const u = await photo('photos'); if (u) maj('photo_url', u) }} />}
-          <Text style={[styles.infoTxt, { marginTop: 6, flex: 0 }]}>Obligatoire : la RH doit pouvoir reconnaître la personne.</Text>
+          {boutonsAjout('photos', u => maj('photo_url', u), { pdf: false })}
+          <Text style={[styles.infoTxt, { marginTop: 6, flex: 0 }]}>
+            {form.photo_url ? 'Touche un bouton pour la remplacer. ' : ''}Obligatoire : la RH doit pouvoir reconnaître la personne.
+          </Text>
         </View>
       </View>
 
@@ -169,22 +230,17 @@ export default function FormulaireDemande({ visible, demande, restaurant, travai
       <ChampDate label="Date d'embauche (premier jour de travail)" valeur={form.date_embauche} onChange={v => maj('date_embauche', v)} couleur={principale} />
 
       <Libelle styles={styles}>Carte d&apos;identité (recto, verso) — facultatif</Libelle>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginBottom: 2 }}>
         {form.piece_identite_urls.map(u => vignette(u, () => maj('piece_identite_urls', form.piece_identite_urls.filter(x => x !== u))))}
-        {photoEnCours === 'cni'
-          ? <ActivityIndicator color={accent} />
-          : <Bouton styles={styles} couleur={principale} label="+ Photo de la CNI"
-            onPress={async () => { const u = await photo('cni'); if (u) maj('piece_identite_urls', [...form.piece_identite_urls, u]) }} />}
       </View>
+      {boutonsAjout('cni', u => setForm(f => ({ ...f, piece_identite_urls: [...f.piece_identite_urls, u] })))}
 
       <Libelle styles={styles}>Autres papiers — facultatif</Libelle>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginBottom: 2 }}>
         {form.papiers_urls.map(u => vignette(u, () => maj('papiers_urls', form.papiers_urls.filter(x => x !== u))))}
-        {photoEnCours === 'papiers'
-          ? <ActivityIndicator color={accent} />
-          : <Bouton styles={styles} couleur={principale} label="+ Photo d'un papier"
-            onPress={async () => { const u = await photo('papiers'); if (u) maj('papiers_urls', [...form.papiers_urls, u]) }} />}
       </View>
+      {boutonsAjout('papiers', u => setForm(f => ({ ...f, papiers_urls: [...f.papiers_urls, u] })))}
+      <View style={{ height: 8 }} />
 
       <Info icone="ℹ️" styles={styles}>Le salaire du contrat et le type de contrat seront fixés par la RH.</Info>
       <View style={{ height: 12 }} />
