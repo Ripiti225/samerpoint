@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated'
 import SignatureFooter from '../SignatureFooter'
+import { miniature } from '../../lib/miniature'
 import { Avatar, EnteteLogin, FondLogin } from './CadreLogin'
 import { couleurResto, initiales, VIOLET, ORANGE } from './themeLogin'
 
@@ -41,7 +42,7 @@ function CarteResto({ t, item, index, reconnu, onPress }) {
         ]}
       >
         {item.photo_url ? (
-          <Image source={{ uri: item.photo_url }} style={styles.restoImg} />
+          <Image source={{ uri: miniature(item.photo_url, 72) }} style={styles.restoImg} />
         ) : (
           <View style={[styles.restoImg, styles.restoInit, { backgroundColor: couleur }]}>
             <Text style={styles.restoInitTxt}>{initiales(item.nom)}</Text>

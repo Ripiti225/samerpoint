@@ -19,6 +19,7 @@ import {
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { saveOnePresence } from '../lib/api'
+import { miniature } from '../lib/miniature'
 import { supabase } from '../lib/supabase'
 import { useFocusRecherche } from '../lib/useFocusRecherche'
 
@@ -367,7 +368,7 @@ export default function PresencesScreen() {
                   disabled={estBloque(pointValide) || !!autoStatut}
                 >
                   {t.photo_url ? (
-                    <Image source={{ uri: t.photo_url }} style={styles.avatarPhoto} />
+                    <Image source={{ uri: miniature(t.photo_url, 44) }} style={styles.avatarPhoto} />
                   ) : (
                     <View style={styles.avatar}>
                       <Text style={styles.avatarTxt}>

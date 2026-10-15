@@ -37,6 +37,7 @@ import { ACTIONS, journaliser } from '../lib/journal'
 import { diagnosticBascule, ETAT_BASCULE, compterShiftsParRestaurant } from '../lib/basculePOS'
 import { SOURCE_POS, SOURCE_SAMTRACKLY, estSurPOS } from '../lib/sourcePoint'
 import { expliquerEchecSuppression } from '../lib/suppressionCompte'
+import { miniature } from '../lib/miniature'
 import {
   TUILES, ROLES_CONFIGURABLES, LABELS_ROLES, ACCES_DEFAUT,
   chargerAccesConfig, enregistrerAccesRole,
@@ -746,7 +747,7 @@ export default function ParametresScreen() {
                 onPress={() => setForm(p => ({ ...p, restaurant_id: r.id }))}
               >
                 {r.photo_url ? (
-                  <Image source={{ uri: r.photo_url }} style={styles.restoBadgeImg} />
+                  <Image source={{ uri: miniature(r.photo_url, 44) }} style={styles.restoBadgeImg} />
                 ) : (
                   <View style={[styles.restoBadgeAvatar, { backgroundColor: r.couleur === 'vert' ? '#2D7D46' : '#EF9F27' }]}>
                     <Text style={styles.restoBadgeAvatarTxt}>{r.nom.slice(0, 2).toUpperCase()}</Text>
@@ -787,7 +788,7 @@ export default function ParametresScreen() {
                 })}
               >
                 {r.photo_url ? (
-                  <Image source={{ uri: r.photo_url }} style={styles.restoBadgeImg} />
+                  <Image source={{ uri: miniature(r.photo_url, 44) }} style={styles.restoBadgeImg} />
                 ) : (
                   <View style={[styles.restoBadgeAvatar, { backgroundColor: r.couleur === 'vert' ? '#2D7D46' : '#EF9F27' }]}>
                     <Text style={styles.restoBadgeAvatarTxt}>{r.nom.slice(0, 2).toUpperCase()}</Text>
@@ -843,7 +844,7 @@ export default function ParametresScreen() {
           <View style={styles.itemCard}>
             <View style={styles.itemLeft}>
               {r.photo_url ? (
-                <Image source={{ uri: r.photo_url }} style={{ width: 40, height: 40, borderRadius: 10 }} />
+                <Image source={{ uri: miniature(r.photo_url, 40) }} style={{ width: 40, height: 40, borderRadius: 10 }} />
               ) : (
                 <View style={[styles.itemDot, { width: 40, height: 40, borderRadius: 10, backgroundColor: r.couleur === 'vert' ? '#2D7D46' : '#EF9F27', alignItems: 'center', justifyContent: 'center' }]}>
                   <Text style={{ fontSize: 12, fontWeight: '700', color: '#fff' }}>{r.nom.slice(0, 2).toUpperCase()}</Text>
@@ -955,7 +956,7 @@ export default function ParametresScreen() {
           >
             <View style={styles.itemLeft}>
               {t.photo_url ? (
-                <Image source={{ uri: t.photo_url }} style={styles.avatarPhoto} />
+                <Image source={{ uri: miniature(t.photo_url, 40) }} style={styles.avatarPhoto} />
               ) : (
                 <View style={styles.avatar}>
                   <Text style={styles.avatarTxt}>
