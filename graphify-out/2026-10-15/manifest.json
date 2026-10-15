@@ -264,9 +264,9 @@
     "semantic_hash": ""
   },
   "app/recap-point.js": {
-    "mtime": 1792054881.8068275,
-    "seen": 1792055006.091763,
-    "ast_hash": "9d46b3f57cc3040394289cfe1a0a59fc",
+    "mtime": 1792056262.4853997,
+    "seen": 1792056951.355613,
+    "ast_hash": "6e8fd7f18832d1e7b70c38db89b6ef41",
     "semantic_hash": ""
   },
   "app/recap-verifications.js": {
@@ -3237,6 +3237,18 @@
     "mtime": 1792054857.1007442,
     "seen": 1792055006.091915,
     "ast_hash": "8e13d628ac73be8b15ef87ac6b5295f2",
+    "semantic_hash": ""
+  },
+  "lib/brouillonGerant.js": {
+    "mtime": 1792056249.629063,
+    "seen": 1792056951.355683,
+    "ast_hash": "c55747723e165b896dd948bc3db8ab29",
+    "semantic_hash": ""
+  },
+  "lib/brouillonGerant.test.mjs": {
+    "mtime": 1792056235.8631964,
+    "seen": 1792056951.355684,
+    "ast_hash": "2d4064abfd1834e8e6836106824a97ec",
     "semantic_hash": ""
   }
 }
