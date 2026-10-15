@@ -2,6 +2,12 @@
 // Demande de nouveau travailleur — saisie du gérant (création ou correction
 // après refus de la RH).
 //
+// `direct` : le même formulaire pour la RH / le manager (Équipe globale,
+// Paramètres), qui ajoutent eux-mêmes un travailleur. Pas de demande : la
+// fiche est créée tout de suite (lib/contratsSignesDb.js →
+// ajouterTravailleurDirect). En plus : le choix du restaurant, et la décision
+// sur un éventuel ancien employé (réactiver sa fiche ou en créer une).
+//
 // Seuls la photo, le nom, les prénoms et le poste sont exigés. Tout le reste
 // est signalé (« Informations incomplètes ») mais n'empêche pas l'envoi : la
 // RH complétera avant de générer le contrat.
@@ -12,13 +18,14 @@
 // choix perd des options.
 // ──────────────────────────────────────────────────────────────────────────────
 import * as DocumentPicker from 'expo-document-picker'
+import { router } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Alert, Image, Linking, Text, TouchableOpacity, View } from 'react-native'
 
 import ChampDate from '../ChampDate'
 import { Bouton, Champ, Feuille, Info, Libelle, Puces, teinte, useEcranModerne } from '../ui/EcranModerne'
 import { uploadFichier } from '../../lib/api'
-import { corrigerEtRenvoyer, envoyerDemande } from '../../lib/contratsSignesDb'
+import { ajouterTravailleurDirect, corrigerEtRenvoyer, envoyerDemande } from '../../lib/contratsSignesDb'
 import { isOnlineNow } from '../../lib/networkStatus'
 import { estPhotoEnAttente } from '../../lib/photoQueue'
 import { CIVILITES, SITUATIONS_FAMILLE, estPdf, manquantsDemande, trouverDoublon } from '../../lib/recrutement'
@@ -42,14 +49,29 @@ function depuisDemande(d) {
   return f
 }
 
-export default function FormulaireDemande({ visible, demande, restaurant, travailleursConnus, ctx, onFermer, onEnvoye }) {
+export default function FormulaireDemande({
+  visible, demande, restaurant, travailleursConnus, ctx, onFermer, onEnvoye,
+  direct = false, restaurants = [], restoParDefaut = null,
+}) {
   const { styles, colors, accent, principale } = useEcranModerne('orange')
   const { prendrePhoto, choisirPhoto } = usePhoto()
   const [form, setForm] = useState(depuisDemande(demande))
   const [envoi, setEnvoi] = useState(false)
   const [photoEnCours, setPhotoEnCours] = useState(null)
+  const [restoId, setRestoId] = useState(restoParDefaut)
+  const [reutiliser, setReutiliser] = useState(true)
 
-  useEffect(() => { if (visible) setForm(depuisDemande(demande)) }, [visible, demande])
+  useEffect(() => {
+    if (!visible) return
+    setForm(depuisDemande(demande))
+    setRestoId(restoParDefaut)
+    setReutiliser(true)
+  }, [visible, demande, restoParDefaut])
+
+  const restoChoisi = direct ? restaurants.find(r => r.id === restoId) || null : restaurant
+  // Ajout direct : l'ancien employé se repère pendant la saisie, et c'est la
+  // personne qui ajoute qui décide (pas de RH derrière pour vérifier).
+  const doublonDirect = direct ? trouverDoublon(form, travailleursConnus || []) : null
 
   const maj = (cle, val) => setForm(f => ({ ...f, [cle]: val }))
 
@@ -99,6 +121,29 @@ export default function FormulaireDemande({ visible, demande, restaurant, travai
     }
   }
 
+  async function enregistrerDirect() {
+    setEnvoi(true)
+    try {
+      const trav = await ajouterTravailleurDirect(form, ctx, restoChoisi, {
+        reutiliserId: doublonDirect && reutiliser ? doublonDirect.id : null,
+      })
+      onEnvoye?.(trav)
+      if (!trav?.id) return
+      Alert.alert(
+        'Travailleur ajouté',
+        `${trav.nom} fait maintenant partie de l'équipe de ${restoChoisi?.nom || 'son restaurant'}.\n\nGénérer son contrat maintenant ?`,
+        [
+          { text: 'Plus tard', style: 'cancel' },
+          { text: 'Générer le contrat', onPress: () => router.push({ pathname: '/contrats', params: { travailleur_id: trav.id, generer: '1' } }) },
+        ],
+      )
+    } catch (e) {
+      Alert.alert('Enregistrement impossible', e.message)
+    } finally {
+      setEnvoi(false)
+    }
+  }
+
   async function envoyer(doublon) {
     setEnvoi(true)
     try {
@@ -115,8 +160,21 @@ export default function FormulaireDemande({ visible, demande, restaurant, travai
 
   function valider() {
     const { bloquants, incomplets } = manquantsDemande(form)
+    if (direct && !restoChoisi) bloquants.unshift('Restaurant')
     if (bloquants.length) {
       Alert.alert('Il manque des informations', `Obligatoire : ${bloquants.join(', ')}.`)
+      return
+    }
+    if (direct) {
+      if (!incomplets.length) { enregistrerDirect(); return }
+      Alert.alert(
+        'Informations incomplètes',
+        `Informations incomplètes : ${incomplets.join(', ')}.\n\nTu peux enregistrer quand même et compléter avant de générer le contrat.`,
+        [
+          { text: 'Compléter', style: 'cancel' },
+          { text: 'Enregistrer quand même', onPress: enregistrerDirect },
+        ],
+      )
       return
     }
     const autres = (travailleursConnus || []).filter(t => t.id !== demande?.travailleur_id)
@@ -184,7 +242,14 @@ export default function FormulaireDemande({ visible, demande, restaurant, travai
   return (
     <Feuille visible={visible} styles={styles} onFermer={onFermer}
       titre={demande ? 'Corriger la demande' : 'Nouveau travailleur'}
-      sous={demande?.motif_refus ? `Refus de la RH : ${demande.motif_refus}` : restaurant?.nom}>
+      sous={demande?.motif_refus ? `Refus de la RH : ${demande.motif_refus}` : direct ? 'Ajout direct — actif tout de suite' : restaurant?.nom}>
+
+      {direct && (
+        <>
+          <Libelle styles={styles}>Restaurant *</Libelle>
+          <Puces styles={styles} actif={restoId} onChoisir={setRestoId} elements={restaurants.map(r => ({ cle: r.id, label: r.nom }))} />
+        </>
+      )}
 
       <Libelle styles={styles}>Photo du travailleur *</Libelle>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 12 }}>
@@ -226,7 +291,7 @@ export default function FormulaireDemande({ visible, demande, restaurant, travai
       <Puces petit styles={styles} actif={form.poste} onChoisir={v => maj('poste', v)} elements={POSTES_COURANTS.map(p => ({ cle: p, label: p }))} />
       <Champ styles={styles} colors={colors} value={form.poste} onChangeText={v => maj('poste', v)} placeholder="Ou écris le poste" />
 
-      {champTexte('salaire_journalier', 'Salaire journalier proposé (F)', { placeholder: 'Ex. 3000', keyboardType: 'number-pad' })}
+      {champTexte('salaire_journalier', direct ? 'Salaire journalier (paie, F)' : 'Salaire journalier proposé (F)', { placeholder: 'Ex. 3000', keyboardType: 'number-pad' })}
       <ChampDate label="Date d'embauche (premier jour de travail)" valeur={form.date_embauche} onChange={v => maj('date_embauche', v)} couleur={principale} />
 
       <Libelle styles={styles}>Carte d&apos;identité (recto, verso) — facultatif</Libelle>
@@ -242,11 +307,28 @@ export default function FormulaireDemande({ visible, demande, restaurant, travai
       {boutonsAjout('papiers', u => setForm(f => ({ ...f, papiers_urls: [...f.papiers_urls, u] })))}
       <View style={{ height: 8 }} />
 
-      <Info icone="ℹ️" styles={styles}>Le salaire du contrat et le type de contrat seront fixés par la RH.</Info>
+      {doublonDirect && (
+        <View style={{ padding: 12, borderRadius: 12, backgroundColor: teinte('#C27C1A', '14'), marginBottom: 10 }}>
+          <Text style={{ color: '#C27C1A', fontWeight: '700', marginBottom: 6 }}>
+            Ce travailleur existe peut-être déjà : {doublonDirect.nom}{doublonDirect.restaurants?.nom ? ` (${doublonDirect.restaurants.nom})` : ''}{doublonDirect.statut === 'archive' ? ' — ancien employé' : ''}
+          </Text>
+          <Puces petit styles={styles} actif={reutiliser} onChoisir={setReutiliser} elements={[
+            { cle: true, label: "Réactiver l'ancienne fiche" },
+            { cle: false, label: 'Créer une nouvelle fiche' },
+          ]} />
+        </View>
+      )}
+
+      <Info icone="ℹ️" styles={styles}>
+        {direct
+          ? 'Le travailleur est actif tout de suite (équipe, pointage, POS). Son contrat se génère ensuite dans Contrats.'
+          : 'Le salaire du contrat et le type de contrat seront fixés par la RH.'}
+      </Info>
       <View style={{ height: 12 }} />
       {envoi
         ? <ActivityIndicator size="large" color={accent} />
-        : <Bouton grand styles={styles} couleur={principale} variante="plein" label={demande ? 'Renvoyer à la RH' : 'Envoyer à la RH'} onPress={valider} />}
+        : <Bouton grand styles={styles} couleur={principale} variante="plein"
+          label={direct ? 'Enregistrer le travailleur' : demande ? 'Renvoyer à la RH' : 'Envoyer à la RH'} onPress={valider} />}
     </Feuille>
   )
 }

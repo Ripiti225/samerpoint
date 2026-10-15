@@ -2,6 +2,8 @@ import { router } from 'expo-router'
 import { estCompteTechnique } from '../lib/comptesTechniques'
 import { useEffect, useMemo, useState } from 'react'
 import FormulaireTravailleur from '../components/FormulaireTravailleur'
+import FormulaireDemande from '../components/contrats/FormulaireDemande'
+import { chargerTousTravailleurs } from '../lib/contratsSignesDb'
 import { aujourdhuiISO } from '../lib/contrats'
 import { useTheme } from '../context/ThemeContext'
 import {
@@ -61,6 +63,9 @@ export default function ParametresScreen() {
   const [utilisateurs, setUtilisateurs] = useState([])
   const [fournisseurs, setFournisseurs] = useState([])
   const [tousRestaurants, setTousRestaurants] = useState([])
+  // Ajout d'un travailleur : le formulaire complet du gérant, enregistré en direct.
+  const [ajoutTravailleur, setAjoutTravailleur] = useState(false)
+  const [travailleursConnus, setTravailleursConnus] = useState([])
   const [modal, setModal] = useState({ visible: false, type: '', data: null })
   const [form, setForm] = useState({})
   const [loading, setLoading] = useState(false)
@@ -930,7 +935,10 @@ export default function ParametresScreen() {
     return (
       <>
         <FiltreRestaurants />
-        <TouchableOpacity style={styles.addBtn} onPress={() => ouvrirModal('travailleur', null, { restaurant_id: restaurantFiltre, date_embauche: aujourdhuiISO() })}>
+        <TouchableOpacity style={styles.addBtn} onPress={() => {
+          setAjoutTravailleur(true)
+          chargerTousTravailleurs().then(setTravailleursConnus).catch(() => setTravailleursConnus([]))
+        }}>
           <Text style={styles.addTxt}>+ Ajouter un travailleur {restoNom ? `— ${restoNom}` : ''}</Text>
         </TouchableOpacity>
         {filtres.length === 0 && (
@@ -1881,6 +1889,13 @@ export default function ParametresScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      <FormulaireDemande
+        direct visible={ajoutTravailleur} restaurants={tousRestaurants} restoParDefaut={restaurantFiltre || null}
+        travailleursConnus={travailleursConnus} ctx={{ userId: userId || null, userNom: userNom || null }}
+        onFermer={() => setAjoutTravailleur(false)}
+        onEnvoye={() => { setAjoutTravailleur(false); chargerDonnees() }}
+      />
     </SafeAreaView>
   )
 }

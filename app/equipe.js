@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
 import * as XLSX from 'xlsx'
 import FicheTravailleur from '../components/equipe/FicheTravailleur'
+import FormulaireDemande from '../components/contrats/FormulaireDemande'
 import { ModalArchive, ModalCalendrier, ModalDroitsDus, ModalFormTravailleur, ModalTransfert } from '../components/equipe/Modales'
 import OngletArchives from '../components/equipe/OngletArchives'
 import OngletDashboard from '../components/equipe/OngletDashboard'
@@ -23,6 +24,7 @@ import {
   BLEU, ONGLETS, PERIODES, correspondRecherche, feuillesExcel, lignesPaiesGerant, plageDates, statsGlobales,
   rattacherPaiesGerant, statsParTravailleur, tauxParRestaurant, titrePeriode,
 } from '../lib/equipe'
+import { chargerTousTravailleurs } from '../lib/contratsSignesDb'
 import * as db from '../lib/equipeDb'
 import { aujourdhuiISO } from '../lib/contrats'
 import { proposerDroits } from '../lib/droitsAnciensTravailleurs'
@@ -59,7 +61,10 @@ export default function EquipeScreen() {
   const [exporting, setExporting] = useState(false)
 
   const [fiche, setFiche] = useState(null)
-  const [form, setForm] = useState({ visible: false, edition: null })
+  const [form, setForm] = useState({ visible: false, edition: null })   // modification d'une fiche
+  // Ajout : le formulaire complet du gérant (identité, CNI, papiers), en direct.
+  const [ajout, setAjout] = useState(false)
+  const [connus, setConnus] = useState([])                              // actifs et archivés, pour les doublons
   const [aArchiver, setAArchiver] = useState(null)
   const [aTransferer, setATransferer] = useState(null)
   const [droitsDus, setDroitsDus] = useState(null)   // { trav, motif } après archivage d'un CDI
@@ -90,6 +95,13 @@ export default function EquipeScreen() {
     }
     setLoading(false)
   }, [restoId, plage])
+
+  // Les fiches connues (archivées comprises) servent à repérer un ancien
+  // employé qui revient : réactiver sa fiche plutôt que d'en créer une.
+  function ouvrirAjout() {
+    setAjout(true)
+    chargerTousTravailleurs().then(setConnus).catch(() => setConnus([]))
+  }
 
   const chargerArchives = useCallback(async () => {
     setLoadingArchives(true)
@@ -345,7 +357,7 @@ export default function EquipeScreen() {
             <OngletTravailleurs styles={styles} travailleurs={travFiltres} statsParId={statsParId} tous={tous}
               peutEditer={peutEditer} recherche={recherche}
               analyse={analyse} onAnalyser={analyserJoursRepos}
-              onAjouter={() => setForm({ visible: true, edition: null })}
+              onAjouter={ouvrirAjout}
               onOuvrir={t => setFiche(t)}
               onModifier={t => setForm({ visible: true, edition: t })}
               onMenu={t => setAArchiver(t)} />
@@ -373,6 +385,12 @@ export default function EquipeScreen() {
         onModifier={t => setForm({ visible: true, edition: t })}
         onTransferer={t => setATransferer(t)}
         onArchiver={t => setAArchiver(t)}
+      />
+      <FormulaireDemande
+        direct visible={ajout} restaurants={restaurants} restoParDefaut={restoId}
+        travailleursConnus={connus} ctx={{ userId: userId || null, userNom: userNom || null }}
+        onFermer={() => setAjout(false)}
+        onEnvoye={() => { setAjout(false); charger() }}
       />
       <ModalFormTravailleur
         visible={form.visible} edition={form.edition} restaurants={restaurants} restoParDefaut={restoId}
