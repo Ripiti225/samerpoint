@@ -4,7 +4,9 @@
  * Accueil : la visite en cours (à reprendre), puis les restaurants avec leur
  * dernière visite, les tâches ouvertes et celles que le gérant dit faites.
  * Un restaurant ouvre sa fiche (note, tâches, visites) et « Commencer la
- * visite » (heure et position d'arrivée relevées). Une seule visite à la fois.
+ * visite » (heure et position d'arrivée relevées). Une seule visite à la fois ;
+ * « Se déconnecter » la laisse ouverte, mais une visite pas terminée le jour
+ * même est abandonnée d'office à la reconnexion suivante.
  *
  * Calculs : lib/supervision.js · données : lib/supervisionDb.js
  */
@@ -42,7 +44,11 @@ export default function SuperviseurScreen() {
         chargerRestaurants(), chargerVisites({ depuis: ilYa(120) }), chargerTaches({ ouvertesSeulement: true }),
         userId ? visiteEnCours(userId) : null,
       ])
-      setRestaurants(r); setVisites(v); setTaches(t); setEnCours(ec)
+      setRestaurants(r); setVisites(v); setTaches(t); setEnCours(ec?.visite || null)
+      if (ec?.abandonnee) {
+        const nom = r.find(x => x.id === ec.abandonnee.restaurant_id)?.nom || 'un restaurant'
+        Alert.alert('Visite abandonnée', `Votre visite de ${nom}, commencée le ${dateHeure(ec.abandonnee.debut_at)}, n'a pas été terminée le jour même : elle a été abandonnée.`)
+      }
     } catch { setErreur(true) } finally { setCharge(true) }
   }, [userId])
   useEffect(() => { charger() }, [charger])
@@ -93,7 +99,8 @@ export default function SuperviseurScreen() {
           <View style={{ width: 60 }} />
         </View>
         <VisiteEnCours visite={enCours} restaurant={restoEnCours} userId={userId} userNom={userNom}
-          onFinie={() => { setEnCours(null); charger() }} styles={styles} colors={colors} />
+          onFinie={() => { setEnCours(null); charger() }}
+          onDeconnecter={() => { deconnecter?.(); router.replace('/login') }} styles={styles} colors={colors} />
       </SafeAreaView>
     )
   }

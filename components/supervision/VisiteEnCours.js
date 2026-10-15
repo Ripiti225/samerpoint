@@ -9,7 +9,10 @@
 //   4. Fin      remarques et suggestions, note calculée, « Terminer »
 //
 // Tout est gardé en brouillon sur le téléphone à chaque changement (réseau
-// faible sur place) et n'est enregistré en base qu'à la fin.
+// faible sur place) et recopié dans la base quelques secondes après : « Se
+// déconnecter » laisse la visite ouverte, on la retrouve à la reconnexion,
+// même sur un autre téléphone. Notes, tâches, etc. ne sont enregistrées
+// qu'en terminant.
 // ──────────────────────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native'
@@ -17,7 +20,7 @@ import ChampDate from '../ChampDate'
 import { ETATS_TACHE, etatTache, manquesVisite, NOTE_BASSE, noteVisite } from '../../lib/supervision'
 import {
   annulerVisite, chargerCriteres, chargerTaches, chargerTravailleursResto, demanderExplicationTache, ecrireBrouillon,
-  lireBrouillon, terminerVisite, textePosition,
+  envoyerBrouillon, lireBrouillon, terminerVisite, textePosition,
 } from '../../lib/supervisionDb'
 import { Bouton, Champ, Feuille, Info, Libelle, Pastille, Puces, Vide } from '../ui/EcranModerne'
 import { ChampPhoto, Etoiles, PastilleNote, SARCELLE, TONS, Vignette, dateCourte, dateHeure } from './Elements'
@@ -41,7 +44,7 @@ function Bascule({ actif, label, couleur, onPress, colors }) {
   )
 }
 
-export default function VisiteEnCours({ visite, restaurant, userId, userNom, onFinie, styles, colors }) {
+export default function VisiteEnCours({ visite, restaurant, userId, userNom, onFinie, onDeconnecter, styles, colors }) {
   const [charge, setCharge] = useState(false)
   const [erreur, setErreur] = useState(false)
   const [criteres, setCriteres] = useState([])
@@ -60,7 +63,7 @@ export default function VisiteEnCours({ visite, restaurant, userId, userNom, onF
       try {
         const [c, e, t, brouillon] = await Promise.all([
           chargerCriteres(), chargerTravailleursResto(restaurant.id),
-          chargerTaches({ restaurantId: restaurant.id, ouvertesSeulement: true }), lireBrouillon(visite.id),
+          chargerTaches({ restaurantId: restaurant.id, ouvertesSeulement: true }), lireBrouillon(visite),
         ])
         setCriteres(c); setEquipe(e)
         // Les tâches de cette visite (nouvel essai après coupure) ne sont pas « à vérifier ».
@@ -71,8 +74,26 @@ export default function VisiteEnCours({ visite, restaurant, userId, userNom, onF
     })()
   }, [visite.id, restaurant.id])
 
-  // Brouillon à chaque changement
-  useEffect(() => { if (charge) ecrireBrouillon(visite.id, b) }, [b, charge, visite.id])
+  // Brouillon à chaque changement : tout de suite sur le téléphone, 3 s plus tard dans la base.
+  const dejaEnvoye = useRef(true)
+  useEffect(() => {
+    if (!charge) return undefined
+    const copie = { ...b, saved_at: Date.now() }
+    ecrireBrouillon(visite.id, copie)
+    dejaEnvoye.current = false
+    const t = setTimeout(() => { envoyerBrouillon(visite.id, copie).then(ok => { if (ok) dejaEnvoye.current = true }) }, 3000)
+    return () => clearTimeout(t)
+  }, [b, charge, visite.id])
+
+  async function seDeconnecter() {
+    setEnvoi(true)
+    const ok = dejaEnvoye.current || await envoyerBrouillon(visite.id, { ...b, saved_at: Date.now() })
+    setEnvoi(false)
+    if (!ok) {
+      Alert.alert('Pas de réseau', 'La saisie reste sur ce téléphone : reconnectez-vous sur celui-ci pour reprendre la visite.')
+    }
+    onDeconnecter?.()
+  }
 
   const maj = (champ, cle, valeur) => setB(p => ({ ...p, [champ]: { ...p[champ], [cle]: { ...(p[champ][cle] || {}), ...valeur } } }))
 
@@ -142,6 +163,13 @@ export default function VisiteEnCours({ visite, restaurant, userId, userNom, onF
       <Puces elements={ETAPES} actif={etape} onChoisir={allerA} styles={styles} ligne />
       <ScrollView ref={scrollRef} style={styles.body} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         <Info icone="🕘" styles={styles}>Arrivée {dateHeure(visite.debut_at)} · {textePosition(visite.position_debut)}</Info>
+        {onDeconnecter ? (
+          <View style={{ marginTop: 10 }}>
+            <Bouton label="⏸ Se déconnecter (la visite reste ouverte)" onPress={seDeconnecter} couleur={colors.textSecondary}
+              variante="contour" disabled={envoi} styles={styles} />
+            <Text style={styles.hint}>À terminer aujourd'hui : une visite pas terminée est abandonnée le lendemain.</Text>
+          </View>
+        ) : null}
         <View style={{ height: 10 }} />
 
         {etape === 'grille' && (

@@ -68,6 +68,9 @@ CREATE TABLE IF NOT EXISTS supervision_visites (
   decision_at         timestamptz,
   created_at          timestamptz NOT NULL DEFAULT now()
 );
+-- Saisie en cours (brouillon de l'écran), pour reprendre après une déconnexion
+-- ou sur un autre téléphone. Vidée quand la visite est terminée ou abandonnée.
+ALTER TABLE supervision_visites ADD COLUMN IF NOT EXISTS brouillon jsonb;
 CREATE INDEX IF NOT EXISTS idx_sup_visites_resto ON supervision_visites (restaurant_id, debut_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sup_visites_statut ON supervision_visites (statut, debut_at DESC);
 
