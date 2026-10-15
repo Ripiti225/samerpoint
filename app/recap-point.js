@@ -19,6 +19,7 @@ import { facturesGerantSansPhoto } from '../lib/creditsFournisseurs'
 import { cloturesPOS, resumerEcartsGlobaux } from '../lib/cloturesCaisse'
 import { depensesSalairesShift } from '../lib/depensesShift'
 import { shiftsOntChange } from '../lib/shiftsAJour'
+import { brouillonAReprendre } from '../lib/brouillonGerant'
 import { venteMachineVientDuPOS } from '../lib/sourcePoint'
 import { rattacherFondAuPoint } from '../lib/fondTresorerieDb'
 import { journaliser } from '../lib/journal'
@@ -67,6 +68,7 @@ export default function RecapPointScreen() {
     totalVentes, ventesJour, setVentesJour, pointValide,
     setPointValide, roleActif,
     depensesGerantCaisse, fournisseursGerantCaisse, paiesGerantCaisse,
+    setDepensesGerantCaisse, setFournisseursGerantCaisse, setPaiesGerantCaisse,
     totalDepensesGerantCaisse,
     inventaireTermine,
     restaurantId, restaurantNom, userId, userNom,
@@ -115,9 +117,28 @@ export default function RecapPointScreen() {
   // Fond donné par la Trésorerie depuis l'ouverture de Ventes : à jour avant validation.
   useFondTresorerie({ pointId, restaurantId, dateJour, pointValide, setVentesJour })
 
+  // Les déductions du gérant sont enregistrées en base (draft_gerant) par
+  // « Déductions gérant », mais cet écran les lit dans la mémoire du
+  // téléphone. Session expirée, autre téléphone : mémoire vide, et le point
+  // était validé avec 0 F de déductions (7E 06/08, Maroc 14/08, KMS 13/09).
+  // On reprend alors celles de la base. Renvoie true si on les a reprises.
+  async function reprendreBrouillonGerant() {
+    const { data: pt } = await supabase.from('points')
+      .select('valide, draft_gerant').eq('id', pointId).maybeSingle()
+    if (!brouillonAReprendre({ totalContexte: totalDepensesGerantCaisse(), draft: pt?.draft_gerant, pointValide: pt?.valide })) {
+      return false
+    }
+    const draft = typeof pt.draft_gerant === 'string' ? JSON.parse(pt.draft_gerant) : pt.draft_gerant
+    if (draft.depenses) setDepensesGerantCaisse(draft.depenses)
+    if (draft.fournisseurs) setFournisseursGerantCaisse(draft.fournisseurs)
+    if (draft.paies) setPaiesGerantCaisse(draft.paies)
+    return true
+  }
+
   async function chargerDonnees() {
     setLoading(true)
     if (!pointId) { setLoading(false); return }
+    await reprendreBrouillonGerant().catch(() => false)
 
     const [
       { data: presData },
@@ -354,6 +375,14 @@ export default function RecapPointScreen() {
     if (errShifts) {
       setValidating(false)
       Alert.alert('Erreur', 'Impossible de vérifier les shifts du jour. Réessayez.')
+      return
+    }
+    if (await reprendreBrouillonGerant().catch(() => false)) {
+      setValidating(false)
+      Alert.alert(
+        '🔄 Déductions gérant reprises',
+        "Les déductions enregistrées dans « Déductions gérant » n'étaient plus à l'écran. Elles ont été rechargées : vérifiez les totaux puis validez à nouveau."
+      )
       return
     }
     if (shiftsOntChange(shifts, shiftsEnBase)) {
