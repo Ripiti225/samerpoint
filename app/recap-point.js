@@ -18,6 +18,7 @@ import { COEFFICIENTS } from '../lib/constants'
 import { facturesGerantSansPhoto } from '../lib/creditsFournisseurs'
 import { cloturesPOS, resumerEcartsGlobaux } from '../lib/cloturesCaisse'
 import { depensesSalairesShift } from '../lib/depensesShift'
+import { shiftsOntChange } from '../lib/shiftsAJour'
 import { venteMachineVientDuPOS } from '../lib/sourcePoint'
 import { rattacherFondAuPoint } from '../lib/fondTresorerieDb'
 import { journaliser } from '../lib/journal'
@@ -344,6 +345,27 @@ export default function RecapPointScreen() {
     if (!verifierPhotosFacturesGerant()) return
     setValidating(true)
 
+    // Un shift POS peut arriver pendant que le récap est ouvert (clôture de la
+    // caissière). Valider avec la liste lue à l'ouverture l'oublierait dans
+    // tous les totaux du point (Maroc 14/10 : 158 300 manquants). On relit la
+    // base AVANT toute écriture et on fait revoir le récap si elle a bougé.
+    const { data: shiftsEnBase, error: errShifts } = await supabase
+      .from('points_shifts').select('*').eq('point_id', pointId)
+    if (errShifts) {
+      setValidating(false)
+      Alert.alert('Erreur', 'Impossible de vérifier les shifts du jour. Réessayez.')
+      return
+    }
+    if (shiftsOntChange(shifts, shiftsEnBase)) {
+      setValidating(false)
+      await chargerDonnees()
+      Alert.alert(
+        '🔄 Nouveau shift reçu',
+        "Un shift caissier vient d'arriver ou d'être modifié. Le récapitulatif a été mis à jour : vérifiez les totaux puis validez à nouveau."
+      )
+      return
+    }
+
     // Sauvegarder les dépenses caisse gérant (catégories + fournisseurs)
     await supabase.from('depenses_gerant_caisse').delete().eq('point_id', pointId)
     const lignesCat = Object.entries(depensesGerantCaisse).flatMap(([cat, lignes]) =>
@@ -479,7 +501,11 @@ export default function RecapPointScreen() {
     if (ok) {
       try {
         const extended = {}
-        if (venteMachine !== null) extended.vente_machine = venteMachine
+        // Sur un site POS, `vente_machine` est la somme des vente_systeme_pos,
+        // tenue à jour par le trigger points_shifts_vente_machine : la valeur
+        // lue plus tôt dans Ventes peut être périmée et l'écraserait (même
+        // garde-fou que `peutEcrireVenteMachine` dans app/ventes.js).
+        if (venteMachine !== null && !venteMachineDuPOS) extended.vente_machine = venteMachine
         if (ecartCaisse !== null) extended.ecart_caisse = ecartCaisse
         if (ventesJour.photoVenteMachine) extended.photo_vente_machine = ventesJour.photoVenteMachine
         const totalDep = totalDepensesGerantCaisse()
