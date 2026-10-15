@@ -234,9 +234,9 @@
     "semantic_hash": ""
   },
   "app/modifier-point.js": {
-    "mtime": 1792057541.0551128,
-    "seen": 1792057574.693574,
-    "ast_hash": "018c5c6ff8f7a32403ced3c113e8f716",
+    "mtime": 1792061996.4378476,
+    "seen": 1792062035.25866,
+    "ast_hash": "2d3db4b827503097350f0d84645fb620",
     "semantic_hash": ""
   },
   "app/parametres.js": {
@@ -306,9 +306,9 @@
     "semantic_hash": ""
   },
   "app/verification.js": {
-    "mtime": 1791808960.8496087,
-    "seen": 1791809003.185256,
-    "ast_hash": "685fac7048f3341e8a621fa2a99732ca",
+    "mtime": 1792061935.843809,
+    "seen": 1792062035.258676,
+    "ast_hash": "46cc3aa50eba079590d711e958210f63",
     "semantic_hash": ""
   },
   "components/FicheContrat.js": {
@@ -3261,6 +3261,18 @@
     "mtime": 1792057382.5868578,
     "seen": 1792057574.693732,
     "ast_hash": "b53d4914bb13de2727ac57cfef7ec4b1",
+    "semantic_hash": ""
+  },
+  "lib/coherencePoint.js": {
+    "mtime": 1792061914.5640435,
+    "seen": 1792062035.25874,
+    "ast_hash": "99c27054a441e703d803e1e702c380ff",
+    "semantic_hash": ""
+  },
+  "lib/coherencePoint.test.mjs": {
+    "mtime": 1792061914.564148,
+    "seen": 1792062035.258741,
+    "ast_hash": "6dd10766bb264b1e15815912b93f832f",
     "semantic_hash": ""
   }
 }
