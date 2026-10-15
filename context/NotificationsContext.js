@@ -47,6 +47,8 @@ const ROUTE_MAP = {
   supervision_reponse: 'supervision',
   supervision_contestation: 'supervision',
   supervision_decision: 'supervision',
+  supervision_materiel: 'supervision',
+  supervision_achat: 'supervision',
 }
 
 // Rôles qui suivent les demandes d'explication restées sans réponse.

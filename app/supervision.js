@@ -5,8 +5,8 @@
  *                   fait » avec photo), les visites (lire, répondre, contester).
  *   Manager, directeur, RH :
  *     Classement .. les restaurants par note (60 % visites + 40 % données),
- *                   ceux à visiter, contestations en attente ; un restaurant
- *                   ouvre sa fiche.
+ *                   ceux à visiter, contestations en attente, matériel en
+ *                   panne et achats à examiner ; un restaurant ouvre sa fiche.
  *     Travailleurs  la note « terrain » de chaque travailleur vu (90 jours).
  *     Grille ...... les points notés et leur poids (manager, directeur).
  *
@@ -92,6 +92,7 @@ function Classement({ onOuvrir, styles, colors }) {
   const liste = useMemo(() => (s?.liste || []).slice().sort((a, b) => (b.note ?? -1) - (a.note ?? -1)), [s])
   const contestations = liste.reduce((t, r) => t + r.contestations, 0)
   const aVisiter = liste.filter(r => r.sansVisite).length
+  const achatsAExaminer = liste.reduce((t, r) => t + (r.achatsAExaminer || 0), 0)
 
   return (
     <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 40 }}
@@ -101,6 +102,7 @@ function Classement({ onOuvrir, styles, colors }) {
       {s ? (
         <>
           {contestations ? <Info icone="✋" styles={styles} couleur={TONS.orange} gras>{contestations} contestation{contestations > 1 ? 's' : ''} à trancher</Info> : null}
+          {achatsAExaminer ? <Info icone="💡" styles={styles} couleur={TONS.orange} gras>{achatsAExaminer} suggestion{achatsAExaminer > 1 ? 's' : ''} d'achat à examiner (fiche du restaurant → Matériel)</Info> : null}
           {aVisiter ? <Info icone="📍" styles={styles} couleur={TONS.orange}>{aVisiter} restaurant{aVisiter > 1 ? 's' : ''} sans visite depuis plus de 14 jours</Info> : null}
           {s.donneesErreur ? <Info icone="ℹ️" styles={styles} couleur={TONS.orange}>Notes des caissiers indisponibles : notes calculées sans elles.</Info> : null}
           <View style={{ height: 10 }} />
@@ -117,6 +119,8 @@ function Classement({ onOuvrir, styles, colors }) {
                   <Text style={styles.carteSous}>
                     {r.tachesOuvertes ? `${r.tachesOuvertes} tâche${r.tachesOuvertes > 1 ? 's' : ''} ouverte${r.tachesOuvertes > 1 ? 's' : ''}` : 'Aucune tâche ouverte'}
                     {r.contestations ? ` · ✋ ${r.contestations} contestée${r.contestations > 1 ? 's' : ''}` : ''}
+                    {r.pannesOuvertes ? ` · 🔧 ${r.pannesOuvertes} en panne` : ''}
+                    {r.achatsAExaminer ? ` · 💡 ${r.achatsAExaminer} achat${r.achatsAExaminer > 1 ? 's' : ''}` : ''}
                   </Text>
                 </View>
                 <Text style={{ fontSize: 20, color: colors.textMuted }}>›</Text>

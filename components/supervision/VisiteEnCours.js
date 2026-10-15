@@ -6,7 +6,9 @@
 //               d'explication) ; nouvelles tâches (photo si importante)
 //   3. Équipe   les travailleurs vus : étoiles, retard, absence (RH et manager
 //               seulement, pas le gérant)
-//   4. Fin      remarques et suggestions, note calculée, « Terminer »
+//   4. Matériel pannes déjà signalées (réparées ?), nouvelles pannes (photo
+//               obligatoire), suggestions d'achats (le manager décide)
+//   5. Fin      remarques et suggestions, note calculée, « Terminer »
 //
 // Tout est gardé en brouillon sur le téléphone à chaque changement (réseau
 // faible sur place) et recopié dans la base quelques secondes après : « Se
@@ -17,9 +19,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import ChampDate from '../ChampDate'
-import { ETATS_TACHE, etatTache, manquesVisite, NOTE_BASSE, noteVisite } from '../../lib/supervision'
+import { ETATS_TACHE, etatTache, joursEnPanne, manquesVisite, NOTE_BASSE, noteVisite } from '../../lib/supervision'
 import {
-  annulerVisite, chargerCriteres, chargerTaches, chargerTravailleursResto, demanderExplicationTache, ecrireBrouillon,
+  annulerVisite, chargerCriteres, chargerPannes, chargerTaches, chargerTravailleursResto, demanderExplicationTache, ecrireBrouillon,
   envoyerBrouillon, lireBrouillon, terminerVisite, textePosition,
 } from '../../lib/supervisionDb'
 import { Bouton, Champ, Feuille, Info, Libelle, Pastille, Puces, Vide } from '../ui/EcranModerne'
@@ -29,9 +31,12 @@ const ETAPES = [
   { cle: 'grille', label: '1 · Grille' },
   { cle: 'taches', label: '2 · Tâches' },
   { cle: 'equipe', label: '3 · Équipe' },
-  { cle: 'fin', label: '4 · Fin' },
+  { cle: 'materiel', label: '4 · Matériel' },
+  { cle: 'fin', label: '5 · Fin' },
 ]
-const VIDE = { notes: {}, travailleurs: {}, verifs: {}, nouvelles: [], remarques: '' }
+const VIDE = { notes: {}, travailleurs: {}, verifs: {}, nouvelles: [], remarques: '', pannes: [], achats: [], pannesVerifs: {} }
+const PANNE_VIDE = { type: 'panne', objet: '', description: '', urgente: false, photo_url: null }
+const ACHAT_VIDE = { type: 'achat', objet: '', raison: '', quantite: '1', prix_estime: '', urgente: false, photo_url: null }
 const TACHE_VIDE = { titre: '', details: '', importante: false, echeance: '', responsable_nom: '', responsable_travailleur_id: null, photo_constat_url: null }
 const isoJour = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 
@@ -50,6 +55,8 @@ export default function VisiteEnCours({ visite, restaurant, userId, userNom, onF
   const [criteres, setCriteres] = useState([])
   const [equipe, setEquipe] = useState([])
   const [ouvertes, setOuvertes] = useState([])
+  const [pannesOuvertes, setPannesOuvertes] = useState([])
+  const [formMat, setFormMat] = useState(null)     // nouvelle panne ou suggestion d'achat en saisie
   const [b, setB] = useState(VIDE)                 // brouillon
   const [etape, setEtape] = useState('grille')
   const [form, setForm] = useState(null)           // nouvelle tâche en saisie
@@ -61,10 +68,12 @@ export default function VisiteEnCours({ visite, restaurant, userId, userNom, onF
   useEffect(() => {
     (async () => {
       try {
-        const [c, e, t, brouillon] = await Promise.all([
+        const [c, e, t, brouillon, pannes] = await Promise.all([
           chargerCriteres(), chargerTravailleursResto(restaurant.id),
           chargerTaches({ restaurantId: restaurant.id, ouvertesSeulement: true }), lireBrouillon(visite),
+          chargerPannes({ restaurantId: restaurant.id }),
         ])
+        setPannesOuvertes(pannes.filter(p => p.statut === 'en_panne' && p.visite_id !== visite.id))
         setCriteres(c); setEquipe(e)
         // Les tâches de cette visite (nouvel essai après coupure) ne sont pas « à vérifier ».
         setOuvertes(t.filter(x => x.visite_id !== visite.id))
@@ -99,8 +108,8 @@ export default function VisiteEnCours({ visite, restaurant, userId, userNom, onF
 
   const confirmees = ouvertes.filter(t => b.verifs[t.id]?.resultat === 'faite')
     .map(t => ({ ...t, photo: b.verifs[t.id]?.photo }))
-  const manques = useMemo(() => manquesVisite({ criteres, notes: b.notes, nouvelles: b.nouvelles, confirmees }),
-    [criteres, b.notes, b.nouvelles, confirmees])
+  const manques = useMemo(() => manquesVisite({ criteres, notes: b.notes, nouvelles: b.nouvelles, confirmees, pannes: b.pannes, achats: b.achats }),
+    [criteres, b.notes, b.nouvelles, confirmees, b.pannes, b.achats])
   const noteDirecte = noteVisite(criteres.map(c => ({ poids: c.poids, note: b.notes[c.id]?.note })))
   const nbGraves = criteres.filter(c => b.notes[c.id]?.grave).length
   const nbNotes = criteres.filter(c => b.notes[c.id]?.note).length
@@ -114,6 +123,17 @@ export default function VisiteEnCours({ visite, restaurant, userId, userNom, onF
     setForm(null)
   }
 
+  function ajouterMateriel() {
+    const f = formMat
+    if (!f.objet.trim()) { Alert.alert('Nom manquant', f.type === 'panne' ? 'Quel matériel est en panne ?' : 'Que faut-il acheter ?'); return }
+    if (f.type === 'panne' && !f.photo_url) { Alert.alert('Photo obligatoire', 'Prenez une photo du matériel en panne.'); return }
+    if (f.type === 'achat' && !(Number(f.quantite) > 0)) { Alert.alert('Quantité', 'Indiquez combien il en faut.'); return }
+    const { type, ...ligne } = f
+    const champ = type === 'panne' ? 'pannes' : 'achats'
+    setB(p => ({ ...p, [champ]: [...p[champ], { ...ligne, cle: String(Date.now()) }] }))
+    setFormMat(null)
+  }
+
   async function terminer() {
     if (manques.length) return
     setEnvoi(true)
@@ -121,6 +141,7 @@ export default function VisiteEnCours({ visite, restaurant, userId, userNom, onF
       const note = await terminerVisite({
         visite, restaurant, criteres, notes: b.notes, travailleursResto: equipe, travailleurs: b.travailleurs,
         tachesOuvertes: ouvertes, verifs: b.verifs, nouvelles: b.nouvelles, remarques: b.remarques, userId, userNom,
+        pannesOuvertes, pannesVerifs: b.pannesVerifs, pannesNouvelles: b.pannes, achatsNouveaux: b.achats,
       })
       // Demandes d'explication cochées (après l'enregistrement, avec le constat à jour).
       const aExpliquer = ouvertes.filter(t => b.verifs[t.id]?.resultat === 'pas_faite' && b.verifs[t.id]?.explication && !t.demande_explication_id)
@@ -299,6 +320,80 @@ export default function VisiteEnCours({ visite, restaurant, userId, userNom, onF
           </>
         )}
 
+        {etape === 'materiel' && (
+          <>
+            <Libelle styles={styles}>Pannes déjà signalées ({pannesOuvertes.length})</Libelle>
+            {!pannesOuvertes.length ? <Text style={[styles.carteSous, { marginBottom: 14 }]}>Aucun matériel en panne signalé dans ce restaurant.</Text> : null}
+            {pannesOuvertes.map(p => {
+              const v = b.pannesVerifs[p.id] || {}
+              const jours = joursEnPanne(p, aujourdhui)
+              return (
+                <View key={p.id} style={styles.carte}>
+                  <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
+                    <Vignette uri={p.photo_url} taille={48} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.carteTitre}>{p.urgente ? '🚨 ' : ''}{p.objet}</Text>
+                      {p.description ? <Text style={styles.carteSous}>{p.description}</Text> : null}
+                      <Text style={[styles.carteSous, jours > 7 && { color: TONS.rouge, fontWeight: '700' }]}>
+                        En panne depuis le {dateCourte(p.created_at)}{jours ? ` (${jours} j)` : ''}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                    <Bascule actif={v.resultat === 'reparee'} label="✅ Réparé" couleur={TONS.vert} colors={colors}
+                      onPress={() => maj('pannesVerifs', p.id, { resultat: v.resultat === 'reparee' ? null : 'reparee' })} />
+                    <Bascule actif={v.resultat === 'remplacee'} label="🔁 Remplacé" couleur={TONS.vert} colors={colors}
+                      onPress={() => maj('pannesVerifs', p.id, { resultat: v.resultat === 'remplacee' ? null : 'remplacee' })} />
+                  </View>
+                  {v.resultat ? (
+                    <View style={{ marginTop: 10 }}>
+                      <Champ styles={styles} colors={colors} value={v.commentaire || ''} onChangeText={x => maj('pannesVerifs', p.id, { commentaire: x })}
+                        placeholder="Commentaire (facultatif)" />
+                    </View>
+                  ) : null}
+                </View>
+              )
+            })}
+
+            <Libelle styles={styles}>Nouveau matériel en panne ({b.pannes.length})</Libelle>
+            {b.pannes.map(p => (
+              <View key={p.cle} style={styles.carte}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+                  <Vignette uri={p.photo_url} taille={48} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.carteTitre}>{p.urgente ? '🚨 ' : ''}{p.objet}</Text>
+                    {p.description ? <Text style={styles.carteSous}>{p.description}</Text> : null}
+                  </View>
+                  <TouchableOpacity hitSlop={10} onPress={() => setB(x => ({ ...x, pannes: x.pannes.filter(y => y.cle !== p.cle) }))}>
+                    <Text style={{ fontSize: 16, color: colors.textMuted }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+            <Bouton label="🔧 Signaler un matériel en panne" onPress={() => setFormMat({ ...PANNE_VIDE })} couleur={TONS.rouge} grand styles={styles} />
+            <View style={{ height: 18 }} />
+
+            <Libelle styles={styles}>Suggestions d'achats ({b.achats.length})</Libelle>
+            {b.achats.map(a => (
+              <View key={a.cle} style={styles.carte}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+                  <Vignette uri={a.photo_url} taille={48} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.carteTitre}>{a.urgente ? '🚨 ' : ''}{a.quantite} × {a.objet}</Text>
+                    {a.raison ? <Text style={styles.carteSous}>{a.raison}</Text> : null}
+                    {a.prix_estime ? <Text style={styles.carteSous}>≈ {Number(String(a.prix_estime).replace(/\D/g, '')).toLocaleString('fr-FR')} F l'unité</Text> : null}
+                  </View>
+                  <TouchableOpacity hitSlop={10} onPress={() => setB(x => ({ ...x, achats: x.achats.filter(y => y.cle !== a.cle) }))}>
+                    <Text style={{ fontSize: 16, color: colors.textMuted }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+            <Bouton label="💡 Suggérer un achat" onPress={() => setFormMat({ ...ACHAT_VIDE })} couleur={SARCELLE} grand styles={styles} />
+            <Text style={styles.hint}>Le manager accepte ou refuse chaque suggestion ; le gérant voit sa réponse.</Text>
+          </>
+        )}
+
         {etape === 'fin' && (
           <>
             <View style={[styles.carte, { flexDirection: 'row', alignItems: 'center', gap: 14 }]}>
@@ -310,6 +405,9 @@ export default function VisiteEnCours({ visite, restaurant, userId, userNom, onF
                 <Text style={styles.carteSous}>
                   {b.nouvelles.length} nouvelle{b.nouvelles.length > 1 ? 's' : ''} tâche{b.nouvelles.length > 1 ? 's' : ''} · {Object.values(b.verifs).filter(v => v?.resultat).length}/{ouvertes.length} vérifiée{ouvertes.length > 1 ? 's' : ''}
                 </Text>
+                {b.pannes.length || b.achats.length ? (
+                  <Text style={styles.carteSous}>🔧 {b.pannes.length} panne{b.pannes.length > 1 ? 's' : ''} · 💡 {b.achats.length} suggestion{b.achats.length > 1 ? 's' : ''} d'achat</Text>
+                ) : null}
               </View>
             </View>
 
@@ -372,6 +470,45 @@ export default function VisiteEnCours({ visite, restaurant, userId, userNom, onF
             <ChampPhoto uri={form.photo_constat_url} onChange={u => setForm(p => ({ ...p, photo_constat_url: u }))} requis={form.importante}
               libelle="Photo de ce que vous avez vu" dossier="supervision/taches" colors={colors} />
             <Bouton label="Ajouter la tâche" onPress={ajouterTache} couleur={SARCELLE} variante="plein" grand styles={styles} />
+          </>
+        ) : null}
+      </Feuille>
+      <Feuille visible={!!formMat} titre={formMat?.type === 'panne' ? 'Matériel en panne' : "Suggestion d'achat"} sous={restaurant.nom}
+        onFermer={() => setFormMat(null)} styles={styles}>
+        {formMat ? (
+          <>
+            <Libelle styles={styles}>{formMat.type === 'panne' ? 'Quel matériel ?' : 'Quoi acheter ?'}</Libelle>
+            <Champ styles={styles} colors={colors} value={formMat.objet} onChangeText={v => setFormMat(p => ({ ...p, objet: v }))}
+              placeholder={formMat.type === 'panne' ? 'Ex. : friteuse 2, climatiseur salle' : 'Ex. : chaises terrasse, plateaux'} />
+            {formMat.type === 'panne' ? (
+              <Champ styles={styles} colors={colors} multiline value={formMat.description} onChangeText={v => setFormMat(p => ({ ...p, description: v }))}
+                placeholder="Ce qui ne marche pas (facultatif)" />
+            ) : (
+              <>
+                <Champ styles={styles} colors={colors} multiline value={formMat.raison} onChangeText={v => setFormMat(p => ({ ...p, raison: v }))}
+                  placeholder="Pourquoi c'est utile (facultatif)" />
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Libelle styles={styles}>Quantité</Libelle>
+                    <Champ styles={styles} colors={colors} value={String(formMat.quantite)} keyboardType="number-pad"
+                      onChangeText={v => setFormMat(p => ({ ...p, quantite: v.replace(/\D/g, '') }))} placeholder="1" />
+                  </View>
+                  <View style={{ flex: 1.4 }}>
+                    <Libelle styles={styles}>Prix unitaire (F)</Libelle>
+                    <Champ styles={styles} colors={colors} value={String(formMat.prix_estime)} keyboardType="number-pad"
+                      onChangeText={v => setFormMat(p => ({ ...p, prix_estime: v.replace(/\D/g, '') }))} placeholder="Si connu" />
+                  </View>
+                </View>
+              </>
+            )}
+            <View style={{ flexDirection: 'row', marginBottom: 14 }}>
+              <Bascule actif={formMat.urgente} label="🚨 Urgent" couleur={TONS.rouge} colors={colors}
+                onPress={() => setFormMat(p => ({ ...p, urgente: !p.urgente }))} />
+            </View>
+            <ChampPhoto uri={formMat.photo_url} onChange={u => setFormMat(p => ({ ...p, photo_url: u }))} requis={formMat.type === 'panne'}
+              libelle={formMat.type === 'panne' ? 'Photo du matériel' : 'Photo (facultatif)'} dossier="supervision/materiel" colors={colors} />
+            <Bouton label={formMat.type === 'panne' ? 'Ajouter la panne' : 'Ajouter la suggestion'} onPress={ajouterMateriel}
+              couleur={formMat.type === 'panne' ? TONS.rouge : SARCELLE} variante="plein" grand styles={styles} />
           </>
         ) : null}
       </Feuille>

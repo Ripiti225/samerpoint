@@ -14,6 +14,8 @@
 --   5. supervision_taches       tâches à cocher : le gérant signale « faite » avec
 --                               une photo, le superviseur confirme à sa visite
 --   6. Tuile « Supervision » dans les menus du gérant et du RH.
+--   7. supervision_pannes       matériel en panne (jusqu'à réparé / remplacé)
+--   8. supervision_achats       suggestions d'achats (acceptées / refusées par le manager)
 --
 --  Calculs : lib/supervision.js ; lectures/écritures : lib/supervisionDb.js.
 -- =====================================================================
@@ -140,11 +142,54 @@ CREATE TABLE IF NOT EXISTS supervision_taches (
 );
 CREATE INDEX IF NOT EXISTS idx_sup_taches_resto ON supervision_taches (restaurant_id, statut, created_at DESC);
 
+-- ── 7. Matériel en panne ────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS supervision_pannes (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  restaurant_id       uuid NOT NULL REFERENCES restaurants(id),
+  visite_id           uuid REFERENCES supervision_visites(id) ON DELETE SET NULL,
+  objet               text NOT NULL,                  -- « Friteuse 2 », « Clim salle »
+  description         text,
+  urgente             boolean NOT NULL DEFAULT false,
+  photo_url           text,
+  statut              text NOT NULL DEFAULT 'en_panne' CHECK (statut IN ('en_panne','reparee','remplacee','annulee')),
+  signale_par_nom     text,
+  repare_at           timestamptz,
+  repare_par_nom      text,
+  repare_commentaire  text,
+  repare_photo_url    text,
+  created_at          timestamptz NOT NULL DEFAULT now(),
+  updated_at          timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_sup_pannes_resto ON supervision_pannes (restaurant_id, statut, created_at DESC);
+
+-- ── 8. Suggestions d'achats ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS supervision_achats (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  restaurant_id       uuid NOT NULL REFERENCES restaurants(id),
+  visite_id           uuid REFERENCES supervision_visites(id) ON DELETE SET NULL,
+  objet               text NOT NULL,                  -- « 2 chaises terrasse »
+  raison              text,
+  quantite            int NOT NULL DEFAULT 1 CHECK (quantite > 0),
+  prix_estime         int,                            -- FCFA, si connu
+  urgente             boolean NOT NULL DEFAULT false,
+  photo_url           text,
+  statut              text NOT NULL DEFAULT 'proposee' CHECK (statut IN ('proposee','acceptee','refusee','achetee')),
+  propose_par_nom     text,
+  decision_par_nom    text,
+  decision_at         timestamptz,
+  decision_motif      text,
+  achete_at           timestamptz,
+  achete_par_nom      text,
+  created_at          timestamptz NOT NULL DEFAULT now(),
+  updated_at          timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_sup_achats_resto ON supervision_achats (restaurant_id, statut, created_at DESC);
+
 -- RLS aligné sur le reste de l'app (permissif — cf. note sécurité)
 DO $$
 DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['supervision_criteres','supervision_visites','supervision_notes','supervision_travailleurs','supervision_taches'] LOOP
+  FOREACH t IN ARRAY ARRAY['supervision_criteres','supervision_visites','supervision_notes','supervision_travailleurs','supervision_taches','supervision_pannes','supervision_achats'] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('DROP POLICY IF EXISTS allow_all ON %I', t);
     EXECUTE format('CREATE POLICY allow_all ON %I FOR ALL TO public USING (true) WITH CHECK (true)', t);
@@ -163,4 +208,6 @@ UPDATE roles_acces
 --   (SELECT count(*) FROM supervision_criteres) >= 4 AS grille,
 --   to_regclass('public.supervision_visites') IS NOT NULL AS visites,
 --   to_regclass('public.supervision_taches') IS NOT NULL AS taches,
---   (SELECT tuiles ? 'supervision' FROM roles_acces WHERE role='gerant') AS tuile_gerant;
+--   (SELECT tuiles ? 'supervision' FROM roles_acces WHERE role='gerant') AS tuile_gerant,
+--   to_regclass('public.supervision_pannes') IS NOT NULL AS pannes,
+--   to_regclass('public.supervision_achats') IS NOT NULL AS achats;

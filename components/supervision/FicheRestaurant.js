@@ -8,12 +8,19 @@
 //   Superviseur, manager, directeur : demande d'explication sur une tâche en
 //                 retard ou constatée non faite.
 //   Manager, directeur : annuler une tâche, trancher une contestation.
+//
+// Onglet Matériel : pannes (le gérant dit « réparé » ou « remplacé » avec une
+// photo ; superviseur et manager aussi) et suggestions d'achats du superviseur
+// (le manager accepte ou refuse, puis l'achat est marqué fait).
 // ──────────────────────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native'
-import { ETATS_TACHE, etatTache, explicationNote, fmtNote, noteRetenueVisite, tacheOuverte } from '../../lib/supervision'
 import {
-  annulerTache, chargerSynthese, demanderExplicationTache, signalerTacheFaite,
+  achatOuvert, ETATS_ACHAT, ETATS_PANNE, ETATS_TACHE, etatTache, explicationNote, fmtNote, joursEnPanne, noteRetenueVisite, panneOuverte,
+  tacheOuverte, totalAchatsAcceptes,
+} from '../../lib/supervision'
+import {
+  annulerTache, chargerSynthese, deciderAchat, demanderExplicationTache, marquerAchatAchete, reglerPanne, signalerTacheFaite,
 } from '../../lib/supervisionDb'
 import { Bouton, Champ, Compteurs, Feuille, Info, Pastille, Vide } from '../ui/EcranModerne'
 import DetailVisite from './DetailVisite'
@@ -33,6 +40,9 @@ export default function FicheRestaurant({ restaurant, role, userId, userNom, onC
   const [photo, setPhoto] = useState(null)
   const [commentaire, setCommentaire] = useState('')
   const [envoi, setEnvoi] = useState(false)
+  const [panneReglee, setPanneReglee] = useState(null)      // { panne, statut, photo, commentaire }
+  const [refusAchat, setRefusAchat] = useState(null)        // { achat, motif }
+  const [voirTout, setVoirTout] = useState(false)
 
   const charger = useCallback(async () => {
     try {
@@ -46,6 +56,8 @@ export default function FicheRestaurant({ restaurant, role, userId, userNom, onC
   const aujourdhui = synthese?.aujourdhui
   const taches = useMemo(() => (synthese?.taches || []).filter(t => t.restaurant_id === restaurant.id), [synthese, restaurant.id])
   const visites = useMemo(() => (synthese?.visites || []).filter(v => v.restaurant_id === restaurant.id), [synthese, restaurant.id])
+  const pannes = useMemo(() => (synthese?.pannes || []).filter(p => p.restaurant_id === restaurant.id), [synthese, restaurant.id])
+  const achats = useMemo(() => (synthese?.achats || []).filter(a => a.restaurant_id === restaurant.id), [synthese, restaurant.id])
   const tachesAffichees = useMemo(() => {
     const ordre = { en_retard: 0, a_confirmer: 1, a_faire: 2, faite: 3, annulee: 4 }
     return taches
@@ -74,6 +86,26 @@ export default function FicheRestaurant({ restaurant, role, userId, userNom, onC
     } catch { Alert.alert('Erreur', "La demande n'a pas pu être créée. Réessayez.") } finally { setEnvoi(false) }
   }
 
+  async function envoyerPanne() {
+    const { panne, statut, photo, commentaire: com } = panneReglee
+    if (role === 'gerant' && statut !== 'annulee' && !photo) { Alert.alert('Photo obligatoire', 'Prenez une photo du matériel réparé ou remplacé.'); return }
+    setEnvoi(true)
+    try { await reglerPanne({ panne, statut, commentaire: com, photoUrl: photo, nom: userNom, userId }); setPanneReglee(null); await charger() }
+    catch { Alert.alert('Erreur', "Le matériel n'a pas pu être mis à jour. Réessayez.") } finally { setEnvoi(false) }
+  }
+
+  async function decider(achat, decision, motif) {
+    setEnvoi(true)
+    try { await deciderAchat({ achat, decision, motif, nom: userNom, userId }); setRefusAchat(null); await charger() }
+    catch { Alert.alert('Erreur', "La décision n'a pas pu être enregistrée. Réessayez.") } finally { setEnvoi(false) }
+  }
+
+  async function achete(achat) {
+    setEnvoi(true)
+    try { await marquerAchatAchete({ achat, nom: userNom, userId }); await charger() }
+    catch { Alert.alert('Erreur', "L'achat n'a pas pu être marqué. Réessayez.") } finally { setEnvoi(false) }
+  }
+
   async function annuler(t) {
     setEnvoi(true)
     try { await annulerTache({ tache: t, nom: userNom, userId }); await charger() }
@@ -91,6 +123,10 @@ export default function FicheRestaurant({ restaurant, role, userId, userNom, onC
   }
 
   const nbOuvertes = taches.filter(tacheOuverte).length
+  const nbMateriel = pannes.filter(panneOuverte).length + achats.filter(achatOuvert).length
+  const pannesAffichees = voirTout ? pannes : pannes.filter(panneOuverte)
+  const achatsAffiches = voirTout ? achats : achats.filter(achatOuvert)
+  const totalAccepte = totalAchatsAcceptes(achats)
   return (
     <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 40 }}
       refreshControl={<RefreshControl refreshing={rafraichir} onRefresh={onRafraichir} />}>
@@ -122,7 +158,9 @@ export default function FicheRestaurant({ restaurant, role, userId, userNom, onC
           ) : null}
 
           <View style={styles.ongletsWrap}>
-            {[['taches', `Tâches${nbOuvertes ? ` (${nbOuvertes})` : ''}`], ['visites', `Visites (${visites.length})`]].map(([cle, label]) => (
+            {[['taches', `Tâches${nbOuvertes ? ` (${nbOuvertes})` : ''}`],
+              ['materiel', `Matériel${nbMateriel ? ` (${nbMateriel})` : ''}`],
+              ['visites', `Visites (${visites.length})`]].map(([cle, label]) => (
               <TouchableOpacity key={cle} onPress={() => setOnglet(cle)} style={[styles.onglet, onglet === cle && styles.ongletActive]}>
                 <Text style={[styles.ongletTxt, onglet === cle && styles.ongletTxtActive]}>{label}</Text>
               </TouchableOpacity>
@@ -180,6 +218,85 @@ export default function FicheRestaurant({ restaurant, role, userId, userNom, onC
                 )
               })}
             </>
+          ) : onglet === 'materiel' ? (
+            <>
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 6 }}>
+                <TouchableOpacity onPress={() => setVoirTout(v => !v)} hitSlop={8}>
+                  <Text style={{ fontSize: 13, fontWeight: '700', color: SARCELLE }}>{voirTout ? 'En cours seulement' : 'Voir aussi l\'historique'}</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.resultat}>🔧 Matériel en panne ({pannes.filter(panneOuverte).length})</Text>
+              {!pannesAffichees.length ? <Text style={[styles.carteSous, { marginBottom: 14 }]}>Aucun matériel en panne.</Text> : null}
+              {pannesAffichees.map(p => {
+                const jours = joursEnPanne(p, aujourdhui)
+                return (
+                  <View key={p.id} style={[styles.carte, p.urgente && panneOuverte(p) && styles.carteAlerte]}>
+                    <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
+                      <Vignette uri={p.photo_url} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.carteTitre}>{p.urgente ? '🚨 ' : ''}{p.objet}</Text>
+                        {p.description ? <Text style={styles.carteSous}>{p.description}</Text> : null}
+                        <Text style={[styles.carteSous, jours > 7 && { color: TONS.rouge, fontWeight: '700' }]}>
+                          Signalé le {dateCourte(p.created_at)}{p.signale_par_nom ? ` par ${p.signale_par_nom}` : ''}{jours ? ` · ${jours} j en panne` : ''}
+                        </Text>
+                        {p.repare_at ? (
+                          <Text style={[styles.carteSous, { color: TONS.vert }]}>
+                            {ETATS_PANNE[p.statut]?.label} le {dateCourte(p.repare_at)}{p.repare_par_nom ? ` par ${p.repare_par_nom}` : ''}{p.repare_commentaire ? ` : ${p.repare_commentaire}` : ''}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <Vignette uri={p.repare_photo_url} libelle="Après" />
+                    </View>
+                    <Pastille cfg={ETATS_PANNE[p.statut]} styles={styles} />
+                    {panneOuverte(p) && role !== 'rh' ? (
+                      <View style={styles.actions}>
+                        <Bouton label="✅ Réparé" onPress={() => setPanneReglee({ panne: p, statut: 'reparee', photo: null, commentaire: '' })} couleur={TONS.vert} variante="plein" flex styles={styles} />
+                        <Bouton label="🔁 Remplacé" onPress={() => setPanneReglee({ panne: p, statut: 'remplacee', photo: null, commentaire: '' })} couleur={TONS.vert} flex styles={styles} />
+                        {ADMIN.includes(role)
+                          ? <Bouton label="Retirer" onPress={() => setPanneReglee({ panne: p, statut: 'annulee', photo: null, commentaire: '' })} couleur={TONS.gris} variante="contour" styles={styles} />
+                          : null}
+                      </View>
+                    ) : null}
+                  </View>
+                )
+              })}
+
+              <View style={{ height: 10 }} />
+              <Text style={styles.resultat}>💡 Suggestions d'achats ({achats.filter(achatOuvert).length})</Text>
+              {totalAccepte ? <Info icone="🧾" styles={styles}>Acceptés, à acheter : ≈ {totalAccepte.toLocaleString('fr-FR')} F (prix connus)</Info> : null}
+              {!achatsAffiches.length ? <Text style={[styles.carteSous, { marginBottom: 14 }]}>Aucune suggestion en cours.</Text> : null}
+              {achatsAffiches.map(a => (
+                <View key={a.id} style={[styles.carte, a.statut === 'proposee' && a.urgente && styles.carteAlerte]}>
+                  <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
+                    <Vignette uri={a.photo_url} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.carteTitre}>{a.urgente ? '🚨 ' : ''}{a.quantite} × {a.objet}</Text>
+                      {a.raison ? <Text style={styles.carteSous}>{a.raison}</Text> : null}
+                      {a.prix_estime ? <Text style={styles.carteSous}>≈ {Number(a.prix_estime).toLocaleString('fr-FR')} F l'unité · {(Number(a.prix_estime) * a.quantite).toLocaleString('fr-FR')} F au total</Text> : null}
+                      <Text style={styles.carteSous}>Proposé le {dateCourte(a.created_at)}{a.propose_par_nom ? ` par ${a.propose_par_nom}` : ''}</Text>
+                      {a.decision_at ? (
+                        <Text style={[styles.carteSous, { color: a.statut === 'refusee' ? TONS.gris : TONS.bleu }]}>
+                          {a.statut === 'refusee' ? 'Refusé' : 'Accepté'} par {a.decision_par_nom || 'le manager'} le {dateCourte(a.decision_at)}{a.decision_motif ? ` : ${a.decision_motif}` : ''}
+                        </Text>
+                      ) : null}
+                      {a.achete_at ? <Text style={[styles.carteSous, { color: TONS.vert }]}>Acheté le {dateCourte(a.achete_at)}{a.achete_par_nom ? ` (${a.achete_par_nom})` : ''}</Text> : null}
+                    </View>
+                  </View>
+                  <Pastille cfg={ETATS_ACHAT[a.statut]} styles={styles} />
+                  {ADMIN.includes(role) && a.statut === 'proposee' ? (
+                    <View style={styles.actions}>
+                      <Bouton label="👍 Accepter" onPress={() => decider(a, 'acceptee')} couleur={TONS.bleu} variante="plein" flex disabled={envoi} styles={styles} />
+                      <Bouton label="Refuser" onPress={() => setRefusAchat({ achat: a, motif: '' })} couleur={TONS.gris} flex disabled={envoi} styles={styles} />
+                    </View>
+                  ) : null}
+                  {(ADMIN.includes(role) || role === 'gerant') && a.statut === 'acceptee' ? (
+                    <View style={styles.actions}>
+                      <Bouton label="✅ C'est acheté" onPress={() => achete(a)} couleur={TONS.vert} variante="plein" flex disabled={envoi} styles={styles} />
+                    </View>
+                  ) : null}
+                </View>
+              ))}
+            </>
           ) : (
             <>
               {!visites.length ? <Vide icone="🧭" texte="Pas encore de visite" sous="Les visites des 90 derniers jours s'affichent ici." styles={styles} /> : null}
@@ -224,6 +341,32 @@ export default function FicheRestaurant({ restaurant, role, userId, userNom, onC
         <Champ styles={styles} colors={colors} multiline value={commentaire} onChangeText={setCommentaire} placeholder="Commentaire (facultatif)" />
         <Bouton label={envoi ? 'Envoi…' : 'Signaler comme faite'} onPress={envoyerFaite} couleur={SARCELLE} variante="plein" grand disabled={envoi || !photo} styles={styles} />
         <Text style={styles.hint}>Le superviseur confirmera à sa prochaine visite.</Text>
+      </Feuille>
+      <Feuille visible={!!panneReglee} sous={panneReglee?.panne?.objet} onFermer={() => setPanneReglee(null)} styles={styles}
+        titre={panneReglee?.statut === 'annulee' ? 'Retirer de la liste' : panneReglee?.statut === 'remplacee' ? 'Matériel remplacé' : 'Matériel réparé'}>
+        {panneReglee ? (
+          <>
+            {panneReglee.statut !== 'annulee' ? (
+              <ChampPhoto uri={panneReglee.photo} onChange={u => setPanneReglee(p => ({ ...p, photo: u }))} requis={role === 'gerant'}
+                libelle="Photo du matériel qui marche" dossier="supervision/materiel" colors={colors} />
+            ) : null}
+            <Champ styles={styles} colors={colors} multiline value={panneReglee.commentaire} onChangeText={v => setPanneReglee(p => ({ ...p, commentaire: v }))}
+              placeholder={panneReglee.statut === 'annulee' ? 'Pourquoi le retirer ? (facultatif)' : 'Qui a réparé, combien ça a coûté… (facultatif)'} />
+            <Bouton label={envoi ? 'Envoi…' : 'Enregistrer'} onPress={envoyerPanne} couleur={panneReglee.statut === 'annulee' ? TONS.gris : TONS.vert}
+              variante="plein" grand disabled={envoi || (role === 'gerant' && panneReglee.statut !== 'annulee' && !panneReglee.photo)} styles={styles} />
+          </>
+        ) : null}
+      </Feuille>
+
+      <Feuille visible={!!refusAchat} titre="Refuser l'achat" sous={refusAchat?.achat?.objet} onFermer={() => setRefusAchat(null)} styles={styles}>
+        {refusAchat ? (
+          <>
+            <Champ styles={styles} colors={colors} multiline value={refusAchat.motif} onChangeText={v => setRefusAchat(p => ({ ...p, motif: v }))}
+              placeholder="Pourquoi ? (le gérant verra ce motif)" />
+            <Bouton label={envoi ? 'Envoi…' : 'Refuser'} onPress={() => decider(refusAchat.achat, 'refusee', refusAchat.motif)} couleur={TONS.gris}
+              variante="plein" grand disabled={envoi} styles={styles} />
+          </>
+        ) : null}
       </Feuille>
     </ScrollView>
   )
