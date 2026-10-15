@@ -200,7 +200,7 @@ export default function EquipeScreen() {
     setAArchiver(null)
     Alert.alert(
       '⚠️ Suppression définitive',
-      `Supprimer définitivement ${trav.nom} ? Toutes ses présences, ses documents et ses contrats seront effacés. Cette action est irréversible.`,
+      `Supprimer définitivement ${trav.nom} ? Sa fiche, ses documents et ses contrats seront effacés. Ses présences et salaires passés restent dans les points. Cette action est irréversible.`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
