@@ -6,9 +6,9 @@
  * vérificateur compte physiquement et saisit « Stock compté ». L'« Écart » se
  * calcule automatiquement (compté − réel).
  *
- * Si ≥ 30 % des produits comptés présentent un écart, une « Demande d'explication »
- * est créée automatiquement dans le module Demandes (visible par le RH) et une
- * notification est envoyée au RH.
+ * Si ≥ 30 % des produits comptés présentent un écart, une PROPOSITION de demande
+ * d'explication part à la direction (manager, RH, directeur) : c'est elle qui
+ * décide de l'envoyer ou non, et à qui. Rien n'arrive au gérant avant.
  *
  * Le comptage est enregistré dans la table verifications_stock (best-effort) —
  * voir supabase_verifications_stock.sql.
@@ -35,15 +35,15 @@ import { useTheme } from '../context/ThemeContext'
 import { CATEGORIES_INVENTAIRE } from '../lib/constants'
 import { journaliser } from '../lib/journal'
 import { creerNotification } from '../lib/notificationsInterne'
-import { envoyerNotifExplicationNouvelle } from '../lib/notifications'
 import {
   caissiersResponsables, enregistrerDeductions, prixProduit, proposerRepartition,
 } from '../lib/deductionsVerification'
 import { supabase } from '../lib/supabase'
 import { appliquerComptage } from '../lib/verificationStock'
 
-// ≥ 30 % des produits comptés en écart → une demande d'explication PAR personne
-// concernée : le gérant, le caissier en poste et celui du shift précédent.
+// ≥ 30 % des produits comptés en écart → proposition de demande d'explication à
+// la direction, avec les personnes concernées (gérant, caissier en poste, caissier
+// du shift précédent). La direction choisit à qui l'envoyer.
 const SEUIL_ECART = 0.3
 
 // Ordre des produits selon le catalogue (IDs stables).
@@ -317,16 +317,17 @@ export default function VerificateurScreen() {
             ? '\n\n📦 Le stock compté devient le stock initial de l’inventaire en cours.'
             : '\n\n📦 Le stock compté servira de stock initial au prochain inventaire.'
 
-    // Seuil atteint → demande d'explication + notification RH
+    // Seuil atteint → proposition de demande d'explication à la direction
     if (ratio >= SEUIL_ECART) {
-      const creees = await creerDemandeRH(avecEcart, lignes.length, pct, date)
+      const proposes = await proposerDemandeExplication(avecEcart, lignes.length, pct, date)
       setSaving(false)
       Alert.alert(
         '⚠️ Écarts importants',
         `${avecEcart.length}/${lignes.length} produits comptés présentent un écart (${pct}%).\n\n` +
-        (creees > 0
-          ? `📨 ${creees} demande(s) d'explication créée(s) — gérant, caissier en poste et caissier du shift précédent. Le RH a été notifié.`
-          : "⚠️ Aucune demande d'explication n'a pu être créée. Prévenez le RH ou le manager.") +
+        (proposes
+          ? `📨 Demande d'explication proposée à la direction (manager, RH, directeur), qui décidera de l'envoyer et à qui.`
+            + (proposes.length ? ` Personnes proposées : ${proposes.join(', ')}.` : '')
+          : "⚠️ La proposition de demande d'explication n'a pas pu être enregistrée. Prévenez le manager.") +
         msgReport + msgDeduc
       )
     } else {
@@ -340,17 +341,16 @@ export default function VerificateurScreen() {
     setExplications({})
   }
 
-  // Demande d'explication automatique (seuil d'écarts atteint).
-  // Table demandes_explication — celle du workflow accepter → envoyer → relancer,
-  // pas l'ancienne table `demandes` (congés/absences), où elle passait inaperçue.
-  // @returns true si la demande a bien été créée.
   /**
-   * Une demande d'explication PAR personne concernée : le gérant du
-   * restaurant, le caissier en poste à l'heure du comptage, et celui du shift
-   * précédent. Un écart de 30 % en génère donc trois.
-   * @returns {number} nombre de demandes réellement créées
+   * Proposition de demande d'explication (seuil d'écarts atteint), table
+   * demandes_explication en « en_attente_acceptation » : une ligne par personne
+   * concernée — gérant, caissier en poste, caissier du shift précédent —
+   * insérées d'un seul coup (même created_at) pour que la direction les voie
+   * comme UNE proposition (lib/demandes.js › regrouperPropositions). Elle coche
+   * qui doit la recevoir, en ajoute, ou n'envoie rien.
+   * @returns {string[]|null} noms proposés ([] = aucune personne identifiée), null si échec
    */
-  async function creerDemandeRH(avecEcart, nbComptes, pct, date) {
+  async function proposerDemandeExplication(avecEcart, nbComptes, pct, date) {
     // Destinataires : les caissiers identifiés + le gérant du restaurant.
     const destinataires = responsables.map(r => ({
       nom: r.caissier_nom,
@@ -367,20 +367,24 @@ export default function VerificateurScreen() {
     if (destinataires.length === 0 && refInfo?.caissierNom) {
       destinataires.push({ nom: refInfo.caissierNom, role: 'caissier' })
     }
-    if (destinataires.length === 0) return 0
+    // Personne n'est identifié : la proposition part quand même, la direction
+    // désignera elle-même le travailleur.
+    if (destinataires.length === 0) destinataires.push({ nom: null, role: 'à désigner' })
 
     const liste = avecEcart
       .map(l => `• ${l.produit_nom} : réel ${l.stock_reel}, compté ${l.stock_compte} (écart ${l.ecart > 0 ? '+' : ''}${l.ecart})`)
       .join('\n')
-    let creees = 0
+    const lignesDemande = []
     for (const dest of destinataires) {
       // Le destinataire est un utilisateur : on le relie au travailleur
       // homonyme s'il existe, pour que la demande arrive sur sa fiche.
       let travailleurId = null, travailleurPoste = null
-      const { data: trav } = await supabase
-        .from('travailleurs').select('id, poste')
-        .eq('restaurant_id', resto.id).ilike('nom', dest.nom).limit(1)
-      if (trav && trav.length) { travailleurId = trav[0].id; travailleurPoste = trav[0].poste || null }
+      if (dest.nom) {
+        const { data: trav } = await supabase
+          .from('travailleurs').select('id, poste')
+          .eq('restaurant_id', resto.id).ilike('nom', dest.nom).limit(1)
+        if (trav && trav.length) { travailleurId = trav[0].id; travailleurPoste = trav[0].poste || null }
+      }
 
       const description =
         `Comptage du vérificateur (${userNom || 'Vérificateur'}) le ${date} : ` +
@@ -388,37 +392,38 @@ export default function VerificateurScreen() {
         `Vous êtes concerné en tant que ${dest.role}.\n\n` +
         `Produits concernés :\n${liste}\n\nMerci de justifier ces écarts.`
 
-      const { error } = await supabase.from('demandes_explication').insert({
+      lignesDemande.push({
         restaurant_id: resto.id,
         travailleur_id: travailleurId,
         travailleur_nom: dest.nom,
         travailleur_poste: travailleurPoste,
         motif: `Écarts de stock au comptage (${pct}%) — ${dest.role}`,
         description,
-        // Créateur non-admin → passe par l'acceptation d'un admin, comme un gérant.
+        // En attente de la décision de la direction. cree_par_role fixé à
+        // 'verificateur' : c'est lui qui la range dans « Reçues » et la cache au gérant.
         statut: 'en_attente_acceptation',
         numero: 1,
         cree_par_id: userId || null,
         cree_par_nom: userNom || roleActif || 'Vérificateur',
-        cree_par_role: roleActif || 'verificateur',
+        cree_par_role: 'verificateur',
       })
-      if (error) continue
-      creees += 1
-      envoyerNotifExplicationNouvelle(dest.nom, resto.id).catch(() => {})
     }
 
-    if (creees > 0) {
-      creerNotification({
-        type: 'explication_nouvelle',
-        titre: "Demandes d'explication",
-        message: `📨 ${creees} demande(s) — ${resto.nom} · écarts de stock ${pct}% · ${destinataires.map(d => d.nom).join(', ')} · à accepter`,
-        restaurant_id: resto.id,
-        cible_role: ['rh', 'directeur', 'manager'],
-        created_by: userId || null,
-        screen: 'demandes-explication-admin',
-      }).catch(() => {})
-    }
-    return creees
+    // Un seul INSERT : toutes les lignes partagent le même created_at.
+    const { error } = await supabase.from('demandes_explication').insert(lignesDemande)
+    if (error) return null
+
+    const noms = destinataires.map(d => d.nom).filter(Boolean)
+    creerNotification({
+      type: 'explication_nouvelle',
+      titre: "Demande d'explication à décider",
+      message: `📨 ${resto.nom} · écarts de stock ${pct}% · proposés : ${noms.join(', ') || 'personne identifiée'} · envoyer ou non ?`,
+      restaurant_id: resto.id,
+      cible_role: ['rh', 'directeur', 'manager'],
+      created_by: userId || null,
+      screen: 'demandes-explication-admin',
+    }).catch(() => {})
+    return noms
   }
 
   return (

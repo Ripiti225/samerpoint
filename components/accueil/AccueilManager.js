@@ -128,7 +128,9 @@ function useEtatDuJour(role, userId, restaurantId) {
           supabase.from('demandes').select('id', { count: 'exact', head: true })
             .eq('restaurant_id', restaurantId).eq('statut', 'en_attente'),
           supabase.from('demandes_explication').select('id', { count: 'exact', head: true })
-            .eq('restaurant_id', restaurantId).in('statut', ['en_attente_acceptation', 'acceptee', 'envoyee']),
+            .eq('restaurant_id', restaurantId).in('statut', ['en_attente_acceptation', 'acceptee', 'envoyee'])
+            // Proposition du vérificateur pas encore décidée : le gérant ne la voit pas (visiblePourGerant).
+            .or('cree_par_role.is.null,cree_par_role.neq.verificateur,accepte_at.not.is.null'),
           nbAvisResto(hier), nbAvisResto(avantHier), nbAvisResto(semainePrec),
           chargerContactsPeriode({ debut: isoLocal(semainePrec), fin: isoLocal(hier), restoId: restaurantId })
             .then(c => totalParJour(c.lignes, 'contacts')).catch(() => null),

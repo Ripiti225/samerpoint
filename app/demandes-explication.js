@@ -7,7 +7,7 @@ import { CarteExplication } from '../components/demandes/Cartes'
 import { Bouton, Champ, Compteurs, EnTete, Feuille, Libelle, Puces, Recherche, Vide, useDemandesStyles } from '../components/ui/EcranModerne'
 import { useApp } from '../context/AppContext'
 import { uploadFichier } from '../lib/api'
-import { COULEURS_ETAPES, ETAPES_EXPLICATION, VIOLET, compterExplications, filtrerExplications } from '../lib/demandes'
+import { COULEURS_ETAPES, ETAPES_EXPLICATION, VIOLET, compterExplications, filtrerExplications, visiblePourGerant } from '../lib/demandes'
 import { journaliser } from '../lib/journal'
 import { creerNotification } from '../lib/notificationsInterne'
 import { envoyerNotifExplicationNouvelle } from '../lib/notifications'
@@ -49,7 +49,9 @@ export default function DemandesExplicationScreen() {
       supabase.from('demandes_explication').select('*').eq('restaurant_id', restaurantId).order('created_at', { ascending: false }),
     ])
     setTravailleurs(travData || [])
-    setDemandes(demData || [])
+    // Proposition du vérificateur : invisible tant que la direction n'a pas
+    // décidé de l'envoyer (et seulement aux personnes qu'elle a choisies).
+    setDemandes((demData || []).filter(visiblePourGerant))
     setLoading(false)
   }
 
