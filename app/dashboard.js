@@ -19,6 +19,8 @@ import { getDepensesPeriode, getFournisseursPeriodePaye, getPaiesGerantPeriode, 
 import { FOURNISSEURS_LABOR, FOURNISSEURS_NON_FOOD } from '../lib/constants'
 import { chargerChargesMois } from '../lib/chargesMois'
 import { depensesSalairesShift } from '../lib/depensesShift'
+import { SEUIL_TAUX_SALARIAL, tauxSalarial } from '../lib/tauxSalarial'
+import TauxSalarial from '../components/TauxSalarial'
 import { supabase } from '../lib/supabase'
 
 const { width } = Dimensions.get('window')
@@ -56,6 +58,8 @@ export default function DashboardScreen() {
 
   const isGerant = roleActif === 'gerant'
   const isManager = roleActif === 'manager'
+  // Taux salarial : manager et direction seulement, jamais le gérant.
+  const voitSalaires = isManager || roleActif === 'directeur'
 
   const [periodeKey, setPeriodeKey] = useState('today')
   const [points, setPoints] = useState([])
@@ -349,6 +353,14 @@ export default function DashboardScreen() {
   const primeCostPct = foodCostPct + laborCostPct
   const chargesFixesPct = caPeriode > 0 ? (chargesFixesMt / caPeriode * 100) : 0
 
+  // Taux salarial (lib/tauxSalarial.js) : pas sur « Aujourd'hui », les paies
+  // de la journée en cours ne sont pas encore validées.
+  const rangeCouts = !isToday ? getDateRange() : null
+  const taux = voitSalaires && rangeCouts?.debut && rangeCouts?.fin ? tauxSalarial({
+    presences: presencesData, paiesGerant: paiesGerantData, charges: chargesData,
+    restaurantId, debut: rangeCouts.debut, fin: rangeCouts.fin, ventes: caPeriode,
+  }) : null
+
   // ---- Pilier 7 — Comportement clients ----
   function montantLivraison() {
     if (isToday) {
@@ -380,6 +392,10 @@ export default function DashboardScreen() {
         alertes.push({ type: 'ok', icon: '🟢', titre: 'Coût primaire maîtrisé',
           message: `Coût primaire à ${primeCostPct.toFixed(1)}%, sous le seuil de 60%` })
       }
+    }
+    if (taux && caPeriode > 0 && taux.pct > SEUIL_TAUX_SALARIAL) {
+      alertes.push({ type: 'danger', icon: '🔴', titre: 'Taux salarial élevé',
+        message: `Salaires à ${taux.pct.toFixed(1)}% des ventes — au-dessus du seuil de ${SEUIL_TAUX_SALARIAL}% (${fmtFull(taux.total)})` })
     }
     if (caPeriode > 0 && beneficePeriode < 0) {
       alertes.push({ type: 'danger', icon: '🔴', titre: 'Bénéfice négatif',
@@ -815,6 +831,7 @@ export default function DashboardScreen() {
                     <JaugeCout label="Coût matières" pct={foodCostPct} montant={foodCostMt} seuil={30} colors={colors} fmtFull={fmtFull} />
                     <JaugeCout label="Coût du salaire" pct={laborCostPct} montant={laborCostMt} seuil={30} colors={colors} fmtFull={fmtFull} />
                     <JaugeCout label="Coût primaire" pct={primeCostPct} montant={foodCostMt + laborCostMt} seuil={60} colors={colors} fmtFull={fmtFull} accent />
+                    <TauxSalarial taux={taux} colors={colors} />
                     {chargesData.length > 0 ? (
                       <JaugeCout label="Charges fixes" pct={chargesFixesPct} montant={chargesFixesMt} seuil={20} colors={colors} fmtFull={fmtFull} dernier />
                     ) : (

@@ -14,7 +14,10 @@ import { Calendar } from 'react-native-calendars'
 import BarreComparaison, { MODE_PERIODES, MODE_RESTOS } from '../components/BarreComparaison'
 import { Anneau, Barres, BarresHorizontales, CarteChaleur, CarteGraphique, CourbeAire } from '../components/graphiques'
 import LigneComparee from '../components/LigneComparee'
+import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
+import TauxSalarial from '../components/TauxSalarial'
+import { SEUIL_TAUX_SALARIAL } from '../lib/tauxSalarial'
 import { getDepensesPeriode, getFournisseursPeriodePaye, getPaiesGerantPeriode, getPresencesPeriode } from '../lib/api'
 import { ecarts as calculerEcarts, formaterEcart, POLARITE, synthese, UNITE } from '../lib/comparaisonDashboard'
 import { CANAUX, couleurResto, courtNom, detailFondRecu, fmtFCFA, tauxRenta, vueGlobale } from '../lib/dashboardGlobal'
@@ -42,6 +45,7 @@ const CHAMPS_POINTS = 'id, date, restaurant_id, vente_total, vente_machine, depe
 const PILIERS_COMPARABLES = ['apercu', 'couts', 'clients']
 
 const RAISON_CHARGES = 'charges du mois entier — non comparable sur une période partielle'
+const RAISON_SALAIRE = 'état de salaires du RH compté d’un seul côté — non comparable'
 
 const PERIODES = [
   { label: "Aujourd'hui", key: 'today' },
@@ -65,6 +69,9 @@ const PIE_COLORS = ['#EF9F27', '#3B6D11', '#185FA5', '#993C1D', '#534AB7', '#888
 export default function DashboardGlobalScreen() {
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
+  const { roleActif } = useApp()
+  // Taux salarial : manager et direction seulement.
+  const voitSalaires = roleActif === 'manager' || roleActif === 'directeur'
 
   const [periodeKey, setPeriodeKey] = useState('7days')
   // Restaurant dont le détail jour par jour du fond reçu est déplié (onglet Coûts).
@@ -82,6 +89,8 @@ export default function DashboardGlobalScreen() {
   const [depensesGlobal, setDepensesGlobal] = useState({})
   const [presencesGlobal, setPresencesGlobal] = useState({})
   const [chargesGlobal, setChargesGlobal] = useState([])
+  // Bornes des coûts chargés : le taux salarial en a besoin (mois entiers).
+  const [periodeCouts, setPeriodeCouts] = useState(null)
   const [fournisseursGlobal, setFournisseursGlobal] = useState({})
   const [paiesGerantGlobal, setPaiesGerantGlobal] = useState({})
   const [chargementCouts, setChargementCouts] = useState(false)
@@ -283,6 +292,7 @@ export default function DashboardGlobalScreen() {
     setPresencesGlobal(pres)
     setFournisseursGlobal(fourn)
     setPaiesGerantGlobal(paies)
+    setPeriodeCouts(range)
 
     const moisListe = [...new Set(Object.values(points).flat().map(p => (p.date || '').slice(0, 7)))].filter(Boolean)
     if (moisListe.length) {
@@ -300,8 +310,8 @@ export default function DashboardGlobalScreen() {
 
   const coutsA = useMemo(() => ({
     depenses: depensesGlobal, presences: presencesGlobal, fournisseurs: fournisseursGlobal,
-    paiesGerant: paiesGerantGlobal, charges: chargesGlobal,
-  }), [depensesGlobal, presencesGlobal, fournisseursGlobal, paiesGerantGlobal, chargesGlobal])
+    paiesGerant: paiesGerantGlobal, charges: chargesGlobal, periode: periodeCouts,
+  }), [depensesGlobal, presencesGlobal, fournisseursGlobal, paiesGerantGlobal, chargesGlobal, periodeCouts])
 
   // La vue du terme A — et la vue de l'écran quand la comparaison est fermée.
   // Un seul calcul, partagé : c'est ce qui garantit que A et B disent la même
@@ -397,7 +407,7 @@ export default function DashboardGlobalScreen() {
     if (mois.length) {
       charges = await chargerChargesMois(supabase, mois)
     }
-    setCoutsB({ depenses, presences, fournisseurs, paiesGerant, charges })
+    setCoutsB({ depenses, presences, fournisseurs, paiesGerant, charges, periode: rangeB })
     setCleCoutsB(cle)
     setChargementB(false)
   }
@@ -489,6 +499,13 @@ export default function DashboardGlobalScreen() {
       { cle: 'chargesFixesPct', libelle: 'Charges fixes', a: A.chargesFixesPct, b: B.chargesFixesPct,
         unite: UNITE.POURCENT, polarite: POLARITE.MAUVAIS, ...commun,
         comparable: cmp.chargesComparables ? undefined : false, raison: RAISON_CHARGES },
+      ...(voitSalaires && A.salaire && B.salaire ? [
+        { cle: 'salairePct', libelle: 'Taux salarial', a: A.salairePct, b: B.salairePct,
+          unite: UNITE.POURCENT, polarite: POLARITE.MAUVAIS, ...commun,
+          comparable: A.salaire.etatHorsPeriode === B.salaire.etatHorsPeriode ? undefined : false, raison: RAISON_SALAIRE },
+        { cle: 'salaireMt', libelle: 'Taux salarial — montant', a: A.salaireMt, b: B.salaireMt, polarite: POLARITE.MAUVAIS, ...commun,
+          comparable: A.salaire.etatHorsPeriode === B.salaire.etatHorsPeriode ? undefined : false, raison: RAISON_SALAIRE },
+      ] : []),
     ]
     return [
       { cle: 'livraisonMt', libelle: 'Montant livraison', a: A.livraisonMt, b: B.livraisonMt, ...commun },
@@ -613,6 +630,14 @@ export default function DashboardGlobalScreen() {
         alertes.push({
           type: 'danger', icon: 'alert-octagon-outline', titre: `${r.nom} — Coût primaire élevé`,
           message: `Coût primaire à ${r.primePct.toFixed(1)}% (Matières ${r.foodPct.toFixed(1)}% + Salaire ${r.laborPct.toFixed(1)}%) — au-dessus du seuil de 60%`
+        })
+      }
+    })
+    if (voitSalaires) classementCouts.forEach(r => {
+      if (r.salaire && r.ventes > 0 && r.salairePct > SEUIL_TAUX_SALARIAL) {
+        alertes.push({
+          type: 'danger', icon: 'account-cash-outline', titre: `${r.nom} — Taux salarial élevé`,
+          message: `Salaires à ${r.salairePct.toFixed(1)}% des ventes (${fmt(r.salaireMt)}) — au-dessus du seuil de ${SEUIL_TAUX_SALARIAL}%`
         })
       }
     })
@@ -1556,6 +1581,7 @@ export default function DashboardGlobalScreen() {
                   <JaugeCout label="Coût matières" pct={foodCostGlobalPct} montant={foodCostGlobalMt} seuil={30} colors={colors} fmt={fmt} />
                   <JaugeCout label="Coût du salaire" pct={laborCostGlobalPct} montant={laborCostGlobalMt} seuil={30} colors={colors} fmt={fmt} />
                   <JaugeCout label="Coût primaire" pct={primeCostGlobalPct} montant={foodCostGlobalMt + laborCostGlobalMt} seuil={60} colors={colors} fmt={fmt} accent />
+                  {voitSalaires && <TauxSalarial taux={total.salaire} colors={colors} />}
                   {aDesChargesConfigurees ? (
                     <JaugeCout label="Charges fixes" pct={chargesFixesGlobalPct} montant={chargesFixesGlobalMt} seuil={20} colors={colors} fmt={fmt} dernier />
                   ) : (
@@ -1577,6 +1603,24 @@ export default function DashboardGlobalScreen() {
                     }))} />
                   )}
                 </CarteGraphique>
+
+                {voitSalaires && total.salaire && (
+                  <CarteGraphique icone="account-cash-outline" couleur="#534AB7" titre="Taux salarial par restaurant"
+                    sous={`Caissiers + gérant + état de salaires du RH, en % des ventes · seuil ${SEUIL_TAUX_SALARIAL} %`}>
+                    {() => (
+                      <BarresHorizontales rangs format={v => `${v.toFixed(1)} %`} donnees={[...vue.lignes]
+                        .filter(r => r.ventes > 0)
+                        .sort((a, b) => b.salairePct - a.salairePct)
+                        .map(r => ({
+                          cle: r.id, nom: r.nom, valeur: r.salairePct,
+                          couleur: r.salairePct > SEUIL_TAUX_SALARIAL ? '#EF4444' : '#10B981',
+                          couleurValeur: r.salairePct > SEUIL_TAUX_SALARIAL ? colors.error : colors.successDark,
+                          droite: `${r.salairePct.toFixed(1)} %`,
+                          sous: fmt(r.salaireMt),
+                        }))} />
+                    )}
+                  </CarteGraphique>
+                )}
 
                 {titreSection('cash-refund', 'Fond de caisse reçu', fmt(total.fondRecu))}
                 <View style={styles.carte}>
