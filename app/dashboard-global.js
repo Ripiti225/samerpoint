@@ -268,7 +268,9 @@ export default function DashboardGlobalScreen() {
   }
 
   useEffect(() => {
-    if ((pilier === 'couts' || pilier === 'alertes') && restaurants.length > 0 && periodeKey !== 'today') {
+    // Aperçu aussi pour le manager : le taux salarial s'affiche sous la vente.
+    const voulu = pilier === 'couts' || pilier === 'alertes' || (pilier === 'apercu' && voitSalaires)
+    if (voulu && restaurants.length > 0 && periodeKey !== 'today') {
       chargerCoutsGlobal()
     }
   }, [pilier, periodeKey, restaurants, points])
@@ -334,6 +336,8 @@ export default function DashboardGlobalScreen() {
   const debutA = rangeA?.debut || ''
   const finA = rangeA?.fin || ''
   const rangeB = useMemo(() => (debutA && finA ? periodePrecedente(debutA, finA) : null), [debutA, finA])
+  // Le taux salarial n'est montré que si les coûts chargés sont ceux de la période affichée.
+  const salaireAJour = periodeKey !== 'today' && periodeCouts?.debut === debutA && periodeCouts?.fin === finA
   const bandeau = useMemo(
     () => (debutA && finA ? bandeauDeuxPeriodes(debutA, finA, titrePeriode()) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -961,6 +965,12 @@ export default function DashboardGlobalScreen() {
         </View>
       </View>
 
+      {voitSalaires && salaireAJour && total.salaire && !chargementCouts && total.ventes > 0 && (
+        <View style={styles.carte}>
+          <TauxSalarial taux={total.salaire} colors={colors} dernier />
+        </View>
+      )}
+
       <View style={styles.tuiles}>
         {tuile({ icone: 'calendar-today', couleur: '#EF9F27', label: 'Ventes par jour', valeur: fmtCourt(total.ventes / nbJoursVus), sous: 'moyenne de la période' })}
         {tuile({ icone: 'cash-plus', couleur: '#10B981', label: 'Bénéfice SC', valeur: fmtCourt(total.benefice), v: varBenefice, sous: 'vs période précédente' })}
@@ -1581,7 +1591,7 @@ export default function DashboardGlobalScreen() {
                   <JaugeCout label="Coût matières" pct={foodCostGlobalPct} montant={foodCostGlobalMt} seuil={30} colors={colors} fmt={fmt} />
                   <JaugeCout label="Coût du salaire" pct={laborCostGlobalPct} montant={laborCostGlobalMt} seuil={30} colors={colors} fmt={fmt} />
                   <JaugeCout label="Coût primaire" pct={primeCostGlobalPct} montant={foodCostGlobalMt + laborCostGlobalMt} seuil={60} colors={colors} fmt={fmt} accent />
-                  {voitSalaires && <TauxSalarial taux={total.salaire} colors={colors} />}
+                  {voitSalaires && salaireAJour && <TauxSalarial taux={total.salaire} colors={colors} />}
                   {aDesChargesConfigurees ? (
                     <JaugeCout label="Charges fixes" pct={chargesFixesGlobalPct} montant={chargesFixesGlobalMt} seuil={20} colors={colors} fmt={fmt} dernier />
                   ) : (
@@ -1604,7 +1614,7 @@ export default function DashboardGlobalScreen() {
                   )}
                 </CarteGraphique>
 
-                {voitSalaires && total.salaire && (
+                {voitSalaires && salaireAJour && total.salaire && (
                   <CarteGraphique icone="account-cash-outline" couleur="#534AB7" titre="Taux salarial par restaurant"
                     sous={`Caissiers + gérant + état de salaires du RH, en % des ventes · seuil ${SEUIL_TAUX_SALARIAL} %`}>
                     {() => (

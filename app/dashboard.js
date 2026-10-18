@@ -163,7 +163,9 @@ export default function DashboardScreen() {
   }
 
   useEffect(() => {
-    if ((pilier === 'couts' || pilier === 'alertes') && !isToday && restaurantId) chargerCouts()
+    // Aperçu aussi pour le manager : le taux salarial s'affiche sous la vente.
+    const voulu = pilier === 'couts' || pilier === 'alertes' || (pilier === 'apercu' && voitSalaires)
+    if (voulu && !isToday && restaurantId) chargerCouts()
   }, [pilier, periodeKey, restaurantId, points.length])
 
   async function chargerCouts() {
@@ -538,6 +540,12 @@ export default function DashboardScreen() {
                   </Text>
                 </View>
               </View>
+
+              {taux && !chargementCouts && caPeriode > 0 && (
+                <View style={[styles.resultCard, { marginBottom: 12 }]}>
+                  <TauxSalarial taux={taux} colors={colors} dernier />
+                </View>
+              )}
 
               {/* Graphiques période */}
               {!isToday && points.length > 1 && (
