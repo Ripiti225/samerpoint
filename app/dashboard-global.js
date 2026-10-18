@@ -953,23 +953,21 @@ export default function DashboardGlobalScreen() {
             { label: 'Bénéfice SC', valeur: fmtCourt(total.benefice), point: '#A7F3D0' },
             { label: 'Dépenses', valeur: fmtCourt(total.depenses), point: '#FCA5A5' },
             { label: 'Rentabilité', valeur: `${total.renta.toFixed(1)} %`, point: '#FDE68A' },
+            ...(voitSalaires && salaireAJour && total.salaire && !chargementCouts && total.ventes > 0 ? [{
+              label: 'Taux salarial', valeur: `${total.salaire.pct.toFixed(1)} %`,
+              point: total.salaire.pct > SEUIL_TAUX_SALARIAL ? '#FCA5A5' : '#A7F3D0',
+            }] : []),
           ].map(c => (
             <View key={c.label} style={styles.heroCase}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                 <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.point }} />
-                <Text style={styles.heroCaseLbl}>{c.label}</Text>
+                <Text style={styles.heroCaseLbl} numberOfLines={1}>{c.label}</Text>
               </View>
               <Text style={styles.heroCaseVal} numberOfLines={1} adjustsFontSizeToFit>{c.valeur}</Text>
             </View>
           ))}
         </View>
       </View>
-
-      {voitSalaires && salaireAJour && total.salaire && !chargementCouts && total.ventes > 0 && (
-        <View style={styles.carte}>
-          <TauxSalarial taux={total.salaire} colors={colors} dernier />
-        </View>
-      )}
 
       <View style={styles.tuiles}>
         {tuile({ icone: 'calendar-today', couleur: '#EF9F27', label: 'Ventes par jour', valeur: fmtCourt(total.ventes / nbJoursVus), sous: 'moyenne de la période' })}

@@ -533,19 +533,26 @@ export default function DashboardScreen() {
                   <Text style={styles.kpiLabel}>Bénéfice SC</Text>
                   <Text style={[styles.kpiValue, { color: '#3B6D11' }]}>{fmtFull(beneficePeriode)}</Text>
                 </View>
-                <View style={styles.kpiCard}>
-                  <Text style={styles.kpiLabel}>Rentabilité</Text>
-                  <Text style={[styles.kpiValue, { color: '#185FA5' }]}>
-                    {tauxRenta(ventesPeriode, beneficePeriode).toFixed(1)}%
-                  </Text>
+                <View style={[styles.kpiCard, { flexDirection: 'row', gap: 8 }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.kpiLabel}>Rentabilité</Text>
+                    <Text style={[styles.kpiValue, { color: '#185FA5' }]}>
+                      {tauxRenta(ventesPeriode, beneficePeriode).toFixed(1)}%
+                    </Text>
+                  </View>
+                  {taux && !chargementCouts && caPeriode > 0 ? (
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.kpiLabel} numberOfLines={1}>Taux salarial</Text>
+                      <Text style={[styles.kpiValue, { color: taux.pct > SEUIL_TAUX_SALARIAL ? '#A32D2D' : '#3B6D11' }]}>
+                        {taux.pct.toFixed(1)}%
+                      </Text>
+                      {taux.etatHorsPeriode || taux.moisSansEtat.length ? (
+                        <Text style={{ fontSize: 9, color: colors.textMuted, marginTop: 2 }} numberOfLines={1}>sans état RH</Text>
+                      ) : null}
+                    </View>
+                  ) : null}
                 </View>
               </View>
-
-              {taux && !chargementCouts && caPeriode > 0 && (
-                <View style={[styles.resultCard, { marginBottom: 12 }]}>
-                  <TauxSalarial taux={taux} colors={colors} dernier />
-                </View>
-              )}
 
               {/* Graphiques période */}
               {!isToday && points.length > 1 && (
