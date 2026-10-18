@@ -22,7 +22,7 @@ import {
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import * as XLSX from 'xlsx'
-import ChampDate from '../components/ChampDate'
+import { ChampPeriode } from '../components/ChampDate'
 import FeuilleFournisseurAdmin from '../components/fournisseurs/FeuilleFournisseurAdmin'
 import FeuilleMontantDu from '../components/fournisseurs/FeuilleMontantDu'
 import FeuillePaiementDirection from '../components/fournisseurs/FeuillePaiementDirection'
@@ -1498,12 +1498,8 @@ ${mouvements.map(m => {
           </View>
           <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
             <Text style={styles.exportSection}>Période</Text>
-            <ChampDate label="Date début" styleLabel={styles.formLabel} valeur={exportFilters.dateDebut}
-              maxDate={exportFilters.dateFin || undefined}
-              onChange={v => setExportFilters(p => ({ ...p, dateDebut: v }))} />
-            <ChampDate label="Date fin" styleLabel={styles.formLabel} valeur={exportFilters.dateFin}
-              minDate={exportFilters.dateDebut || undefined}
-              onChange={v => setExportFilters(p => ({ ...p, dateFin: v }))} />
+            <ChampPeriode styleLabel={styles.formLabel} debut={exportFilters.dateDebut} fin={exportFilters.dateFin}
+              onChange={({ debut, fin }) => setExportFilters(p => ({ ...p, dateDebut: debut, dateFin: fin }))} />
 
             {peutModifier && restaurants.length > 0 && (
               <>

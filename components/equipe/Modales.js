@@ -7,7 +7,7 @@ import {
   Alert, Image, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, Text, TextInput, TouchableOpacity,
   TouchableWithoutFeedback, View,
 } from 'react-native'
-import { Calendar } from 'react-native-calendars'
+import { CalendrierPeriode } from '../ChampDate'
 import { aujourdhuiISO } from '../../lib/contrats'
 import { BLEU, MOTIFS_ARCHIVE, formatDate } from '../../lib/equipe'
 import { enregistrerTravailleur } from '../../lib/equipeDb'
@@ -364,10 +364,6 @@ export function ModalCalendrier({ visible, styles, colors, onFermer, onValider }
   const [etape, setEtape] = useState('debut')
   useEffect(() => { if (visible) { setDebut(''); setFin(''); setEtape('debut') } }, [visible])
 
-  const marques = {}
-  if (debut) marques[debut] = { selected: true, selectedColor: BLEU }
-  if (fin) marques[fin] = { selected: true, selectedColor: BLEU }
-
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onFermer}>
       <View style={styles.modalOverlay}>
@@ -392,25 +388,9 @@ export function ModalCalendrier({ visible, styles, colors, onFermer, onValider }
               </View>
             ))}
           </View>
-          <Calendar
-            key={colors.bg}
-            markedDates={marques}
-            onDayPress={day => {
-              if (etape === 'debut') { setDebut(day.dateString); setEtape('fin') }
-              else if (day.dateString < debut) setDebut(day.dateString)
-              else setFin(day.dateString)
-            }}
-            maxDate={new Date().toISOString().split('T')[0]}
-            theme={{
-              calendarBackground: colors.surface,
-              selectedDayBackgroundColor: BLEU,
-              todayTextColor: BLEU,
-              arrowColor: BLEU,
-              monthTextColor: colors.text,
-              dayTextColor: colors.text,
-              textDisabledColor: colors.textPlaceholder,
-            }}
-          />
+          <CalendrierPeriode debut={debut} fin={fin} couleur={BLEU}
+            onChange={p => { setDebut(p.debut); setFin(p.fin); setEtape(p.debut && !p.fin ? 'fin' : 'debut') }}
+            onMoisEntier={p => onValider(p)} />
           <View style={[styles.modalBtns, { marginTop: 12 }]}>
             <TouchableOpacity style={styles.modalCancel} onPress={onFermer}>
               <Text style={styles.modalCancelTxt}>Annuler</Text>

@@ -14,7 +14,7 @@ import { router, useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Alert, Linking, Platform, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
 
-import ChampDate from '../components/ChampDate'
+import { ChampPeriode } from '../components/ChampDate'
 import AnalyseClients from '../components/contacts/AnalyseClients'
 import ResumeContacts from '../components/contacts/ResumeContacts'
 import { Bouton, EnTete, Feuille, Libelle, Puces, Recherche, Vide, teinte, useEcranModerne } from '../components/ui/EcranModerne'
@@ -324,10 +324,9 @@ export default function ContactsScreen() {
       {/* Période personnalisée */}
       <Feuille visible={feuillePeriode} titre="Choisir une période" sous="Comparée aux mêmes nombre de jours juste avant"
         onFermer={() => setFeuillePeriode(false)} styles={styles}>
-        <ChampDate label="Du" valeur={brouillon.debut} couleur={principale} maxDate={new Date().toISOString().slice(0, 10)}
-          onChange={d => setBrouillon(b => ({ ...b, debut: d }))} />
-        <ChampDate label="Au" valeur={brouillon.fin} couleur={principale} minDate={brouillon.debut || undefined}
-          maxDate={new Date().toISOString().slice(0, 10)} onChange={d => setBrouillon(b => ({ ...b, fin: d }))} />
+        <ChampPeriode label="Période" debut={brouillon.debut} fin={brouillon.fin} couleur={principale}
+          onChange={p => setBrouillon(p)}
+          onMoisEntier={p => { setBrouillon(p); setPerso(p); setPeriodeKey('custom'); setFeuillePeriode(false) }} />
         <Bouton label="Voir les contacts" variante="plein" couleur={principale} grand styles={styles}
           disabled={!brouillon.debut || !brouillon.fin || brouillon.fin < brouillon.debut}
           onPress={() => { setPerso(brouillon); setPeriodeKey('custom'); setFeuillePeriode(false) }} />

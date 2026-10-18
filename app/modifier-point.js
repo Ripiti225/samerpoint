@@ -11,7 +11,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native'
-import { Calendar } from 'react-native-calendars'
+import { CalendrierFr } from '../components/ChampDate'
 import { supabase } from '../lib/supabase'
 import { journaliser } from '../lib/journal'
 import { archiverSuppressionShift, supprimerLignesArchivees } from '../lib/corbeille'
@@ -2024,26 +2024,10 @@ export default function ModifierPointScreen() {
                   <Text style={styles.legendeTxt}>Point en cours</Text>
                 </View>
               </View>
-              <Calendar
-                onDayPress={day => {
-                  setSelectedDate(day.dateString)
-                  chargerPoint(selectedResto.id, day.dateString)
-                }}
-                markedDates={{
-                  ...datesAvec,
-                  ...(selectedDate ? { [selectedDate]: { selected: true, selectedColor: '#534AB7' } } : {})
-                }}
-                maxDate={new Date().toISOString().split('T')[0]}
-                theme={{
-                  selectedDayBackgroundColor: '#534AB7',
-                  todayTextColor: '#534AB7',
-                  arrowColor: '#534AB7',
-                  monthTextColor: '#1a1a1a',
-                  dayTextColor: '#1a1a1a',
-                  textDisabledColor: '#ccc',
-                }}
-                style={styles.calendar}
-              />
+              <View style={[styles.calendar, { overflow: 'hidden' }]}>
+                <CalendrierFr valeur={selectedDate || ''} marques={datesAvec} maxDate={new Date().toISOString().split('T')[0]} couleur="#534AB7"
+                  onChoisir={iso => { setSelectedDate(iso); chargerPoint(selectedResto.id, iso) }} />
+              </View>
             </ScrollView>
           )}
 
@@ -2192,20 +2176,12 @@ export default function ModifierPointScreen() {
               {'\n\n'}Choisissez la date cible :
               {point?.valide ? '\n\n⚠️ Le point source est validé — la modification sera quand même effectuée.' : ''}
             </Text>
-            <Calendar
-              onDayPress={day => setMoveDateCible(day.dateString)}
-              markedDates={{
-                ...(moveDateCible ? { [moveDateCible]: { selected: true, selectedColor: '#534AB7' } } : {}),
-                ...(selectedDate ? { [selectedDate]: { marked: true, dotColor: '#EF9F27' } } : {}),
-              }}
-              maxDate={new Date().toISOString().split('T')[0]}
-              theme={{
-                selectedDayBackgroundColor: '#534AB7',
-                todayTextColor: '#534AB7',
-                arrowColor: '#534AB7',
-              }}
-              style={{ borderRadius: 12, marginBottom: 16 }}
-            />
+            <View style={{ borderRadius: 12, marginBottom: 16, overflow: 'hidden' }}>
+              <CalendrierFr valeur={moveDateCible || ''} initial={selectedDate || undefined} couleur="#534AB7"
+                marques={selectedDate ? { [selectedDate]: { marked: true, dotColor: '#EF9F27' } } : {}}
+                maxDate={new Date().toISOString().split('T')[0]}
+                onChoisir={iso => setMoveDateCible(iso)} />
+            </View>
             {moveDateCible ? (
               <Text style={{ fontSize: 13, color: '#534AB7', fontWeight: '600', textAlign: 'center', marginBottom: 12 }}>
                 Date sélectionnée : {moveDateCible}

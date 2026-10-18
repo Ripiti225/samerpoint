@@ -10,7 +10,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native'
-import { Calendar } from 'react-native-calendars'
+import { CalendrierFr } from '../components/ChampDate'
 import { CATEGORIES_INVENTAIRE as CATEGORIES } from '../lib/constants'
 import { supabase } from '../lib/supabase'
 import { useTheme } from '../context/ThemeContext'
@@ -219,26 +219,10 @@ export default function ModifierInventaireScreen() {
           {etape === 2 && (
             <ScrollView style={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <Text style={styles.sectionTitre}>{selectedResto?.nom}</Text>
-              <Calendar
-                onDayPress={day => {
-                  setSelectedDate(day.dateString)
-                  chargerInventaire(selectedResto.id, day.dateString)
-                }}
-                markedDates={{
-                  ...datesAvec,
-                  ...(selectedDate ? { [selectedDate]: { selected: true, selectedColor: '#534AB7' } } : {})
-                }}
-                maxDate={new Date().toISOString().split('T')[0]}
-                theme={{
-                  selectedDayBackgroundColor: '#534AB7',
-                  todayTextColor: '#534AB7',
-                  arrowColor: '#534AB7',
-                  monthTextColor: '#1a1a1a',
-                  dayTextColor: '#1a1a1a',
-                  textDisabledColor: '#ccc',
-                }}
-                style={styles.calendar}
-              />
+              <View style={[styles.calendar, { overflow: 'hidden' }]}>
+                <CalendrierFr valeur={selectedDate || ''} marques={datesAvec} maxDate={new Date().toISOString().split('T')[0]} couleur="#534AB7"
+                  onChoisir={iso => { setSelectedDate(iso); chargerInventaire(selectedResto.id, iso) }} />
+              </View>
             </ScrollView>
           )}
 

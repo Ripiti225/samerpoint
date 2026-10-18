@@ -12,7 +12,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native'
-import { Calendar } from 'react-native-calendars'
+import { CalendrierPeriode } from '../components/ChampDate'
 import { useTheme } from '../context/ThemeContext'
 import { CATEGORIES_INVENTAIRE } from '../lib/constants'
 import { supabase } from '../lib/supabase'
@@ -71,7 +71,8 @@ export default function GestionStockScreen() {
   const [debut, setDebut] = useState(jourRecherche || calcPreset('30j').debut)
   const [fin, setFin] = useState(jourRecherche || calcPreset('30j').fin)
   const [showCalendar, setShowCalendar] = useState(false)
-  const [champDate, setChampDate] = useState(null) // 'debut' | 'fin'
+  // Période en cours de choix dans le calendrier, appliquée quand elle est complète.
+  const [brouillon, setBrouillon] = useState({ debut: '', fin: '' })
 
   const [produits, setProduits] = useState([])
   const [loading, setLoading] = useState(true)
@@ -99,7 +100,7 @@ export default function GestionStockScreen() {
 
   function choisirPreset(key) {
     setPreset(key)
-    if (key === 'perso') { setShowCalendar(true); setChampDate('debut'); return }
+    if (key === 'perso') { setShowCalendar(true); setBrouillon({ debut, fin }); return }
     const p = calcPreset(key)
     setDebut(p.debut); setFin(p.fin)
   }
@@ -218,7 +219,7 @@ export default function GestionStockScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
-      <TouchableOpacity style={styles.periodeInfo} onPress={() => { setPreset('perso'); setShowCalendar(true); setChampDate('debut') }}>
+      <TouchableOpacity style={styles.periodeInfo} onPress={() => { setPreset('perso'); setShowCalendar(true); setBrouillon({ debut, fin }) }}>
         <Text style={styles.periodeTxt}>📅 {fmtDateCourt(debut)} → {fmtDateCourt(fin)}</Text>
       </TouchableOpacity>
 
@@ -368,38 +369,23 @@ export default function GestionStockScreen() {
             <TouchableWithoutFeedback>
               <View style={styles.pickerModal}>
                 <Text style={styles.pickerTitre}>
-                  {champDate === 'debut' ? 'Date de début' : 'Date de fin'}
+                  {brouillon.debut && !brouillon.fin ? 'Touchez la date de fin' : 'Touchez la date de début, ou un mois'}
                 </Text>
                 <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
-                  <TouchableOpacity style={[styles.dateBtn, champDate === 'debut' && styles.dateBtnActive]} onPress={() => setChampDate('debut')}>
-                    <Text style={[styles.dateBtnTxt, champDate === 'debut' && { color: '#fff' }]}>{fmtDateCourt(debut)}</Text>
-                  </TouchableOpacity>
+                  <View style={[styles.dateBtn, !brouillon.fin && styles.dateBtnActive]}>
+                    <Text style={[styles.dateBtnTxt, !brouillon.fin && { color: '#fff' }]}>{brouillon.debut ? fmtDateCourt(brouillon.debut) : 'Début'}</Text>
+                  </View>
                   <Text style={{ color: colors.textMuted, alignSelf: 'center' }}>→</Text>
-                  <TouchableOpacity style={[styles.dateBtn, champDate === 'fin' && styles.dateBtnActive]} onPress={() => setChampDate('fin')}>
-                    <Text style={[styles.dateBtnTxt, champDate === 'fin' && { color: '#fff' }]}>{fmtDateCourt(fin)}</Text>
-                  </TouchableOpacity>
+                  <View style={[styles.dateBtn, !!brouillon.fin && styles.dateBtnActive]}>
+                    <Text style={[styles.dateBtnTxt, !!brouillon.fin && { color: '#fff' }]}>{brouillon.fin ? fmtDateCourt(brouillon.fin) : 'Fin'}</Text>
+                  </View>
                 </View>
-                <Calendar
-                  onDayPress={day => {
-                    if (champDate === 'debut') {
-                      setDebut(day.dateString)
-                      if (day.dateString > fin) setFin(day.dateString)
-                      setChampDate('fin')
-                    } else {
-                      setFin(day.dateString < debut ? debut : day.dateString)
-                      setShowCalendar(false)
-                    }
-                  }}
-                  markedDates={{
-                    [debut]: { selected: true, selectedColor: '#534AB7' },
-                    [fin]: { selected: true, selectedColor: '#3B6D11' },
-                  }}
-                  theme={{
-                    selectedDayBackgroundColor: champDate === 'debut' ? '#534AB7' : '#3B6D11',
-                    todayTextColor: '#534AB7', arrowColor: '#534AB7',
-                    monthTextColor: colors.text, dayTextColor: colors.text, textDisabledColor: '#ccc',
-                  }}
-                />
+                <CalendrierPeriode debut={brouillon.debut} fin={brouillon.fin} couleur="#534AB7"
+                  onChange={p => {
+                    setBrouillon(p)
+                    // Période complète : appliquée et calendrier fermé, comme avant.
+                    if (p.debut && p.fin) { setDebut(p.debut); setFin(p.fin); setShowCalendar(false) }
+                  }} />
                 <TouchableOpacity style={styles.closeCalBtn} onPress={() => setShowCalendar(false)}>
                   <Text style={styles.closeCalTxt}>Fermer</Text>
                 </TouchableOpacity>

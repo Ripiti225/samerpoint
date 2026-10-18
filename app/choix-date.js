@@ -9,7 +9,7 @@ import {
   Text, TouchableOpacity,
   View
 } from 'react-native'
-import { Calendar } from 'react-native-calendars'
+import { CalendrierFr } from '../components/ChampDate'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { getOrCreatePoint, getSequences } from '../lib/api'
@@ -218,18 +218,6 @@ export default function ChoixDateScreen() {
     return `${parseInt(d)} ${mois[parseInt(m) - 1]} ${y}`
   }
 
-  const markedDates = {
-    ...datesAvecDonnees,
-    ...(dateSelectionnee ? {
-      [dateSelectionnee]: {
-        selected: true,
-        selectedColor: '#EF9F27',
-        marked: datesAvecDonnees[dateSelectionnee]?.marked,
-        dotColor: datesAvecDonnees[dateSelectionnee]?.dotColor,
-      }
-    } : {}),
-  }
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -255,21 +243,10 @@ export default function ChoixDateScreen() {
         {loading ? (
           <ActivityIndicator size="large" color="#EF9F27" style={{ marginTop: 40 }} />
         ) : (
-          <Calendar
-            onDayPress={choisirDate}
-            markedDates={markedDates}
-            maxDate={today}
-            theme={{
-              selectedDayBackgroundColor: '#EF9F27',
-              selectedDayTextColor: '#412402',
-              todayTextColor: '#EF9F27',
-              dayTextColor: '#1a1a1a',
-              textDisabledColor: '#ccc',
-              arrowColor: '#EF9F27',
-              monthTextColor: '#1a1a1a',
-            }}
-            style={styles.calendar}
-          />
+          <View style={[styles.calendar, { overflow: 'hidden' }]}>
+            <CalendrierFr valeur={dateSelectionnee || ''} marques={datesAvecDonnees} maxDate={today} couleur="#EF9F27"
+              onChoisir={iso => choisirDate({ dateString: iso })} />
+          </View>
         )}
 
         {dateSelectionnee ? (

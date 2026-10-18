@@ -7,8 +7,7 @@ import {
   TouchableOpacity, View,
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
-import { Calendar } from 'react-native-calendars'
-import ChampDate from '../components/ChampDate'
+import ChampDate, { CalendrierFr, CalendrierPeriode } from '../components/ChampDate'
 import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
@@ -158,7 +157,8 @@ export default function LitigesScreen() {
   const [dateFin, setDateFin] = useState(TODAY)
   const [showCalUnique, setShowCalUnique] = useState(false)
   const [showCalDebut, setShowCalDebut] = useState(false)
-  const [showCalFin, setShowCalFin] = useState(false)
+  // Période perso en cours de choix, appliquée quand elle est complète.
+  const [brouillonPerso, setBrouillonPerso] = useState({ debut: '', fin: '' })
   const [datesAvec, setDatesAvec] = useState({})
 
   // ── Mode global (tous restaurants) ──────────────────────────
@@ -2522,12 +2522,12 @@ export default function LitigesScreen() {
               </TouchableOpacity>
             ) : periodeKey === 'perso' ? (
               <>
-                <TouchableOpacity style={styles.datePill} onPress={() => setShowCalDebut(true)}>
+                <TouchableOpacity style={styles.datePill} onPress={() => { setBrouillonPerso({ debut: dateDebut, fin: dateFin }); setShowCalDebut(true) }}>
                   <MaterialCommunityIcons name="calendar-month-outline" size={16} color={colors.primary} />
                   <Text style={styles.datePillTxt}>Du {dateDebut}</Text>
                 </TouchableOpacity>
                 <MaterialCommunityIcons name="arrow-right" size={16} color={colors.textMuted} />
-                <TouchableOpacity style={styles.datePill} onPress={() => setShowCalFin(true)}>
+                <TouchableOpacity style={styles.datePill} onPress={() => { setBrouillonPerso({ debut: dateDebut, fin: dateFin }); setShowCalDebut(true) }}>
                   <Text style={styles.datePillTxt}>Au {dateFin}</Text>
                 </TouchableOpacity>
               </>
@@ -2637,40 +2637,21 @@ export default function LitigesScreen() {
       <Modal visible={showCalUnique} transparent animationType="fade">
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowCalUnique(false)}>
           <TouchableOpacity activeOpacity={1} style={[styles.pickerBox, { padding: 0 }]}>
-            <Calendar
-              current={dateUnique}
-              onDayPress={day => { setDateUnique(day.dateString); setShowCalUnique(false) }}
-              markedDates={{ ...datesAvec, [dateUnique]: { selected: true, selectedColor: colors.primary } }}
-              theme={{ selectedDayBackgroundColor: colors.primary, todayTextColor: colors.primary, arrowColor: colors.primary }}
-            />
+            <CalendrierFr valeur={dateUnique} marques={datesAvec} couleur={colors.primary}
+              onChoisir={iso => { setDateUnique(iso); setShowCalUnique(false) }} />
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
 
-      {/* ── Calendrier Début (perso) ── */}
+      {/* ── Calendrier période perso : un jour de début, un jour de fin, ou un mois entier ── */}
       <Modal visible={showCalDebut} transparent animationType="fade">
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowCalDebut(false)}>
           <TouchableOpacity activeOpacity={1} style={[styles.pickerBox, { padding: 0 }]}>
-            <Calendar
-              current={dateDebut}
-              onDayPress={day => { setDateDebut(day.dateString); setShowCalDebut(false) }}
-              markedDates={{ [dateDebut]: { selected: true, selectedColor: colors.primary } }}
-              theme={{ selectedDayBackgroundColor: colors.primary, todayTextColor: colors.primary, arrowColor: colors.primary }}
-            />
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* ── Calendrier Fin (perso) ── */}
-      <Modal visible={showCalFin} transparent animationType="fade">
-        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowCalFin(false)}>
-          <TouchableOpacity activeOpacity={1} style={[styles.pickerBox, { padding: 0 }]}>
-            <Calendar
-              current={dateFin}
-              onDayPress={day => { setDateFin(day.dateString); setShowCalFin(false) }}
-              markedDates={{ [dateFin]: { selected: true, selectedColor: colors.primary } }}
-              theme={{ selectedDayBackgroundColor: colors.primary, todayTextColor: colors.primary, arrowColor: colors.primary }}
-            />
+            <CalendrierPeriode debut={brouillonPerso.debut} fin={brouillonPerso.fin} couleur={colors.primary} maxDate={null}
+              onChange={p => {
+                setBrouillonPerso(p)
+                if (p.debut && p.fin) { setDateDebut(p.debut); setDateFin(p.fin); setShowCalDebut(false) }
+              }} />
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>

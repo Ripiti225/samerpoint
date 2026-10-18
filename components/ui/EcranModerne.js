@@ -7,7 +7,7 @@ import {
   Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity,
   TouchableWithoutFeedback, View,
 } from 'react-native'
-import { Calendar } from 'react-native-calendars'
+import { CalendrierFr, CalendrierPeriode } from '../ChampDate'
 import { useTheme } from '../../context/ThemeContext'
 import { VIOLET, fmtDate } from '../../lib/demandes'
 
@@ -181,7 +181,7 @@ export function Champ({ styles, colors, multiline, ...props }) {
 }
 
 /** Deux boutons Début / Fin et un calendrier qui s'ouvre sous le champ choisi. */
-export function ChampDates({ debut, fin, setDebut, setFin, champ, setChamp, styles, colors, accent, couleur = VIOLET }) {
+export function ChampDates({ debut, fin, setDebut, setFin, champ, setChamp, styles, colors, accent, couleur = VIOLET, periode = false }) {
   return (
     <>
       <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10, alignItems: 'center' }}>
@@ -196,22 +196,22 @@ export function ChampDates({ debut, fin, setDebut, setFin, champ, setChamp, styl
           </View>
         ))}
       </View>
+      {/* periode : filtre (avis…) → un seul calendrier de période, un mois s'y choisit en entier.
+          Sinon (congés…) : le calendrier d'une date, pour le champ ouvert. */}
       {champ !== null && (
-        <Calendar
-          key={colors.bg}
-          onDayPress={day => { if (champ === 'debut') setDebut(day.dateString); else setFin(day.dateString); setChamp(null) }}
-          markedDates={{
-            ...(debut ? { [debut]: { selected: true, selectedColor: couleur } } : {}),
-            ...(fin ? { [fin]: { selected: true, selectedColor: '#3B8D2F' } } : {}),
-          }}
-          theme={{
-            calendarBackground: colors.surface,
-            selectedDayBackgroundColor: champ === 'debut' ? couleur : '#3B8D2F',
-            todayTextColor: accent, arrowColor: accent,
-            monthTextColor: colors.text, dayTextColor: colors.text, textDisabledColor: colors.textPlaceholder,
-          }}
-          style={{ marginBottom: 14, borderRadius: 14 }}
-        />
+        <View style={{ marginBottom: 14, borderRadius: 14, overflow: 'hidden' }}>
+          {periode ? (
+            <CalendrierPeriode debut={champ === 'debut' ? '' : debut} fin="" couleur={couleur}
+              onChange={p => {
+                if (p.fin) { setDebut(p.debut); setFin(p.fin); setChamp(null) } else { setDebut(p.debut); setChamp('fin') }
+              }}
+              onMoisEntier={p => { setDebut(p.debut); setFin(p.fin); setChamp(null) }} />
+          ) : (
+            <CalendrierFr key={champ} valeur={champ === 'debut' ? debut : fin} couleur={champ === 'debut' ? couleur : '#3B8D2F'}
+              minDate={champ === 'fin' && debut ? debut : undefined}
+              onChoisir={iso => { if (champ === 'debut') setDebut(iso); else setFin(iso); setChamp(null) }} />
+          )}
+        </View>
       )}
     </>
   )

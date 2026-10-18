@@ -10,7 +10,7 @@ import {
     Text, TextInput, TouchableOpacity,
     View
 } from 'react-native'
-import { Calendar } from 'react-native-calendars'
+import { CalendrierPeriode } from '../components/ChampDate'
 import BarreComparaison, { MODE_PERIODES, MODE_RESTOS } from '../components/BarreComparaison'
 import { Anneau, Barres, BarresHorizontales, CarteChaleur, CarteGraphique, CourbeAire } from '../components/graphiques'
 import LigneComparee from '../components/LigneComparee'
@@ -562,41 +562,28 @@ export default function DashboardGlobalScreen() {
     setDateDebut(''); setDateFin(''); setEtapeCalendrier('debut'); setModalCalendrier(true)
   }
 
-  function choisirDate(day) {
-    if (etapeCalendrier === 'debut') { setDateDebut(day.dateString); setEtapeCalendrier('fin') }
-    else { if (day.dateString < dateDebut) { setDateDebut(day.dateString) } else { setDateFin(day.dateString) } }
+  function choisirPeriode({ debut, fin }) {
+    setDateDebut(debut); setDateFin(fin)
+    setEtapeCalendrier(debut && !fin ? 'fin' : 'debut')
   }
 
-  async function confirmerPeriode() {
-    if (!dateDebut || !dateFin) return
+  // Un mois touché dans la grille : il est choisi en entier et appliqué tout de suite.
+  async function confirmerPeriode(debut = dateDebut, fin = dateFin) {
+    if (!debut || !fin) return
+    setDateDebut(debut); setDateFin(fin)
     setModalCalendrier(false); setPeriodeKey('custom'); setLoading(true)
 
     const { data: allPoints, error } = await supabase
       .from('points')
       .select(CHAMPS_POINTS)
-      .gte('date', dateDebut)
-      .lte('date', dateFin)
+      .gte('date', debut)
+      .lte('date', fin)
 
     if (error) { console.error('[Dashboard]', error.message); setLoading(false); return }
 
     setPoints(grouperParResto(allPoints, restaurants)); setLoading(false)
-    setRangeCharge({ debut: dateDebut, fin: dateFin })
-    chargerPrecedente({ debut: dateDebut, fin: dateFin }, restaurants)
-  }
-
-  function markedDates() {
-    const marked = {}
-    if (dateDebut) marked[dateDebut] = { selected: true, selectedColor: colors.primary, startingDay: true }
-    if (dateFin) marked[dateFin] = { selected: true, selectedColor: colors.primary, endingDay: true }
-    if (dateDebut && dateFin) {
-      let current = new Date(dateDebut); current.setDate(current.getDate() + 1)
-      while (current < new Date(dateFin)) {
-        const str = current.toISOString().split('T')[0]
-        marked[str] = { selected: true, selectedColor: colors.primaryLight, selectedTextColor: colors.primary }
-        current.setDate(current.getDate() + 1)
-      }
-    }
-    return marked
+    setRangeCharge({ debut, fin })
+    chargerPrecedente({ debut, fin }, restaurants)
   }
 
   function titrePeriode() {
@@ -1801,29 +1788,15 @@ export default function DashboardGlobalScreen() {
                 </Text>
               </View>
             </View>
-            <Calendar
-              onDayPress={choisirDate}
-              markedDates={markedDates()}
-              markingType="period"
-              maxDate={new Date().toISOString().split('T')[0]}
-              theme={{
-                calendarBackground: colors.surface,
-                selectedDayBackgroundColor: colors.primary,
-                selectedDayTextColor: '#fff',
-                todayTextColor: colors.primary,
-                dayTextColor: colors.text,
-                textDisabledColor: colors.textPlaceholder,
-                arrowColor: colors.primary,
-                monthTextColor: colors.text,
-              }}
-            />
+            <CalendrierPeriode debut={dateDebut} fin={dateFin} couleur={colors.primary} couleurClaire={colors.primaryLight}
+              onChange={choisirPeriode} onMoisEntier={p => confirmerPeriode(p.debut, p.fin)} />
             <View style={styles.modalBtns}>
               <TouchableOpacity style={styles.modalCancel} onPress={() => setModalCalendrier(false)}>
                 <Text style={styles.modalCancelTxt}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalConfirm, (!dateDebut || !dateFin) && { opacity: 0.4 }]}
-                onPress={confirmerPeriode}
+                onPress={() => confirmerPeriode()}
                 disabled={!dateDebut || !dateFin}
               >
                 <Text style={styles.modalConfirmTxt}>Voir les résultats</Text>

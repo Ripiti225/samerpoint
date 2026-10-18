@@ -192,7 +192,7 @@ export default function AvisPlateformes() {
           <View style={{ paddingHorizontal: 14, paddingTop: 10 }}>
             <ChampDates debut={perso.debut} fin={perso.fin}
               setDebut={d => setPerso(p => ({ ...p, debut: d }))} setFin={d => setPerso(p => ({ ...p, fin: d }))}
-              champ={champDate} setChamp={setChampDate} styles={em.styles} colors={em.colors} accent={em.accent} couleur={em.principale} />
+              champ={champDate} setChamp={setChampDate} styles={em.styles} colors={em.colors} accent={em.accent} couleur={em.principale} periode />
           </View>
         ) : null}
         <View style={styles.ligneOutils}>

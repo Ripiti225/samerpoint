@@ -5,7 +5,7 @@ import {
   SafeAreaView, ScrollView, StyleSheet,
   Text, TouchableOpacity, View
 } from 'react-native'
-import { Calendar } from 'react-native-calendars'
+import { CalendrierPeriode } from '../components/ChampDate'
 import {
   VictoryArea, VictoryAxis, VictoryBar,
   VictoryChart, VictoryLine,
@@ -197,43 +197,23 @@ export default function DashboardScreen() {
     setModalCalendrier(true)
   }
 
-  function choisirDate(day) {
-    if (etapeCalendrier === 'debut') {
-      setDateDebut(day.dateString)
-      setEtapeCalendrier('fin')
-    } else {
-      if (day.dateString < dateDebut) {
-        setDateDebut(day.dateString)
-      } else {
-        setDateFin(day.dateString)
-      }
-    }
+  function choisirPeriode({ debut, fin }) {
+    setDateDebut(debut)
+    setDateFin(fin)
+    setEtapeCalendrier(debut && !fin ? 'fin' : 'debut')
   }
 
-  async function confirmerPeriode() {
-    if (!dateDebut || !dateFin) return
+  // Un mois touché dans la grille : il est choisi en entier et appliqué tout de suite.
+  async function confirmerPeriode(debut = dateDebut, fin = dateFin) {
+    if (!debut || !fin) return
+    setDateDebut(debut)
+    setDateFin(fin)
     setModalCalendrier(false)
     setPeriodeKey('custom')
     setLoading(true)
-    const data = await getPointsPeriode(restaurantId, dateDebut, dateFin)
+    const data = await getPointsPeriode(restaurantId, debut, fin)
     setPoints(data)
     setLoading(false)
-  }
-
-  function markedDates() {
-    const marked = {}
-    if (dateDebut) marked[dateDebut] = { selected: true, selectedColor: '#EF9F27', startingDay: true }
-    if (dateFin) marked[dateFin] = { selected: true, selectedColor: '#EF9F27', endingDay: true }
-    if (dateDebut && dateFin) {
-      let current = new Date(dateDebut)
-      current.setDate(current.getDate() + 1)
-      while (current < new Date(dateFin)) {
-        const str = current.toISOString().split('T')[0]
-        marked[str] = { selected: true, selectedColor: '#FAEEDA', selectedTextColor: '#412402' }
-        current.setDate(current.getDate() + 1)
-      }
-    }
-    return marked
   }
 
   function totalPeriode(champ) {
@@ -1034,28 +1014,15 @@ export default function DashboardScreen() {
                 </Text>
               </View>
             </View>
-            <Calendar
-              onDayPress={choisirDate}
-              markedDates={markedDates()}
-              markingType="period"
-              maxDate={new Date().toISOString().split('T')[0]}
-              theme={{
-                selectedDayBackgroundColor: '#EF9F27',
-                selectedDayTextColor: '#412402',
-                todayTextColor: '#EF9F27',
-                dayTextColor: '#1a1a1a',
-                textDisabledColor: '#ccc',
-                arrowColor: '#EF9F27',
-                monthTextColor: '#1a1a1a',
-              }}
-            />
+            <CalendrierPeriode debut={dateDebut} fin={dateFin} couleur="#EF9F27" couleurClaire="#FAEEDA"
+              onChange={choisirPeriode} onMoisEntier={p => confirmerPeriode(p.debut, p.fin)} />
             <View style={styles.modalBtns}>
               <TouchableOpacity style={styles.modalCancel} onPress={() => setModalCalendrier(false)}>
                 <Text style={styles.modalCancelTxt}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalConfirm, (!dateDebut || !dateFin) && { opacity: 0.4 }]}
-                onPress={confirmerPeriode}
+                onPress={() => confirmerPeriode()}
                 disabled={!dateDebut || !dateFin}
               >
                 <Text style={styles.modalConfirmTxt}>Voir les résultats</Text>
