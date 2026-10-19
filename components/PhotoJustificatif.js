@@ -9,17 +9,23 @@
 //   • jeton `pending-photo://…` → envoi en attente, la photo existe encore
 //   • URI locale               → perdue, elle n'a jamais été envoyée
 //   • URL distante illisible   → détectée à l'exécution via onError
+//
+// En vignette (`compact`), la photo est demandée en miniature (lib/miniature.js) :
+// des centaines de photos en taille réelle faisaient planter Safari sur iPhone.
 
 import { useEffect, useState } from 'react'
 import { Image, StyleSheet, Text, View } from 'react-native'
+import { sourceVignette } from '../lib/miniature'
 import { estPhotoEnAttente, estPhotoLocale } from '../lib/photoQueue'
 
 export default function PhotoJustificatif({ uri, style, resizeMode = 'cover', compact = false }) {
   const [erreur, setErreur] = useState(false)
+  // Miniature en échec : on retente une fois avec la photo normale.
+  const [repli, setRepli] = useState(false)
 
   // Sans ça, recycler le composant sur une autre photo garderait l'erreur
   // de la précédente et masquerait une image parfaitement valide.
-  useEffect(() => { setErreur(false) }, [uri])
+  useEffect(() => { setErreur(false); setRepli(false) }, [uri])
 
   if (estPhotoEnAttente(uri)) {
     return (
@@ -39,12 +45,13 @@ export default function PhotoJustificatif({ uri, style, resizeMode = 'cover', co
     )
   }
 
+  const source = sourceVignette(uri, { compact, repli })
   return (
     <Image
-      source={{ uri }}
+      source={{ uri: source }}
       style={style}
       resizeMode={resizeMode}
-      onError={() => setErreur(true)}
+      onError={() => (source !== uri ? setRepli(true) : setErreur(true))}
     />
   )
 }
