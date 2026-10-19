@@ -16,7 +16,7 @@ import {
   TitreSection, styleCategorie, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import { titreDu } from '../components/tresorerie/du'
-import { libelleCheque, montantEnCirculation, statutCheque, trierCheques } from '../lib/cheques'
+import { libelleCheque, montantEnCirculation, statutCheque, suggestionsOrdre, trierCheques } from '../lib/cheques'
 import { usePhoto } from '../lib/usePhoto'
 import {
   LIBELLES_CATEGORIE, aujourdhuiISO, estTeteDeFond, fmt, formatDateFR, paiementsParDu, peut, resteDu, soldeCompte,
@@ -277,6 +277,8 @@ function FeuilleCheque({ cheque, banques, donnees, nomResto, user, onFermer, apr
   const choisie = lignesOuvertes.find(x => x.du.id === duId)
   // La prévision du chèque ne baisse pas le reste : en modification, le plafond ne change pas.
   const resteLigne = choisie?.reste ?? 0
+  // Noms déjà écrits : ils apparaissent dès les premières lettres tapées.
+  const suggestions = suggestionsOrdre(ordre, { cheques: donnees.cheques, dus: donnees.dus })
   const filtrees = lignesOuvertes.filter(x => !recherche.trim()
     || `${LIBELLES_CATEGORIE[x.du.categorie]} ${titreDu(x.du, nomResto)}`.toLowerCase().includes(recherche.trim().toLowerCase()))
 
@@ -365,7 +367,12 @@ function FeuilleCheque({ cheque, banques, donnees, nomResto, user, onFermer, apr
         )
       )}
 
-      <Champ label="À l'ordre de" value={ordre} onChangeText={setOrdre} placeholder="ex. Ali sable" />
+      <Champ label="À l'ordre de" value={ordre} onChangeText={setOrdre} placeholder="ex. Ali sable" autoCorrect={false} />
+      {suggestions.length > 0 && (
+        <View style={{ marginTop: -6, marginBottom: 6 }}>
+          <Puces options={suggestions.map(nom => ({ valeur: nom, label: nom }))} valeur={null} onChange={setOrdre} />
+        </View>
+      )}
       <ChampMontant label="Montant" valeur={montant} onChange={setMontant} />
       <ChampCalendrier label="Date d'émission" valeur={dateEmission} onChange={setDateEmission} />
       <ChampCalendrier label="Date d'encaissement prévue" valeur={dateEncaissement} onChange={setDateEncaissement} />
