@@ -87,7 +87,7 @@ export default function TresorerieResultatsScreen() {
               <TitreSection icone="storefront-outline" titre="Par restaurant" droite="du meilleur au moins bon" />
               {lignes.map(({ resto, c }) => {
                 const ton = !c ? colors.textMuted : provisoire ? colors.textSecondary : c.net < 0 ? colors.error : colors.success
-                const sorties = c ? c.charges + (c.direction || 0) + (c.pubs || 0) : 0
+                const sorties = c ? c.charges + (c.direction || 0) + (c.pubs || 0) + (c.glovoRemboursements || 0) + (c.glovoTempsAttente || 0) : 0
                 const part = c && c.encaisse > 0 ? Math.round((sorties / c.encaisse) * 100) : null
                 return (
                   <View key={resto.id} style={styles.carte}>
@@ -108,6 +108,8 @@ export default function TresorerieResultatsScreen() {
                         <Detail point={colors.error} label="Charges du mois" valeur={`− ${fmt(c.charges)}`} />
                         {c.direction > 0 && <Detail point="#7C3AED" label="Dépenses direction" valeur={`− ${fmt(c.direction)}`} />}
                         {c.pubs > 0 && <Detail point="#E11D48" label="Pubs Yango / Glovo" valeur={`− ${fmt(c.pubs)}`} />}
+                        {c.glovoRemboursements > 0 && <Detail point="#E11D48" label="Remboursements Glovo" valeur={`− ${fmt(c.glovoRemboursements)}`} />}
+                        {c.glovoTempsAttente > 0 && <Detail point="#E11D48" label="Temps d'attente Glovo" valeur={`− ${fmt(c.glovoTempsAttente)}`} />}
                         {c.variationCredit !== 0 && (
                           <Detail point={colors.warning}
                             label={`Crédit fournisseurs ${fmt(c.creditDebut)} → ${fmt(c.creditFin)}${c.creditAjustements ? `, hors corrections (${fmt(c.creditAjustements)})` : ''}`}
@@ -127,7 +129,7 @@ export default function TresorerieResultatsScreen() {
             </>
           )}
           <Text style={styles.petit}>
-            Points validés seulement. Loyer et salaires comptent au mois de leur date limite, payés ou non (le loyer de juin, dû début juillet, pèse sur juillet) ; CNPS, timbre, ITS, TEE et bail aussi, jusqu'à leur passage en fournisseurs administratifs. Investissements, retraits perso et rechargements de fond ne comptent pas. Les litiges ne sont pas déduits. Crédit fournisseurs : une dette qui monte dans le mois est une marchandise reçue sans être payée, elle est retirée ; une dette qui baisse est ajoutée (cotisations, loyer et anciens CNPS, timbre, bail exclus, déjà dans les charges ; exclus aussi PALMCI, Sécurité, Boss, et les fournisseurs administratifs depuis leur passage, droits des anciens travailleurs compris : leur montant dû n'est pas une charge, seul leur paiement l'est — déjà dans les dépenses du restaurant s'il paie avec la caisse, ou dans les dépenses direction si la direction paie ; avant octobre 2026, un crédit négatif, souvent une facture oubliée, compte pour 0 ; depuis, les corrections « Modifié directement » ne comptent pas).
+            Points validés seulement. Loyer et salaires comptent au mois de leur date limite, payés ou non (le loyer de juin, dû début juillet, pèse sur juillet) ; CNPS, timbre, ITS, TEE et bail aussi, jusqu'à leur passage en fournisseurs administratifs. Investissements, retraits perso et rechargements de fond ne comptent pas. Seuls les remboursements et temps d'attente Glovo sont déduits : les autres litiges (écart, tapé ±, inventaire, avis, contacts) sont déjà dans l'encaissé. Crédit fournisseurs : une dette qui monte dans le mois est une marchandise reçue sans être payée, elle est retirée ; une dette qui baisse est ajoutée (cotisations, loyer et anciens CNPS, timbre, bail exclus, déjà dans les charges ; exclus aussi PALMCI, Sécurité, Boss, et les fournisseurs administratifs depuis leur passage, droits des anciens travailleurs compris : leur montant dû n'est pas une charge, seul leur paiement l'est — déjà dans les dépenses du restaurant s'il paie avec la caisse, ou dans les dépenses direction si la direction paie ; avant octobre 2026, un crédit négatif, souvent une facture oubliée, compte pour 0 ; depuis, les corrections « Modifié directement » ne comptent pas).
           </Text>
         </ScrollView>
       )}
