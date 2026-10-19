@@ -73,13 +73,15 @@ Deno.serve(async (req) => {
     const dateEssai = essai && /^\d{4}-\d{2}-\d{2}$/.test(corpsRequete.date || '') ? corpsRequete.date : null
     const aujourdhui = dateEssai || new Date().toISOString().slice(0, 10)
 
-    const [dus, paiements, previsions, receptions, emprunts, restaurants, utilisateurs, droits, tokens] = await Promise.all([
+    const [dus, paiements, previsions, receptions, emprunts, cheques, restaurants, utilisateurs, droits, tokens] = await Promise.all([
       toutes('tresorerie_dus'),
       // '*' : prevision_id n'existe qu'après supabase_tresorerie_previsions.sql.
       toutes('tresorerie_paiements'),
       facultatif(toutes('tresorerie_previsions')),
       facultatif(toutes('tresorerie_partenaire_lignes', 'id, partenaire, type, created_at', q => q.eq('type', 'recu'))),
       facultatif(toutes('tresorerie_coffre_emprunts')),
+      // Chèques émis : vides tant que supabase_tresorerie_cheques.sql n'est pas passé.
+      facultatif(toutes('tresorerie_cheques', '*', q => q.eq('statut', 'emis'))),
       toutes('restaurants', 'id, nom'),
       toutes('utilisateurs', 'id, nom, role, actif', q => q.in('role', ['manager', 'directeur', 'rh']).eq('actif', true)),
       toutes('tresorerie_droits', 'user_id, niveau', undefined, 'user_id'),
@@ -87,7 +89,7 @@ Deno.serve(async (req) => {
     ])
 
     const nomResto = (id: string) => (restaurants.find((r: any) => r.id === id)?.nom || 'Groupe').trim()
-    const elements = elementsDuJour({ moment, aujourdhui, dus, paiements, previsions, receptions, emprunts, nomResto })
+    const elements = elementsDuJour({ moment, aujourdhui, dus, paiements, previsions, receptions, emprunts, cheques, nomResto })
     const destinataires = destinatairesRappels({ utilisateurs, droits })
 
     const rapport: any[] = []

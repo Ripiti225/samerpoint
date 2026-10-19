@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Alert, Image, Text, TouchableOpacity, View } from 'react-native'
 
 import { PARTENAIRES_PREVISION, etatPrevision, trierPrevisions } from '../../lib/previsions'
+import { chequeDePrevision, chequeDuPaiement, libelleCheque } from '../../lib/cheques'
 import { CATEGORIES_COTISABLES, cotisationPourCategorie } from '../../lib/cotisations'
 import { chargerLitigesRestaurant } from '../../lib/litigesGlobal'
 import { lireRegleRetenue, phraseRetenue } from '../../lib/retenueLitiges'
@@ -226,6 +227,8 @@ export function FeuilleDetail({
             {previsions.length === 0 && <Text style={styles.vide}>Aucune prévision.</Text>}
             {previsions.map(({ prevision: x, etat }) => {
               const orange = etat.statut === 'a_payer'
+              // Prévision d'un chèque émis : elle se règle depuis Chèques émis.
+              const cheque = chequeDePrevision(donnees.cheques, x.id)
               return (
                 <View key={x.id} style={[styles.item, orange && { backgroundColor: colors.warningLight, borderRadius: 10, paddingHorizontal: 8 }]}>
                   <View style={{ flex: 1 }}>
@@ -236,8 +239,11 @@ export function FeuilleDetail({
                       {etat.statut === 'realisee' ? `${etat.message} · réalisée` : etat.message}{x.note ? ` · ${x.note}` : ''}
                     </Text>
                   </View>
-                  {orange && peut(niveau, 'payer') && <Bouton titre="Payer" style={styles.btnPetit} onPress={() => onPayer(du, x)} />}
-                  {etat.statut !== 'realisee' && peut(niveau, 'payer') && (
+                  {cheque && etat.statut !== 'realisee' && (
+                    <Text style={[styles.petit, { marginTop: 0, maxWidth: 130, textAlign: 'right' }]}>{libelleCheque(cheque)} · à cocher dans Chèques émis</Text>
+                  )}
+                  {orange && !cheque && peut(niveau, 'payer') && <Bouton titre="Payer" style={styles.btnPetit} onPress={() => onPayer(du, x)} />}
+                  {etat.statut !== 'realisee' && !cheque && peut(niveau, 'payer') && (
                     <TouchableOpacity onPress={() => retirerPrevision(x)} style={{ marginLeft: 8 }}>
                       <Text style={{ color: colors.error, fontSize: 13 }}>Retirer</Text>
                     </TouchableOpacity>
@@ -254,17 +260,21 @@ export function FeuilleDetail({
 
       <TitreSection icone="cash-check" couleur={colors.success} titre="Paiements" droite={paiements.length ? `${paiements.length}` : null} />
       {paiements.length === 0 && <Text style={styles.vide}>Aucun paiement.</Text>}
-      {paiements.map(p => (
-        <ItemIcone key={p.id} icone={p.source === 'avant' ? 'history' : p.source === 'compte' ? 'bank-transfer-out' : 'cash'} couleur={colors.success}
+      {paiements.map(p => {
+        // Versement né de l'encaissement d'un chèque : il s'annule depuis Chèques émis.
+        const cheque = chequeDuPaiement(donnees.cheques, p.groupe)
+        return (
+        <ItemIcone key={p.id} icone={cheque ? 'checkbook' : p.source === 'avant' ? 'history' : p.source === 'compte' ? 'bank-transfer-out' : 'cash'} couleur={colors.success}
           titre={`${fmt(p.montant)} F`}
-          sous={`${formatDateFR(p.date)} · ${p.source === 'compte' ? nomCompte(p.compte_id) : p.source === 'avant' ? 'payé avant la trésorerie' : 'Espèces'}${p.photo_url ? ' · photo' : ''}${p.cree_par_nom ? ` · ${p.cree_par_nom}` : ''}`}
-          sousDroite={peut(niveau, 'payer') ? (
+          sous={`${formatDateFR(p.date)} · ${cheque ? libelleCheque(cheque) : p.source === 'compte' ? nomCompte(p.compte_id) : p.source === 'avant' ? 'payé avant la trésorerie' : 'Espèces'}${p.photo_url ? ' · photo' : ''}${p.cree_par_nom ? ` · ${p.cree_par_nom}` : ''}`}
+          sousDroite={peut(niveau, 'payer') && !cheque ? (
             <TouchableOpacity onPress={() => annuler(p)} style={styles.lienDanger}>
               <Text style={styles.lienDangerTxt}>Annuler</Text>
             </TouchableOpacity>
           ) : null}
         />
-      ))}
+        )
+      })}
 
       <View style={{ gap: 8, marginTop: 6 }}>
         {reste > 0 && peut(niveau, 'payer') && <Bouton icone="cash-fast" titre="Payer" onPress={() => onPayer(du)} />}

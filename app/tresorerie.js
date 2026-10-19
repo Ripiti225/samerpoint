@@ -22,6 +22,7 @@ import FeuilleTransfertFond from '../components/tresorerie/FeuilleTransfertFond'
 import { FeuillePayerDroit } from '../components/tresorerie/anciensTravailleurs'
 import { Badge, FeuilleDetail, FeuillePaiement, FeuillePrevision, couleursStatut, titreDu } from '../components/tresorerie/du'
 import { etatPrevision, totalPrevu, trierPrevisions } from '../lib/previsions'
+import { chequeDePrevision, chequesHorsPrevisions, libelleCheque, montantEnCirculation, statutCheque } from '../lib/cheques'
 import { objectifDuMois, progression, resteARembourser, soldeCoffre } from '../lib/direction'
 import { chargerAlertes, chargerPlafonds, enregistrerPlafonds } from '../lib/alertesDb'
 import { totalPartenaires } from '../lib/partenaires'
@@ -76,7 +77,7 @@ export default function TresorerieScreen() {
   const parDu = useMemo(() => paiementsParDu(donnees?.paiements), [donnees])
   // Prévisions : chaque ligne avec son état ; ouvertes (orange d'abord) et réalisées.
   const prev = useMemo(() => {
-    if (!donnees) return { ouvertes: [], realisees: [], total: 0, parDu: {} }
+    if (!donnees) return { ouvertes: [], realisees: [], total: 0, parDu: {}, cheques: [] }
     // Droits des anciens travailleurs : lignes à part, pour les prévisions seulement.
     const dusPrev = [...donnees.dus, ...(donnees.droits?.dus || [])]
     const paiementsPrev = [...donnees.paiements, ...(donnees.droits?.paiements || [])]
@@ -88,11 +89,15 @@ export default function TresorerieScreen() {
     const ouvertes = trierPrevisions(lignes.filter(l => l.etat.statut !== 'realisee'))
     const parLigne = {}
     for (const l of ouvertes) parLigne[l.du.id] = (parLigne[l.du.id] || 0) + l.etat.reste
+    // Chèques émis sans prévision de ligne (ordre libre) : prévus eux aussi.
+    const cheques = chequesHorsPrevisions(donnees.cheques, donnees.previsions)
     return {
       ouvertes,
       realisees: lignes.filter(l => l.etat.statut === 'realisee').reverse(),
-      total: totalPrevu(donnees.previsions, dusPrev, paiementsPrev, donnees.receptions, aujourdhui),
+      total: totalPrevu(donnees.previsions, dusPrev, paiementsPrev, donnees.receptions, aujourdhui)
+        + cheques.reduce((x, c) => x + Number(c.montant || 0), 0),
       parDu: parLigne,
+      cheques,
     }
   }, [donnees, aujourdhui])
   const s = useMemo(
@@ -233,23 +238,39 @@ export default function TresorerieScreen() {
             </Text>
           </Bloc>
 
-          <Bloc icone="calendar-clock" teinte="#D97706" titre="Prévisions" nombre={prev.ouvertes.length}
+          <Bloc icone="calendar-clock" teinte="#D97706" titre="Prévisions" nombre={prev.ouvertes.length + prev.cheques.length}
             sous={nbOrange ? `${nbOrange} à payer maintenant` : 'paiements prévus'} alerte={nbOrange > 0} valeur={s.prevu}
             couleur={nbOrange ? colors.warningDark : undefined} ouvert={ouvert.prevision} onBasculer={() => basculer('prevision')}>
-            {prev.ouvertes.length === 0 && <Text style={styles.petit}>Aucune prévision.</Text>}
+            {prev.ouvertes.length + prev.cheques.length === 0 && <Text style={styles.petit}>Aucune prévision.</Text>}
             {prev.ouvertes.map(({ prevision: p, du, etat }) => {
               const orange = etat.statut === 'a_payer'
+              // Prévision portée par un chèque émis : elle se règle en cochant « Encaissé ».
+              const cheque = chequeDePrevision(donnees.cheques, p.id)
               return (
-                <ItemIcone key={p.id} onPress={() => (du.droit ? router.push('/tresorerie-a-payer?onglet=anciens_travailleurs') : setDetail(du))}
+                <ItemIcone key={p.id} onPress={() => (cheque ? router.push('/tresorerie-cheques')
+                  : du.droit ? router.push('/tresorerie-a-payer?onglet=anciens_travailleurs') : setDetail(du))}
                   icone={styleCategorie(du.categorie).icone} couleur={styleCategorie(du.categorie).couleur}
                   surligne={orange ? colors.warningLight : null}
                   titre={`${LIBELLES_CATEGORIE[du.categorie]} · ${titreDu(du, nomResto)}${du.mois ? ` · ${libelleMoisCourt(du.mois)}` : ''}`}
-                  sous={<Text style={[styles.petit, orange && { color: colors.warningDark, fontWeight: '700' }]}>{etat.message}</Text>}
+                  sous={<Text style={[styles.petit, orange && { color: colors.warningDark, fontWeight: '700' }]}>
+                    {cheque ? `${libelleCheque(cheque)} · ${statutCheque(cheque, aujourdhui).message.toLowerCase()}` : etat.message}
+                  </Text>}
                   droite={`${fmt(etat.reste)} F`}
-                  sousDroite={orange && peut(niveau, 'payer') ? (
+                  sousDroite={orange && !cheque && peut(niveau, 'payer') ? (
                     <Bouton titre="Payer" style={styles.btnPetit} onPress={() => (du.droit ? setPayerDroit(du.fiche) : setPaiement({ du, prevision: p }))} />
                   ) : null}
                 />
+              )
+            })}
+            {prev.cheques.map(c => {
+              const e = statutCheque(c, aujourdhui)
+              const orange = ['en_retard', 'aujourdhui', 'demain'].includes(e.cle)
+              return (
+                <ItemIcone key={c.id} onPress={() => router.push('/tresorerie-cheques')} icone="checkbook" couleur="#2563EB"
+                  surligne={orange ? colors.warningLight : null}
+                  titre={`Chèque · ${c.ordre}`}
+                  sous={<Text style={[styles.petit, orange && { color: colors.warningDark, fontWeight: '700' }]}>{`${libelleCheque(c)} · ${e.message.toLowerCase()}`}</Text>}
+                  droite={`${fmt(c.montant)} F`} />
               )
             })}
             {peut(niveau, 'payer') && (
@@ -326,6 +347,10 @@ export default function TresorerieScreen() {
             <Tuile icone="bank" couleur="#0E9F6E" titre="Banque et espèces" sous={`${fmt(s.banque + s.especes + s.tetes)} F`} detail="BACI · SIB · espèces · têtes de fond" route="/tresorerie-banque" />
             <Tuile icone="moped" couleur="#E11D48" titre="Partenaires" sous={`${fmt(s.partenaires)} F`} detail="à recevoir" route="/tresorerie-partenaires" />
             <Tuile icone="clipboard-list" couleur="#2563EB" titre="À payer" detail="Loyers · salaires · CNPS · timbre…" route="/tresorerie-a-payer" />
+            {peut(niveau, 'voir_banque') && (
+              <Tuile icone="checkbook" couleur="#0369A1" titre="Chèques émis"
+                sous={donnees.cheques ? `${fmt(montantEnCirculation(donnees.cheques))} F` : null} detail="BACI · SIB · à encaisser" route="/tresorerie-cheques" />
+            )}
             {peut(niveau, 'voir_dettes') && (
               <Tuile icone="notebook" couleur="#DC2626" titre="Dettes" sous={`${fmt(enDette('dette').reduce((x, d) => x + reste(d), 0))} F`} detail="à rembourser" route="/tresorerie-a-payer?onglet=dette" />
             )}

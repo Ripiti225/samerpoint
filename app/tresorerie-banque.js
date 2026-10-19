@@ -33,6 +33,7 @@ const LIBELLES_TYPE = {
   virement: 'Virement',
   pret: 'Prêt reçu',
   cotisation: 'Cotisation reçue',
+  cheque: 'Chèque encaissé',
   autre: 'Autre',
 }
 
@@ -42,6 +43,7 @@ const LIES = {
   partenaire: 'Pour l\'enlever, annulez la réception depuis « Partenaires ».',
   coffre: 'Pour l\'enlever, annulez l\'opération depuis « Coffre ».',
   direction: 'Pour l\'enlever, supprimez la dépense depuis « Dépenses direction ».',
+  cheque: 'Pour l\'enlever, annulez l\'encaissement depuis « Chèques émis ».',
   cotisation: 'Pour l\'enlever, annulez la cotisation reçue depuis le détail de la charge (« À payer ») : le solde de la cotisation sera remis aussi.',
 }
 
@@ -52,7 +54,7 @@ const estTete = c => String(c?.nom || '').startsWith('Tête de fond')
 const ICONES_TYPE = {
   recalage: 'scale-balance', recu_banque: 'bank-transfer-in', paiement: 'cash-minus', partenaire: 'moped',
   coffre: 'safe', direction: 'briefcase-outline', especes: 'cash-plus', virement: 'swap-horizontal',
-  pret: 'hand-coin-outline', cotisation: 'piggy-bank-outline', autre: 'dots-horizontal',
+  pret: 'hand-coin-outline', cotisation: 'piggy-bank-outline', cheque: 'checkbook', autre: 'dots-horizontal',
 }
 
 // Icône et couleur d'un compte : banque, espèces ou tête de fond (OM, Wave, Djamo).
