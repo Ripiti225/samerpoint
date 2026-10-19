@@ -1462,7 +1462,9 @@ export default function VerificationScreen() {
   function confirmerRetourDecisionPOS(cloture, decision) {
     if (!pointSelectionne || retourSaving) return
     const cfg = STATUT_MACHINE[decision.statut]
-    Alert.alert('↩️ Revenir sur la décision', `${cfg?.label || 'Cette décision'} pour ${cloture.caissier_nom || 'ce caissier'} sera annulée. L’écart redeviendra à traiter.`, [
+    const plusieurs = (decision.regularisations || []).length > 1
+    const quoi = plusieurs ? 'Toutes les décisions' : (cfg?.label || 'Cette décision')
+    Alert.alert('↩️ Revenir sur la décision', `${quoi} pour ${cloture.caissier_nom || 'ce caissier'} ${plusieurs ? 'seront annulées' : 'sera annulée'}. L’écart redeviendra entièrement à traiter.`, [
       { text: 'Retour', style: 'cancel' },
       { text: 'Confirmer', style: 'destructive', onPress: () => revenirSurDecisionPOS(cloture) },
     ])
@@ -2669,7 +2671,12 @@ export default function VerificationScreen() {
                                   <>
                                     <View style={[styles.machineStatutBadge, statutCfg.box]}>
                                       <Text style={[styles.machineStatutTxt, { color: statutCfg.txt }]}>
-                                        {statutCfg.label}{decision.restant > 0 ? ` · reste ${fmt(decision.restant)}` : ''}
+                                        {[
+                                          decision.annule > 0 && `🚫 Annulé ${fmt(decision.annule)}`,
+                                          decision.justifie > 0 && `✔️ Justifié ${fmt(decision.justifie)}`,
+                                          decision.refuse && '❌ Reste refusé',
+                                        ].filter(Boolean).join(' · ') || statutCfg.label}
+                                        {decision.restant > 0 ? ` · reste ${fmt(decision.restant)}` : ''}
                                       </Text>
                                     </View>
                                     {peutAnnulerDecisionMachine && (
@@ -2685,7 +2692,10 @@ export default function VerificationScreen() {
                                 ) : (
                                   <Text style={styles.machineDecisionHint}>Décision sur l’explication du caissier :</Text>
                                 )}
-                                {decision.restant > 0 && !decision.statut && (
+                                {decision.aTraiter && decision.statut && (
+                                  <Text style={styles.machineDecisionHint}>Décision sur le reste ({fmt(decision.restant)}) :</Text>
+                                )}
+                                {decision.aTraiter && (
                                   <View style={styles.machineBtnRow}>
                                     <TouchableOpacity
                                       style={[styles.machineBtn, styles.machineBtnJustifier, (statuantMachine || retourSaving) && { opacity: 0.5 }]}
