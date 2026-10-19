@@ -231,7 +231,6 @@ export default function RootLayout() {
         <Stack.Screen name="modifier-inventaire" />
         <Stack.Screen name="recap-point" />
         <Stack.Screen name="rh" />
-        <Stack.Screen name="charges" />
         <Stack.Screen name="documents" />
         <Stack.Screen name="point-shift" />
         <Stack.Screen name="verification" />
