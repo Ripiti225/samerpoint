@@ -1,16 +1,16 @@
 # Graph Report - samtrackly  (2026-10-19)
 
 ## Corpus Check
-- 548 files · ~712,269 words
+- 548 files · ~712,558 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 4783 nodes · 12517 edges · 367 communities (275 shown, 92 thin omitted)
+- 4783 nodes · 12517 edges · 367 communities (276 shown, 91 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 124 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `54feb01d`
+- Built from commit: `c6d0ed98`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -321,7 +321,7 @@
 - expo-device
 - creditFournisseursMois.js
 - tresorerie_previsions
-- biometrie.test.mjs
+- lib/demandes.js
 - ResumeAvis.js
 - supabase_import_sheets_neutre.sql
 - kdoPOS.js
@@ -360,7 +360,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (367 total, 92 thin omitted)
+## Communities (367 total, 91 thin omitted)
 
 ### Community 0 - "accueil.js"
 Cohesion: 0.12
@@ -415,8 +415,8 @@ Cohesion: 0.05
 Nodes (79): TresorerieScreen(), chargerTresorerie(), statutEmprunt(), messagesTresorerie(), anneesDisponibles(), dansPeriode(), dateDuSolde(), dettesRemboursees() (+71 more)
 
 ### Community 13 - "biometrieWeb.js"
-Cohesion: 0.13
-Nodes (23): ajouterEnrolement(), depuisBase64Url(), empreinteTexte(), memeCompte(), normaliserEnrolements(), retirerEnrolement(), ROLES_BIOMETRIE, texteSignature() (+15 more)
+Cohesion: 0.11
+Nodes (26): ajouterEnrolement(), depuisBase64Url(), empreinteTexte(), memeCompte(), normaliserEnrolements(), peutProposerActivation(), retirerEnrolement(), ROLES_BIOMETRIE (+18 more)
 
 ### Community 14 - "LitigesScreen"
 Cohesion: 0.07
@@ -459,8 +459,8 @@ Cohesion: 0.22
 Nodes (22): renderActivite(), feuillesAnalyse(), CANAUX_POS, canauxParHeure(), canauxParPlat(), cleCanal(), creneauxForts(), faitsMarquants() (+14 more)
 
 ### Community 24 - "EcranModerne.js"
-Cohesion: 0.11
-Nodes (53): DemandesScreen(), Coche(), FORM_VIDE, ONGLETS, STATUTS_CONTRAT_GERANT, VIDE, FeuilleVerification(), CarteDemande() (+45 more)
+Cohesion: 0.16
+Nodes (34): Coche(), FORM_VIDE, ONGLETS, STATUTS_CONTRAT_GERANT, VIDE, CarteDemande(), CarteExplication(), sansAccents() (+26 more)
 
 ### Community 25 - "VentesScreen"
 Cohesion: 0.16
@@ -751,8 +751,8 @@ Cohesion: 0.07
 Nodes (51): chargerMois(), chargerDonnees(), sauvegarder(), chargerFournisseurs(), modifierCredit(), aujourdhui(), ChampPeriode(), FeuilleFournisseurAdmin() (+43 more)
 
 ### Community 107 - "creerNotification"
-Cohesion: 0.11
-Nodes (30): DemandesAdminScreen(), charger(), confirmerDeclin(), confirmerValidation(), demanderValidation(), estFinanciere(), executerAnnulation(), soumettreCreation() (+22 more)
+Cohesion: 0.15
+Nodes (22): DemandesAdminScreen(), charger(), confirmerDeclin(), confirmerValidation(), demanderValidation(), estFinanciere(), executerAnnulation(), soumettreCreation() (+14 more)
 
 ### Community 108 - "Global Constraints"
 Cohesion: 0.14
@@ -940,7 +940,7 @@ Nodes (13): analyserEquipe(), analyserJourRepos(), completerPresences(), FENETRE
 
 ### Community 236 - "FormulaireDemande.js"
 Cohesion: 0.11
-Nodes (31): Signature(), FeuilleDemandeRH(), accepter(), refuser(), valider(), depuisDemande(), FormulaireDemande(), enregistrerDirect() (+23 more)
+Nodes (32): Signature(), FeuilleDemandeRH(), accepter(), refuser(), FeuilleVerification(), valider(), depuisDemande(), FormulaireDemande() (+24 more)
 
 ### Community 237 - "Trésorerie étape 3 — Nouvel accueil — Implementation Plan"
 Cohesion: 0.50
@@ -1123,8 +1123,8 @@ Cohesion: 0.33
 Nodes (6): commandes_plateformes, correspondances_plats, journees_litiges_plateformes, litiges_auto_annules, plats_pos_vus, restaurants
 
 ### Community 310 - "LoginScreen"
-Cohesion: 0.16
-Nodes (23): LoginScreen(), appuyerChiffre(), chargerUtilisateurs(), chargerUtilisateursGlobaux(), choisirRestaurant(), choisirUtilisateur(), enrolementsDe(), fetchRestaurants() (+15 more)
+Cohesion: 0.17
+Nodes (22): LoginScreen(), appuyerChiffre(), chargerUtilisateurs(), chargerUtilisateursGlobaux(), choisirRestaurant(), choisirUtilisateur(), enrolementsDe(), fetchRestaurants() (+14 more)
 
 ### Community 311 - "Modales.js"
 Cohesion: 0.14
@@ -1233,6 +1233,10 @@ Nodes (7): LivraisonsScreen(), ajouterCommande(), sauvegarder(), sauvegarderEtQu
 Cohesion: 0.29
 Nodes (8): creditFournisseursParRestoMois(), estFournisseurCharge(), jourDe(), MOIS_FORMULE_NORMALE, moisSuivant(), normaliser(), SOURCE_AJUSTEMENT, fournisseurs
 
+### Community 355 - "lib/demandes.js"
+Cohesion: 0.14
+Nodes (26): DemandesScreen(), charger(), resetForm(), soumettre(), DemandesExplicationScreen(), charger(), resetForm(), soumettre() (+18 more)
+
 ### Community 356 - "ResumeAvis.js"
 Cohesion: 0.36
 Nodes (6): fcfa(), Fleche(), makeStyles(), ResumeAvis(), virgule(), evolution()
@@ -1268,12 +1272,12 @@ Nodes (3): getDateMoisPrecedent(), getDateSemainePrecedente(), chargerComparaiso
 ## Knowledge Gaps
 - **1030 isolated node(s):** `name`, `slug`, `version`, `orientation`, `icon` (+1025 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **92 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **91 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `useApp()` connect `useTheme` to `accueil.js`, `InventaireScreen`, `app/contrats.js`, `brouillons-fournisseurs.js`, `contacts.js`, `chargerTousTravailleurs`, `ModifierPointScreen`, `VerificationScreen`, `recherche.js`, `stats-caissiers.js`, `LitigesScreen`, `PointShiftScreen`, `DashboardGlobalScreen`, `EcranModerne.js`, `VentesScreen`, `app/journal.js`, `ParametresScreen`, `lib/corbeille.js`, `DashboardScreen`, `verificateur.js`, `point-caissier.js`, `FournisseursScreen`, `RecapPointScreen`, `deductions-gerant.js`, `avis-plateformes.js`, `DocumentsScreen`, `login.js`, `dashboard-global.js`, `app/supervision.js`, `CorrectionPointScreen`, `LoginScreen`, `app/_layout.tsx`, `CreditsFournisseursScreen`, `presences.js`, `NotificationsContext.js`, `DeductionsGerantScreen`, `litiges.js`, `verification.js`, `ChoixDateScreen`, `LivraisonsScreen`, `DepensesScreen`, `app/tresorerie.js`, `EquipeScreen`, `SelectionJourneeScreen`, `credits-fournisseurs.js`, `creerNotification`, `DemandesExplicationAdminScreen`, `supervisionDb.js`, `app/equipe.js`?**
+- **Why does `useApp()` connect `useTheme` to `accueil.js`, `InventaireScreen`, `app/contrats.js`, `brouillons-fournisseurs.js`, `contacts.js`, `chargerTousTravailleurs`, `ModifierPointScreen`, `VerificationScreen`, `recherche.js`, `stats-caissiers.js`, `LitigesScreen`, `PointShiftScreen`, `DashboardGlobalScreen`, `EcranModerne.js`, `VentesScreen`, `app/journal.js`, `ParametresScreen`, `lib/corbeille.js`, `DashboardScreen`, `verificateur.js`, `point-caissier.js`, `FournisseursScreen`, `RecapPointScreen`, `deductions-gerant.js`, `avis-plateformes.js`, `DocumentsScreen`, `login.js`, `dashboard-global.js`, `app/supervision.js`, `CorrectionPointScreen`, `LoginScreen`, `app/_layout.tsx`, `CreditsFournisseursScreen`, `presences.js`, `NotificationsContext.js`, `DeductionsGerantScreen`, `litiges.js`, `verification.js`, `ChoixDateScreen`, `LivraisonsScreen`, `DepensesScreen`, `app/tresorerie.js`, `lib/demandes.js`, `EquipeScreen`, `SelectionJourneeScreen`, `credits-fournisseurs.js`, `creerNotification`, `DemandesExplicationAdminScreen`, `supervisionDb.js`, `app/equipe.js`?**
   _High betweenness centrality (0.096) - this node is a cross-community bridge._
 - **Why does `useTheme()` connect `useTheme` to `accueil.js`, `exportRapportMensuel.js`, `InventaireScreen`, `brouillons-fournisseurs.js`, `BandeauGerant.js`, `ModifierPointScreen`, `VerificationScreen`, `recherche.js`, `stats-caissiers.js`, `LitigesScreen`, `PointShiftScreen`, `DashboardGlobalScreen`, `EcranModerne.js`, `app/journal.js`, `ParametresScreen`, `lib/corbeille.js`, `DashboardScreen`, `verificateur.js`, `point-caissier.js`, `FournisseursScreen`, `RecapPointScreen`, `useStylesTreso`, `deductions-gerant.js`, `avis-plateformes.js`, `comparaisonDashboard.js`, `login.js`, `dashboard-global.js`, `CorrectionPointScreen`, `components/graphiques.js`, `LoginScreen`, `dashboardGlobal.js`, `ChampDate.js`, `CreditsFournisseursScreen`, `presences.js`, `litiges.js`, `verification.js`, `ChoixDateScreen`, `LivraisonsScreen`, `DepensesScreen`, `ModifierInventaireScreen`, `app/tresorerie.js`, `EquipeScreen`, `SelectionJourneeScreen`, `credits-fournisseurs.js`, `rapports.js`, `app/equipe.js`, `AccueilManager.js`?**
   _High betweenness centrality (0.094) - this node is a cross-community bridge._

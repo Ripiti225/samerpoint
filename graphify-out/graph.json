@@ -1750,7 +1750,7 @@
       "file_type": "code",
       "norm_label": "telechargerpdfecarts()",
       "source_file": "app/verification.js",
-      "source_location": "L1624"
+      "source_location": "L1626"
     },
     {
       "id": "lib_generatepdf_buildhtml",
@@ -3683,114 +3683,6 @@
       "norm_label": "valider()",
       "source_file": "app/demandes-admin.js",
       "source_location": "L110"
-    },
-    {
-      "id": "app_demandes_demandesscreen_charger",
-      "label": "charger()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 107,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "charger()",
-      "source_file": "app/demandes.js",
-      "source_location": "L87"
-    },
-    {
-      "id": "app_demandes_demandesscreen_resetform",
-      "label": "resetForm()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 107,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "resetform()",
-      "source_file": "app/demandes.js",
-      "source_location": "L98"
-    },
-    {
-      "id": "app_demandes_demandesscreen_soumettre",
-      "label": "soumettre()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 107,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "soumettre()",
-      "source_file": "app/demandes.js",
-      "source_location": "L108"
-    },
-    {
-      "id": "app_demandes_explication_demandesexplicationscreen",
-      "label": "DemandesExplicationScreen()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 107,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "demandesexplicationscreen()",
-      "source_file": "app/demandes-explication.js",
-      "source_location": "L18"
-    },
-    {
-      "id": "app_demandes_explication_demandesexplicationscreen_charger",
-      "label": "charger()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 107,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "charger()",
-      "source_file": "app/demandes-explication.js",
-      "source_location": "L45"
-    },
-    {
-      "id": "app_demandes_explication_demandesexplicationscreen_resetform",
-      "label": "resetForm()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 107,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "resetform()",
-      "source_file": "app/demandes-explication.js",
-      "source_location": "L58"
-    },
-    {
-      "id": "app_demandes_explication_demandesexplicationscreen_soumettre",
-      "label": "soumettre()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 107,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "soumettre()",
-      "source_file": "app/demandes-explication.js",
-      "source_location": "L64"
-    },
-    {
-      "id": "app_demandes_explication_demandesexplicationscreen_uploaderreponse",
-      "label": "uploaderReponse()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 107,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "uploaderreponse()",
-      "source_file": "app/demandes-explication.js",
-      "source_location": "L117"
-    },
-    {
-      "id": "app_demandes_explication_demandesexplicationscreen_voirfichier",
-      "label": "voirFichier()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 107,
-      "community_name": "creerNotification",
-      "file_type": "code",
-      "norm_label": "voirfichier()",
-      "source_file": "app/demandes-explication.js",
-      "source_location": "L160"
     },
     {
       "id": "lib_notifications_envoyernotifdemandenouvelle",
@@ -6311,6 +6203,18 @@
       "norm_label": "normaliserenrolements()",
       "source_file": "lib/biometrie.js",
       "source_location": "L75"
+    },
+    {
+      "id": "lib_biometrie_peutproposeractivation",
+      "label": "peutProposerActivation()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 13,
+      "community_name": "biometrieWeb.js",
+      "file_type": "code",
+      "norm_label": "peutproposeractivation()",
+      "source_file": "lib/biometrie.js",
+      "source_location": "L30"
     },
     {
       "id": "lib_biometrie_retirerenrolement",
@@ -13837,6 +13741,18 @@
       "source_location": "L60"
     },
     {
+      "id": "components_contrats_feuilleverification_feuilleverification",
+      "label": "FeuilleVerification()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 236,
+      "community_name": "FormulaireDemande.js",
+      "file_type": "code",
+      "norm_label": "feuilleverification()",
+      "source_file": "components/contrats/FeuilleVerification.js",
+      "source_location": "L16"
+    },
+    {
       "id": "components_contrats_feuilleverification_feuilleverification_valider",
       "label": "valider()",
       "_callable": true,
@@ -14077,18 +13993,6 @@
       "source_location": "L19"
     },
     {
-      "id": "app_demandes_demandesscreen",
-      "label": "DemandesScreen()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "demandesscreen()",
-      "source_file": "app/demandes.js",
-      "source_location": "L56"
-    },
-    {
       "id": "app_demandes_explication_admin_coche",
       "label": "Coche()",
       "_callable": true,
@@ -14099,18 +14003,6 @@
       "norm_label": "coche()",
       "source_file": "app/demandes-explication-admin.js",
       "source_location": "L510"
-    },
-    {
-      "id": "components_contrats_feuilleverification_feuilleverification",
-      "label": "FeuilleVerification()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "feuilleverification()",
-      "source_file": "components/contrats/FeuilleVerification.js",
-      "source_location": "L16"
     },
     {
       "id": "components_demandes_cartes_cartedemande",
@@ -14353,138 +14245,6 @@
       "source_location": "L100"
     },
     {
-      "id": "context_notificationscontext_notificationsprovider_chargerexplicationsenretard",
-      "label": "chargerExplicationsEnRetard()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "chargerexplicationsenretard()",
-      "source_file": "context/NotificationsContext.js",
-      "source_location": "L93"
-    },
-    {
-      "id": "lib_demandes_compterdemandes",
-      "label": "compterDemandes()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "compterdemandes()",
-      "source_file": "lib/demandes.js",
-      "source_location": "L100"
-    },
-    {
-      "id": "lib_demandes_compterexplications",
-      "label": "compterExplications()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "compterexplications()",
-      "source_file": "lib/demandes.js",
-      "source_location": "L107"
-    },
-    {
-      "id": "lib_demandes_correspond",
-      "label": "correspond()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "correspond()",
-      "source_file": "lib/demandes.js",
-      "source_location": "L93"
-    },
-    {
-      "id": "lib_demandes_decisionproposition",
-      "label": "decisionProposition()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "decisionproposition()",
-      "source_file": "lib/demandes.js",
-      "source_location": "L174"
-    },
-    {
-      "id": "lib_demandes_descriptionpour",
-      "label": "descriptionPour()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "descriptionpour()",
-      "source_file": "lib/demandes.js",
-      "source_location": "L185"
-    },
-    {
-      "id": "lib_demandes_enretard",
-      "label": "enRetard()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "enretard()",
-      "source_file": "lib/demandes.js",
-      "source_location": "L58"
-    },
-    {
-      "id": "lib_demandes_estproposition",
-      "label": "estProposition()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "estproposition()",
-      "source_file": "lib/demandes.js",
-      "source_location": "L129"
-    },
-    {
-      "id": "lib_demandes_explicationssansreponse",
-      "label": "explicationsSansReponse()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "explicationssansreponse()",
-      "source_file": "lib/demandes.js",
-      "source_location": "L72"
-    },
-    {
-      "id": "lib_demandes_filtrerdemandes",
-      "label": "filtrerDemandes()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "filtrerdemandes()",
-      "source_file": "lib/demandes.js",
-      "source_location": "L113"
-    },
-    {
-      "id": "lib_demandes_filtrerexplications",
-      "label": "filtrerExplications()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "filtrerexplications()",
-      "source_file": "lib/demandes.js",
-      "source_location": "L117"
-    },
-    {
       "id": "lib_demandes_fmtdate",
       "label": "fmtDate()",
       "_callable": true,
@@ -14507,54 +14267,6 @@
       "norm_label": "fmtmontant()",
       "source_file": "lib/demandes.js",
       "source_location": "L86"
-    },
-    {
-      "id": "lib_demandes_regrouperpropositions",
-      "label": "regrouperPropositions()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "regrouperpropositions()",
-      "source_file": "lib/demandes.js",
-      "source_location": "L137"
-    },
-    {
-      "id": "lib_demandes_sansaccents",
-      "label": "sansAccents()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "sansaccents()",
-      "source_file": "lib/demandes.js",
-      "source_location": "L90"
-    },
-    {
-      "id": "lib_demandes_seuilretard",
-      "label": "seuilRetard()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "seuilretard()",
-      "source_file": "lib/demandes.js",
-      "source_location": "L63"
-    },
-    {
-      "id": "lib_demandes_visiblepourgerant",
-      "label": "visiblePourGerant()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "visiblepourgerant()",
-      "source_file": "lib/demandes.js",
-      "source_location": "L163"
     },
     {
       "id": "lib_usefocusrecherche_usefocusrecherche",
@@ -17326,7 +17038,7 @@
       "file_type": "code",
       "norm_label": "ecartjourpos()",
       "source_file": "lib/ecartPOS.js",
-      "source_location": "L132"
+      "source_location": "L142"
     },
     {
       "id": "lib_ecartpos_ecartsparcaissier",
@@ -17350,7 +17062,7 @@
       "file_type": "code",
       "norm_label": "fusionnerresponsablesecart()",
       "source_file": "lib/ecartPOS.js",
-      "source_location": "L181"
+      "source_location": "L191"
     },
     {
       "id": "lib_ecartpos_responsablesecartpos",
@@ -17362,7 +17074,7 @@
       "file_type": "code",
       "norm_label": "responsablesecartpos()",
       "source_file": "lib/ecartPOS.js",
-      "source_location": "L142"
+      "source_location": "L152"
     },
     {
       "id": "lib_litigecontacts_chargerpointscontact",
@@ -20641,18 +20353,6 @@
       "source_location": "L234"
     },
     {
-      "id": "lib_biometrie_peutproposeractivation",
-      "label": "peutProposerActivation()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 310,
-      "community_name": "LoginScreen",
-      "file_type": "code",
-      "norm_label": "peutproposeractivation()",
-      "source_file": "lib/biometrie.js",
-      "source_location": "L30"
-    },
-    {
       "id": "lib_biometrieappareil_lireenrolements",
       "label": "lireEnrolements()",
       "_callable": true,
@@ -23483,6 +23183,306 @@
       "norm_label": "tx()",
       "source_file": "lib/creditFournisseursMois.test.mjs",
       "source_location": "L19"
+    },
+    {
+      "id": "app_demandes_demandesscreen",
+      "label": "DemandesScreen()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "demandesscreen()",
+      "source_file": "app/demandes.js",
+      "source_location": "L56"
+    },
+    {
+      "id": "app_demandes_demandesscreen_charger",
+      "label": "charger()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "charger()",
+      "source_file": "app/demandes.js",
+      "source_location": "L87"
+    },
+    {
+      "id": "app_demandes_demandesscreen_resetform",
+      "label": "resetForm()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "resetform()",
+      "source_file": "app/demandes.js",
+      "source_location": "L98"
+    },
+    {
+      "id": "app_demandes_demandesscreen_soumettre",
+      "label": "soumettre()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "soumettre()",
+      "source_file": "app/demandes.js",
+      "source_location": "L108"
+    },
+    {
+      "id": "app_demandes_explication_demandesexplicationscreen",
+      "label": "DemandesExplicationScreen()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "demandesexplicationscreen()",
+      "source_file": "app/demandes-explication.js",
+      "source_location": "L18"
+    },
+    {
+      "id": "app_demandes_explication_demandesexplicationscreen_charger",
+      "label": "charger()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "charger()",
+      "source_file": "app/demandes-explication.js",
+      "source_location": "L45"
+    },
+    {
+      "id": "app_demandes_explication_demandesexplicationscreen_resetform",
+      "label": "resetForm()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "resetform()",
+      "source_file": "app/demandes-explication.js",
+      "source_location": "L58"
+    },
+    {
+      "id": "app_demandes_explication_demandesexplicationscreen_soumettre",
+      "label": "soumettre()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "soumettre()",
+      "source_file": "app/demandes-explication.js",
+      "source_location": "L64"
+    },
+    {
+      "id": "app_demandes_explication_demandesexplicationscreen_uploaderreponse",
+      "label": "uploaderReponse()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "uploaderreponse()",
+      "source_file": "app/demandes-explication.js",
+      "source_location": "L117"
+    },
+    {
+      "id": "app_demandes_explication_demandesexplicationscreen_voirfichier",
+      "label": "voirFichier()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "voirfichier()",
+      "source_file": "app/demandes-explication.js",
+      "source_location": "L160"
+    },
+    {
+      "id": "context_notificationscontext_notificationsprovider_chargerexplicationsenretard",
+      "label": "chargerExplicationsEnRetard()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "chargerexplicationsenretard()",
+      "source_file": "context/NotificationsContext.js",
+      "source_location": "L93"
+    },
+    {
+      "id": "lib_demandes_compterdemandes",
+      "label": "compterDemandes()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "compterdemandes()",
+      "source_file": "lib/demandes.js",
+      "source_location": "L100"
+    },
+    {
+      "id": "lib_demandes_compterexplications",
+      "label": "compterExplications()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "compterexplications()",
+      "source_file": "lib/demandes.js",
+      "source_location": "L107"
+    },
+    {
+      "id": "lib_demandes_correspond",
+      "label": "correspond()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "correspond()",
+      "source_file": "lib/demandes.js",
+      "source_location": "L93"
+    },
+    {
+      "id": "lib_demandes_decisionproposition",
+      "label": "decisionProposition()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "decisionproposition()",
+      "source_file": "lib/demandes.js",
+      "source_location": "L174"
+    },
+    {
+      "id": "lib_demandes_descriptionpour",
+      "label": "descriptionPour()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "descriptionpour()",
+      "source_file": "lib/demandes.js",
+      "source_location": "L185"
+    },
+    {
+      "id": "lib_demandes_enretard",
+      "label": "enRetard()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "enretard()",
+      "source_file": "lib/demandes.js",
+      "source_location": "L58"
+    },
+    {
+      "id": "lib_demandes_estproposition",
+      "label": "estProposition()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "estproposition()",
+      "source_file": "lib/demandes.js",
+      "source_location": "L129"
+    },
+    {
+      "id": "lib_demandes_explicationssansreponse",
+      "label": "explicationsSansReponse()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "explicationssansreponse()",
+      "source_file": "lib/demandes.js",
+      "source_location": "L72"
+    },
+    {
+      "id": "lib_demandes_filtrerdemandes",
+      "label": "filtrerDemandes()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "filtrerdemandes()",
+      "source_file": "lib/demandes.js",
+      "source_location": "L113"
+    },
+    {
+      "id": "lib_demandes_filtrerexplications",
+      "label": "filtrerExplications()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "filtrerexplications()",
+      "source_file": "lib/demandes.js",
+      "source_location": "L117"
+    },
+    {
+      "id": "lib_demandes_regrouperpropositions",
+      "label": "regrouperPropositions()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "regrouperpropositions()",
+      "source_file": "lib/demandes.js",
+      "source_location": "L137"
+    },
+    {
+      "id": "lib_demandes_sansaccents",
+      "label": "sansAccents()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "sansaccents()",
+      "source_file": "lib/demandes.js",
+      "source_location": "L90"
+    },
+    {
+      "id": "lib_demandes_seuilretard",
+      "label": "seuilRetard()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "seuilretard()",
+      "source_file": "lib/demandes.js",
+      "source_location": "L63"
+    },
+    {
+      "id": "lib_demandes_visiblepourgerant",
+      "label": "visiblePourGerant()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "visiblepourgerant()",
+      "source_file": "lib/demandes.js",
+      "source_location": "L163"
     },
     {
       "id": "components_avis_resumeavis_barre",
@@ -29014,7 +29014,7 @@
       "file_type": "code",
       "norm_label": "photovignette()",
       "source_file": "app/verification.js",
-      "source_location": "L1694"
+      "source_location": "L1696"
     },
     {
       "id": "app_verification_verificationscreen_voirphoto",
@@ -31018,7 +31018,7 @@
       "file_type": "code",
       "norm_label": "makestyles()",
       "source_file": "app/verification.js",
-      "source_location": "L4489"
+      "source_location": "L4499"
     },
     {
       "id": "app_verification_verificationscreen",
@@ -31162,7 +31162,7 @@
       "file_type": "code",
       "norm_label": "confirmerretourdecisionmachine()",
       "source_file": "app/verification.js",
-      "source_location": "L1514"
+      "source_location": "L1516"
     },
     {
       "id": "app_verification_verificationscreen_confirmerretourdecisionpos",
@@ -31330,7 +31330,7 @@
       "file_type": "code",
       "norm_label": "getprixproduit()",
       "source_file": "app/verification.js",
-      "source_location": "L1616"
+      "source_location": "L1618"
     },
     {
       "id": "app_verification_verificationscreen_gettoutesphotos",
@@ -31342,7 +31342,7 @@
       "file_type": "code",
       "norm_label": "gettoutesphotos()",
       "source_file": "app/verification.js",
-      "source_location": "L1650"
+      "source_location": "L1652"
     },
     {
       "id": "app_verification_verificationscreen_inventaireenattente",
@@ -31366,7 +31366,7 @@
       "file_type": "code",
       "norm_label": "lignecorrigerfacture()",
       "source_file": "app/verification.js",
-      "source_location": "L1675"
+      "source_location": "L1677"
     },
     {
       "id": "app_verification_verificationscreen_lireentreespos",
@@ -31438,7 +31438,7 @@
       "file_type": "code",
       "norm_label": "ouvrigalerie()",
       "source_file": "app/verification.js",
-      "source_location": "L1643"
+      "source_location": "L1645"
     },
     {
       "id": "app_verification_verificationscreen_ouvrirannulermachine",
@@ -31570,7 +31570,7 @@
       "file_type": "code",
       "norm_label": "revenirsurdecisionmachine()",
       "source_file": "app/verification.js",
-      "source_location": "L1543"
+      "source_location": "L1545"
     },
     {
       "id": "app_verification_verificationscreen_revenirsurdecisionpos",
@@ -31582,7 +31582,7 @@
       "file_type": "code",
       "norm_label": "revenirsurdecisionpos()",
       "source_file": "app/verification.js",
-      "source_location": "L1471"
+      "source_location": "L1473"
     },
     {
       "id": "app_verification_verificationscreen_sauvegardercorrectioncommandes",
@@ -31642,7 +31642,7 @@
       "file_type": "code",
       "norm_label": "statutpresencebadge()",
       "source_file": "app/verification.js",
-      "source_location": "L1723"
+      "source_location": "L1725"
     },
     {
       "id": "app_verification_verificationscreen_togglesection",
@@ -34898,6 +34898,39 @@
       "norm_label": "roles_biometrie",
       "source_file": "lib/biometrie.js",
       "source_location": "L22"
+    },
+    {
+      "id": "lib_biometrie_test",
+      "label": "biometrie.test.mjs",
+      "_origin": "ast",
+      "community": 13,
+      "community_name": "biometrieWeb.js",
+      "file_type": "code",
+      "norm_label": "biometrie.test.mjs",
+      "source_file": "lib/biometrie.test.mjs",
+      "source_location": "L1"
+    },
+    {
+      "id": "lib_biometrie_test_gerant",
+      "label": "gerant",
+      "_origin": "ast",
+      "community": 13,
+      "community_name": "biometrieWeb.js",
+      "file_type": "code",
+      "norm_label": "gerant",
+      "source_file": "lib/biometrie.test.mjs",
+      "source_location": "L10"
+    },
+    {
+      "id": "lib_biometrie_test_resto",
+      "label": "resto",
+      "_origin": "ast",
+      "community": 13,
+      "community_name": "biometrieWeb.js",
+      "file_type": "code",
+      "norm_label": "resto",
+      "source_file": "lib/biometrie.test.mjs",
+      "source_location": "L11"
     },
     {
       "id": "lib_biometrienatif",
@@ -41756,17 +41789,6 @@
       "source_location": "L133"
     },
     {
-      "id": "lib_demandes",
-      "label": "lib/demandes.js",
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "lib/demandes.js",
-      "source_file": "lib/demandes.js",
-      "source_location": "L1"
-    },
-    {
       "id": "lib_demandes_couleurs_etapes",
       "label": "COULEURS_ETAPES",
       "_origin": "ast",
@@ -41776,17 +41798,6 @@
       "norm_label": "couleurs_etapes",
       "source_file": "lib/demandes.js",
       "source_location": "L48"
-    },
-    {
-      "id": "lib_demandes_etapes_explication",
-      "label": "ETAPES_EXPLICATION",
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "etapes_explication",
-      "source_file": "lib/demandes.js",
-      "source_location": "L39"
     },
     {
       "id": "lib_demandes_filtres_demande",
@@ -41809,28 +41820,6 @@
       "norm_label": "statuts_demande",
       "source_file": "lib/demandes.js",
       "source_location": "L11"
-    },
-    {
-      "id": "lib_demandes_statuts_explication",
-      "label": "STATUTS_EXPLICATION",
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "statuts_explication",
-      "source_file": "lib/demandes.js",
-      "source_location": "L28"
-    },
-    {
-      "id": "lib_demandes_test",
-      "label": "demandes.test.mjs",
-      "_origin": "ast",
-      "community": 24,
-      "community_name": "EcranModerne.js",
-      "file_type": "code",
-      "norm_label": "demandes.test.mjs",
-      "source_file": "lib/demandes.test.mjs",
-      "source_location": "L1"
     },
     {
       "id": "lib_demandes_violet",
@@ -49623,37 +49612,48 @@
       "source_location": "L11"
     },
     {
-      "id": "lib_biometrie_test",
-      "label": "biometrie.test.mjs",
+      "id": "lib_demandes",
+      "label": "lib/demandes.js",
       "_origin": "ast",
       "community": 355,
-      "community_name": "biometrie.test.mjs",
+      "community_name": "lib/demandes.js",
       "file_type": "code",
-      "norm_label": "biometrie.test.mjs",
-      "source_file": "lib/biometrie.test.mjs",
+      "norm_label": "lib/demandes.js",
+      "source_file": "lib/demandes.js",
       "source_location": "L1"
     },
     {
-      "id": "lib_biometrie_test_gerant",
-      "label": "gerant",
+      "id": "lib_demandes_etapes_explication",
+      "label": "ETAPES_EXPLICATION",
       "_origin": "ast",
       "community": 355,
-      "community_name": "biometrie.test.mjs",
+      "community_name": "lib/demandes.js",
       "file_type": "code",
-      "norm_label": "gerant",
-      "source_file": "lib/biometrie.test.mjs",
-      "source_location": "L10"
+      "norm_label": "etapes_explication",
+      "source_file": "lib/demandes.js",
+      "source_location": "L39"
     },
     {
-      "id": "lib_biometrie_test_resto",
-      "label": "resto",
+      "id": "lib_demandes_statuts_explication",
+      "label": "STATUTS_EXPLICATION",
       "_origin": "ast",
       "community": 355,
-      "community_name": "biometrie.test.mjs",
+      "community_name": "lib/demandes.js",
       "file_type": "code",
-      "norm_label": "resto",
-      "source_file": "lib/biometrie.test.mjs",
-      "source_location": "L11"
+      "norm_label": "statuts_explication",
+      "source_file": "lib/demandes.js",
+      "source_location": "L28"
+    },
+    {
+      "id": "lib_demandes_test",
+      "label": "demandes.test.mjs",
+      "_origin": "ast",
+      "community": 355,
+      "community_name": "lib/demandes.js",
+      "file_type": "code",
+      "norm_label": "demandes.test.mjs",
+      "source_file": "lib/demandes.test.mjs",
+      "source_location": "L1"
     },
     {
       "id": "components_avis_resumeavis",
@@ -77542,7 +77542,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1769",
+      "source_location": "L1771",
       "weight": 1.0
     },
     {
@@ -77554,7 +77554,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1813",
+      "source_location": "L1815",
       "weight": 1.0
     },
     {
@@ -77566,7 +77566,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1820",
+      "source_location": "L1822",
       "weight": 1.0
     },
     {
@@ -77578,7 +77578,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1909",
+      "source_location": "L1911",
       "weight": 1.0
     },
     {
@@ -77590,7 +77590,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1967",
+      "source_location": "L1969",
       "weight": 1.0
     },
     {
@@ -77602,7 +77602,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L2123",
+      "source_location": "L2125",
       "weight": 1.0
     },
     {
@@ -77614,7 +77614,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L2164",
+      "source_location": "L2166",
       "weight": 1.0
     },
     {
@@ -77626,7 +77626,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L2303",
+      "source_location": "L2305",
       "weight": 1.0
     },
     {
@@ -77638,7 +77638,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L2445",
+      "source_location": "L2447",
       "weight": 1.0
     },
     {
@@ -77650,7 +77650,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L2626",
+      "source_location": "L2628",
       "weight": 1.0
     },
     {
@@ -77662,7 +77662,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L2636",
+      "source_location": "L2638",
       "weight": 1.0
     },
     {
@@ -77674,7 +77674,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L2763",
+      "source_location": "L2773",
       "weight": 1.0
     },
     {
@@ -77686,7 +77686,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L3379",
+      "source_location": "L3389",
       "weight": 1.0
     },
     {
@@ -77926,7 +77926,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1525",
+      "source_location": "L1527",
       "weight": 1.0
     },
     {
@@ -77938,7 +77938,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1467",
+      "source_location": "L1469",
       "weight": 1.0
     },
     {
@@ -78130,7 +78130,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1678",
+      "source_location": "L1680",
       "weight": 1.0
     },
     {
@@ -78142,7 +78142,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1684",
+      "source_location": "L1686",
       "weight": 1.0
     },
     {
@@ -78154,7 +78154,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1687",
+      "source_location": "L1689",
       "weight": 1.0
     },
     {
@@ -78286,7 +78286,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1697",
+      "source_location": "L1699",
       "weight": 1.0
     },
     {
@@ -78298,7 +78298,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1702",
+      "source_location": "L1704",
       "weight": 1.0
     },
     {
@@ -78310,7 +78310,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1716",
+      "source_location": "L1718",
       "weight": 1.0
     },
     {
@@ -78382,7 +78382,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1560",
+      "source_location": "L1562",
       "weight": 1.0
     },
     {
@@ -78394,7 +78394,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1586",
+      "source_location": "L1588",
       "weight": 1.0
     },
     {
@@ -78406,7 +78406,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1589",
+      "source_location": "L1591",
       "weight": 1.0
     },
     {
@@ -78418,7 +78418,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1590",
+      "source_location": "L1592",
       "weight": 1.0
     },
     {
@@ -78430,7 +78430,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1597",
+      "source_location": "L1599",
       "weight": 1.0
     },
     {
@@ -78442,7 +78442,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1478",
+      "source_location": "L1480",
       "weight": 1.0
     },
     {
@@ -78454,7 +78454,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1487",
+      "source_location": "L1489",
       "weight": 1.0
     },
     {
@@ -78466,7 +78466,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1504",
+      "source_location": "L1506",
       "weight": 1.0
     },
     {
@@ -78706,7 +78706,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1628",
+      "source_location": "L1630",
       "weight": 1.0
     },
     {
@@ -78718,7 +78718,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1633",
+      "source_location": "L1635",
       "weight": 1.0
     },
     {
@@ -93094,7 +93094,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/ecartPOS.js",
-      "source_location": "L139",
+      "source_location": "L149",
       "weight": 1.0
     },
     {
@@ -93106,7 +93106,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/ecartPOS.js",
-      "source_location": "L149",
+      "source_location": "L159",
       "weight": 1.0
     },
     {
@@ -110674,7 +110674,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1616",
+      "source_location": "L1618",
       "weight": 1.0
     },
     {
@@ -110686,7 +110686,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1624",
+      "source_location": "L1626",
       "weight": 1.0
     },
     {
@@ -110698,7 +110698,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1643",
+      "source_location": "L1645",
       "weight": 1.0
     },
     {
@@ -110710,7 +110710,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1650",
+      "source_location": "L1652",
       "weight": 1.0
     },
     {
@@ -110722,7 +110722,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/verification.js",
-      "source_location": "L1723",
+      "source_location": "L1725",
       "weight": 1.0
     },
     {
@@ -165899,7 +165899,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L4489",
+      "source_location": "L4499",
       "weight": 1.0
     },
     {
@@ -166009,7 +166009,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L1471",
+      "source_location": "L1473",
       "weight": 1.0
     },
     {
@@ -166020,7 +166020,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L1514",
+      "source_location": "L1516",
       "weight": 1.0
     },
     {
@@ -166031,7 +166031,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L1543",
+      "source_location": "L1545",
       "weight": 1.0
     },
     {
@@ -166042,7 +166042,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L1675",
+      "source_location": "L1677",
       "weight": 1.0
     },
     {
@@ -166053,7 +166053,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/verification.js",
-      "source_location": "L1694",
+      "source_location": "L1696",
       "weight": 1.0
     },
     {
@@ -184027,7 +184027,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/ecartPOS.js",
-      "source_location": "L132",
+      "source_location": "L142",
       "weight": 1.0
     },
     {
@@ -184038,7 +184038,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/ecartPOS.js",
-      "source_location": "L142",
+      "source_location": "L152",
       "weight": 1.0
     },
     {
@@ -184049,7 +184049,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/ecartPOS.js",
-      "source_location": "L181",
+      "source_location": "L191",
       "weight": 1.0
     },
     {
@@ -201039,7 +201039,7 @@
       "confidence_score": 0.85,
       "context": "argument",
       "source_file": "app/verification.js",
-      "source_location": "L2795",
+      "source_location": "L2805",
       "weight": 1.0
     },
     {
@@ -201675,7 +201675,7 @@
       "confidence_score": 0.85,
       "context": "collection",
       "source_file": "app/verification.js",
-      "source_location": "L1534",
+      "source_location": "L1536",
       "weight": 1.0
     },
     {
@@ -202340,5 +202340,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "54feb01d177bde2631501f93ec370e2d4fc1b24a"
+  "built_at_commit": "c6d0ed98cf882958c8caea2c1d93b8f5eb2bee10"
 }
