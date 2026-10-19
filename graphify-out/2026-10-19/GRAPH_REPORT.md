@@ -1,7 +1,7 @@
 # Graph Report - samtrackly  (2026-10-19)
 
 ## Corpus Check
-- 544 files · ~710,413 words
+- 544 files · ~710,685 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `5e987a2a`
+- Built from commit: `bd35e0ae`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -84,7 +84,7 @@
 - Pont inventaire POS → Samtrackly — Implementation Plan
 - NotificationsContext.js
 - Nouvelle Trésorerie — prévisions, dette récente, charges post-payées
-- expo-device
+- exceljs
 - FeuilleTransfertFond.js
 - DeductionsGerantScreen
 - AppProvider
@@ -233,7 +233,7 @@
 - photoQueue.js
 - Global Constraints
 - expo-web-browser
-- FicheTravailleur
+- FicheTravailleur.js
 - transactions_fournisseurs
 - contacts_pos_apres_shift
 - jspdf-autotable
@@ -379,7 +379,7 @@ Nodes (14): BrouillonsFournisseursScreen(), charger(), confirmerIgnorer(), confi
 
 ### Community 5 - "FormulaireGeneration.js"
 Cohesion: 0.10
-Nodes (36): Coche(), ChampDate(), joindrePdf(), CHAMPS_FICHE, decouperNom(), demander(), FormulaireGeneration(), changerType() (+28 more)
+Nodes (33): ChampDate(), joindrePdf(), CHAMPS_FICHE, decouperNom(), demander(), FormulaireGeneration(), changerType(), generer() (+25 more)
 
 ### Community 6 - "ContactsScreen"
 Cohesion: 0.11
@@ -478,12 +478,12 @@ Cohesion: 0.07
 Nodes (35): CATEGORIES_FOOD, DashboardScreen(), calculerAlertes(), chargerCouts(), chargerCumulShifts(), chargerPoints(), confirmerPeriode(), fmt() (+27 more)
 
 ### Community 30 - "ApercuContrat.js"
-Cohesion: 0.12
-Nodes (17): ApercuContrat(), SERIF, t(), CACHET_CONTRAT_KAYAN, CACHET_CONTRAT_SAMER, cachetContrat(), LOGO_KAYAN, LOGO_SAMER (+9 more)
+Cohesion: 0.13
+Nodes (19): ApercuContrat(), SERIF, t(), CACHET_CONTRAT_KAYAN, CACHET_CONTRAT_SAMER, cachetContrat(), LOGO_KAYAN, LOGO_SAMER (+11 more)
 
 ### Community 31 - "dependencies"
 Cohesion: 0.10
-Nodes (21): expo-constants, expo-file-system, expo-splash-screen, expo-status-bar, dependencies, exceljs, expo-constants, expo-file-system (+13 more)
+Nodes (21): expo-constants, expo-device, expo-file-system, expo-splash-screen, expo-status-bar, dependencies, expo-constants, expo-device (+13 more)
 
 ### Community 32 - "Gestion des contrats de travail (RH)"
 Cohesion: 0.10
@@ -723,7 +723,7 @@ Nodes (27): DemandesAdminScreen(), charger(), confirmerDeclin(), confirmerValida
 
 ### Community 102 - "lib/equipe.js"
 Cohesion: 0.15
-Nodes (27): EquipeScreen(), exporterExcel(), reactiver(), supprimer(), CLES_STATUT, compter(), compteurVide(), correspondRecherche() (+19 more)
+Nodes (26): EquipeScreen(), exporterExcel(), reactiver(), supprimer(), CLES_STATUT, compter(), compteurVide(), correspondRecherche() (+18 more)
 
 ### Community 103 - "rapportMensuel.js"
 Cohesion: 0.21
@@ -807,7 +807,7 @@ Nodes (4): Answer, Outcome, Q: Pourquoi les photos des factures fournisseurs s'a
 
 ### Community 192 - "api.js"
 Cohesion: 0.17
-Nodes (22): choisir(), restaurerPresencesDuJour(), getOrCreatePoint(), getPresences(), getRestaurants(), getTravailleurs(), majPresenceExistante(), saveCommandes() (+14 more)
+Nodes (22): choisir(), restaurerPresencesDuJour(), getFournisseurs(), getOrCreatePoint(), getPresences(), getRestaurants(), majPresenceExistante(), saveCommandes() (+14 more)
 
 ### Community 193 - "groupesAccueil.js"
 Cohesion: 0.16
@@ -906,8 +906,8 @@ Cohesion: 0.29
 Nodes (6): Global Constraints, Task 1: Migration `supabase_tresorerie_especes.sql`, Task 2: Logique pure, Task 3: Couche base de données (`lib/tresorerieDb.js`), Task 4: Écrans, Trésorerie étape 2 — Banque, espèces et coffre — Implementation Plan
 
 ### Community 226 - "modelesContrat.js"
-Cohesion: 0.16
-Nodes (28): accords(), blocFait(), blocsEmployeur(), blocsTravailleur(), CHAMPS_REQUIS, champsManquantsContrat(), construireContrat(), contratCddOuCdi() (+20 more)
+Cohesion: 0.17
+Nodes (26): accords(), blocFait(), blocsEmployeur(), blocsTravailleur(), CHAMPS_REQUIS, champsManquantsContrat(), contratCddOuCdi(), contratStage() (+18 more)
 
 ### Community 228 - "periodeComparee.js"
 Cohesion: 0.41
@@ -930,8 +930,8 @@ Cohesion: 0.19
 Nodes (14): analyserEquipe(), analyserJourRepos(), completerPresences(), FENETRE_JOURS, fenetreAnalyse(), iso(), jourIso(), JOURS_COURTS (+6 more)
 
 ### Community 236 - "FormulaireDemande.js"
-Cohesion: 0.14
-Nodes (26): Signature(), FeuilleDemandeRH(), accepter(), refuser(), depuisDemande(), FormulaireDemande(), enregistrerDirect(), envoyer() (+18 more)
+Cohesion: 0.13
+Nodes (29): Coche(), Signature(), FeuilleDemandeRH(), accepter(), refuser(), depuisDemande(), FormulaireDemande(), enregistrerDirect() (+21 more)
 
 ### Community 237 - "Trésorerie étape 3 — Nouvel accueil — Implementation Plan"
 Cohesion: 0.50
@@ -978,8 +978,8 @@ Cohesion: 0.18
 Nodes (10): 1. Bandeau du jour (son restaurant), 2. Accès direct, 3. Bandeaux dépliants, 4. Technique, Accueil gérant modernisé — conception, Ce qui est décidé, Couleurs, Hors périmètre (+2 more)
 
 ### Community 253 - "app/equipe.js"
-Cohesion: 0.18
-Nodes (23): Avatar(), couleurResto(), TYPE_DOC_ICONS, ModalCalendrier(), OngletArchives(), Kpi(), OngletDashboard(), OngletPresences() (+15 more)
+Cohesion: 0.19
+Nodes (20): Avatar(), couleurResto(), ModalCalendrier(), OngletArchives(), Kpi(), OngletDashboard(), OngletPresences(), PastilleStatut() (+12 more)
 
 ### Community 254 - "photoQueue.js"
 Cohesion: 0.23
@@ -989,9 +989,9 @@ Nodes (14): tenterUploadPhoto(), uploadPhoto(), ecrireFile(), EMPLACEMENTS_PHOTO
 Cohesion: 0.22
 Nodes (8): Global Constraints, Page de connexion modernisée — plan d'implémentation, Task 1: Règles « téléphone reconnu » (logique pure), Task 2: Thème et briques visuelles communes, Task 3: Écran d'accueil (comptes Face ID + restaurants), Task 4: « Qui êtes-vous ? » en grille d'avatars, Task 5: Clavier du code (touche 🔐) et proposition Face ID, Task 6: Brancher `app/login.js` sur les nouveaux écrans
 
-### Community 258 - "FicheTravailleur"
-Cohesion: 0.25
-Nodes (9): esc(), f(), FicheTravailleur(), exporter(), htmlCarte(), libelleStatut(), nbJoursEntre(), chargerDocuments() (+1 more)
+### Community 258 - "FicheTravailleur.js"
+Cohesion: 0.23
+Nodes (15): esc(), f(), FicheTravailleur(), exporter(), htmlCarte(), libelleStatut(), nbJoursEntre(), TYPE_DOC_ICONS (+7 more)
 
 ### Community 260 - "contacts_pos_apres_shift"
 Cohesion: 0.67
@@ -1047,7 +1047,7 @@ Nodes (11): Boutique → restaurant, Boutique → restaurant, Conséquences sur 
 
 ### Community 286 - "equipeDb.js"
 Cohesion: 0.22
-Nodes (15): enregistrer(), aplatirPoint(), archiverTravailleur(), champsJourRepos(), chargerHistoriqueTravailleur(), chargerPaiesGerant(), chargerPoints(), chargerPresences() (+7 more)
+Nodes (14): enregistrer(), aplatirPoint(), archiverTravailleur(), champsJourRepos(), chargerPaiesGerant(), chargerPoints(), chargerPresences(), enregistrerTravailleur() (+6 more)
 
 ### Community 288 - "Architecture"
 Cohesion: 0.14
@@ -1119,7 +1119,7 @@ Nodes (13): choisirRestaurant(), fetchRestaurants(), ajouterReconnu(), ecranDeDe
 
 ### Community 311 - "Modales.js"
 Cohesion: 0.16
-Nodes (9): formDepuis(), formVide(), ModalArchive(), ModalDroitsDus(), ModalFormTravailleur(), ModalTransfert(), TYPES_PAPIERS, MOTIFS_ARCHIVE (+1 more)
+Nodes (8): formDepuis(), formVide(), ModalArchive(), ModalDroitsDus(), ModalFormTravailleur(), ModalTransfert(), TYPES_PAPIERS, MOTIFS_ARCHIVE
 
 ### Community 312 - "permissions"
 Cohesion: 0.15
@@ -1175,7 +1175,7 @@ Nodes (12): BandeauGerant(), BlocObjectif(), fcfa(), titreObjectif(), Indicateur
 
 ### Community 330 - "offlineCache.js"
 Cohesion: 0.22
-Nodes (16): getFournisseurs(), getUtilisateurs(), getUtilisateursGlobaux(), cacheFournisseurs(), cachePoint(), cachePointData(), cacheRestaurants(), cacheTravailleurs() (+8 more)
+Nodes (16): getTravailleurs(), getUtilisateurs(), getUtilisateursGlobaux(), cacheFournisseurs(), cachePoint(), cachePointData(), cacheRestaurants(), cacheTravailleurs() (+8 more)
 
 ### Community 331 - "choisirPhoto"
 Cohesion: 0.22
