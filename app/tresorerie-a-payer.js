@@ -19,13 +19,13 @@ import {
   Bouton, Champ, ChampMontant, Entete, EtatEcran, Feuille, Hero, HeroCase, ItemIcone, Pastille, Puces, TitreSection,
   styleCategorie, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
-import { Badge, FeuilleDetail, FeuillePaiement, FeuillePrevision, couleursStatut, titreDu } from '../components/tresorerie/du'
+import { Badge, FeuilleAjoutDette, FeuilleDetail, FeuillePaiement, FeuillePrevision, couleursStatut, titreDu } from '../components/tresorerie/du'
 import { HistoriqueDettesRemboursees, HistoriqueLoyersPayes } from '../components/tresorerie/historique'
 import { FeuilleEcheance, FeuilleReglageLoyers } from '../components/tresorerie/reglagesCharges'
 import { FeuilleSaisieMois } from '../components/tresorerie/saisieGroupee'
 import {
   CATEGORIES_JOUR_COMMUN, CATEGORIES_SERIE, LIBELLES_CATEGORIE, LIBELLES_ONGLET,
-  aujourdhuiISO, categoriesVisibles, classerTous, echeancePostPayee, fmt, formatDateFR, jourCommun,
+  aujourdhuiISO, categoriesVisibles, classerTous, echeancePostPayee, fmt, formatDateFR, historiqueDette, jourCommun,
   joursDeRetard, libelleMois, libelleMoisCourt, moisEntre, paiementsParDu, peut, premierDuMois, resteDu,
   resumeLoyersParRestaurant, totalPaye,
 } from '../lib/tresorerie'
@@ -54,6 +54,7 @@ export default function TresorerieAPayerScreen() {
   const [edition, setEdition] = useState(null)      // dû en création / modification
   const [paiement, setPaiement] = useState(null)    // { du, prevision? } ou { categorie: 'loyer', restaurantId }
   const [prevoir, setPrevoir] = useState(null)      // dû dont on prévoit le paiement
+  const [augmenter, setAugmenter] = useState(null)  // dette à laquelle on ajoute une nouvelle dette
   const [reglage, setReglage] = useState(null)      // 'loyer' | 'echeance' | 'mois'
 
   useEffect(() => {
@@ -156,7 +157,7 @@ export default function TresorerieAPayerScreen() {
             )}
             {EN_RETARD.includes(onglet) && (
               <ListeDettes
-                onglet={onglet} dus={dusOnglet} parDu={parDu} aujourdhui={aujourdhui} nomResto={nomResto} onOuvrir={setDetail}
+                onglet={onglet} dus={dusOnglet} parDu={parDu} ajouts={donnees.ajoutsDus} aujourdhui={aujourdhui} nomResto={nomResto} onOuvrir={setDetail}
               />
             )}
             {EN_RETARD.includes(onglet) && (
@@ -202,8 +203,11 @@ export default function TresorerieAPayerScreen() {
             }}
             onModifier={du => { setDetail(null); setEdition(du) }}
             onPrevoir={du => { setDetail(null); setPrevoir(du) }}
+            onAugmenter={du => { setDetail(null); setAugmenter(du) }}
             apres={recharger}
           />
+          <FeuilleAjoutDette du={augmenter} nomResto={nomResto} user={user}
+            onFermer={() => setAugmenter(null)} apres={recharger} />
           <FeuillePrevision du={prevoir} donnees={donnees} nomResto={nomResto} user={user}
             onFermer={() => setPrevoir(null)} apres={recharger} />
           <FeuilleEdition du={edition} donnees={donnees} user={user} onFermer={() => setEdition(null)} apres={recharger} />
@@ -360,7 +364,7 @@ function ListeDus({ categorie, dus, parDu, classement, aujourdhui, moisCourant, 
 
 // ── Dette récente / Dettes : toutes catégories confondues ────────────────────
 
-function ListeDettes({ onglet, dus, parDu, aujourdhui, nomResto, onOuvrir }) {
+function ListeDettes({ onglet, dus, parDu, ajouts, aujourdhui, nomResto, onOuvrir }) {
   const { styles, colors } = useStylesTreso()
   const cs = couleursStatut(colors)
   if (!dus.length) {
@@ -376,6 +380,7 @@ function ListeDettes({ onglet, dus, parDu, aujourdhui, nomResto, onOuvrir }) {
       {tries.map(d => {
         const p = parDu[d.id] || []
         const sc = styleCategorie(d.categorie)
+        const dernierAjout = historiqueDette(d, ajouts).ajouts.at(-1)
         return (
           <ItemIcone key={d.id} onPress={() => onOuvrir(d)} icone={sc.icone} couleur={sc.couleur}
             titre={`${LIBELLES_CATEGORIE[d.categorie]} · ${titreDu(d, nomResto)}${d.mois ? ` · ${libelleMoisCourt(d.mois)}` : ''}`}
@@ -383,6 +388,7 @@ function ListeDettes({ onglet, dus, parDu, aujourdhui, nomResto, onOuvrir }) {
               totalPaye(p) > 0 ? `payé ${fmt(totalPaye(p))}` : '',
               d.echeance ? texteRetard(d, aujourdhui) : '',
               d.en_dette_depuis ? `en dette depuis le ${formatDateFR(d.en_dette_depuis)}` : '',
+              dernierAjout ? `augmentée le ${formatDateFR(dernierAjout.date)} (+ ${fmt(dernierAjout.montant)})` : '',
             ].filter(Boolean).join(' · ') || null}
             droite={`${fmt(resteDu(d, p))} F`} couleurDroite={colors.error}
             sousDroite={<Badge c={cs[onglet]} />}

@@ -11,11 +11,11 @@ import { chargerLitigesRestaurant } from '../../lib/litigesGlobal'
 import { lireRegleRetenue, phraseRetenue } from '../../lib/retenueLitiges'
 import { usePhoto } from '../../lib/usePhoto'
 import {
-  CATEGORIES_SERIE, LIBELLES_CATEGORIE, aujourdhuiISO, echeancePostPayee, fmt, formatDateFR, joursDeRetard,
+  CATEGORIES_SERIE, LIBELLES_CATEGORIE, aujourdhuiISO, echeancePostPayee, fmt, formatDateFR, historiqueDette, joursDeRetard,
   libelleMois, libelleMoisCourt, moisEntre, peut, premierDuMois, repartirPaiement, resteDu, totalPaye,
 } from '../../lib/tresorerie'
 import {
-  ajouterPrevision, annulerCotisation, annulerPaiement, basculerDette, enregistrerRetenueLitiges, recevoirCotisation, chargerDusLoyer, enregistrerDu, payer, payerAvant, supprimerDu, supprimerPrevision,
+  ajouterADette, ajouterPrevision, annulerCotisation, annulerPaiement, basculerDette, enregistrerRetenueLitiges, recevoirCotisation, chargerDusLoyer, enregistrerDu, payer, payerAvant, retirerAjoutDette, supprimerDu, supprimerPrevision,
 } from '../../lib/tresorerieDb'
 import { Bouton, Champ, ChampCalendrier, ChampMontant, Feuille, ItemIcone, Ligne, Pastille, Progression, Puces, TitreSection, styleCategorie, useStylesTreso } from './commun'
 
@@ -55,9 +55,10 @@ export function peutModifierDu(niveau, du) {
 
 // ── Détail ───────────────────────────────────────────────────────────────────
 
-// onPayer(du, prevision?) ; onPrevoir(du) : ouvre la feuille de prévision.
+// onPayer(du, prevision?) ; onPrevoir(du) : ouvre la feuille de prévision ;
+// onAugmenter(du) : ajoute une nouvelle dette à celle-ci (créanciers seulement).
 export function FeuilleDetail({
-  du, paiements, classement, donnees, niveau, aujourdhui, nomResto, user, onFermer, onPayer, onModifier, onPrevoir, apres,
+  du, paiements, classement, donnees, niveau, aujourdhui, nomResto, user, onFermer, onPayer, onModifier, onPrevoir, onAugmenter, apres,
 }) {
   const { styles, colors } = useStylesTreso()
   if (!du) return null
@@ -68,6 +69,20 @@ export function FeuilleDetail({
   // Passage manuel en Dette : autres charges et prêts en espèces (les charges
   // en série y vont seules, les autres créanciers y sont déjà).
   const peutBasculer = (du.categorie === 'autre' || du.est_pret) && reste > 0 && peut(niveau, 'payer')
+  const histo = historiqueDette(du, donnees.ajoutsDus)
+  const peutAugmenter = du.categorie === 'dette' && onAugmenter && peut(niveau, 'saisir_dus')
+
+  function retirerAjout(a) {
+    Alert.alert('Retirer cet ajout ?', `${fmt(a.montant)} F du ${formatDateFR(a.date)}. La dette baissera d'autant.`, [
+      { text: 'Garder', style: 'cancel' },
+      {
+        text: 'Retirer', style: 'destructive', onPress: async () => {
+          try { await retirerAjoutDette(a, du, user); await apres(); onFermer() }
+          catch (e) { Alert.alert('Retrait impossible', e?.message || 'Réessayez.') }
+        },
+      },
+    ])
+  }
 
   // Les lignes d'un même versement s'annulent ensemble.
   function annuler(p) {
@@ -171,6 +186,31 @@ export function FeuilleDetail({
         {!!du.cree_par_nom && <Text style={styles.petit}>Saisi par {du.cree_par_nom}</Text>}
       </View>
 
+      {histo.ajouts.length > 0 && (
+        <>
+          <TitreSection icone="chart-line-variant" couleur={colors.error} titre="Augmentations de la dette" droite={`+ ${fmt(histo.totalAjouts)} F`} />
+          <View style={styles.carte}>
+            <Ligne label={`Dette de départ${du.created_at ? ` (${formatDateFR(du.created_at.slice(0, 10))})` : ''}`} valeur={histo.depart} />
+            {histo.ajouts.map(a => (
+              <View key={a.id} style={styles.item}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.itemTitre}>+ {fmt(a.montant)} F</Text>
+                  <Text style={styles.petit}>
+                    {`Ajoutée le ${formatDateFR(a.date)}${a.note ? ` · ${a.note}` : ''}${a.cree_par_nom ? ` · ${a.cree_par_nom}` : ''}`}
+                  </Text>
+                </View>
+                {peutAugmenter && (
+                  <TouchableOpacity onPress={() => retirerAjout(a)} style={{ marginLeft: 8 }}>
+                    <Text style={{ color: colors.error, fontSize: 13 }}>Retirer</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+            <Ligne label="Total dû" valeur={histo.total} fort />
+          </View>
+        </>
+      )}
+
       {du.categorie === 'salaire' && du.restaurant_id && du.mois && (
         <SectionRetenueLitiges du={du} donnees={donnees} niveau={niveau} user={user} apres={apres} />
       )}
@@ -228,6 +268,9 @@ export function FeuilleDetail({
 
       <View style={{ gap: 8, marginTop: 6 }}>
         {reste > 0 && peut(niveau, 'payer') && <Bouton icone="cash-fast" titre="Payer" onPress={() => onPayer(du)} />}
+        {peutAugmenter && (
+          <Bouton secondaire icone="plus-circle-outline" titre="Ajouter une nouvelle dette" onPress={() => onAugmenter(du)} />
+        )}
         {reste > 0 && CATEGORIES_SERIE.includes(du.categorie) && peut(niveau, 'payer') && (
           <Bouton secondaire icone="history" titre="Déjà payé avant la trésorerie" onPress={dejaPaye} />
         )}
@@ -679,6 +722,56 @@ export function FeuillePrevision({ du, donnees, nomResto, user, onFermer, apres 
       <Bouton titre="Enregistrer la prévision" onPress={enregistrer} occupe={occupe} />
       <Text style={[styles.petit, { marginTop: 10 }]}>
         Le montant prévu est retiré tout de suite de la trésorerie nette réelle. Le moment venu, la prévision passe en orange : vous payez à la main.
+      </Text>
+    </Feuille>
+  )
+}
+
+// ── Ajouter une nouvelle dette à une dette existante ────────────────────────
+
+// Nouveau crédit pris chez le même créancier : noté à part (date, montant),
+// le total dû monte d'autant. On voit ainsi quand la dette a augmenté.
+export function FeuilleAjoutDette({ du, nomResto, user, onFermer, apres }) {
+  const { styles } = useStylesTreso()
+  const [montant, setMontant] = useState('')
+  const [date, setDate] = useState(aujourdhuiISO())
+  const [note, setNote] = useState('')
+  const [occupe, setOccupe] = useState(false)
+
+  useEffect(() => {
+    if (!du) return
+    setMontant(''); setDate(aujourdhuiISO()); setNote('')
+  }, [du])
+
+  if (!du) return null
+  const v = montant === '' ? 0 : parseInt(montant, 10) || 0
+
+  async function enregistrer() {
+    if (!v) { Alert.alert('Montant manquant', 'Combien de nouvelle dette ?'); return }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Choisissez la date dans le calendrier.'); return }
+    setOccupe(true)
+    try {
+      await ajouterADette({ du, montant: v, date, note: note.trim() }, user)
+      await apres()
+      onFermer()
+    } catch (e) {
+      Alert.alert('Non enregistrée', e?.message || 'Réessayez.')
+    } finally {
+      setOccupe(false)
+    }
+  }
+
+  return (
+    <Feuille visible onFermer={onFermer} titre={`Nouvelle dette · ${titreDu(du, nomResto)}`}>
+      <Text style={[styles.petit, { marginBottom: 10 }]}>
+        Dette actuelle : {fmt(du.montant_du)} F{v ? ` · après l'ajout : ${fmt(Number(du.montant_du || 0) + v)} F` : ''}
+      </Text>
+      <ChampMontant label="Montant de la nouvelle dette" valeur={montant} onChange={setMontant} />
+      <ChampCalendrier label="Date du nouveau crédit" valeur={date} onChange={setDate} />
+      <Champ label="Note (facultatif)" value={note} onChangeText={setNote} placeholder="ex. 10 camions de sable" />
+      <Bouton titre="Ajouter à la dette" onPress={enregistrer} occupe={occupe} />
+      <Text style={[styles.petit, { marginTop: 10 }]}>
+        Le montant s'ajoute au total dû. La fiche garde la dette de départ et chaque ajout avec sa date.
       </Text>
     </Feuille>
   )
