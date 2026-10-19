@@ -355,7 +355,7 @@ function FeuilleCheque({ cheque, banques, donnees, nomResto, user, onFermer, apr
           </View>
         ) : (
           <View style={{ marginBottom: 12 }}>
-            <Champ label="Chercher" value={recherche} onChangeText={setRecherche} placeholder="ex. Ali sable, loyer…" />
+            <Champ label="Chercher" value={recherche} onChangeText={setRecherche} placeholder="ex. dette, loyer…" />
             {filtrees.length === 0 && <Text style={styles.vide}>Aucune ligne à payer.</Text>}
             {filtrees.slice(0, 40).map(({ du, reste }) => (
               <ItemIcone key={du.id} onPress={() => choisirLigne(du)}
@@ -367,7 +367,7 @@ function FeuilleCheque({ cheque, banques, donnees, nomResto, user, onFermer, apr
         )
       )}
 
-      <Champ label="À l'ordre de" value={ordre} onChangeText={setOrdre} placeholder="ex. Ali sable" autoCorrect={false} />
+      <Champ label="À l'ordre de" value={ordre} onChangeText={setOrdre} placeholder="Nom du bénéficiaire" autoCorrect={false} />
       {suggestions.length > 0 && (
         <View style={{ marginTop: -6, marginBottom: 6 }}>
           <Puces options={suggestions.map(nom => ({ valeur: nom, label: nom }))} valeur={null} onChange={setOrdre} />
