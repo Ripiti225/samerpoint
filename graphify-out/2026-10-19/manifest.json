@@ -330,9 +330,9 @@
     "semantic_hash": ""
   },
   "components/PhotoJustificatif.js": {
-    "mtime": 1787567987.4966366,
-    "seen": 1788454354.1113331,
-    "ast_hash": "e71ee2bb280882a8e81c63da35cf4b9f",
+    "mtime": 1792413562.342984,
+    "seen": 1792413612.281945,
+    "ast_hash": "c6b5b97d27bd9a45ccc5c0e1f3b64d18",
     "semantic_hash": ""
   },
   "components/RecapVerifications.js": {
@@ -3336,15 +3336,15 @@
     "semantic_hash": ""
   },
   "lib/miniature.js": {
-    "mtime": 1792074864.2095234,
-    "seen": 1792249596.229205,
-    "ast_hash": "b11f545b8eb9b576cf167b73d118f53f",
+    "mtime": 1792413551.8764904,
+    "seen": 1792413612.282063,
+    "ast_hash": "616eba4b6e85340d92fb70c0b1b08375",
     "semantic_hash": ""
   },
   "lib/miniature.test.mjs": {
-    "mtime": 1792074864.2115738,
-    "seen": 1792249596.229206,
-    "ast_hash": "f3257da521b4e7f98112fd29970c864c",
+    "mtime": 1792413543.846666,
+    "seen": 1792413612.282063,
+    "ast_hash": "9a7fd0c343192feedf4c04f4b1bf2a0a",
     "semantic_hash": ""
   },
   "lib/noteCaissierCharge.js": {
