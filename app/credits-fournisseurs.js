@@ -31,6 +31,7 @@ import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import {
   agregerMouvementsMensuels,
+  compteDansChaineCredit,
   ecritureAjustementCredit,
   preparerHistoriqueFournisseur,
   restaurerPhotosFacturesDepuisPoints,
@@ -339,12 +340,14 @@ export default function CreditsFournisseursScreen() {
   // n'est pas fourni, il est back-calculé depuis la 1ʳᵉ transaction (reste − facture
   // + payé), ce qui laisse ce montant inchangé et recalcule seulement la suite.
   async function recalcChaineFournisseur(fournId, creditDepart) {
-    const { data: trans, error: transErr } = await supabase
+    const { data: toutes, error: transErr } = await supabase
       .from('transactions_fournisseurs')
-      .select('id, facture, paye, reste, created_at, point_id, date_point, saisi_par')
+      .select('id, facture, paye, reste, created_at, point_id, date_point, saisi_par, source')
       .eq('fournisseur_id', fournId)
     if (transErr) throw transErr
-    if (!trans || trans.length === 0) return null
+    // Historique Sheets importé : affiché, jamais recalculé ni pris comme ouverture.
+    const trans = (toutes || []).filter(compteDansChaineCredit)
+    if (trans.length === 0) return null
 
     const pointIds = [...new Set(trans.map(t => t.point_id).filter(Boolean))]
     const { data: points, error: pointsErr } = await supabase
