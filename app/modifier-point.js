@@ -20,6 +20,7 @@ import { majPointsApresShifts, majReportFond } from '../lib/recalculPointValide'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { useFocusRecherche } from '../lib/useFocusRecherche'
+import { estJourneeImportee } from '../lib/importSheets'
 
 const ONGLETS = ['Résumé', 'Shifts', 'Ventes', 'Dépenses', 'Fournisseurs', 'Présences', 'Dép. Gérant']
 const CATS_DEPENSES = ['Marché', 'Légumes', 'Fruits', 'Dépenses annexes']
@@ -1056,6 +1057,10 @@ export default function ModifierPointScreen() {
   }
 
   function sauvegarder({ naviguer = true } = {}) {
+    if (estJourneeImportee(point)) {
+      Alert.alert('Lecture seule', 'Cette journée vient des anciens sheets (avant le 11 mai 2026) : elle ne peut pas être modifiée.')
+      return
+    }
     setConfirmSauvegarder({ naviguer })
   }
 
@@ -2053,6 +2058,14 @@ export default function ModifierPointScreen() {
                 ))}
               </ScrollView>
 
+              {estJourneeImportee(point) && (
+                <View style={styles.bandeauImport}>
+                  <Text style={styles.bandeauImportTxt}>
+                    🔒 Journée importée des anciens sheets : consultation seulement, aucune modification possible.
+                  </Text>
+                </View>
+              )}
+
               <View style={styles.body}>
                 {ongletActif === 'Résumé' && renderResume()}
                 {ongletActif === 'Shifts' && renderShifts()}
@@ -2347,6 +2360,11 @@ function makeStyles(colors) { return StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8, elevation: 8,
   },
   recalcToastTxt: { fontSize: 13, color: '#A8E6A3', fontWeight: '500', textAlign: 'center' },
+  bandeauImport: {
+    marginHorizontal: 16, marginTop: 10, padding: 12, borderRadius: 12,
+    backgroundColor: colors.warningLight || '#FDF3E0', borderWidth: 1, borderColor: '#EFC97F',
+  },
+  bandeauImportTxt: { fontSize: 13, color: '#8A6220', fontWeight: '600', textAlign: 'center' },
   depLigneBlock: { paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: '#f5f5f5' },
   libellInput: { backgroundColor: colors.bg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, fontSize: 13, color: colors.text },
   subTabRow: { flexDirection: 'row', backgroundColor: colors.bg, borderRadius: 10, padding: 3, marginBottom: 14, gap: 3 },
