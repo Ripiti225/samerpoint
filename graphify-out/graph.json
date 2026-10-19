@@ -2569,30 +2569,6 @@
       "source_location": "L282"
     },
     {
-      "id": "lib_equipe_frisejours",
-      "label": "friseJours()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 102,
-      "community_name": "lib/equipe.js",
-      "file_type": "code",
-      "norm_label": "frisejours()",
-      "source_file": "lib/equipe.js",
-      "source_location": "L325"
-    },
-    {
-      "id": "lib_equipe_iso",
-      "label": "iso()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 102,
-      "community_name": "lib/equipe.js",
-      "file_type": "code",
-      "norm_label": "iso()",
-      "source_file": "lib/equipe.js",
-      "source_location": "L56"
-    },
-    {
       "id": "lib_equipe_lignespaiesgerant",
       "label": "lignesPaiesGerant()",
       "_callable": true,
@@ -2615,18 +2591,6 @@
       "norm_label": "nomnormalise()",
       "source_file": "lib/equipe.js",
       "source_location": "L158"
-    },
-    {
-      "id": "lib_equipe_plagedates",
-      "label": "plageDates()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 102,
-      "community_name": "lib/equipe.js",
-      "file_type": "code",
-      "norm_label": "plagedates()",
-      "source_file": "lib/equipe.js",
-      "source_location": "L59"
     },
     {
       "id": "lib_equipe_rattacherpaiesgerant",
@@ -3238,7 +3202,7 @@
       "file_type": "code",
       "norm_label": "bornesmois()",
       "source_file": "lib/direction.js",
-      "source_location": "L219"
+      "source_location": "L231"
     },
     {
       "id": "lib_direction_categoriedirection",
@@ -3274,7 +3238,7 @@
       "file_type": "code",
       "norm_label": "derniersmois()",
       "source_file": "lib/direction.js",
-      "source_location": "L208"
+      "source_location": "L220"
     },
     {
       "id": "lib_direction_encaissenetpoint",
@@ -3394,7 +3358,7 @@
       "file_type": "code",
       "norm_label": "resultatsparrestomois()",
       "source_file": "lib/direction.js",
-      "source_location": "L145"
+      "source_location": "L149"
     },
     {
       "id": "lib_direction_soldecoffre",
@@ -9601,6 +9565,18 @@
       "source_location": "L51"
     },
     {
+      "id": "lib_api_getfournisseurs",
+      "label": "getFournisseurs()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 192,
+      "community_name": "api.js",
+      "file_type": "code",
+      "norm_label": "getfournisseurs()",
+      "source_file": "lib/api.js",
+      "source_location": "L690"
+    },
+    {
       "id": "lib_api_getinventaireshifts",
       "label": "getInventaireShifts()",
       "_callable": true,
@@ -9659,18 +9635,6 @@
       "norm_label": "gettransactionsfournisseurs()",
       "source_file": "lib/api.js",
       "source_location": "L175"
-    },
-    {
-      "id": "lib_api_gettravailleurs",
-      "label": "getTravailleurs()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 192,
-      "community_name": "api.js",
-      "file_type": "code",
-      "norm_label": "gettravailleurs()",
-      "source_file": "lib/api.js",
-      "source_location": "L674"
     },
     {
       "id": "lib_api_majpresenceexistante",
@@ -9841,16 +9805,16 @@
       "source_location": "L9"
     },
     {
-      "id": "lib_offlinecache_getcachedtravailleurs",
-      "label": "getCachedTravailleurs()",
+      "id": "lib_offlinecache_getcachedfournisseurs",
+      "label": "getCachedFournisseurs()",
       "_callable": true,
       "_origin": "ast",
       "community": 192,
       "community_name": "api.js",
       "file_type": "code",
-      "norm_label": "getcachedtravailleurs()",
+      "norm_label": "getcachedfournisseurs()",
       "source_file": "lib/offlineCache.js",
-      "source_location": "L42"
+      "source_location": "L49"
     },
     {
       "id": "lib_offlinequeue_enqueueoperation",
@@ -12586,7 +12550,7 @@
       "file_type": "code",
       "norm_label": "detail()",
       "source_file": "app/tresorerie-resultats.js",
-      "source_location": "L138"
+      "source_location": "L140"
     },
     {
       "id": "app_tresorerie_resultats_tresorerieresultatsscreen",
@@ -13165,18 +13129,6 @@
       "source_location": "L143"
     },
     {
-      "id": "lib_modelescontrat_construirecontrat",
-      "label": "construireContrat()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 226,
-      "community_name": "modelesContrat.js",
-      "file_type": "code",
-      "norm_label": "construirecontrat()",
-      "source_file": "lib/modelesContrat.js",
-      "source_location": "L360"
-    },
-    {
       "id": "lib_modelescontrat_contratcddoucdi",
       "label": "contratCddOuCdi()",
       "_callable": true,
@@ -13259,18 +13211,6 @@
       "norm_label": "maj()",
       "source_file": "lib/modelesContrat.js",
       "source_location": "L112"
-    },
-    {
-      "id": "lib_modelescontrat_marquecontrat",
-      "label": "marqueContrat()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 226,
-      "community_name": "modelesContrat.js",
-      "file_type": "code",
-      "norm_label": "marquecontrat()",
-      "source_file": "lib/modelesContrat.js",
-      "source_location": "L43"
     },
     {
       "id": "lib_modelescontrat_moinsdecent",
@@ -13789,6 +13729,18 @@
       "source_location": "L17"
     },
     {
+      "id": "app_demandes_explication_admin_coche",
+      "label": "Coche()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 236,
+      "community_name": "FormulaireDemande.js",
+      "file_type": "code",
+      "norm_label": "coche()",
+      "source_file": "app/demandes-explication-admin.js",
+      "source_location": "L510"
+    },
+    {
       "id": "components_contrats_apercucontrat_signature",
       "label": "Signature()",
       "_callable": true,
@@ -13907,6 +13859,30 @@
       "norm_label": "info()",
       "source_file": "components/ui/EcranModerne.js",
       "source_location": "L111"
+    },
+    {
+      "id": "components_ui_ecranmoderne_makestyles",
+      "label": "makeStyles()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 236,
+      "community_name": "FormulaireDemande.js",
+      "file_type": "code",
+      "norm_label": "makestyles()",
+      "source_file": "components/ui/EcranModerne.js",
+      "source_location": "L220"
+    },
+    {
+      "id": "components_ui_ecranmoderne_teinte",
+      "label": "teinte()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 236,
+      "community_name": "FormulaireDemande.js",
+      "file_type": "code",
+      "norm_label": "teinte()",
+      "source_file": "components/ui/EcranModerne.js",
+      "source_location": "L14"
     },
     {
       "id": "lib_recrutement_arrondi",
@@ -15654,7 +15630,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 258,
-      "community_name": "FicheTravailleur",
+      "community_name": "FicheTravailleur.js",
       "file_type": "code",
       "norm_label": "esc()",
       "source_file": "components/equipe/FicheTravailleur.js",
@@ -15666,7 +15642,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 258,
-      "community_name": "FicheTravailleur",
+      "community_name": "FicheTravailleur.js",
       "file_type": "code",
       "norm_label": "f()",
       "source_file": "components/equipe/FicheTravailleur.js",
@@ -15678,7 +15654,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 258,
-      "community_name": "FicheTravailleur",
+      "community_name": "FicheTravailleur.js",
       "file_type": "code",
       "norm_label": "fichetravailleur()",
       "source_file": "components/equipe/FicheTravailleur.js",
@@ -15690,7 +15666,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 258,
-      "community_name": "FicheTravailleur",
+      "community_name": "FicheTravailleur.js",
       "file_type": "code",
       "norm_label": "exporter()",
       "source_file": "components/equipe/FicheTravailleur.js",
@@ -15702,7 +15678,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 258,
-      "community_name": "FicheTravailleur",
+      "community_name": "FicheTravailleur.js",
       "file_type": "code",
       "norm_label": "htmlcarte()",
       "source_file": "components/equipe/FicheTravailleur.js",
@@ -15714,7 +15690,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 258,
-      "community_name": "FicheTravailleur",
+      "community_name": "FicheTravailleur.js",
       "file_type": "code",
       "norm_label": "libellestatut()",
       "source_file": "components/equipe/FicheTravailleur.js",
@@ -15726,11 +15702,47 @@
       "_callable": true,
       "_origin": "ast",
       "community": 258,
-      "community_name": "FicheTravailleur",
+      "community_name": "FicheTravailleur.js",
       "file_type": "code",
       "norm_label": "nbjoursentre()",
       "source_file": "components/equipe/FicheTravailleur.js",
       "source_location": "L54"
+    },
+    {
+      "id": "lib_equipe_frisejours",
+      "label": "friseJours()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 258,
+      "community_name": "FicheTravailleur.js",
+      "file_type": "code",
+      "norm_label": "frisejours()",
+      "source_file": "lib/equipe.js",
+      "source_location": "L325"
+    },
+    {
+      "id": "lib_equipe_iso",
+      "label": "iso()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 258,
+      "community_name": "FicheTravailleur.js",
+      "file_type": "code",
+      "norm_label": "iso()",
+      "source_file": "lib/equipe.js",
+      "source_location": "L56"
+    },
+    {
+      "id": "lib_equipe_plagedates",
+      "label": "plageDates()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 258,
+      "community_name": "FicheTravailleur.js",
+      "file_type": "code",
+      "norm_label": "plagedates()",
+      "source_file": "lib/equipe.js",
+      "source_location": "L59"
     },
     {
       "id": "lib_equipedb_chargerdocuments",
@@ -15738,11 +15750,23 @@
       "_callable": true,
       "_origin": "ast",
       "community": 258,
-      "community_name": "FicheTravailleur",
+      "community_name": "FicheTravailleur.js",
       "file_type": "code",
       "norm_label": "chargerdocuments()",
       "source_file": "lib/equipeDb.js",
       "source_location": "L124"
+    },
+    {
+      "id": "lib_equipedb_chargerhistoriquetravailleur",
+      "label": "chargerHistoriqueTravailleur()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 258,
+      "community_name": "FicheTravailleur.js",
+      "file_type": "code",
+      "norm_label": "chargerhistoriquetravailleur()",
+      "source_file": "lib/equipeDb.js",
+      "source_location": "L115"
     },
     {
       "id": "lib_equipedb_chargerpaiesgeranttravailleur",
@@ -15750,11 +15774,23 @@
       "_callable": true,
       "_origin": "ast",
       "community": 258,
-      "community_name": "FicheTravailleur",
+      "community_name": "FicheTravailleur.js",
       "file_type": "code",
       "norm_label": "chargerpaiesgeranttravailleur()",
       "source_file": "lib/equipeDb.js",
       "source_location": "L96"
+    },
+    {
+      "id": "lib_joursrepos_nomjour",
+      "label": "nomJour()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 258,
+      "community_name": "FicheTravailleur.js",
+      "file_type": "code",
+      "norm_label": "nomjour()",
+      "source_file": "lib/joursRepos.js",
+      "source_location": "L30"
     },
     {
       "id": "app_journal_entryrow",
@@ -17233,18 +17269,6 @@
       "source_location": "L140"
     },
     {
-      "id": "lib_equipedb_chargerhistoriquetravailleur",
-      "label": "chargerHistoriqueTravailleur()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 286,
-      "community_name": "equipeDb.js",
-      "file_type": "code",
-      "norm_label": "chargerhistoriquetravailleur()",
-      "source_file": "lib/equipeDb.js",
-      "source_location": "L115"
-    },
-    {
       "id": "lib_equipedb_chargerpaiesgerant",
       "label": "chargerPaiesGerant()",
       "_callable": true,
@@ -18661,6 +18685,30 @@
       "source_location": "L15"
     },
     {
+      "id": "lib_modelescontrat_construirecontrat",
+      "label": "construireContrat()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 30,
+      "community_name": "ApercuContrat.js",
+      "file_type": "code",
+      "norm_label": "construirecontrat()",
+      "source_file": "lib/modelesContrat.js",
+      "source_location": "L360"
+    },
+    {
+      "id": "lib_modelescontrat_marquecontrat",
+      "label": "marqueContrat()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 30,
+      "community_name": "ApercuContrat.js",
+      "file_type": "code",
+      "norm_label": "marquecontrat()",
+      "source_file": "lib/modelesContrat.js",
+      "source_location": "L43"
+    },
+    {
       "id": "lib_pdfcontrat_genererpdfcontrat",
       "label": "genererPdfContrat()",
       "_callable": true,
@@ -20015,18 +20063,6 @@
       "norm_label": "confirmer()",
       "source_file": "components/equipe/Modales.js",
       "source_location": "L327"
-    },
-    {
-      "id": "lib_joursrepos_nomjour",
-      "label": "nomJour()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 311,
-      "community_name": "Modales.js",
-      "file_type": "code",
-      "norm_label": "nomjour()",
-      "source_file": "lib/joursRepos.js",
-      "source_location": "L30"
     },
     {
       "id": "components_champdate_calendrierperiode",
@@ -21625,16 +21661,16 @@
       "source_location": "L34"
     },
     {
-      "id": "lib_api_getfournisseurs",
-      "label": "getFournisseurs()",
+      "id": "lib_api_gettravailleurs",
+      "label": "getTravailleurs()",
       "_callable": true,
       "_origin": "ast",
       "community": 330,
       "community_name": "offlineCache.js",
       "file_type": "code",
-      "norm_label": "getfournisseurs()",
+      "norm_label": "gettravailleurs()",
       "source_file": "lib/api.js",
-      "source_location": "L690"
+      "source_location": "L674"
     },
     {
       "id": "lib_api_getutilisateurs",
@@ -21745,18 +21781,6 @@
       "source_location": "L14"
     },
     {
-      "id": "lib_offlinecache_getcachedfournisseurs",
-      "label": "getCachedFournisseurs()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 330,
-      "community_name": "offlineCache.js",
-      "file_type": "code",
-      "norm_label": "getcachedfournisseurs()",
-      "source_file": "lib/offlineCache.js",
-      "source_location": "L49"
-    },
-    {
       "id": "lib_offlinecache_getcachedpoint",
       "label": "getCachedPoint()",
       "_callable": true,
@@ -21791,6 +21815,18 @@
       "norm_label": "getcachedrestaurants()",
       "source_file": "lib/offlineCache.js",
       "source_location": "L30"
+    },
+    {
+      "id": "lib_offlinecache_getcachedtravailleurs",
+      "label": "getCachedTravailleurs()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 330,
+      "community_name": "offlineCache.js",
+      "file_type": "code",
+      "norm_label": "getcachedtravailleurs()",
+      "source_file": "lib/offlineCache.js",
+      "source_location": "L42"
     },
     {
       "id": "lib_offlinecache_getcachedutilisateurs",
@@ -25837,18 +25873,6 @@
       "source_location": "L60"
     },
     {
-      "id": "app_demandes_explication_admin_coche",
-      "label": "Coche()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "FormulaireGeneration.js",
-      "file_type": "code",
-      "norm_label": "coche()",
-      "source_file": "app/demandes-explication-admin.js",
-      "source_location": "L510"
-    },
-    {
       "id": "components_champdate_champdate",
       "label": "ChampDate()",
       "_callable": true,
@@ -26027,30 +26051,6 @@
       "norm_label": "televerser()",
       "source_file": "components/FormulaireContrat.js",
       "source_location": "L129"
-    },
-    {
-      "id": "components_ui_ecranmoderne_makestyles",
-      "label": "makeStyles()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "FormulaireGeneration.js",
-      "file_type": "code",
-      "norm_label": "makestyles()",
-      "source_file": "components/ui/EcranModerne.js",
-      "source_location": "L220"
-    },
-    {
-      "id": "components_ui_ecranmoderne_teinte",
-      "label": "teinte()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 5,
-      "community_name": "FormulaireGeneration.js",
-      "file_type": "code",
-      "norm_label": "teinte()",
-      "source_file": "components/ui/EcranModerne.js",
-      "source_location": "L14"
     },
     {
       "id": "lib_api_uploadfichier",
@@ -32128,6 +32128,28 @@
       "norm_label": "mois_courts",
       "source_file": "lib/equipe.js",
       "source_location": "L78"
+    },
+    {
+      "id": "lib_equipe_onglets",
+      "label": "ONGLETS",
+      "_origin": "ast",
+      "community": 102,
+      "community_name": "lib/equipe.js",
+      "file_type": "code",
+      "norm_label": "onglets",
+      "source_file": "lib/equipe.js",
+      "source_location": "L18"
+    },
+    {
+      "id": "lib_equipe_periodes",
+      "label": "PERIODES",
+      "_origin": "ast",
+      "community": 102,
+      "community_name": "lib/equipe.js",
+      "file_type": "code",
+      "norm_label": "periodes",
+      "source_file": "lib/equipe.js",
+      "source_location": "L11"
     },
     {
       "id": "lib_equipe_test",
@@ -42380,28 +42402,6 @@
       "source_location": "L1"
     },
     {
-      "id": "components_equipe_fichetravailleur",
-      "label": "FicheTravailleur.js",
-      "_origin": "ast",
-      "community": 253,
-      "community_name": "app/equipe.js",
-      "file_type": "code",
-      "norm_label": "fichetravailleur.js",
-      "source_file": "components/equipe/FicheTravailleur.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "components_equipe_fichetravailleur_type_doc_icons",
-      "label": "TYPE_DOC_ICONS",
-      "_origin": "ast",
-      "community": 253,
-      "community_name": "app/equipe.js",
-      "file_type": "code",
-      "norm_label": "type_doc_icons",
-      "source_file": "components/equipe/FicheTravailleur.js",
-      "source_location": "L16"
-    },
-    {
       "id": "components_equipe_ongletarchives",
       "label": "OngletArchives.js",
       "_origin": "ast",
@@ -42477,28 +42477,6 @@
       "norm_label": "bleu",
       "source_file": "lib/equipe.js",
       "source_location": "L9"
-    },
-    {
-      "id": "lib_equipe_onglets",
-      "label": "ONGLETS",
-      "_origin": "ast",
-      "community": 253,
-      "community_name": "app/equipe.js",
-      "file_type": "code",
-      "norm_label": "onglets",
-      "source_file": "lib/equipe.js",
-      "source_location": "L18"
-    },
-    {
-      "id": "lib_equipe_periodes",
-      "label": "PERIODES",
-      "_origin": "ast",
-      "community": 253,
-      "community_name": "app/equipe.js",
-      "file_type": "code",
-      "norm_label": "periodes",
-      "source_file": "lib/equipe.js",
-      "source_location": "L11"
     },
     {
       "id": "lib_equipe_statuts",
@@ -42695,6 +42673,28 @@
       "norm_label": "expo-web-browser",
       "source_file": "package.json",
       "source_location": "L45"
+    },
+    {
+      "id": "components_equipe_fichetravailleur",
+      "label": "FicheTravailleur.js",
+      "_origin": "ast",
+      "community": 258,
+      "community_name": "FicheTravailleur.js",
+      "file_type": "code",
+      "norm_label": "fichetravailleur.js",
+      "source_file": "components/equipe/FicheTravailleur.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "components_equipe_fichetravailleur_type_doc_icons",
+      "label": "TYPE_DOC_ICONS",
+      "_origin": "ast",
+      "community": 258,
+      "community_name": "FicheTravailleur.js",
+      "file_type": "code",
+      "norm_label": "type_doc_icons",
+      "source_file": "components/equipe/FicheTravailleur.js",
+      "source_location": "L16"
     },
     {
       "id": "supabase_correction_facture_sql_transactions_fournisseurs",
@@ -46551,17 +46551,6 @@
       "source_location": "L14"
     },
     {
-      "id": "package_dependencies_exceljs",
-      "label": "exceljs",
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "dependencies",
-      "file_type": "code",
-      "norm_label": "exceljs",
-      "source_file": "package.json",
-      "source_location": "L23"
-    },
-    {
       "id": "package_dependencies_expo_constants",
       "label": "expo-constants",
       "_origin": "ast",
@@ -46571,6 +46560,17 @@
       "norm_label": "expo-constants",
       "source_file": "package.json",
       "source_location": "L25"
+    },
+    {
+      "id": "package_dependencies_expo_device",
+      "label": "expo-device",
+      "_origin": "ast",
+      "community": 31,
+      "community_name": "dependencies",
+      "file_type": "code",
+      "norm_label": "expo-device",
+      "source_file": "package.json",
+      "source_location": "L27"
     },
     {
       "id": "package_dependencies_expo_file_system",
@@ -46672,6 +46672,17 @@
       "source_location": "L25"
     },
     {
+      "id": "expo_device",
+      "label": "expo-device",
+      "_origin": "ast",
+      "community": 31,
+      "community_name": "dependencies",
+      "file_type": "concept",
+      "norm_label": "expo-device",
+      "source_file": "package.json",
+      "source_location": "L27"
+    },
+    {
       "id": "expo_file_system",
       "label": "expo-file-system",
       "_origin": "ast",
@@ -46703,17 +46714,6 @@
       "norm_label": "expo-status-bar",
       "source_file": "package.json",
       "source_location": "L41"
-    },
-    {
-      "id": "package_json_exceljs",
-      "label": "exceljs",
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "dependencies",
-      "file_type": "concept",
-      "norm_label": "exceljs",
-      "source_file": "package.json",
-      "source_location": "L23"
     },
     {
       "id": "package_json_pptxgenjs",
@@ -54149,26 +54149,26 @@
       "source_location": "L39"
     },
     {
-      "id": "package_dependencies_expo_device",
-      "label": "expo-device",
+      "id": "package_dependencies_exceljs",
+      "label": "exceljs",
       "_origin": "ast",
       "community": 70,
-      "community_name": "expo-device",
+      "community_name": "exceljs",
       "file_type": "code",
-      "norm_label": "expo-device",
+      "norm_label": "exceljs",
       "source_file": "package.json",
-      "source_location": "L27"
+      "source_location": "L23"
     },
     {
-      "id": "expo_device",
-      "label": "expo-device",
+      "id": "package_json_exceljs",
+      "label": "exceljs",
       "_origin": "ast",
       "community": 70,
-      "community_name": "expo-device",
+      "community_name": "exceljs",
       "file_type": "concept",
-      "norm_label": "expo-device",
+      "norm_label": "exceljs",
       "source_file": "package.json",
-      "source_location": "L27"
+      "source_location": "L23"
     },
     {
       "id": "components_tresorerie_feuilletransfertfond",
@@ -76413,7 +76413,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/tresorerie-resultats.js",
-      "source_location": "L139",
+      "source_location": "L141",
       "weight": 1.0
     },
     {
@@ -92493,7 +92493,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/direction.js",
-      "source_location": "L163",
+      "source_location": "L168",
       "weight": 1.0
     },
     {
@@ -92505,7 +92505,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/direction.js",
-      "source_location": "L166",
+      "source_location": "L171",
       "weight": 1.0
     },
     {
@@ -92517,7 +92517,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/direction.js",
-      "source_location": "L172",
+      "source_location": "L177",
       "weight": 1.0
     },
     {
@@ -92529,7 +92529,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "lib/direction.js",
-      "source_location": "L177",
+      "source_location": "L182",
       "weight": 1.0
     },
     {
@@ -165323,7 +165323,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/tresorerie-resultats.js",
-      "source_location": "L138",
+      "source_location": "L140",
       "weight": 1.0
     },
     {
@@ -183319,18 +183319,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/direction.js",
-      "source_location": "L145",
-      "weight": 1.0
-    },
-    {
-      "source": "lib_direction",
-      "target": "lib_direction_derniersmois",
-      "relation": "contains",
-      "_origin": "ast",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "lib/direction.js",
-      "source_location": "L208",
+      "source_location": "L149",
       "weight": 1.0
     },
     {
@@ -183346,13 +183335,24 @@
     },
     {
       "source": "lib_direction",
+      "target": "lib_direction_derniersmois",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "lib/direction.js",
+      "source_location": "L220",
+      "weight": 1.0
+    },
+    {
+      "source": "lib_direction",
       "target": "lib_direction_bornesmois",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "lib/direction.js",
-      "source_location": "L219",
+      "source_location": "L231",
       "weight": 1.0
     },
     {
@@ -201917,5 +201917,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "5e987a2afc6044e624e8dd759aeb3925d1c300bf"
+  "built_at_commit": "bd35e0ae5bbcb39df252a53e1ef9554950707606"
 }
