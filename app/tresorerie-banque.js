@@ -24,7 +24,7 @@ import {
 import { usePhoto } from '../lib/usePhoto'
 import { historiqueCompte, resumeMois } from '../lib/historiqueCompte'
 import {
-  aujourdhuiISO, fmt, formatDateFR, montantRecalage, peut, soldeCompte,
+  aujourdhuiISO, fmt, montantRecalage, peut, soldeCompte,
 } from '../lib/tresorerie'
 import { ajouterMouvement, entreeEspeces, entreePret, supprimerMouvement, virement } from '../lib/tresorerieDb'
 
@@ -90,10 +90,14 @@ function jourLong(iso) {
 // symboles (« Entrées », « Sorties »), un texte qui se lit sans plisser les yeux.
 function makeStylesBanque(colors) {
   return StyleSheet.create({
-    carte: { flexBasis: '100%', padding: 16, paddingTop: 18 },
-    carteHaut: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    carteNom: { fontSize: 17, fontWeight: '800', color: colors.text },
-    carteDernier: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+    carteHaut: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    carteNom: { fontSize: 15, fontWeight: '800', color: colors.text },
+    carteSolde: { fontSize: 24, fontWeight: '800', color: colors.text, marginTop: 12, letterSpacing: -0.5, fontVariant: ['tabular-nums'] },
+    carteMois: { marginTop: 10, gap: 4 },
+    carteMoisLigne: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 6 },
+    carteMoisLbl: { fontSize: 13, fontWeight: '700' },
+    carteMoisVal: { fontSize: 14, fontWeight: '800', fontVariant: ['tabular-nums'], flexShrink: 1 },
+    carteMoisNote: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
     soldeLbl: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, marginTop: 14 },
     solde: { fontSize: 30, fontWeight: '800', color: colors.text, letterSpacing: -0.6, fontVariant: ['tabular-nums'] },
     moisLbl: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, marginTop: 12, marginBottom: 6 },
@@ -216,27 +220,29 @@ function CarteCompte({ compte: c, mois, onPress }) {
   const sc = styleCompte(c)
   const solde = soldeCompte(c.mouvements)
   const { entrees, sorties } = resumeMois(c.mouvements, mois)
-  const dernier = historiqueCompte(c.mouvements)[0]?.lignes[0]
   return (
     <TouchableOpacity
-      style={[styles.carte, styles.compteCarte, s.carte]} activeOpacity={0.75} onPress={onPress}
+      style={[styles.carte, styles.compteCarte]} activeOpacity={0.75} onPress={onPress}
       accessibilityRole="button" accessibilityLabel={`${c.nom}, solde ${fmt(solde)} francs. Voir l'historique`}
     >
       <View style={[styles.compteTrait, { backgroundColor: sc.couleur }]} />
       <View style={s.carteHaut}>
-        <Pastille icone={sc.icone} couleur={sc.couleur} taille={44} />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={s.carteNom} numberOfLines={1}>{c.nom}</Text>
-          <Text style={s.carteDernier} numberOfLines={1}>
-            {dernier ? `Dernier mouvement le ${formatDateFR(dernier.date)}` : 'Aucun mouvement'}
-          </Text>
-        </View>
-        <MaterialCommunityIcons name="chevron-right" size={24} color={colors.textMuted} />
+        <Pastille icone={sc.icone} couleur={sc.couleur} taille={38} />
+        <Text style={[s.carteNom, { flex: 1, minWidth: 0 }]} numberOfLines={1}>{c.nom}</Text>
+        <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
       </View>
-      <Text style={s.soldeLbl}>Solde</Text>
-      <Text style={[s.solde, solde < 0 && { color: colors.error }]} numberOfLines={1} adjustsFontSizeToFit>{fmt(solde)} F</Text>
-      <Text style={s.moisLbl}>Ce mois-ci</Text>
-      <TuilesMois entrees={entrees} sorties={sorties} s={s} colors={colors} />
+      <Text style={[s.carteSolde, solde < 0 && { color: colors.error }]} numberOfLines={1} adjustsFontSizeToFit>{fmt(solde)} F</Text>
+      <View style={s.carteMois}>
+        <View style={s.carteMoisLigne}>
+          <Text style={[s.carteMoisLbl, { color: colors.successDark }]}>Entrées</Text>
+          <Text style={[s.carteMoisVal, { color: colors.successDark }]} numberOfLines={1} adjustsFontSizeToFit>+ {fmt(entrees)}</Text>
+        </View>
+        <View style={s.carteMoisLigne}>
+          <Text style={[s.carteMoisLbl, { color: colors.error }]}>Sorties</Text>
+          <Text style={[s.carteMoisVal, { color: colors.error }]} numberOfLines={1} adjustsFontSizeToFit>− {fmt(sorties)}</Text>
+        </View>
+        <Text style={s.carteMoisNote}>ce mois-ci</Text>
+      </View>
     </TouchableOpacity>
   )
 }
