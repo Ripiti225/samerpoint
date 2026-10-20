@@ -1324,7 +1324,7 @@ function makeStyles(colors) { return StyleSheet.create({
   tabTxtActive: { color: '#EF9F27', fontWeight: '600' },
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   kpiCard: {
-    flexBasis: '45%', flexGrow: 1, backgroundColor: colors.surface, borderRadius: 12,
+    flexBasis: '45%', flexGrow: 1, minWidth: 140, backgroundColor: colors.surface, borderRadius: 12,
     padding: 12, borderWidth: 0.5, borderColor: colors.border
   },
   kpiLabel: { fontSize: 10, color: colors.textMuted, marginBottom: 4 },

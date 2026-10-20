@@ -35,6 +35,7 @@ import {
 } from '../lib/statsPOS'
 import { POS_NON_INSTALLE, chargerStatsPOS } from '../lib/statsPOSDb'
 import { supabase } from '../lib/supabase'
+import TexteAjuste from '../components/ui/TexteAjuste'
 
 
 // Les colonnes de `points` que cet écran lit — une seule liste, trois requêtes.
@@ -873,7 +874,7 @@ export default function DashboardGlobalScreen() {
           {pastilleVariation(v, { inverse })}
         </View>
         <Text style={styles.tuileLabel}>{label}</Text>
-        <Text style={styles.tuileValeur} numberOfLines={1} adjustsFontSizeToFit>{valeur}</Text>
+        <TexteAjuste style={styles.tuileValeur}>{valeur}</TexteAjuste>
         {sous ? <Text style={styles.tuileSous} numberOfLines={1}>{sous}</Text> : null}
       </View>
     )
@@ -928,7 +929,7 @@ export default function DashboardGlobalScreen() {
         <VenteDouble machine={total.ventes} theorique={total.ventesTheo} colors={colors} taille={13}
           couleur="rgba(255,255,255,0.8)" couleurValeur="#FFFFFF">
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
-            <Text style={styles.heroValeur} numberOfLines={1} adjustsFontSizeToFit>{fmt(total.ventes)}</Text>
+            <TexteAjuste style={styles.heroValeur}>{fmt(total.ventes)}</TexteAjuste>
             {varVentes !== null ? <View style={{ marginBottom: 8 }}>{pastilleVariation(varVentes, { surFond: true })}</View> : null}
           </View>
         </VenteDouble>
@@ -950,7 +951,7 @@ export default function DashboardGlobalScreen() {
                 <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.point }} />
                 <Text style={styles.heroCaseLbl} numberOfLines={1}>{c.label}</Text>
               </View>
-              <Text style={styles.heroCaseVal} numberOfLines={1} adjustsFontSizeToFit>{c.valeur}</Text>
+              <TexteAjuste style={styles.heroCaseVal}>{c.valeur}</TexteAjuste>
             </View>
           ))}
         </View>
@@ -1222,7 +1223,7 @@ export default function DashboardGlobalScreen() {
                 <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.point }} />
                 <Text style={styles.heroCaseLbl}>{c.label}</Text>
               </View>
-              <Text style={styles.heroCaseVal} numberOfLines={1} adjustsFontSizeToFit>{c.valeur}</Text>
+              <TexteAjuste style={styles.heroCaseVal}>{c.valeur}</TexteAjuste>
             </View>
           ))}
         </View>
@@ -1368,7 +1369,7 @@ export default function DashboardGlobalScreen() {
           <View style={styles.heroIcone}><MaterialCommunityIcons name="scale-balance" size={18} color="#FFFFFF" /></View>
           <Text style={styles.heroLbl} numberOfLines={1}>Litiges · {titrePeriode()}</Text>
         </View>
-        <Text style={[styles.heroValeur, { marginTop: 10 }]} numberOfLines={1} adjustsFontSizeToFit>{fmt(r.total)}</Text>
+        <TexteAjuste style={[styles.heroValeur, { marginTop: 10 }]}>{fmt(r.total)}</TexteAjuste>
         <Text style={styles.heroSous}>
           {r.nbConcernes
             ? `${r.nbConcernes} restaurant${r.nbConcernes > 1 ? 's' : ''} concerné${r.nbConcernes > 1 ? 's' : ''} · montants à la charge des équipes`
@@ -1379,7 +1380,7 @@ export default function DashboardGlobalScreen() {
             {r.categories.slice(0, 3).map(c => (
               <View key={c.cle} style={styles.heroCase}>
                 <Text style={styles.heroCaseLbl} numberOfLines={1}>{c.nom}</Text>
-                <Text style={styles.heroCaseVal} numberOfLines={1} adjustsFontSizeToFit>{fmtCourt(c.montant)}</Text>
+                <TexteAjuste style={styles.heroCaseVal}>{fmtCourt(c.montant)}</TexteAjuste>
               </View>
             ))}
           </View>
@@ -1903,7 +1904,7 @@ function makeStyles(colors) { return StyleSheet.create({
 
   tuiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
   tuile: {
-    flexBasis: '47%', flexGrow: 1, backgroundColor: colors.surface, borderRadius: 18, padding: 14,
+    flexBasis: '47%', flexGrow: 1, minWidth: 155, backgroundColor: colors.surface, borderRadius: 18, padding: 14,
     borderWidth: 1, borderColor: colors.borderLight,
   },
   tuileLabel: { fontSize: 11, fontWeight: '800', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 10 },

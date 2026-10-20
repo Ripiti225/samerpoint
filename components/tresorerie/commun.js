@@ -16,6 +16,7 @@ import { useTheme } from '../../context/ThemeContext'
 import { isOnlineNow } from '../../lib/networkStatus'
 import { fmt, niveauTresorerie, peut } from '../../lib/tresorerie'
 import { chargerDirection, chargerDroits, chargerPartenaires, chargerPartenairesParResto, chargerTresorerie } from '../../lib/tresorerieDb'
+import TexteAjuste from '../ui/TexteAjuste'
 
 // Charge les données + le niveau d'accès de l'utilisateur. Recharge à chaque
 // retour sur l'écran (une saisie faite ailleurs apparaît tout de suite).
@@ -310,7 +311,7 @@ export function Hero({ icone, titre, valeur, sous, couleurValeur, children, onPr
         ) : null}
         <Text style={styles.heroLbl} numberOfLines={1}>{titre}</Text>
       </View>
-      <Text style={[styles.heroValeur, couleurValeur && { color: couleurValeur }]} numberOfLines={1} adjustsFontSizeToFit>{valeur}</Text>
+      <TexteAjuste style={[styles.heroValeur, couleurValeur && { color: couleurValeur }]}>{valeur}</TexteAjuste>
       {sous ? <Text style={styles.heroSous}>{sous}</Text> : null}
       {children}
     </Conteneur>
@@ -326,7 +327,7 @@ export function HeroCase({ label, valeur, couleur }) {
         {couleur ? <View style={[styles.heroPoint, { backgroundColor: couleur }]} /> : null}
         <Text style={styles.heroCaseLbl} numberOfLines={1}>{label}</Text>
       </View>
-      <Text style={styles.heroCaseVal} numberOfLines={1} adjustsFontSizeToFit>{valeur}</Text>
+      <TexteAjuste style={styles.heroCaseVal}>{valeur}</TexteAjuste>
     </View>
   )
 }
@@ -423,7 +424,7 @@ export function makeStyles(colors) { return StyleSheet.create({
   petit: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
   tuiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tuile: {
-    flexBasis: '47%', flexGrow: 1, backgroundColor: colors.surface, borderRadius: 20, padding: 14, paddingTop: 16,
+    flexBasis: '47%', flexGrow: 1, minWidth: 155, backgroundColor: colors.surface, borderRadius: 20, padding: 14, paddingTop: 16,
     borderWidth: 1, borderColor: colors.borderLight, minHeight: 120, overflow: 'hidden',
     shadowColor: colors.cardShadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 2,
   },
@@ -530,7 +531,7 @@ export function makeStyles(colors) { return StyleSheet.create({
   heroValeur: { fontSize: 34, fontWeight: '800', color: '#FFFFFF', marginTop: 12, letterSpacing: -1, fontVariant: ['tabular-nums'] },
   heroSous: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 4, fontWeight: '600', lineHeight: 18 },
   heroCases: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
-  heroCase: { flexGrow: 1, flexBasis: '30%', backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 9 },
+  heroCase: { flexGrow: 1, flexBasis: '30%', minWidth: 100, backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 9 },
   heroCaseHaut: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   heroPoint: { width: 8, height: 8, borderRadius: 4 },
   heroCaseLbl: { flex: 1, fontSize: 11, color: 'rgba(255,255,255,0.8)', fontWeight: '700' },

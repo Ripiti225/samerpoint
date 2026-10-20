@@ -83,7 +83,7 @@ export function makeStyles(colors) {
 
     // ── Dashboard ──
     kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
-    kpiCard: { ...carte, flexBasis: '45%', flexGrow: 1, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
+    kpiCard: { ...carte, flexBasis: '45%', flexGrow: 1, minWidth: 160, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
     kpiIconBox: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
     kpiIcon: { fontSize: 19 },
     kpiValue: { fontSize: 22, fontWeight: '800', color: colors.text, letterSpacing: -0.4 },

@@ -17,6 +17,7 @@ import {
   arcsAnneau, bornesJolies, cheminAire, cheminLisse, etiquettesEspacees, fmtCourt, indexBarre, indexCourbe,
   melangerCouleurs, segmentAnneau,
 } from '../lib/graphiques'
+import TexteAjuste from './ui/TexteAjuste'
 
 let idUnique = 0
 const nouvelId = prefixe => `${prefixe}${++idUnique}`
@@ -419,9 +420,9 @@ export function Anneau({ segments, taille = 150, epaisseur = 20, centreValeur, c
       <View pointerEvents="none" style={{ alignItems: 'center', maxWidth: taille - epaisseur * 2 - 8 }}>
         {vise ? (
           <>
-            <Text style={{ fontSize: 15, fontWeight: '800', color: vise.couleur }} numberOfLines={1} adjustsFontSizeToFit>
+            <TexteAjuste style={{ fontSize: 15, fontWeight: '800', color: vise.couleur }}>
               {vise.detail ?? formatDetail(vise.valeur)}
-            </Text>
+            </TexteAjuste>
             <Text style={{ fontSize: 10.5, color: colors.textSecondary, fontWeight: '700', textAlign: 'center' }} numberOfLines={2}>
               {vise.nom} · {Math.round(arcs[actif].part * 100)} %
             </Text>

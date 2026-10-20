@@ -121,7 +121,7 @@ export default function ResumeAvis({ chiffres, chiffresPrec, parPlateforme, parR
 
 function makeStyles(colors) { return StyleSheet.create({
   grille: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 6 },
-  tuile: { flexGrow: 1, flexBasis: '45%', backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.borderLight, padding: 14 },
+  tuile: { flexGrow: 1, flexBasis: '45%', minWidth: 150, backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.borderLight, padding: 14 },
   tuileLibelle: { fontSize: 12, color: colors.textMuted, fontWeight: '700' },
   tuileValeur: { fontSize: 24, fontWeight: '800', color: colors.text, marginTop: 4, letterSpacing: -0.4 },
   tuileSous: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },

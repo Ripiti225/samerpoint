@@ -22,12 +22,13 @@ import {
   useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import { usePhoto } from '../lib/usePhoto'
-import { colonnesCartes, tailleQuiTient } from '../lib/grilleCartes'
+import { colonnesCartes } from '../lib/grilleCartes'
 import { historiqueCompte, resumeMois } from '../lib/historiqueCompte'
 import {
   aujourdhuiISO, fmt, montantRecalage, peut, soldeCompte,
 } from '../lib/tresorerie'
 import { ajouterMouvement, entreeEspeces, entreePret, supprimerMouvement, virement } from '../lib/tresorerieDb'
+import TexteAjuste from '../components/ui/TexteAjuste'
 
 const LIBELLES_TYPE = {
   recalage: 'Recalage',
@@ -130,11 +131,11 @@ function TuilesMois({ entrees, sorties, s, colors }) {
     <View style={s.tuiles}>
       <View style={[s.tuile, s.tuileEntree]}>
         <Text style={[s.tuileLbl, { color: colors.successDark }]}>Entrées</Text>
-        <Text style={[s.tuileVal, { color: colors.successDark }]} numberOfLines={1} adjustsFontSizeToFit>+ {fmt(entrees)} F</Text>
+        <TexteAjuste style={[s.tuileVal, { color: colors.successDark }]}>+ {fmt(entrees)} F</TexteAjuste>
       </View>
       <View style={[s.tuile, s.tuileSortie]}>
         <Text style={[s.tuileLbl, { color: colors.error }]}>Sorties</Text>
-        <Text style={[s.tuileVal, { color: colors.error }]} numberOfLines={1} adjustsFontSizeToFit>− {fmt(sorties)} F</Text>
+        <TexteAjuste style={[s.tuileVal, { color: colors.error }]}>− {fmt(sorties)} F</TexteAjuste>
       </View>
     </View>
   )
@@ -223,11 +224,6 @@ function CarteCompte({ compte: c, mois, largeur, onPress }) {
   const sc = styleCompte(c)
   const solde = soldeCompte(c.mouvements)
   const { entrees, sorties } = resumeMois(c.mouvements, mois)
-  // Largeur utile = carte − padding (14 × 2) ; « Entrées » + écart ≈ 62 px.
-  const interne = largeur ? largeur - 28 : null
-  const texteSolde = `${fmt(solde)} F`
-  const tailleSolde = tailleQuiTient(texteSolde, interne, { max: 24, min: 16 })
-  const tailleMois = tailleQuiTient(`+ ${fmt(Math.max(entrees, sorties))}`, interne && interne - 62, { max: 14, min: 11 })
   return (
     <TouchableOpacity
       style={[styles.carte, styles.compteCarte, largeur && { width: largeur, flexBasis: 'auto', flexGrow: 0 }]} activeOpacity={0.75} onPress={onPress}
@@ -239,15 +235,15 @@ function CarteCompte({ compte: c, mois, largeur, onPress }) {
         <Text style={[s.carteNom, { flex: 1, minWidth: 0 }]} numberOfLines={1}>{c.nom}</Text>
         <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
       </View>
-      <Text style={[s.carteSolde, { fontSize: tailleSolde }, solde < 0 && { color: colors.error }]} numberOfLines={1} adjustsFontSizeToFit>{texteSolde}</Text>
+      <TexteAjuste style={[s.carteSolde, solde < 0 && { color: colors.error }]}>{fmt(solde)} F</TexteAjuste>
       <View style={s.carteMois}>
         <View style={s.carteMoisLigne}>
           <Text style={[s.carteMoisLbl, { color: colors.successDark }]}>Entrées</Text>
-          <Text style={[s.carteMoisVal, { fontSize: tailleMois, color: colors.successDark }]} numberOfLines={1} adjustsFontSizeToFit>+ {fmt(entrees)}</Text>
+          <TexteAjuste style={[s.carteMoisVal, { color: colors.successDark }]}>+ {fmt(entrees)}</TexteAjuste>
         </View>
         <View style={s.carteMoisLigne}>
           <Text style={[s.carteMoisLbl, { color: colors.error }]}>Sorties</Text>
-          <Text style={[s.carteMoisVal, { fontSize: tailleMois, color: colors.error }]} numberOfLines={1} adjustsFontSizeToFit>− {fmt(sorties)}</Text>
+          <TexteAjuste style={[s.carteMoisVal, { color: colors.error }]}>− {fmt(sorties)}</TexteAjuste>
         </View>
         <Text style={s.carteMoisNote}>ce mois-ci</Text>
       </View>
@@ -346,7 +342,7 @@ function FeuilleCompte({ compte, comptes, donnees, user, peutSaisir, onFermer, a
           <View style={s.enteteFeuille}>
             <Pastille icone={sc.icone} couleur={sc.couleur} taille={52} />
             <Text style={s.soldeLbl}>Solde actuel</Text>
-            <Text style={[s.soldeFeuille, solde < 0 && { color: colors.error }]} adjustsFontSizeToFit numberOfLines={1}>{fmt(solde)} F</Text>
+            <TexteAjuste style={[s.soldeFeuille, solde < 0 && { color: colors.error }]}>{fmt(solde)} F</TexteAjuste>
           </View>
           <Text style={[s.moisLbl, { marginTop: 0 }]}>Ce mois-ci</Text>
           <View style={{ marginBottom: 16 }}>
@@ -355,10 +351,10 @@ function FeuilleCompte({ compte, comptes, donnees, user, peutSaisir, onFermer, a
 
           {peutSaisir && (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-              <Bouton style={{ flexBasis: '47%', flexGrow: 1 }} icone="arrow-down-bold-circle-outline" titre="Entrée" onPress={() => setVue('entree')} />
-              <Bouton style={{ flexBasis: '47%', flexGrow: 1 }} danger icone="arrow-up-bold-circle-outline" titre="Sortie" onPress={() => setVue('sortie')} />
-              <Bouton style={{ flexBasis: '47%', flexGrow: 1 }} secondaire icone="swap-horizontal" titre="Virement" onPress={() => setVue('virement')} />
-              <Bouton style={{ flexBasis: '47%', flexGrow: 1 }} secondaire icone="tune-variant" titre="Recaler" onPress={() => setVue('recalage')} />
+              <Bouton style={{ flexBasis: '47%', flexGrow: 1, minWidth: 130 }} icone="arrow-down-bold-circle-outline" titre="Entrée" onPress={() => setVue('entree')} />
+              <Bouton style={{ flexBasis: '47%', flexGrow: 1, minWidth: 130 }} danger icone="arrow-up-bold-circle-outline" titre="Sortie" onPress={() => setVue('sortie')} />
+              <Bouton style={{ flexBasis: '47%', flexGrow: 1, minWidth: 130 }} secondaire icone="swap-horizontal" titre="Virement" onPress={() => setVue('virement')} />
+              <Bouton style={{ flexBasis: '47%', flexGrow: 1, minWidth: 130 }} secondaire icone="tune-variant" titre="Recaler" onPress={() => setVue('recalage')} />
             </View>
           )}
 
@@ -392,10 +388,10 @@ function FeuilleCompte({ compte, comptes, donnees, user, peutSaisir, onFermer, a
                       </Text>
                     </View>
                     <View style={{ alignItems: 'flex-end', maxWidth: '42%' }}>
-                      <Text style={[s.ligneMontant, { color: couleur }]} numberOfLines={1} adjustsFontSizeToFit>
+                      <TexteAjuste style={[s.ligneMontant, { color: couleur }]}>
                         {entree ? '+ ' : '− '}{fmt(Math.abs(m.montant))} F
-                      </Text>
-                      <Text style={s.ligneSolde} numberOfLines={1}>Solde : {fmt(m.soldeApres)} F</Text>
+                      </TexteAjuste>
+                      <TexteAjuste style={s.ligneSolde}>Solde : {fmt(m.soldeApres)} F</TexteAjuste>
                     </View>
                   </TouchableOpacity>
                 )

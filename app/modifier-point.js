@@ -2286,7 +2286,7 @@ function makeStyles(colors) { return StyleSheet.create({
   valideBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   valideTxt: { fontSize: 11, fontWeight: '500' },
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
-  kpiCard: { flexBasis: '45%', flexGrow: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderWidth: 0.5, borderColor: colors.border },
+  kpiCard: { flexBasis: '45%', flexGrow: 1, minWidth: 140, backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderWidth: 0.5, borderColor: colors.border },
   kpiLabel: { fontSize: 10, color: colors.textMuted, marginBottom: 4 },
   kpiValue: { fontSize: 14, fontWeight: '600' },
   card: { backgroundColor: colors.surface, borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 0.5, borderColor: colors.border },

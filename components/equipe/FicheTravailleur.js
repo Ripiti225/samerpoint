@@ -333,7 +333,7 @@ const f = colors => StyleSheet.create({
   infoLabel: { flex: 1, fontSize: 13, color: colors.textMuted },
   infoVal: { fontSize: 13, fontWeight: '700', color: colors.text, maxWidth: '58%', textAlign: 'right' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 },
-  action: { flexGrow: 1, flexBasis: '45%', paddingVertical: 13, borderRadius: 14, alignItems: 'center' },
+  action: { flexGrow: 1, flexBasis: '45%', minWidth: 130, paddingVertical: 13, borderRadius: 14, alignItems: 'center' },
   actionTxt: { fontSize: 14, fontWeight: '700' },
   vide: { fontSize: 13, color: colors.textPlaceholder, textAlign: 'center', paddingVertical: 12 },
   doc: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: 14, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: colors.borderLight },

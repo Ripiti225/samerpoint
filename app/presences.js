@@ -727,7 +727,7 @@ function makeStyles(colors) { return StyleSheet.create({
   },
   shiftGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   shiftPresetBtn: {
-    flexBasis: '45%', flexGrow: 1, backgroundColor: colors.inputBg, borderRadius: 12,
+    flexBasis: '45%', flexGrow: 1, minWidth: 130, backgroundColor: colors.inputBg, borderRadius: 12,
     padding: 12, alignItems: 'center', borderWidth: 1.5, borderColor: colors.borderLight
   },
   shiftPresetBtnActif: { backgroundColor: colors.primaryLight, borderColor: colors.primary },

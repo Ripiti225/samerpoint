@@ -15,6 +15,7 @@ import { chargerAnalyse, moisProposes } from '../../lib/analyseMoisDb'
 import { heuresDuService, mixCanaux } from '../../lib/statsPOS'
 import { Anneau, Barres, BarresHorizontales, CarteGraphique, CourbeAire } from '../graphiques'
 import VenteDouble from '../ui/VenteDouble'
+import TexteAjuste from '../ui/TexteAjuste'
 
 const fmt = v => `${Math.round(Number(v) || 0).toLocaleString('fr-FR')} F`
 const pct = v => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v} %`)
@@ -86,7 +87,7 @@ export default function OngletAnalyse({ onExporter }) {
           <VenteDouble machine={a.totaux.ca} theorique={a.totaux.caTheo} colors={colors} taille={13}
             couleur="rgba(255,255,255,0.8)" couleurValeur="#FFFFFF">
             <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
-              <Text style={styles.heroValeur} numberOfLines={1} adjustsFontSizeToFit>{fmt(a.totaux.ca)}</Text>
+              <TexteAjuste style={styles.heroValeur}>{fmt(a.totaux.ca)}</TexteAjuste>
               {a.totaux.varCa !== null && (
                 <View style={styles.heroVar}>
                   <MaterialCommunityIcons name={a.totaux.varCa >= 0 ? 'arrow-up' : 'arrow-down'} size={13} color="#FFFFFF" />
@@ -109,7 +110,7 @@ export default function OngletAnalyse({ onExporter }) {
                   <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.point }} />
                   <Text style={styles.heroCaseLbl} numberOfLines={1}>{c.label}</Text>
                 </View>
-                <Text style={styles.heroCaseVal} numberOfLines={1} adjustsFontSizeToFit>{c.valeur}</Text>
+                <TexteAjuste style={styles.heroCaseVal}>{c.valeur}</TexteAjuste>
               </View>
             ))}
           </View>
@@ -186,7 +187,7 @@ export default function OngletAnalyse({ onExporter }) {
                 ].map(x => (
                   <View key={x.lbl} style={styles.restoCase}>
                     <Text style={styles.restoCaseLbl}>{x.lbl}</Text>
-                    <Text style={[styles.restoCaseVal, { color: x.coul }]} numberOfLines={1}>{x.val}</Text>
+                    <TexteAjuste style={[styles.restoCaseVal, { color: x.coul }]}>{x.val}</TexteAjuste>
                   </View>
                 ))}
               </View>

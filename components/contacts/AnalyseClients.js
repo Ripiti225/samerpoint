@@ -30,7 +30,7 @@ export default function AnalyseClients({ styles, colors, principale, groupes, ac
           const pct = part(n, groupes.total)
           return (
             <TouchableOpacity key={g.cle} activeOpacity={0.8} onPress={() => onChoisir(g.cle)}
-              style={[styles.carte, { flexBasis: '47%', flexGrow: 1, marginBottom: 0, padding: 12, borderWidth: sel ? 2 : 1 },
+              style={[styles.carte, { flexBasis: '47%', flexGrow: 1, minWidth: 150, marginBottom: 0, padding: 12, borderWidth: sel ? 2 : 1 },
                 { borderColor: sel ? c : colors.border, backgroundColor: sel ? teinte(c, '14') : colors.surface }]}>
               <Text style={{ fontSize: 13, fontWeight: '800', color: c }}>{g.icone} {g.titre}</Text>
               <Text style={{ fontSize: 26, fontWeight: '800', color: colors.text, marginTop: 4, letterSpacing: -0.5 }}>{nb(n)}</Text>

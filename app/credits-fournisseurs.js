@@ -44,6 +44,7 @@ import { chargerDerniersRestes } from '../lib/derniersRestesFournisseurs'
 import { supabase } from '../lib/supabase'
 import { aujourdhuiISO } from '../lib/tresorerie'
 import { useFocusRecherche } from '../lib/useFocusRecherche'
+import TexteAjuste from '../components/ui/TexteAjuste'
 
 let _restoFilterCache = null
 
@@ -844,7 +845,7 @@ ${mouvements.map(m => {
           <MaterialCommunityIcons name={icone} size={18} color={couleur} />
         </View>
         <Text style={styles.kpiLabel}>{label}</Text>
-        <Text style={[styles.kpiVal, { color: couleur }]} numberOfLines={1} adjustsFontSizeToFit>{valeur}</Text>
+        <TexteAjuste style={[styles.kpiVal, { color: couleur }]}>{valeur}</TexteAjuste>
       </View>
     )
   }

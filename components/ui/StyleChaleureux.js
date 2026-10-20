@@ -11,6 +11,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg'
 import { useTheme } from '../../context/ThemeContext'
 import { nomCourtResto } from '../../lib/groupesAccueil'
 import PhotoJustificatif from '../PhotoJustificatif'
+import TexteAjuste from './TexteAjuste'
 
 export const CLAIR = {
   fond: '#F6F3EE', carte: '#FFFFFF', carteFin: '#FFFFFF', bord: '#EFE6D8',
@@ -251,9 +252,9 @@ export function EnTete({ titre, surtitre, sous, chiffre, contexte, onRetour, lib
       <View style={styles.enTete}>
         {haut}
         {label ? <Text style={styles.enTeteSurtitre}>{label}</Text> : null}
-        <Text style={[styles.enTeteGrand, !label && { marginTop: 12 }, chiffre && styles.enTeteChiffre]} numberOfLines={1} adjustsFontSizeToFit>
+        <TexteAjuste style={[styles.enTeteGrand, !label && { marginTop: 12 }, chiffre && styles.enTeteChiffre]}>
           {chiffre || titre}
-        </Text>
+        </TexteAjuste>
         {sous ? <Text style={styles.enTeteSous}>{sous}</Text> : null}
         {children}
       </View>
@@ -431,7 +432,7 @@ export function BarreBas({ libelle, valeur, couleurValeur, manquants = [], child
         <View style={styles.ligne}>
           <View style={{ flexShrink: 1 }}>
             <Text style={styles.barreTotalLibelle}>{libelle}</Text>
-            <Text style={[styles.barreTotalValeur, { color: couleurValeur || p.texte }]} numberOfLines={1} adjustsFontSizeToFit>{valeur}</Text>
+            <TexteAjuste style={[styles.barreTotalValeur, { color: couleurValeur || p.texte }]}>{valeur}</TexteAjuste>
           </View>
           <View style={{ flexShrink: 0, minWidth: 150 }}>{children}</View>
         </View>
