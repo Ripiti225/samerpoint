@@ -10,7 +10,7 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated'
 import { useApp } from '../context/AppContext'
-import { useNotifications } from '../context/NotificationsContext'
+import { notifALien, useNotifications } from '../context/NotificationsContext'
 import { useTheme } from '../context/ThemeContext'
 import { texteRetard } from '../lib/avisPlateformes'
 import { enregistrerTokenDirecteur } from '../lib/notifications'
@@ -442,7 +442,7 @@ export default function AccueilScreen() {
                 ) : null}
                 renderItem={({ item: n }) => {
                   const nonLue = !n.lu_par?.includes(userId)
-                  const aUneLigne = !!(n.screen || (n.type && ['point_valide','shift_valide','correction_demandee','nouveau_document','nouveau_travailleur'].includes(n.type)))
+                  const aUneLigne = notifALien(n)
                   return (
                     <TouchableOpacity
                       activeOpacity={aUneLigne ? 0.75 : 1}

@@ -25,13 +25,22 @@ const NotificationsContext = createContext({
   naviguerDepuisNotif: () => {},
 })
 
+// Décisions de la Vérification : tout est écrit dans la notification (écart,
+// explication du caissier, commentaire). Les anciennes pointaient vers
+// « recap-point », qui n'ouvre que la journée EN COURS du gérant et n'affiche
+// rien de la décision : on ignore ce lien, même stocké en base.
+const PREFIXES_SANS_LIEN = ['explication_machine_', 'explication_pos_', 'ecart_inventaire_', 'point_verifie']
+
+export function notifALien(n) {
+  if (!n?.type) return !!n?.screen
+  if (PREFIXES_SANS_LIEN.some(p => n.type.startsWith(p))) return false
+  return !!(n.screen || ROUTE_MAP[n.type])
+}
+
 const ROUTE_MAP = {
   point_valide: 'verification',
   shift_valide: 'gerant-caissier',
   correction_demandee: 'recap-point',
-  explication_machine_validee: 'recap-point',
-  explication_machine_refusee: 'recap-point',
-  explication_machine_annulee: 'recap-point',
   nouveau_document: 'documents',
   nouveau_travailleur: 'equipe',
   // Recrutement + contrats signés (lib/contratsSignesDb.js)
@@ -191,7 +200,7 @@ export function NotificationsProvider({ children }) {
       // Les notifications d'avant le 15/10 portent encore screen 'contrats'.
       screen = 'embauches'
     } else {
-      screen = notif.screen || ROUTE_MAP[notif.type]
+      screen = notifALien(notif) ? (notif.screen || ROUTE_MAP[notif.type]) : null
     }
     if (!screen) return
     fermerPanel()

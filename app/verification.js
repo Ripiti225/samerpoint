@@ -22,6 +22,7 @@ import {
 } from '../lib/litigeContacts'
 import { detailContactsParCaissier, panierMoyenLivraison } from '../lib/contactsParCaissier'
 import { creerNotification } from '../lib/notificationsInterne'
+import { messageDecision, messagePointVerifie, nettoyerCommentaire, COMMENTAIRE_MAX } from '../lib/commentaireVerification'
 import { envoyerNotifFactureCorrigee } from '../lib/notifications'
 import PhotoJustificatif, { photoConsultable } from '../components/PhotoJustificatif'
 import { estPhotoEnAttente } from '../lib/photoQueue'
@@ -116,6 +117,11 @@ export default function VerificationScreen() {
   const [decisionInv, setDecisionInv] = useState(null)  // { ...ligneEcart } ou null
   const [qteAcceptee, setQteAcceptee] = useState('')
   const [decisionSaving, setDecisionSaving] = useState(false)
+  const [commentaireInv, setCommentaireInv] = useState('')  // commentaire facultatif pour le gérant
+  // Fenêtre « commentaire facultatif » (refus d'explication, Marquer vérifié) :
+  // { titre, texte, label, bouton, couleur, onValider(commentaire) } ou null
+  const [feuilleCommentaire, setFeuilleCommentaire] = useState(null)
+  const [commentaire, setCommentaire] = useState('')
   const [decisionEnCours, setDecisionEnCours] = useState(null)  // id de la ligne en cours de décision
   const [ecartDeplie, setEcartDeplie] = useState(null)  // ligne d'écart dépliée dans la liste Stock
   // Correction d'une entrée de stock mal saisie (10 déclarés, 20 sur le reçu)
@@ -523,26 +529,58 @@ export default function VerificationScreen() {
     const avertissement = restes.length
       ? `\n\n⚠️ Stock : ${restes.join(' · ')}. Vous pouvez valider quand même.`
       : ''
-    Alert.alert(
-      'Confirmer la vérification',
-      `Vous confirmez avoir vérifié toutes les données, photos et le stock du point du ${formatDate(pointSelectionne?.date)} ?\n\nCette action signifie que tout est conforme.${avertissement}`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Confirmer', onPress: () => marquerVerifie(pointSelectionne?.id) },
-      ]
-    )
+    const point = pointSelectionne
+    ouvrirCommentaire({
+      titre: 'Confirmer la vérification',
+      texte: `Vous confirmez avoir vérifié toutes les données, photos et le stock du point du ${formatDate(point?.date)} ?\n\nCette action signifie que tout est conforme.${avertissement}`,
+      label: 'Appréciation globale (facultatif) — envoyée au gérant et au directeur',
+      bouton: '✅ Confirmer',
+      couleur: '#2E7D32',
+      onValider: c => marquerVerifie(point, c),
+    })
   }
 
-  async function marquerVerifie(pointId) {
+  function ouvrirCommentaire(cfg) {
+    setCommentaire('')
+    setFeuilleCommentaire(cfg)
+  }
+
+  function validerCommentaire() {
+    const cfg = feuilleCommentaire
+    setFeuilleCommentaire(null)
+    cfg?.onValider(nettoyerCommentaire(commentaire))
+  }
+
+  async function marquerVerifie(point, commentaireVerif = '') {
+    const pointId = point?.id
+    if (!pointId) return
+    const par = userNom || roleActif || 'Manager'
     setValidating(true)
     const { error } = await supabase.from('points').update({
-      verifie: true, verifie_par: userNom || roleActif || 'Manager', verifie_at: new Date().toISOString(),
+      verifie: true, verifie_par: par, verifie_at: new Date().toISOString(),
     }).eq('id', pointId)
     if (error) { Alert.alert('Erreur', error.message); setValidating(false); return }
     setValidating(false)
     setModalPoint(false)
     setPoints(prev => prev.map(p => p.id === pointId ? { ...p, verifie: true } : p))
-    Alert.alert('✅ Point vérifié !', 'Le point a été marqué comme vérifié avec succès.')
+    const message = messagePointVerifie({
+      restaurant: restoSelectionne?.nom, date: formatDate(point.date), par, commentaire: commentaireVerif,
+    })
+    if (message) {
+      creerNotification({
+        type: 'point_verifie',
+        titre: '✅ Point vérifié',
+        message,
+        restaurant_id: point.restaurant_id,
+        cible_role: ['gerant', 'directeur'],
+        created_by: userId || null,
+        screen: null,
+      }).catch(() => {})
+      journaliser('appreciation_verification', { point_id: pointId, commentaire: commentaireVerif }, { par }).catch(() => {})
+    }
+    Alert.alert('✅ Point vérifié !', message
+      ? 'Le point a été marqué comme vérifié. Votre appréciation a été envoyée au gérant et au directeur.'
+      : 'Le point a été marqué comme vérifié avec succès.')
   }
 
   function fmt(n) { return Math.round(n).toLocaleString('fr-FR') + ' FCFA' }
@@ -874,18 +912,19 @@ export default function VerificationScreen() {
   // ── Décision manager sur un écart inventaire expliqué ────────────────
   function ouvrirDecisionInv(e) {
     setDecisionInv(e)
+    setCommentaireInv('')
     const defaut = e.quantite_acceptee != null ? e.quantite_acceptee : (e.nombreExplique || 0)
     setQteAcceptee(defaut ? String(defaut) : '')
   }
 
   function enregistrerDecisionInv(statut) {
-    return deciderEcartInv(decisionInv, statut, parseFloat(qteAcceptee) || 0)
+    return deciderEcartInv(decisionInv, statut, parseFloat(qteAcceptee) || 0, commentaireInv)
   }
 
   // Décision en un appui depuis la liste Stock : « Valider » accepte la
   // quantité expliquée par le caissier (sans quantité, la fenêtre s'ouvre).
   // « Modifier la décision » rouvre la fenêtre pour ajuster la quantité.
-  async function deciderEcartInv(e, statut, quantite) {
+  async function deciderEcartInv(e, statut, quantite, commentaireDecision = '') {
     if (!e || decisionSaving) return
     const ecartAbs = Math.abs(e.ecart || 0)
     const prix = e.prix || 0
@@ -910,9 +949,13 @@ export default function VerificationScreen() {
       creerNotification({
         type: `ecart_inventaire_${statut}`,
         titre: statut === 'validee' ? '✅ Écart inventaire validé' : '❌ Écart inventaire refusé',
-        message: statut === 'validee'
+        message: messageDecision(statut === 'validee'
           ? `${e.produit_nom} : explication acceptée (${qAcc} justifié) — déduction ${fmt(nouveauMontant)}.`
-          : `${e.produit_nom} : explication refusée — déduction pleine de ${fmt(nouveauMontant)}.`,
+          : `${e.produit_nom} : explication refusée — déduction pleine de ${fmt(nouveauMontant)}.`, {
+          ecart: nb(e.ecart),
+          explication: e.explication,
+          commentaire: commentaireDecision,
+        }),
         restaurant_id: pointSelectionne?.restaurant_id,
         cible_role: ['gerant'],
         created_by: userId || null,
@@ -1147,13 +1190,24 @@ export default function VerificationScreen() {
   function confirmerStatutMachine(statut) {
     const cfg = STATUT_MACHINE[statut]
     if (!cfg || statuantMachine) return
+    if (statut === 'refusee') {
+      ouvrirCommentaire({
+        titre: cfg.titreNotif,
+        texte: cfg.confirm,
+        label: 'Commentaire pour le gérant (facultatif)',
+        bouton: '❌ Refuser',
+        couleur: '#A32D2D',
+        onValider: c => statuerExplicationMachine(statut, c),
+      })
+      return
+    }
     Alert.alert(cfg.titreNotif, cfg.confirm, [
       { text: 'Retour', style: 'cancel' },
       { text: 'Confirmer', onPress: () => statuerExplicationMachine(statut) },
     ])
   }
 
-  async function statuerExplicationMachine(statut) {
+  async function statuerExplicationMachine(statut, commentaireDecision = '') {
     if (!pointSelectionne) return
     const cfg = STATUT_MACHINE[statut]
     if (!cfg) return
@@ -1177,16 +1231,23 @@ export default function VerificationScreen() {
       creerNotification({
         type: `explication_machine_${statut}`,
         titre: cfg.titreNotif,
-        message: cfg.msgNotif(formatDate(pointSelectionne.date)),
+        message: statut === 'refusee'
+          ? messageDecision(cfg.msgNotif(formatDate(pointSelectionne.date)), {
+            ecart: ecartMachineTexte(),
+            explication: pointSelectionne.explication_ecart_machine,
+            commentaire: commentaireDecision,
+          })
+          : cfg.msgNotif(formatDate(pointSelectionne.date)),
         restaurant_id: pointSelectionne.restaurant_id,
         cible_role: ['gerant'],
         created_by: userId || null,
-        screen: 'recap-point',
+        screen: null,
       }).catch(() => {})
 
       journaliser('statut_explication_machine', {
         point_id: pointSelectionne.id,
         statut,
+        ...(commentaireDecision ? { commentaire: commentaireDecision } : {}),
       }, { par: userNom || roleActif }).catch(() => {})
 
       Alert.alert(
@@ -1200,6 +1261,14 @@ export default function VerificationScreen() {
     } finally {
       setStatuantMachine(false)
     }
+  }
+
+  function ecartMachineTexte() {
+    const venteMachine = pointSelectionne?.vente_machine
+    if (venteMachine == null) return ''
+    const venteTheo = (detailPoint?.shifts || []).reduce((s, sh) => s + (sh.vente_shift || 0), 0)
+    const ecart = venteTheo - venteMachine
+    return `${ecart > 0 ? '+' : ''}${fmt(ecart)}`
   }
 
   // Ouvre le modal : calcule sens + écart restant (déduction faite des
@@ -1266,13 +1335,17 @@ export default function VerificationScreen() {
 
   function confirmerRefusCloturePOS(cloture) {
     if (!pointSelectionne || statuantMachine) return
-    Alert.alert('❌ Refuser l’explication', `Refuser l’explication de ${cloture.caissier_nom || 'ce caissier'} ? L’écart restera dans les litiges.`, [
-      { text: 'Retour', style: 'cancel' },
-      { text: 'Refuser', style: 'destructive', onPress: () => refuserExplicationCloturePOS(cloture) },
-    ])
+    ouvrirCommentaire({
+      titre: '❌ Refuser l’explication',
+      texte: `Refuser l’explication de ${cloture.caissier_nom || 'ce caissier'} ? L’écart restera dans les litiges.`,
+      label: 'Commentaire pour le gérant (facultatif)',
+      bouton: '❌ Refuser',
+      couleur: '#A32D2D',
+      onValider: c => refuserExplicationCloturePOS(cloture, c),
+    })
   }
 
-  async function refuserExplicationCloturePOS(cloture) {
+  async function refuserExplicationCloturePOS(cloture, commentaireDecision = '') {
     const p = pointSelectionne
     if (!p) return
     setStatuantMachine(true)
@@ -1287,6 +1360,7 @@ export default function VerificationScreen() {
         sens: Number(cloture.ecart_pos) < 0 ? 'manquant' : 'surplus',
         montant: 0,
         motif: String(cloture.explication_ecart || '').trim(),
+        ...(commentaireDecision ? { commentaire: commentaireDecision } : {}),
         sans_fond: true,
         par_id: userId || null,
         par_nom: userNom || null,
@@ -1300,13 +1374,17 @@ export default function VerificationScreen() {
       creerNotification({
         type: 'explication_pos_refusee',
         titre: '❌ Explication POS refusée',
-        message: `L'explication de ${cloture.caissier_nom || 'la caissière'} pour l'écart espèces du ${formatDate(p.date)} a été refusée.`,
+        message: messageDecision(`L'explication de ${cloture.caissier_nom || 'la caissière'} pour l'écart espèces du ${formatDate(p.date)} a été refusée.`, {
+          ecart: cloture.ecartEspecesTexte || (cloture.ecart_pos != null ? fmt(Number(cloture.ecart_pos)) : ''),
+          explication: cloture.explication_ecart,
+          commentaire: commentaireDecision,
+        }),
         restaurant_id: p.restaurant_id,
         cible_role: ['gerant'],
         created_by: userId || null,
-        screen: 'recap-point',
+        screen: null,
       }).catch(() => {})
-      journaliser('refus_explication_ecart_pos', { point_id: p.id, shift_id: cloture.id }, { par: userNom || roleActif }).catch(() => {})
+      journaliser('refus_explication_ecart_pos', { point_id: p.id, shift_id: cloture.id, ...(commentaireDecision ? { commentaire: commentaireDecision } : {}) }, { par: userNom || roleActif }).catch(() => {})
     } catch (e) {
       Alert.alert('Erreur', e?.message || 'Action impossible')
     } finally {
@@ -3607,7 +3685,7 @@ export default function VerificationScreen() {
                                   ) : (
                                     <>
                                       <TouchableOpacity style={[styles.ecBtn, styles.ecBtnRefuser, decisionSaving && { opacity: 0.4 }]}
-                                        onPress={() => deciderEcartInv(e, 'refusee')} disabled={decisionSaving}>
+                                        onPress={() => ouvrirDecisionInv(e)} disabled={decisionSaving}>
                                         <Text style={styles.ecBtnTxt}>❌</Text>
                                       </TouchableOpacity>
                                       <TouchableOpacity style={[styles.ecBtn, styles.ecBtnValider, decisionSaving && { opacity: 0.4 }]}
@@ -4218,6 +4296,38 @@ export default function VerificationScreen() {
       {/* ══════════════════════════════════════════
           MODAL DÉCISION ÉCART INVENTAIRE (valider/refuser explication)
       ══════════════════════════════════════════ */}
+      <Modal visible={feuilleCommentaire != null} animationType="fade" transparent onRequestClose={() => setFeuilleCommentaire(null)}>
+        <View style={styles.annulerOverlay}>
+          <View style={styles.annulerCard}>
+            <Text style={styles.annulerTitre}>{feuilleCommentaire?.titre}</Text>
+            {!!feuilleCommentaire?.texte && (
+              <Text style={styles.commentaireTexte}>{feuilleCommentaire.texte}</Text>
+            )}
+            <Text style={styles.annulerLabel}>{feuilleCommentaire?.label}</Text>
+            <TextInput
+              style={styles.commentaireInput}
+              value={commentaire}
+              onChangeText={setCommentaire}
+              placeholder="Écrivez ici si vous le souhaitez"
+              placeholderTextColor="#bbb"
+              multiline
+              maxLength={COMMENTAIRE_MAX}
+            />
+            <View style={styles.annulerBtnRow}>
+              <TouchableOpacity style={[styles.annulerBtn, styles.annulerBtnCancel]} onPress={() => setFeuilleCommentaire(null)}>
+                <Text style={styles.annulerBtnCancelTxt}>Retour</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.annulerBtn, { backgroundColor: feuilleCommentaire?.couleur || colors.primary }]}
+                onPress={validerCommentaire}
+              >
+                <Text style={styles.annulerBtnConfirmTxt}>{feuilleCommentaire?.bouton || 'Confirmer'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={decisionInv != null} animationType="fade" transparent onRequestClose={() => setDecisionInv(null)}>
         <View style={styles.annulerOverlay}>
           <View style={styles.annulerCard}>
@@ -4251,6 +4361,17 @@ export default function VerificationScreen() {
                     placeholderTextColor="#bbb"
                   />
                   <Text style={styles.annulerHint}>{`Max ${ecartAbs.toFixed(2)} — accepter tout l'écart = déduction 0`}</Text>
+
+                  <Text style={[styles.annulerLabel, { marginTop: 12 }]}>Commentaire pour le gérant (facultatif)</Text>
+                  <TextInput
+                    style={styles.commentaireInput}
+                    value={commentaireInv}
+                    onChangeText={setCommentaireInv}
+                    placeholder="Ex. : recompter ce produit au prochain inventaire"
+                    placeholderTextColor="#bbb"
+                    multiline
+                    maxLength={COMMENTAIRE_MAX}
+                  />
 
                   <View style={styles.decisionPreviewRow}>
                     <Text style={styles.decisionPreviewTxt}>→ Si validé : déduction <Text style={{ fontWeight: '800', color: '#3B6D11' }}>{fmt(montantValide)}</Text></Text>
@@ -4825,6 +4946,8 @@ function makeStyles(colors) { return StyleSheet.create({
   annulerLabel: { fontSize: 12, fontWeight: '700', color: colors.text, marginBottom: 6 },
   annulerInput: { borderRadius: 12, padding: 14, fontSize: 18, fontWeight: '700', color: colors.text, borderWidth: 1.5, borderColor: colors.border, textAlign: 'center' },
   annulerHint: { fontSize: 11, color: colors.textMuted, marginTop: 6 },
+  commentaireTexte: { fontSize: 13, color: colors.textSecondary, lineHeight: 19, marginBottom: 14 },
+  commentaireInput: { borderRadius: 12, padding: 12, fontSize: 14, color: colors.text, borderWidth: 1.5, borderColor: colors.border, minHeight: 80, textAlignVertical: 'top' },
   annulerExplication: { fontSize: 12, color: '#444', fontStyle: 'italic', marginTop: 8, backgroundColor: '#f7f7f7', borderRadius: 8, padding: 8 },
   annulerBtnRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
   annulerBtn: { flex: 1, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
