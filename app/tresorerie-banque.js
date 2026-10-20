@@ -22,6 +22,7 @@ import {
   useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import { usePhoto } from '../lib/usePhoto'
+import { colonnesCartes, tailleQuiTient } from '../lib/grilleCartes'
 import { historiqueCompte, resumeMois } from '../lib/historiqueCompte'
 import {
   aujourdhuiISO, fmt, montantRecalage, peut, soldeCompte,
@@ -145,6 +146,8 @@ export default function TresorerieBanqueScreen() {
   const { donnees, niveau, user, recharger } = t
   const [compteOuvert, setCompteOuvert] = useState(null) // id du compte dont la fenêtre est ouverte
   const [virementVisible, setVirementVisible] = useState(false)
+  const [largeurGrille, setLargeurGrille] = useState(0) // mesurée : 2 cartes par ligne si elles tiennent, sinon 1
+  const { largeurCarte } = colonnesCartes(largeurGrille)
 
   const peutSaisir = peut(niveau, 'saisir_banque')
   const comptes = useMemo(() => donnees?.comptes || [], [donnees])
@@ -169,9 +172,9 @@ export default function TresorerieBanqueScreen() {
             </View>
           </Hero>
 
-          <View style={styles.comptesGrille}>
+          <View style={styles.comptesGrille} onLayout={e => setLargeurGrille(e.nativeEvent.layout.width)}>
             {comptes.map(c => (
-              <CarteCompte key={c.id} compte={c} mois={mois} onPress={() => setCompteOuvert(c.id)} />
+              <CarteCompte key={c.id} compte={c} mois={mois} largeur={largeurCarte} onPress={() => setCompteOuvert(c.id)} />
             ))}
           </View>
 
@@ -214,15 +217,20 @@ export default function TresorerieBanqueScreen() {
 }
 
 // Carte d'un compte : solde, entrées / sorties du mois, dernier mouvement.
-function CarteCompte({ compte: c, mois, onPress }) {
+function CarteCompte({ compte: c, mois, largeur, onPress }) {
   const { styles, colors } = useStylesTreso()
   const s = useMemo(() => makeStylesBanque(colors), [colors])
   const sc = styleCompte(c)
   const solde = soldeCompte(c.mouvements)
   const { entrees, sorties } = resumeMois(c.mouvements, mois)
+  // Largeur utile = carte − padding (14 × 2) ; « Entrées » + écart ≈ 62 px.
+  const interne = largeur ? largeur - 28 : null
+  const texteSolde = `${fmt(solde)} F`
+  const tailleSolde = tailleQuiTient(texteSolde, interne, { max: 24, min: 16 })
+  const tailleMois = tailleQuiTient(`+ ${fmt(Math.max(entrees, sorties))}`, interne && interne - 62, { max: 14, min: 11 })
   return (
     <TouchableOpacity
-      style={[styles.carte, styles.compteCarte]} activeOpacity={0.75} onPress={onPress}
+      style={[styles.carte, styles.compteCarte, largeur && { width: largeur, flexBasis: 'auto', flexGrow: 0 }]} activeOpacity={0.75} onPress={onPress}
       accessibilityRole="button" accessibilityLabel={`${c.nom}, solde ${fmt(solde)} francs. Voir l'historique`}
     >
       <View style={[styles.compteTrait, { backgroundColor: sc.couleur }]} />
@@ -231,15 +239,15 @@ function CarteCompte({ compte: c, mois, onPress }) {
         <Text style={[s.carteNom, { flex: 1, minWidth: 0 }]} numberOfLines={1}>{c.nom}</Text>
         <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
       </View>
-      <Text style={[s.carteSolde, solde < 0 && { color: colors.error }]} numberOfLines={1} adjustsFontSizeToFit>{fmt(solde)} F</Text>
+      <Text style={[s.carteSolde, { fontSize: tailleSolde }, solde < 0 && { color: colors.error }]} numberOfLines={1} adjustsFontSizeToFit>{texteSolde}</Text>
       <View style={s.carteMois}>
         <View style={s.carteMoisLigne}>
           <Text style={[s.carteMoisLbl, { color: colors.successDark }]}>Entrées</Text>
-          <Text style={[s.carteMoisVal, { color: colors.successDark }]} numberOfLines={1} adjustsFontSizeToFit>+ {fmt(entrees)}</Text>
+          <Text style={[s.carteMoisVal, { fontSize: tailleMois, color: colors.successDark }]} numberOfLines={1} adjustsFontSizeToFit>+ {fmt(entrees)}</Text>
         </View>
         <View style={s.carteMoisLigne}>
           <Text style={[s.carteMoisLbl, { color: colors.error }]}>Sorties</Text>
-          <Text style={[s.carteMoisVal, { color: colors.error }]} numberOfLines={1} adjustsFontSizeToFit>− {fmt(sorties)}</Text>
+          <Text style={[s.carteMoisVal, { fontSize: tailleMois, color: colors.error }]} numberOfLines={1} adjustsFontSizeToFit>− {fmt(sorties)}</Text>
         </View>
         <Text style={s.carteMoisNote}>ce mois-ci</Text>
       </View>
