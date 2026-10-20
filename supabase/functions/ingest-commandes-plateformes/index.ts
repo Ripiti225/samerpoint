@@ -22,7 +22,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import {
-  comparerJourneesCroisees, retenuesJournee, planEcriture, normaliserNom, jourDe, RETENUES_FOURNIES,
+  comparerJourneesCroisees, retenuesJournee, planEcriture, normaliserNom, jourDe, RETENUES_FOURNIES, donneesCompletes,
 } from '../../../lib/litigesPlateformes.js'
 
 const cors = {
@@ -208,7 +208,10 @@ async function ecrireJournee(restaurantId: string, plateforme: Plateforme, jour:
   const { data: annules } = cles.length
     ? await admin.from('litiges_auto_annules').select('cle_auto').in('cle_auto', cles)
     : { data: [] as any[] }
-  const plan = planEcriture({ calcules, existants, annules: new Set((annules ?? []).map(a => a.cle_auto)), typesCouverts })
+  const plan = planEcriture({
+    calcules, existants, annules: new Set((annules ?? []).map(a => a.cle_auto)), typesCouverts,
+    typesAuto: ['tape_moins', 'tape_plus', ...RETENUES_FOURNIES[plateforme]],
+  })
 
   const enLigne = (l: any) => ({
     restaurant_id: restaurantId, date: jour, type: l.type, montant: l.montant,
@@ -237,15 +240,17 @@ async function ecrireJournee(restaurantId: string, plateforme: Plateforme, jour:
   return { statut: resultat.statut, litiges: plan.aInserer.length + plan.aMettreAJour.length }
 }
 
-// Un restaurant, un jour : les plateformes demandées, plus l'autre si elle a des
-// commandes ce jour-là (pour le croisement).
+// Un restaurant, un jour : les plateformes demandées, plus l'autre si toutes ses
+// commandes de ce jour-là ont été relues après minuit (pour le croisement).
+// Lue pendant la journée, il lui manque celles du soir : on n'y touche pas,
+// son prochain clic la recalculera.
 async function traiterRestoJour(restaurantId: string, jour: string, demandees: Set<Plateforme>, dernierJour: string) {
   const plateformes: Plateforme[] = []
   for (const p of PLATEFORMES) {
     if (demandees.has(p)) { plateformes.push(p); continue }
-    const { count } = await admin.from('commandes_plateformes').select('numero', { count: 'exact', head: true })
-      .eq('restaurant_id', restaurantId).eq('plateforme', p).eq('jour', jour)
-    if (count) plateformes.push(p)
+    const lues = await toutes(() => admin.from('commandes_plateformes').select('numero, recu_le')
+      .eq('restaurant_id', restaurantId).eq('plateforme', p).eq('jour', jour).order('numero'))
+    if (donneesCompletes(lues, jour)) plateformes.push(p)
   }
   const lus: Record<string, any> = {}
   for (const p of plateformes) lus[p] = await lireJournee(restaurantId, p, jour, dernierJour)
