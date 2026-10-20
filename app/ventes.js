@@ -168,15 +168,18 @@ export default function VentesScreen() {
       // Charger le FC de la veille depuis le dernier point validé.
       // Fond reporté = reste_fc (calculé sur les ventes) + ajustement_fond (corrections d'écart
       // déposées sur ce jour via la régularisation des litiges).
-      const queteFcVeille = (cols) => supabase
-        .from('points')
-        .select(cols)
-        .eq('restaurant_id', restaurantId)
-        .eq('valide', true)
-        .neq('id', pointId)
-        .order('date', { ascending: false })
-        .limit(1)
-        .single()
+      // Seulement les jours AVANT celui-ci : sans ce filtre, valider le 20 avant
+      // le 19 faisait prendre au 19 le fond du 20 (À la Braise, 20/10/2026).
+      const queteFcVeille = (cols) => {
+        let q = supabase
+          .from('points')
+          .select(cols)
+          .eq('restaurant_id', restaurantId)
+          .eq('valide', true)
+          .neq('id', pointId)
+        if (dateJour) q = q.lt('date', dateJour)
+        return q.order('date', { ascending: false }).limit(1).single()
+      }
 
       let { data: pointPrec, error: errFc } = await queteFcVeille('reste_fc, ajustement_fond')
       // Fallback si la colonne ajustement_fond n'est pas encore créée en DB
