@@ -15,10 +15,10 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { router } from 'expo-router'
 import { useMemo, useState } from 'react'
-import { Alert, Image, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { Alert, Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 
 import {
-  BarreRepartition, Bouton, Champ, ChampCalendrier, ChampMontant, Entete, EtatEcran, Feuille, Hero, ItemIcone, Pastille, Puces,
+  BarreRepartition, Bouton, Champ, ChampCalendrier, ChampMontant, Entete, EtatEcran, Feuille, Hero, HeroCase, Pastille, Puces,
   useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import { usePhoto } from '../lib/usePhoto'
@@ -77,12 +77,62 @@ function styleCompte(c) {
 
 const moisCourant = () => aujourdhuiISO().slice(0, 7)
 
-// « + 1,2 M » sur les cartes, pour que les petits montants restent lisibles.
-function court(v) {
-  const a = Math.abs(v)
-  if (a >= 1e6) return `${(a / 1e6).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} M`
-  if (a >= 1e4) return `${Math.round(a / 1e3).toLocaleString('fr-FR')} k`
-  return fmt(a)
+// « Samedi 18 octobre » (l'année seulement si ce n'est pas l'année en cours).
+function jourLong(iso) {
+  if (!iso) return ''
+  const d = new Date(`${iso}T12:00:00`)
+  const memeAnnee = iso.slice(0, 4) === aujourdhuiISO().slice(0, 4)
+  const t = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', ...(memeAnnee ? {} : { year: 'numeric' }) })
+  return t.charAt(0).toUpperCase() + t.slice(1)
+}
+
+// Styles propres à cet écran : de grands chiffres, des mots plutôt que des
+// symboles (« Entrées », « Sorties »), un texte qui se lit sans plisser les yeux.
+function makeStylesBanque(colors) {
+  return StyleSheet.create({
+    carte: { flexBasis: '100%', padding: 16, paddingTop: 18 },
+    carteHaut: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    carteNom: { fontSize: 17, fontWeight: '800', color: colors.text },
+    carteDernier: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+    soldeLbl: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, marginTop: 14 },
+    solde: { fontSize: 30, fontWeight: '800', color: colors.text, letterSpacing: -0.6, fontVariant: ['tabular-nums'] },
+    moisLbl: { fontSize: 13, fontWeight: '600', color: colors.textSecondary, marginTop: 12, marginBottom: 6 },
+    tuiles: { flexDirection: 'row', gap: 10 },
+    tuile: { flex: 1, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 12 },
+    tuileEntree: { backgroundColor: colors.successLight },
+    tuileSortie: { backgroundColor: colors.errorLight },
+    tuileLbl: { fontSize: 13, fontWeight: '700' },
+    tuileVal: { fontSize: 18, fontWeight: '800', marginTop: 2, fontVariant: ['tabular-nums'] },
+    // Fenêtre du compte
+    enteteFeuille: { alignItems: 'center', marginBottom: 16 },
+    soldeFeuille: { fontSize: 36, fontWeight: '800', color: colors.text, letterSpacing: -0.8, fontVariant: ['tabular-nums'], marginTop: 2 },
+    jour: { fontSize: 15, fontWeight: '800', color: colors.text, marginTop: 18, marginBottom: 8 },
+    ligne: {
+      flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 12,
+      backgroundColor: colors.surface, borderRadius: 14, marginBottom: 8, borderWidth: 1, borderColor: colors.borderLight,
+    },
+    ligneTitre: { fontSize: 15, fontWeight: '700', color: colors.text },
+    ligneSous: { fontSize: 13, color: colors.textSecondary, marginTop: 3 },
+    ligneSens: { fontWeight: '800' },
+    ligneMontant: { fontSize: 17, fontWeight: '800', fontVariant: ['tabular-nums'] },
+    ligneSolde: { fontSize: 12, color: colors.textSecondary, marginTop: 3, fontVariant: ['tabular-nums'] },
+  })
+}
+
+// Entrées et sorties d'une période, en deux tuiles colorées.
+function TuilesMois({ entrees, sorties, s, colors }) {
+  return (
+    <View style={s.tuiles}>
+      <View style={[s.tuile, s.tuileEntree]}>
+        <Text style={[s.tuileLbl, { color: colors.successDark }]}>Entrées</Text>
+        <Text style={[s.tuileVal, { color: colors.successDark }]} numberOfLines={1} adjustsFontSizeToFit>+ {fmt(entrees)} F</Text>
+      </View>
+      <View style={[s.tuile, s.tuileSortie]}>
+        <Text style={[s.tuileLbl, { color: colors.error }]}>Sorties</Text>
+        <Text style={[s.tuileVal, { color: colors.error }]} numberOfLines={1} adjustsFontSizeToFit>− {fmt(sorties)} F</Text>
+      </View>
+    </View>
+  )
 }
 
 export default function TresorerieBanqueScreen() {
@@ -105,8 +155,11 @@ export default function TresorerieBanqueScreen() {
       <Entete titre="Banque et espèces" sous={donnees ? `Total ${fmt(total)} F` : null} />
       {bloque ? <EtatEcran {...t} autorise={peut(niveau, 'voir_banque')} /> : (
         <ScrollView style={styles.body} contentContainerStyle={styles.bodyContenu}>
-          <Hero icone="bank" titre="Banque et espèces" valeur={`${fmt(total)} F`}
-            sous={`Ce mois : + ${fmt(resumeTotal.entrees)} · − ${fmt(resumeTotal.sorties)}`}>
+          <Hero icone="bank" titre="Banque et espèces" valeur={`${fmt(total)} F`} sous="Total de tous les comptes">
+            <View style={styles.heroCases}>
+              <HeroCase label="Entrées ce mois-ci" couleur="#86EFAC" valeur={`+ ${fmt(resumeTotal.entrees)} F`} />
+              <HeroCase label="Sorties ce mois-ci" couleur="#FCA5A5" valeur={`− ${fmt(resumeTotal.sorties)} F`} />
+            </View>
             <View style={{ marginTop: 14 }}>
               <BarreRepartition segments={comptes.map(c => ({ valeur: soldeCompte(c.mouvements), couleur: styleCompte(c).couleur }))} />
             </View>
@@ -159,32 +212,31 @@ export default function TresorerieBanqueScreen() {
 // Carte d'un compte : solde, entrées / sorties du mois, dernier mouvement.
 function CarteCompte({ compte: c, mois, onPress }) {
   const { styles, colors } = useStylesTreso()
+  const s = useMemo(() => makeStylesBanque(colors), [colors])
   const sc = styleCompte(c)
   const solde = soldeCompte(c.mouvements)
   const { entrees, sorties } = resumeMois(c.mouvements, mois)
   const dernier = historiqueCompte(c.mouvements)[0]?.lignes[0]
   return (
     <TouchableOpacity
-      style={[styles.carte, styles.compteCarte]} activeOpacity={0.75} onPress={onPress}
+      style={[styles.carte, styles.compteCarte, s.carte]} activeOpacity={0.75} onPress={onPress}
       accessibilityRole="button" accessibilityLabel={`${c.nom}, solde ${fmt(solde)} francs. Voir l'historique`}
     >
       <View style={[styles.compteTrait, { backgroundColor: sc.couleur }]} />
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <Pastille icone={sc.icone} couleur={sc.couleur} taille={36} />
-        <Text style={[styles.itemTitre, { flex: 1, minWidth: 0 }]} numberOfLines={1}>{c.nom}</Text>
-        <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textMuted} />
+      <View style={s.carteHaut}>
+        <Pastille icone={sc.icone} couleur={sc.couleur} taille={44} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={s.carteNom} numberOfLines={1}>{c.nom}</Text>
+          <Text style={s.carteDernier} numberOfLines={1}>
+            {dernier ? `Dernier mouvement le ${formatDateFR(dernier.date)}` : 'Aucun mouvement'}
+          </Text>
+        </View>
+        <MaterialCommunityIcons name="chevron-right" size={24} color={colors.textMuted} />
       </View>
-      <Text style={[styles.compteSolde, solde < 0 && { color: colors.error }]} numberOfLines={1} adjustsFontSizeToFit>
-        {fmt(solde)} F
-      </Text>
-      <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
-        <Text style={{ fontSize: 12, fontWeight: '700', color: colors.successDark }} numberOfLines={1}>▲ {court(entrees)}</Text>
-        <Text style={{ fontSize: 12, fontWeight: '700', color: colors.error }} numberOfLines={1}>▼ {court(sorties)}</Text>
-        <Text style={[styles.petit, { marginTop: 0, flex: 1, textAlign: 'right' }]} numberOfLines={1}>ce mois</Text>
-      </View>
-      <Text style={[styles.petit, { marginTop: 4 }]} numberOfLines={1}>
-        {dernier ? `Dernier : ${formatDateFR(dernier.date)} · ${dernier.montant >= 0 ? '+' : '−'} ${fmt(Math.abs(dernier.montant))}` : 'Aucun mouvement'}
-      </Text>
+      <Text style={s.soldeLbl}>Solde</Text>
+      <Text style={[s.solde, solde < 0 && { color: colors.error }]} numberOfLines={1} adjustsFontSizeToFit>{fmt(solde)} F</Text>
+      <Text style={s.moisLbl}>Ce mois-ci</Text>
+      <TuilesMois entrees={entrees} sorties={sorties} s={s} colors={colors} />
     </TouchableOpacity>
   )
 }
@@ -196,6 +248,7 @@ const PAR_PAGE = 60
 // fenêtre par-dessus une autre se comporte mal sur iPhone).
 function FeuilleCompte({ compte, comptes, donnees, user, peutSaisir, onFermer, apres }) {
   const { styles, colors } = useStylesTreso()
+  const s = useMemo(() => makeStylesBanque(colors), [colors])
   const [vue, setVue] = useState('historique') // historique | entree | sortie | virement | recalage
   const [filtre, setFiltre] = useState('tous')
   const [nbAffiches, setNbAffiches] = useState(PAR_PAGE)
@@ -276,17 +329,14 @@ function FeuilleCompte({ compte, comptes, donnees, user, peutSaisir, onFermer, a
         </>
       ) : (
         <>
-          <View style={{ alignItems: 'center', marginBottom: 14 }}>
-            <Pastille icone={sc.icone} couleur={sc.couleur} taille={48} />
-            <Text style={[styles.grand, solde < 0 && { color: colors.error }]} adjustsFontSizeToFit numberOfLines={1}>{fmt(solde)} F</Text>
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-              <View style={{ backgroundColor: colors.successLight, borderRadius: 10, paddingVertical: 5, paddingHorizontal: 10 }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.successDark }}>▲ {fmt(entrees)} ce mois</Text>
-              </View>
-              <View style={{ backgroundColor: colors.errorLight, borderRadius: 10, paddingVertical: 5, paddingHorizontal: 10 }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.error }}>▼ {fmt(sorties)} ce mois</Text>
-              </View>
-            </View>
+          <View style={s.enteteFeuille}>
+            <Pastille icone={sc.icone} couleur={sc.couleur} taille={52} />
+            <Text style={s.soldeLbl}>Solde actuel</Text>
+            <Text style={[s.soldeFeuille, solde < 0 && { color: colors.error }]} adjustsFontSizeToFit numberOfLines={1}>{fmt(solde)} F</Text>
+          </View>
+          <Text style={[s.moisLbl, { marginTop: 0 }]}>Ce mois-ci</Text>
+          <View style={{ marginBottom: 16 }}>
+            <TuilesMois entrees={entrees} sorties={sorties} s={s} colors={colors} />
           </View>
 
           {peutSaisir && (
@@ -311,19 +361,29 @@ function FeuilleCompte({ compte, comptes, donnees, user, peutSaisir, onFermer, a
           {jours.length === 0 && <Text style={styles.vide}>Aucun mouvement.</Text>}
           {visibles.map(j => (
             <View key={j.date}>
-              <Text style={[styles.label, { marginTop: 10 }]}>{formatDateFR(j.date)}</Text>
+              <Text style={s.jour}>{jourLong(j.date)}</Text>
               {j.lignes.map(m => {
                 const entree = m.montant >= 0
+                const couleur = entree ? colors.successDark : colors.error
                 return (
-                  <ItemIcone key={m.id}
-                    onLongPress={peutSaisir ? () => confirmerSuppression(m) : undefined}
-                    icone={ICONES_TYPE[m.type] || 'swap-horizontal'} couleur={entree ? colors.success : colors.error}
-                    titre={m.libelle || LIBELLES_TYPE[m.type]}
-                    sous={[LIBELLES_TYPE[m.type] || 'Mouvement', m.photo_url ? 'photo' : '', m.cree_par_nom || ''].filter(Boolean).join(' · ')}
-                    droite={`${entree ? '+ ' : '− '}${fmt(Math.abs(m.montant))}`}
-                    couleurDroite={entree ? colors.successDark : colors.error}
-                    sousDroite={<Text style={[styles.petit, { marginTop: 0 }]}>solde {fmt(m.soldeApres)}</Text>}
-                  />
+                  <TouchableOpacity key={m.id} style={s.ligne} activeOpacity={peutSaisir ? 0.7 : 1}
+                    onLongPress={peutSaisir ? () => confirmerSuppression(m) : undefined} delayLongPress={500} disabled={!peutSaisir}
+                    accessibilityLabel={`${entree ? 'Entrée' : 'Sortie'} de ${fmt(Math.abs(m.montant))} francs, ${m.libelle || LIBELLES_TYPE[m.type] || ''}`}>
+                    <Pastille icone={ICONES_TYPE[m.type] || 'swap-horizontal'} couleur={entree ? colors.success : colors.error} taille={40} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={s.ligneTitre} numberOfLines={2}>{m.libelle || LIBELLES_TYPE[m.type]}</Text>
+                      <Text style={s.ligneSous} numberOfLines={2}>
+                        <Text style={[s.ligneSens, { color: couleur }]}>{entree ? 'Entrée' : 'Sortie'}</Text>
+                        {[m.libelle ? LIBELLES_TYPE[m.type] : '', m.cree_par_nom || '', m.photo_url ? 'avec photo' : ''].filter(Boolean).map(x => ` · ${x}`).join('')}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end', maxWidth: '42%' }}>
+                      <Text style={[s.ligneMontant, { color: couleur }]} numberOfLines={1} adjustsFontSizeToFit>
+                        {entree ? '+ ' : '− '}{fmt(Math.abs(m.montant))} F
+                      </Text>
+                      <Text style={s.ligneSolde} numberOfLines={1}>Solde : {fmt(m.soldeApres)} F</Text>
+                    </View>
+                  </TouchableOpacity>
                 )
               })}
             </View>
