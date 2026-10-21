@@ -31,6 +31,7 @@ import {
   chargerAvis, chargerAvisNonRattaches, chargerLitigesDesAvis, chargerShifts, dernierAvisRecu, dernierRun, rattacherBoutique,
 } from '../lib/avisPlateformesDb'
 import ResumeAvis from '../components/avis/ResumeAvis'
+import ReponsesAvis from '../components/avis/ReponsesAvis'
 import { ChampDates, EnTete, Puces, useEcranModerne } from '../components/ui/EcranModerne'
 import {
   PERIODES_AVIS, caissierDeLAvis, classementCaissiers, periodePrecedente, plagePeriode, resumeChiffres, topMotifs,
@@ -62,7 +63,7 @@ export default function AvisPlateformes() {
   const params = useLocalSearchParams()
   const dateRecherche = typeof params.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : null
   const focus = useFocusRecherche(params.focus)
-  const [onglet, setOnglet] = useState(params.focus ? 'avis' : 'resume')        // 'resume' | 'avis' | 'rattacher'
+  const [onglet, setOnglet] = useState(params.focus ? 'avis' : 'resume')        // 'resume' | 'avis' | 'repondre' | 'rattacher'
   const [periodeKey, setPeriodeKey] = useState(dateRecherche ? 'perso' : 'mois')
   const [perso, setPerso] = useState({ debut: dateRecherche, fin: dateRecherche })
   const [champDate, setChampDate] = useState(null)
@@ -209,7 +210,9 @@ export default function AvisPlateformes() {
       </View>
 
       <View style={styles.ongletsBar}>
-        {[['resume', 'Résumé'], ['avis', 'Avis'], ['rattacher', `À rattacher${boutiques.length ? ` (${boutiques.length})` : ''}`]].map(([cle, label]) => (
+        {[['resume', 'Résumé'], ['avis', 'Avis'],
+          ...(roleActif === 'manager' ? [['repondre', 'À répondre']] : []),
+          ['rattacher', `À rattacher${boutiques.length ? ` (${boutiques.length})` : ''}`]].map(([cle, label]) => (
           <TouchableOpacity key={cle} style={[styles.ongletBtn, onglet === cle && styles.ongletBtnActif]} onPress={() => setOnglet(cle)}>
             <Text style={[styles.ongletTxt, onglet === cle && styles.ongletTxtActif]}>{label}</Text>
           </TouchableOpacity>
@@ -242,6 +245,8 @@ export default function AvisPlateformes() {
           ) : null}
           <View style={{ height: 40 }} />
         </ScrollView>
+      ) : onglet === 'repondre' && roleActif === 'manager' ? (
+        <ReponsesAvis restaurants={restaurants} colors={colors} userNom={userNom} restoFilter={restoFilter} />
       ) : onglet === 'rattacher' ? (
         <ScrollView
           style={styles.body}
