@@ -9,6 +9,8 @@
 //    2. reçoit du relais la date du dernier avis connu ;
 //    3. lit les avis de la période avec la connexion du portail ;
 //    4. les transmet au relais, qui les envoie à ingest-reviews.
+//    5. envoie à Glovo les réponses aux avis validées dans Samtrackly
+//       (onglet Avis → « À répondre »), puis en donne le résultat au relais.
 //  Aucun jeton du portail ne sort de la page : seuls des avis sont transmis.
 //
 //  Tout doit rester DANS moteurAvis() : le favori n'embarque que cette
@@ -248,6 +250,7 @@ function moteurAvis() {
     let jeton = jetonGlovo()
     if (!jeton) throw erreurFr(expire)
     let tous = []
+    let bruts = []
     let apres = null
     for (let page = 0; page < 200; page++) {
       let corps = {
@@ -265,13 +268,94 @@ function moteurAvis() {
       if (r.status === 401 || r.status === 403) throw erreurFr(expire)
       if (!r.ok) throw erreurFr("Glovo n'a pas répondu : clique à nouveau dans quelques minutes.")
       let lot = (await r.json()).reviews || []
+      bruts = bruts.concat(lot)
       tous = tous.concat(lot.map(convertirGlovo))
       info('Lecture des avis Glovo… ' + tous.length + ' lus')
       if (lot.length < PAR_PAGE) break
       let dernier = lot[lot.length - 1]
       apres = { id: dernier.id, date: new Date(dernier.date).toISOString() }
     }
+    tous.bruts = bruts   // avis Glovo tels quels : id d'avis et réponse déjà faite
     return tous
+  }
+
+  // ── Réponses aux avis (validées dans Samtrackly) ──────────────────────
+  // Spec : docs/superpowers/specs/2026-10-21-reponses-avis-glovo-design.md
+  let URL_GLOVO_REPONSE = 'https://vrs-api.eu.prd.portal.restaurant/v1/reviews/reply'
+
+  function indexerAvisGlovo(bruts) {
+    let index = new Map()
+    ;(bruts || []).forEach(function (r) {
+      index.set(r.globalVendorCode + '|' + String(r.orderId), { id: r.id, deja: !!r.reply })
+    })
+    return index
+  }
+
+  function planReponses(reponses, index) {
+    let plan = { aEnvoyer: [], deja: [], introuvables: [] }
+    ;(reponses || []).forEach(function (rep) {
+      let a = index.get(rep.external_store_label + '|' + String(rep.external_ref))
+      if (!a) plan.introuvables.push(rep)
+      else if (a.deja) plan.deja.push(rep.id)
+      else plan.aEnvoyer.push({ reponse: rep, reviewId: a.id })
+    })
+    return plan
+  }
+
+  // Avis d'une boutique un jour donné (avis hors de la période relue).
+  async function lireAvisDuJour(jeton, vendeur, jour) {
+    let r = await fetch(URL_GLOVO, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + jeton },
+      body: JSON.stringify({ global_vendor_codes: [vendeur], include_stats: false, pagination: { perPage: PAR_PAGE },
+        filter: { ratingMin: 1, ratingMax: 5, hasText: true, startDate: jour + 'T00:00:00.000Z', endDate: jour + 'T23:59:59.999Z' } }),
+    })
+    if (r.status === 401 || r.status === 403) throw sessionExpiree('Glovo')
+    if (!r.ok) throw erreurFr('Glovo n’a pas répondu.')
+    return (await r.json()).reviews || []
+  }
+
+  async function envoyerUneReponse(jeton, vendeur, reviewId, texte) {
+    let r = await fetch(URL_GLOVO_REPONSE, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + jeton },
+      body: JSON.stringify({ global_vendor_code: vendeur, reviewId: reviewId, text: texte, language: 'fr' }),
+    })
+    if (r.status === 401 || r.status === 403) throw sessionExpiree('Glovo')
+    if (r.ok) return { ok: true }
+    if (r.status >= 400 && r.status < 500) {
+      let raison = ''
+      try { let j = await r.json(); raison = j.message || j.error || '' } catch (_e) { /* corps vide */ }
+      return { ok: false, erreur: 'Glovo a refusé la réponse' + (raison ? ' : ' + String(raison).slice(0, 200) : '.') }
+    }
+    throw erreurFr('Glovo n’a pas répondu.')   // 5xx : réessai, sinon reste « validée »
+  }
+
+  // → résultats [{ id, ok, erreur? }] ; une réponse non tentée (réseau) n'y figure pas.
+  async function envoyerReponsesGlovo(reponses, bruts, info) {
+    if (!reponses || !reponses.length) return []
+    let jeton = jetonGlovo()
+    if (!jeton) throw erreurFr('Ta session Glovo a expiré : reconnecte-toi au portail puis clique à nouveau.')
+    let index = indexerAvisGlovo(bruts)
+    let plan = planReponses(reponses, index)
+    let jours = {}
+    plan.introuvables.forEach(function (rep) { jours[rep.external_store_label + '|' + rep.review_date] = true })
+    for (let cle of Object.keys(jours)) {
+      let p = cle.split('|')
+      try { indexerAvisGlovo(await lireAvisDuJour(jeton, p[0], p[1])).forEach(function (v, k) { index.set(k, v) }) } catch (e) { if (e && e.definitif) throw e }
+    }
+    plan = planReponses(reponses, index)
+    let resultats = plan.deja.map(function (id) { return { id: id, ok: true } })
+    let faits = 0
+    await enParallele(plan.aEnvoyer, 2, async function (x) {
+      try {
+        let r = await avecReprise(function () { return envoyerUneReponse(jeton, x.reponse.external_store_label, x.reviewId, x.reponse.texte) })
+        resultats.push({ id: x.reponse.id, ok: r.ok, erreur: r.erreur })
+      } catch (e) { if (e && e.definitif) throw e }
+      faits++
+      info('Réponses Glovo : ' + faits + '/' + plan.aEnvoyer.length)
+    })
+    return resultats
   }
 
   // Yango : on ne touche pas à la connexion. On laisse la page émettre sa
@@ -539,6 +623,16 @@ function moteurAvis() {
         + (introuvables ? ' (' + introuvables + ' heure' + (introuvables > 1 ? 's' : '') + ' introuvable' + (introuvables > 1 ? 's' : '') + ')' : '')
         + '. Lecture des commandes…')
 
+      if (plateforme === 'glovo' && reponse.reponses && reponse.reponses.length) {
+        try {
+          info('Envoi de ' + reponse.reponses.length + ' réponse' + (reponse.reponses.length > 1 ? 's' : '') + ' aux avis Glovo…')
+          let resultats = await envoyerReponsesGlovo(reponse.reponses, avis.bruts, info)
+          fen.postMessage({ type: 'reponses', resultats: resultats }, cfg.origine)
+        } catch (e) {
+          info(e && e.messageFr ? e.messageFr : 'Les réponses n’ont pas pu partir : elles repartiront au prochain clic.', 8000)
+        }
+      }
+
       // Commandes → litiges automatiques. Un échec ici n'annule pas les avis.
       try {
         let dernierCmd = reponse.commandes && reponse.commandes[plateforme]
@@ -574,6 +668,8 @@ function moteurAvis() {
     heureYango: heureYango,
     enParallele: enParallele,
     avecReprise: avecReprise,
+    indexerAvisGlovo: indexerAvisGlovo,
+    planReponses: planReponses,
     lancer: lancer,
   }
 }
