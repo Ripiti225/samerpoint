@@ -36,7 +36,7 @@ Nouvelle table `reponses_avis` (projet Samtrackly) :
 |---|---|
 | `id` uuid | clé |
 | `review_id` uuid unique → `platform_reviews.id` | l'avis |
-| `texte` text | réponse validée (≤ 1 000 caractères) |
+| `texte` text | réponse validée (≤ 250 caractères, `verifierReponse` vide) |
 | `modele` text | motif du modèle de départ (suivi, pas de logique) |
 | `statut` text | `validee` · `envoyee` · `refusee` · `ignoree` |
 | `erreur` text | raison du refus de Glovo, en clair |
@@ -54,11 +54,27 @@ avec son texte et l'erreur.
   `manquant_erreur` > `froid_sec` > `gout` > `photo_portion` > `emballage` >
   `negatif_autre` pour un 👎 ; `positif_mais` (un « mais » / « sauf » /
   « pas de ») > `positif` pour un 👍.
-- `proposerReponse(avis)` : texte du modèle du motif, avec le nom du restaurant
-  et le plat quand Glovo le donne (`raw.raw.dish`), signé « L'équipe Chez
-  Samer » ou « L'équipe Al Kayan » selon la boutique (`raw.raw.store_name`).
-  Vouvoiement. Les textes des modèles sont validés par l'utilisateur avant
-  d'être codés.
+- `proposerReponse(avis)` : texte fixe du modèle du motif. **Ni nom de
+  restaurant, ni marque, ni plat, ni chiffre, ni signature** (Glovo annule
+  sinon — consigne de l'utilisateur). Vouvoiement. Textes validés le 21/10 :
+
+| Motif | Texte |
+|---|---|
+| `manquant_erreur` | Bonjour, merci pour votre retour et toutes nos excuses pour cette erreur dans votre commande. Nous avons fait le point avec l'équipe pour que cela ne se reproduise pas. Au plaisir de mieux vous servir. |
+| `froid_sec` | Bonjour, merci pour votre retour. Nous sommes désolés que votre commande ne soit pas arrivée chaude et fraîche. Nous revoyons la préparation et la remise au livreur. Au plaisir de mieux vous servir. |
+| `gout` | Bonjour, merci d'avoir pris le temps de nous écrire. Nous sommes désolés que le goût ne vous ait pas plu. Votre remarque est transmise à notre cuisine. Au plaisir de vous régaler la prochaine fois. |
+| `photo_portion` | Bonjour, merci pour votre retour. Nous sommes désolés que votre commande ne corresponde pas à vos attentes. Nous veillons à ce que chaque plat soit servi comme présenté. Au plaisir de vous revoir. |
+| `emballage` | Bonjour, merci pour votre retour et toutes nos excuses pour l'état de votre commande à l'arrivée. Nous renforçons la vérification des emballages avant chaque départ. Au plaisir de mieux vous servir. |
+| `negatif_autre` | Bonjour, merci pour votre retour. Nous sommes désolés que votre expérience n'ait pas été à la hauteur. Votre remarque est transmise à l'équipe. Au plaisir de mieux vous servir très bientôt. |
+| `positif` | Bonjour, merci beaucoup pour votre message ! Toute l'équipe est ravie que vous ayez apprécié votre commande. À très bientôt ! |
+| `positif_mais` | Bonjour, merci pour votre message, nous sommes ravis que vous ayez apprécié ! Nous prenons note de votre remarque pour que la prochaine commande soit parfaite. À très bientôt ! |
+
+- `verifierReponse(texte)` → liste de problèmes en français (vide = envoyable) :
+  vide ; plus de **250 caractères** (limite du champ Glovo, `maxLength=250`
+  relevé dans le portail) ; un **chiffre** ; un nom de restaurant ou de marque
+  (« Samer », « Kayan », « Yango », « Uber », « Jumia »…). Règles Glovo (aide du
+  portail) : pas de publicité ni promotion, pas d'autre marque, pas de demande
+  de suppression d'avis ; modération pouvant prendre quelques jours.
 
 ## Écran — Avis → onglet « À répondre » (manager seulement)
 
@@ -66,7 +82,9 @@ avec son texte et l'erreur.
   au plus ancien, filtrables par restaurant comme les autres onglets.
 - Chaque carte : date, restaurant, 👍/👎, texte du client, plat ; dessous la
   réponse proposée (ou le texte refusé + l'erreur).
-- **Valider** → `validee`. **Modifier** → champ éditable puis Valider.
+- **Valider** → `validee`. **Modifier** → champ éditable avec compteur « n / 250 » ;
+  Valider est bloqué tant que `verifierReponse` signale un problème (message
+  en clair : « Retirez le chiffre », « Trop long : 263 / 250 »…).
   **Ignorer** → `ignoree` (disparaît).
 - Compteur en tête : « X à répondre · Y en attente d'envoi » ; rappel « Cliquez
   sur le bouton favori dans le portail Glovo pour envoyer ».
@@ -98,8 +116,9 @@ le favori à l'installation).
 ## Tests
 
 - `lib/reponsesAvis.test.mjs` : motif par étiquette, par mots-clés, priorités,
-  positif avec « mais », signature selon la marque, plat absent.
-- Tests du moteur (`lib/boutonAvis*.test.mjs` existants) : choix des réponses à
+  positif avec « mais » ; chaque modèle passe `verifierReponse` (≤ 250, aucun
+  chiffre, aucune marque) ; `verifierReponse` refuse chiffre, longueur, marque.
+- Tests du moteur (`lib/boutonAvis.test.mjs`) : choix des réponses à
   envoyer, avis déjà répondu sauté, regroupement des résultats.
 - Tests du relais (`lib/envoiAvis.test.mjs`) : résumé « réponses envoyées ».
 - Premier envoi réel : une seule réponse, choisie avec l'utilisateur, vérifiée
