@@ -39,6 +39,16 @@ function moteurRelais() {
     return nom + ' : ' + parties.join(' · ')
   }
 
+  // Réponses aux avis Glovo envoyées par le favori (validées dans Samtrackly).
+  function resumeReponses(resultats) {
+    if (!resultats.length) return ''
+    const ok = resultats.filter(function (r) { return r.ok }).length
+    const ko = resultats.length - ok
+    let t = 'Réponses Glovo : ' + ok + ' envoyée' + (ok > 1 ? 's' : '')
+    if (ko) t += ' · ' + ko + ' refusée' + (ko > 1 ? 's' : '') + ' par Glovo (à corriger dans Samtrackly)'
+    return t
+  }
+
   // urlCommandes : ingest-commandes-plateformes (litiges automatiques).
   function demarrer(urlFonction, urlCommandes) {
     const etat = document.getElementById('etat')
@@ -77,7 +87,7 @@ function moteurRelais() {
             const rc = await fetch(urlCommandes, { headers: { 'x-ingest-secret': secret } })
             if (rc.ok) derniersCommandes = (await rc.json()).derniers || {}
           } catch (_e) { /* avis seuls */ }
-          portail.postMessage({ type: 'derniers', derniers: j.derniers || {}, commandes: derniersCommandes }, e.origin)
+          portail.postMessage({ type: 'derniers', derniers: j.derniers || {}, commandes: derniersCommandes, reponses: j.reponses || [] }, e.origin)
         } catch (_e) {
           afficher(RESEAU, 'erreur')
           portail.postMessage({ type: 'derniers', erreur: RESEAU }, e.origin)
@@ -113,6 +123,21 @@ function moteurRelais() {
         } catch (_e) {
           afficher(RESEAU, 'erreur')
         }
+      } else if (e.data.type === 'reponses' && secret && p === plateforme) {
+        const resultats = Array.isArray(e.data.resultats) ? e.data.resultats : []
+        const zone = document.getElementById('reponses')
+        try {
+          const envoi = await fetch(urlFonction, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-ingest-secret': secret },
+            body: JSON.stringify({ reponses_resultats: resultats }),
+          })
+          zone.textContent = envoi.ok ? resumeReponses(resultats) : messageHttp(envoi.status)
+          zone.className = envoi.ok ? 'ok' : 'erreur'
+        } catch (_e) {
+          zone.textContent = RESEAU
+          zone.className = 'erreur'
+        }
       } else if (e.data.type === 'erreur') {
         afficher(String(e.data.message || RESEAU), 'erreur')
       }
@@ -121,5 +146,5 @@ function moteurRelais() {
     window.opener.postMessage({ type: 'pret' }, '*')
   }
 
-  return { plateformeDOrigine: plateformeDOrigine, messageHttp: messageHttp, resumeEnvoi: resumeEnvoi, resumeCommandes: resumeCommandes, demarrer: demarrer }
+  return { plateformeDOrigine: plateformeDOrigine, messageHttp: messageHttp, resumeEnvoi: resumeEnvoi, resumeCommandes: resumeCommandes, resumeReponses: resumeReponses, demarrer: demarrer }
 }

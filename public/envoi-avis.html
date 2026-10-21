@@ -12,13 +12,15 @@
     main { max-width: 380px; text-align: center; }
     h1 { font-size: 18px; margin: 0 0 12px; }
     #etat.ok { color: var(--ok); font-weight: 600; white-space: pre-line; }
-    #etat.erreur { color: var(--erreur); font-weight: 600; }
+    #etat.erreur, #reponses.erreur { color: var(--erreur); font-weight: 600; }
+    #reponses.ok { color: var(--ok); font-weight: 600; }
   </style>
 </head>
 <body>
   <main>
     <h1>⭐ Avis → Samtrackly</h1>
     <p id="etat">Connexion au portail…</p>
+    <p id="reponses"></p>
   </main>
   <script src="/envoi-avis.js"></script>
   <script>moteurRelais().demarrer('https://wlwotzxnzowbkbfcpnyi.supabase.co/functions/v1/ingest-reviews', 'https://wlwotzxnzowbkbfcpnyi.supabase.co/functions/v1/ingest-commandes-plateformes')</script>
