@@ -7,6 +7,10 @@
 //   GET  → { done_today, finished_at, derniers }   `derniers` donne, par
 //          plateforme, le dernier review_date et le dernier ingested_at
 //          (période relue par le bouton avis, rappel côté app).
+//          + `reponses` : réponses aux avis Glovo validées dans Samtrackly,
+//          que le favori envoie (docs/superpowers/specs/2026-10-21-reponses-avis-glovo-design.md).
+//   POST → { reponses_resultats: [{ id, ok, erreur? }] } → { reponses_maj }
+//          envoyée / refusée par Glovo (seules les « validee » changent).
 //   POST → { reviews: [...], finalize?: bool }
 //          ingère, dédoublonne, crée un litige par NOUVEL avis négatif
 //          qui a un commentaire ou un tag (un négatif muet n'en crée pas) ;
@@ -118,6 +122,21 @@ async function derniersParPlateforme() {
   return out
 }
 
+// Réponses validées par le manager, à envoyer à Glovo par le favori.
+// Une erreur (table pas encore créée…) ne doit jamais bloquer les avis : liste vide.
+async function reponsesAEnvoyer() {
+  const { data, error } = await supabase.from('reponses_avis')
+    .select('id, texte, platform_reviews!inner(external_ref, external_store_label, review_date, platform)')
+    .eq('statut', 'validee').eq('platform_reviews.platform', 'glovo').limit(200)
+  if (error) return []
+  return (data ?? []).map((r: any) => ({
+    id: r.id, texte: r.texte,
+    external_ref: r.platform_reviews.external_ref,
+    external_store_label: r.platform_reviews.external_store_label,
+    review_date: r.platform_reviews.review_date,
+  }))
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
@@ -129,7 +148,7 @@ Deno.serve(async (req) => {
   try {
     // ── STATUT : l'extraction du jour a-t-elle déjà réussi ? ──────────
     if (req.method === 'GET') {
-      const [{ data, error }, derniers] = await Promise.all([
+      const [{ data, error }, derniers, reponses] = await Promise.all([
         supabase
           .from('ingest_runs')
           .select('run_date, finished_at')
@@ -137,15 +156,32 @@ Deno.serve(async (req) => {
           .eq('status', 'ok')
           .maybeSingle(),
         derniersParPlateforme(),
+        reponsesAEnvoyer(),
       ])
       if (error) throw error
-      return json({ done_today: !!data, finished_at: data?.finished_at ?? null, derniers })
+      return json({ done_today: !!data, finished_at: data?.finished_at ?? null, derniers, reponses })
     }
 
     if (req.method !== 'POST') return json({ error: 'Méthode non supportée' }, 405)
 
     // ── INGESTION ────────────────────────────────────────────────────
     const body = await req.json().catch(() => null)
+
+    // Résultats d'envoi des réponses (favori → relais). Seules les « validee » bougent.
+    if (Array.isArray(body?.reponses_resultats)) {
+      let maj = 0
+      for (const r of body.reponses_resultats) {
+        if (!r?.id) continue
+        const champs = r.ok
+          ? { statut: 'envoyee', envoye_le: new Date().toISOString(), erreur: null }
+          : { statut: 'refusee', erreur: String(r.erreur || 'Glovo a refusé la réponse.').slice(0, 300) }
+        const { error, count } = await supabase.from('reponses_avis').update(champs, { count: 'exact' })
+          .eq('id', r.id).eq('statut', 'validee')
+        if (error) throw error
+        maj += count ?? 0
+      }
+      return json({ reponses_maj: maj })
+    }
     const reviews = body?.reviews
     if (!Array.isArray(reviews)) return json({ error: 'Payload invalide : « reviews » attendu' }, 400)
 
