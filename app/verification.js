@@ -22,7 +22,7 @@ import {
 } from '../lib/litigeContacts'
 import { detailContactsParCaissier, panierMoyenLivraison } from '../lib/contactsParCaissier'
 import { creerNotification } from '../lib/notificationsInterne'
-import { messageDecision, messagePointVerifie, nettoyerCommentaire, COMMENTAIRE_MAX } from '../lib/commentaireVerification'
+import { messageDecision, messagePointVerifie, nettoyerCommentaire, COMMENTAIRE_MAX, ciblesVerification } from '../lib/commentaireVerification'
 import { envoyerNotifFactureCorrigee } from '../lib/notifications'
 import PhotoJustificatif, { photoConsultable } from '../components/PhotoJustificatif'
 import { estPhotoEnAttente } from '../lib/photoQueue'
@@ -326,7 +326,7 @@ export default function VerificationScreen() {
         titre: '✏️ Entrée de stock corrigée',
         message: `${p.nom} (${p.shift || 'shift'}, ${p.auteur}) : entrée ${nb(r.ancienne)} → ${nb(nouvelle)}. ${effet} Motif : ${corrEntreeRaison.trim()}`,
         restaurant_id: pointSelectionne?.restaurant_id,
-        cible_role: ['gerant'],
+        cible_role: ciblesVerification(corrEntreeRaison),
         created_by: userId || null,
         screen: null,
       }).catch(() => {})
@@ -572,7 +572,7 @@ export default function VerificationScreen() {
         titre: '✅ Point vérifié',
         message,
         restaurant_id: point.restaurant_id,
-        cible_role: ['gerant', 'directeur'],
+        cible_role: ciblesVerification(commentaireVerif),
         created_by: userId || null,
         screen: null,
       }).catch(() => {})
@@ -957,7 +957,7 @@ export default function VerificationScreen() {
           commentaire: commentaireDecision,
         }),
         restaurant_id: pointSelectionne?.restaurant_id,
-        cible_role: ['gerant'],
+        cible_role: ciblesVerification(commentaireDecision),
         created_by: userId || null,
         screen: null,
       }).catch(() => {})
@@ -1090,7 +1090,7 @@ export default function VerificationScreen() {
         titre: '✏️ Facture corrigée',
         message: `${nomFourn} — facture ${fmt(ancien)} → ${fmt(nouveau)}${dateTxt ? ` (${dateTxt})` : ''}. Raison : ${corrRaison.trim()}`,
         restaurant_id: pointSelectionne.restaurant_id,
-        cible_role: ['gerant'],
+        cible_role: ciblesVerification(corrRaison),
         created_by: userId || null,
         screen: null,
       }).catch(() => {})
@@ -1171,7 +1171,7 @@ export default function VerificationScreen() {
         titre: '⚠️ Correction demandée',
         message: `Correction requise sur le point du ${formatDate(pointSelectionne.date)} — ${sectionsSelectionnees.join(', ')}. Motif : ${motifCorrection.trim()}`,
         restaurant_id: pointSelectionne.restaurant_id,
-        cible_role: ['gerant'],
+        cible_role: ciblesVerification(motifCorrection),
         created_by: userId || null,
         screen: 'recap-point',
       }).catch(() => {})
@@ -1239,7 +1239,7 @@ export default function VerificationScreen() {
           })
           : cfg.msgNotif(formatDate(pointSelectionne.date)),
         restaurant_id: pointSelectionne.restaurant_id,
-        cible_role: ['gerant'],
+        cible_role: ciblesVerification(statut === 'refusee' ? commentaireDecision : ''),
         created_by: userId || null,
         screen: null,
       }).catch(() => {})
@@ -1380,7 +1380,7 @@ export default function VerificationScreen() {
           commentaire: commentaireDecision,
         }),
         restaurant_id: p.restaurant_id,
-        cible_role: ['gerant'],
+        cible_role: ciblesVerification(commentaireDecision),
         created_by: userId || null,
         screen: null,
       }).catch(() => {})
