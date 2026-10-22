@@ -266,7 +266,7 @@ export function FeuilleDetail({
         return (
         <ItemIcone key={p.id} icone={cheque ? 'checkbook' : p.source === 'avant' ? 'history' : p.source === 'compte' ? 'bank-transfer-out' : 'cash'} couleur={colors.success}
           titre={`${fmt(p.montant)} F`}
-          sous={`${formatDateFR(p.date)} · ${cheque ? libelleCheque(cheque) : p.source === 'compte' ? nomCompte(p.compte_id) : p.source === 'avant' ? 'payé avant la trésorerie' : 'Espèces'}${p.photo_url ? ' · photo' : ''}${p.cree_par_nom ? ` · ${p.cree_par_nom}` : ''}`}
+          sous={`${formatDateFR(p.date)} · ${cheque ? libelleCheque(cheque) : p.source === 'compte' ? nomCompte(p.compte_id) : p.source === 'avant' ? 'payé avant la trésorerie' : 'Espèces'}${p.note ? ` · ${p.note}` : ''}${p.photo_url ? ' · photo' : ''}${p.cree_par_nom ? ` · ${p.cree_par_nom}` : ''}`}
           sousDroite={peut(niveau, 'payer') && !cheque ? (
             <TouchableOpacity onPress={() => annuler(p)} style={styles.lienDanger}>
               <Text style={styles.lienDangerTxt}>Annuler</Text>
@@ -518,6 +518,7 @@ export function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFer
   const [source, setSource] = useState(null)
   const [date, setDate] = useState(aujourdhuiISO())
   const [photo, setPhoto] = useState(null)
+  const [note, setNote] = useState('')
   const [occupe, setOccupe] = useState(false)
   const [photoEnCours, setPhotoEnCours] = useState(false)
 
@@ -542,6 +543,7 @@ export function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFer
     setSource(null)
     setDate(aujourdhuiISO())
     setPhoto(null)
+    setNote('')
     if (demande.du && demande.prevision) {
       const e = etatPrevision(demande.prevision, {
         du: demande.du, paiementsDu: parDu[demande.du.id] || [], receptions: donnees.receptions, aujourdhui: aujourdhuiISO(),
@@ -612,7 +614,7 @@ export function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFer
         : `${LIBELLES_CATEGORIE[demande.du.categorie]} · ${titreDu(demande.du, nomResto)}${demande.du.mois ? ` · ${libelleMoisCourt(demande.du.mois)}` : ''}`
       await payer({
         parts, source: compte ? 'compte' : 'especes', compteId: compte, date, libelle, photoUrl: photo,
-        previsionId: demande.prevision?.id || null,
+        previsionId: demande.prevision?.id || null, note,
       }, user)
       await apres()
       onFermer()
@@ -655,6 +657,7 @@ export function FeuillePaiement({ demande, donnees, parDu, nomResto, user, onFer
       <Text style={styles.label}>Reçu (photo, facultatif)</Text>
       {photo ? <Image source={{ uri: photo }} style={{ width: '100%', height: 150, borderRadius: 10, marginBottom: 10 }} resizeMode="cover" /> : null}
       <Bouton secondaire titre={photo ? 'Changer la photo' : '📷 Ajouter une photo'} onPress={ajouterPhoto} occupe={photoEnCours} style={{ marginBottom: 14 }} />
+      <Champ label="Note (facultatif)" value={note} onChangeText={setNote} placeholder="Ex : première tranche, reste payé fin du mois" multiline />
       <Bouton titre="Enregistrer le paiement" onPress={enregistrer} occupe={occupe} />
       <Text style={[styles.petit, { marginTop: 10, color: colors.textMuted }]}>
         Le montant sort du compte choisi : Espèces, BACI ou SIB.
