@@ -2036,6 +2036,10 @@ export default function VerificationScreen() {
                 const especeShifts = detailPoint.shifts.reduce((s, sh) => s + (sh.espece || 0), 0)
                 const yangoCse = detailPoint.shifts.reduce((s, sh) => s + (sh.yango_cse || 0), 0)
                 const glovoCse = detailPoint.shifts.reduce((s, sh) => s + (sh.glovo_cse || 0), 0)
+                // KDO et retours font partie de la vente du shift : sans eux, l'addition
+                // affichée ne retombait pas sur la vente théorique (Lavage 21/10 : −6 000).
+                const kdoShifts = detailPoint.shifts.reduce((s, sh) => s + (sh.kdo || 0), 0)
+                const retourShifts = detailPoint.shifts.reduce((s, sh) => s + (sh.retour || 0), 0)
                 const yangoTab = p?.yango_tab || 0
                 const glovoTab = p?.glovo_tab || 0
                 const waveOmDjamo = (p?.wave || 0) + (p?.om || 0) + (p?.djamo || 0)
@@ -2069,6 +2073,8 @@ export default function VerificationScreen() {
                         { label: 'Glovo TAB', val: glovoTab, color: '#EF9F27', show: glovoTab > 0 },
                         { label: 'Ventes Wave/OM/Djamo', val: waveOmDjamo, color: '#EF9F27', show: waveOmDjamo > 0 },
                         { label: 'Ventes Espèces', val: especeShifts, color: '#EF9F27', show: especeShifts > 0 },
+                        { label: 'KDO (offerts)', val: kdoShifts, color: '#EF9F27', show: kdoShifts > 0 },
+                        { label: 'Retours', val: retourShifts, color: '#EF9F27', show: retourShifts > 0 },
                       ].filter(r => r.show).map((r, i) => (
                         <View key={i} style={styles.recapRow}>
                           <Text style={styles.recapLabel}>{r.label}</Text>
