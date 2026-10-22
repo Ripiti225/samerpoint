@@ -72,7 +72,7 @@ export default function AccueilScreen() {
   const {
     notifications, explicationsEnRetard, avisEnRetard, nonLues, panelVisible,
     ouvrirPanel, fermerPanel,
-    supprimerUne, supprimerTout, naviguerDepuisNotif, ouvrirExplicationEnRetard, ouvrirAvisEnRetard,
+    supprimerUne, supprimerTout, naviguerDepuisNotif, ouvrirExplicationEnRetard, marquerExplicationReglee, ouvrirAvisEnRetard,
   } = useNotifications()
 
   const roleEffectif = role || roleActif
@@ -433,6 +433,14 @@ export default function AccueilScreen() {
                               </Text>
                               <Text style={styles.notifVoir}>Voir ›</Text>
                             </View>
+                            <TouchableOpacity
+                              onPress={() => marquerExplicationReglee(d)}
+                              style={styles.notifRegleBtn}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Marquer la demande de ${d.travailleur_nom || 'travailleur'} comme réglée`}
+                            >
+                              <Text style={styles.notifRegleTxt}>✅ C'est réglé</Text>
+                            </TouchableOpacity>
                           </TouchableOpacity>
                         ))}
                       </>
@@ -597,6 +605,8 @@ function makeStyles(colors) { return StyleSheet.create({
   notifCardDate: { fontSize: 10, color: colors.textMuted },
   notifDeleteBtn: { position: 'absolute', top: 10, right: 10, padding: 4 },
   notifDeleteTxt: { fontSize: 12, color: colors.textMuted },
+  notifRegleBtn: { alignSelf: 'flex-start', marginTop: 8, minHeight: 36, paddingHorizontal: 12, borderRadius: 10, justifyContent: 'center', backgroundColor: colors.successLight, borderWidth: 1, borderColor: colors.success },
+  notifRegleTxt: { fontSize: 13, fontWeight: '700', color: colors.successDark },
   notifVoir: { fontSize: 11, color: colors.primary, fontWeight: '700' },
   notifSection: { fontSize: 12, fontWeight: '800', color: colors.textSecondary, marginBottom: 8, marginTop: 2 },
   notifCardRetard: { backgroundColor: colors.errorLight, borderColor: colors.errorDark, borderLeftWidth: 4 },

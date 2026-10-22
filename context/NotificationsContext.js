@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import { plateformesEnRetard } from '../lib/avisPlateformes'
 import { dernierAvisRecu } from '../lib/avisPlateformesDb'
 import { explicationsSansReponse, seuilRetard } from '../lib/demandes'
+import { journaliser } from '../lib/journal'
 import { supabase } from '../lib/supabase'
 import {
   chargerNotifications, marquerToutLu,
@@ -23,6 +24,7 @@ const NotificationsContext = createContext({
   supprimerUne: () => {},
   supprimerTout: () => {},
   naviguerDepuisNotif: () => {},
+  marquerExplicationReglee: async () => false,
 })
 
 // Décisions de la Vérification : tout est écrit dans la notification (écart,
@@ -67,7 +69,7 @@ const ROLES_SUIVI_EXPLICATIONS = ['manager', 'rh']
 const ROLES_RAPPEL_AVIS = ['manager', 'directeur']
 
 export function NotificationsProvider({ children }) {
-  const { userId, roleActif, restaurantId } = useApp() ?? {}
+  const { userId, userNom, roleActif, restaurantId } = useApp() ?? {}
   const [notifications, setNotifications] = useState([])
   // Demandes d'explication dont le jour de réponse (J+3) est passé. Calculées
   // à l'affichage et non stockées : elles disparaissent d'elles-mêmes dès que
@@ -220,6 +222,20 @@ export function NotificationsProvider({ children }) {
     router.push({ pathname: '/demandes-explication-admin', params: { onglet, etape: 'attente' } })
   }
 
+  // « C'est réglé » depuis la cloche : la demande passe en « Réponse récupérée »
+  // (comme le bouton de l'écran Demandes) et le rappel disparaît.
+  async function marquerExplicationReglee(d) {
+    setExplicationsEnRetard(prev => prev.filter(x => x.id !== d.id))
+    const { error } = await supabase.from('demandes_explication').update({
+      statut: 'reponse_recuperee', reponse_recuperee_par: userNom || roleActif || null,
+      reponse_recuperee_at: new Date().toISOString(), reponse_note: 'Réglé (depuis la cloche)',
+    }).eq('id', d.id).eq('statut', 'envoyee')
+    if (error) { chargerExplicationsEnRetard(); return false }
+    journaliser('explication_reponse', { demande_id: d.id, travailleur: d.travailleur_nom, depuis: 'cloche' },
+      { userId, userNom, restaurantId: d.restaurant_id }).catch(() => {})
+    return true
+  }
+
   function ouvrirAvisEnRetard() {
     fermerPanel()
     router.push('/avis-plateformes')
@@ -230,7 +246,7 @@ export function NotificationsProvider({ children }) {
       notifications, explicationsEnRetard, avisEnRetard, nonLues, panelVisible,
       ouvrirPanel, fermerPanel,
       marquerUneCommeLue, supprimerUne, supprimerTout,
-      naviguerDepuisNotif, ouvrirExplicationEnRetard, ouvrirAvisEnRetard,
+      naviguerDepuisNotif, ouvrirExplicationEnRetard, marquerExplicationReglee, ouvrirAvisEnRetard,
     }}>
       {children}
     </NotificationsContext.Provider>
