@@ -246,6 +246,8 @@ export default function LitigesScreen() {
   const [utilisateurs, setUtilisateurs] = useState([])
   const [travailleurs, setTravailleurs] = useState([])
   const [rechercheResp, setRechercheResp] = useState('')
+  // Litige automatique dont on change le responsable : { table, litige, responsable_id, responsable_nom }
+  const [respAuto, setRespAuto] = useState(null)
 
   const plage = useMemo(
     () => getPlage(periodeKey, dateUnique, dateDebut, dateFin),
@@ -1410,8 +1412,6 @@ export default function LitigesScreen() {
     const dateToSave = formYango.date_saisie || TODAY
     let err
     if (formYango.id) {
-      // Litige automatique : un responsable choisi ici n'est plus écrasé par le recalcul.
-      const detail = detailApresChoix(formYango.litige, formYango.responsable_id || null, formYango.responsable_nom || null)
       const { error } = await supabase.from('litiges_yango').update({
         type: formYango.type, montant,
         notes: formYango.notes || null,
@@ -1419,7 +1419,6 @@ export default function LitigesScreen() {
         date: dateToSave,
         responsable_id: formYango.responsable_id || null,
         responsable_nom: formYango.responsable_nom || null,
-        ...(detail ? { detail } : {}),
       }).eq('id', formYango.id)
       err = error
     } else {
@@ -1449,8 +1448,6 @@ export default function LitigesScreen() {
     const dateToSave = formGlovo.date_saisie || TODAY
     let err
     if (formGlovo.id) {
-      // Litige automatique : un responsable choisi ici n'est plus écrasé par le recalcul.
-      const detail = detailApresChoix(formGlovo.litige, formGlovo.responsable_id || null, formGlovo.responsable_nom || null)
       const { error } = await supabase.from('litiges_glovo').update({
         type: formGlovo.type, montant,
         notes: formGlovo.notes || null,
@@ -1458,7 +1455,6 @@ export default function LitigesScreen() {
         date: dateToSave,
         responsable_id: formGlovo.responsable_id || null,
         responsable_nom: formGlovo.responsable_nom || null,
-        ...(detail ? { detail } : {}),
       }).eq('id', formGlovo.id)
       err = error
     } else {
@@ -1514,6 +1510,28 @@ export default function LitigesScreen() {
     chargerPointPasFait()
   }
 
+  // Responsable d'un litige automatique : marqué « choisi à la main » pour que
+  // le recalcul ne le remette pas sur le caissier (planEcriture).
+  async function sauvegarderRespAuto() {
+    if (!respAuto) return
+    const { table, litige, responsable_id, responsable_nom } = respAuto
+    const detail = detailApresChoix(litige, responsable_id || null, responsable_nom || null)
+    if (!detail) { setRespAuto(null); return }
+    setSaving(true)
+    const { error } = await supabase.from(table).update({
+      responsable_id: responsable_id || null,
+      responsable_nom: responsable_nom || null,
+      detail,
+      modified_at: new Date().toISOString(),
+    }).eq('id', litige.id)
+    setSaving(false)
+    if (error) { setSaveError("Le responsable n'a pas été enregistré. Réessayez."); return }
+    setSaveError(null)
+    setRespAuto(null)
+    if (table === 'litiges_yango') chargerYango()
+    else chargerGlovo()
+  }
+
   async function supprimerItem() {
     if (!confirmSuppr) return
     setSaving(true)
@@ -1557,7 +1575,7 @@ export default function LitigesScreen() {
     setShowFormYango(true)
   }
   function ouvrirEditYango(y) {
-    setFormYango({ type: y.type, montant: y.montant?.toString() || '', notes: y.notes || '', numero_commande: y.numero_commande || '', date_saisie: y.date || TODAY, responsable_id: y.responsable_id || null, responsable_nom: y.responsable_nom || '', id: y.id, litige: y })
+    setFormYango({ type: y.type, montant: y.montant?.toString() || '', notes: y.notes || '', numero_commande: y.numero_commande || '', date_saisie: y.date || TODAY, responsable_id: y.responsable_id || null, responsable_nom: y.responsable_nom || '', id: y.id })
     setShowFormYango(true)
   }
   function ouvrirAddGlovo() {
@@ -1566,7 +1584,7 @@ export default function LitigesScreen() {
     setShowFormGlovo(true)
   }
   function ouvrirEditGlovo(g) {
-    setFormGlovo({ type: g.type, montant: g.montant?.toString() || '', notes: g.notes || '', numero_commande: g.numero_commande || '', date_saisie: g.date || TODAY, responsable_id: g.responsable_id || null, responsable_nom: g.responsable_nom || '', id: g.id, litige: g })
+    setFormGlovo({ type: g.type, montant: g.montant?.toString() || '', notes: g.notes || '', numero_commande: g.numero_commande || '', date_saisie: g.date || TODAY, responsable_id: g.responsable_id || null, responsable_nom: g.responsable_nom || '', id: g.id })
     setShowFormGlovo(true)
   }
   function ouvrirAddPPF() {
@@ -2126,8 +2144,8 @@ export default function LitigesScreen() {
   }
 
   // Ligne Yango/Glovo : pastille « auto », détail déplié, et pour une ligne
-  // automatique seulement « Annuler » (une modification serait écrasée par
-  // le prochain calcul ; une simple suppression serait recréée).
+  // automatique « Responsable » (choix gardé au recalcul) et « Annuler » (une
+  // modification du montant serait écrasée ; une simple suppression recréée).
   function extrasAuto(l) {
     if (l.origine !== 'auto') return null
     const lignes = l.detail?.lignes || []
@@ -2151,9 +2169,17 @@ export default function LitigesScreen() {
     if (l.origine !== 'auto') return actions(onModifier, () => setConfirmSuppr({ table, id: l.id }))
     if (roleActif !== 'manager') return null
     return (
-      <TouchableOpacity onPress={() => setConfirmSuppr({ table, id: l.id, auto: l })} accessibilityRole="button">
-        <Text style={styles.lienAnnuler}>Annuler</Text>
-      </TouchableOpacity>
+      <View style={{ alignItems: 'flex-end' }}>
+        <TouchableOpacity
+          onPress={() => { setSaveError(null); setRechercheResp(''); setRespAuto({ table, litige: l, responsable_id: l.responsable_id || null, responsable_nom: l.responsable_nom || '' }) }}
+          accessibilityRole="button"
+        >
+          <Text style={styles.lienResponsable}>Responsable</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setConfirmSuppr({ table, id: l.id, auto: l })} accessibilityRole="button">
+          <Text style={styles.lienAnnuler}>Annuler</Text>
+        </TouchableOpacity>
+      </View>
     )
   }
   function bandeauARelier() {
@@ -2883,6 +2909,32 @@ export default function LitigesScreen() {
         </ScrollView>
       </Modal>
 
+      {/* ── Modal responsable d'un litige automatique ── */}
+      <Modal visible={!!respAuto} transparent animationType="slide" onRequestClose={() => setRespAuto(null)}>
+        <ScrollView contentContainerStyle={styles.overlay} keyboardShouldPersistTaps="handled">
+          <View style={styles.formModal}>
+            <Text style={styles.formTitre}>Qui est responsable ?</Text>
+            {respAuto && (
+              <Text style={[styles.ligneSous, { marginBottom: 12 }]}>
+                {respAuto.litige.notes || ''}{respAuto.litige.montant ? ` · ${fmtShort(respAuto.litige.montant)}` : ''}
+                {'\n'}Calcul automatique : {respAuto.litige.responsable_nom || 'personne'}. Votre choix ne sera plus remplacé par le calcul.
+              </Text>
+            )}
+            {respAuto && renderResponsablePicker(respAuto.responsable_id, respAuto.responsable_nom,
+              (id, nom) => setRespAuto(p => ({ ...p, responsable_id: id, responsable_nom: nom })))}
+            {saveError && <Text style={{ color: colors.error, fontSize: 12, marginBottom: 8, textAlign: 'center' }}>{saveError}</Text>}
+            <View style={styles.formBtns}>
+              <TouchableOpacity style={styles.btnAnnuler} onPress={() => { setRespAuto(null); setSaveError(null) }}>
+                <Text style={styles.btnAnnulerTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.btnValider} onPress={sauvegarderRespAuto} disabled={saving}>
+                <Text style={styles.btnValiderTxt}>{saving ? '...' : 'Enregistrer'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </Modal>
+
       {/* ── Modal Point pas fait ── */}
       <Modal visible={showFormPPF} transparent animationType="slide">
         <ScrollView contentContainerStyle={styles.overlay} keyboardShouldPersistTaps="handled">
@@ -3144,6 +3196,7 @@ function makeStyles(colors) { return StyleSheet.create({
   pastilleAutoTxt: { color: colors.primary, fontSize: 11, fontWeight: '700' },
   lienDetail: { color: colors.primary, fontSize: 13, marginTop: 6, minHeight: 24 },
   ligneDetail: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
+  lienResponsable: { color: colors.primary, fontSize: 14, fontWeight: '600', paddingVertical: 8, paddingHorizontal: 4 },
   lienAnnuler: { color: colors.error, fontSize: 14, fontWeight: '600', paddingVertical: 8, paddingHorizontal: 4 },
   bandeauRelier: { backgroundColor: colors.warningLight, borderRadius: 10, padding: 12, marginBottom: 12, minHeight: 48, justifyContent: 'center' },
   bandeauRelierTxt: { color: colors.warningDark, fontSize: 14 },
