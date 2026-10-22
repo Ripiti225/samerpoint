@@ -182,7 +182,7 @@ async function lireJournee(restaurantId: string, plateforme: Plateforme, jour: s
     toutes(() => admin.from('plats_pos_vus').select('nom_norm').eq('ignorer', true).order('nom_norm')),
     toutes(() => admin.from('points_shifts').select('restaurant_id, date, caissier_id, caissier_nom, heure_debut, heure_fin')
       .eq('restaurant_id', restaurantId).in('date', [decaler(jour, -1), jour]).order('id')),
-    toutes(() => admin.from(TABLE[plateforme]).select('id, type, origine, cle_auto, montant, responsable_id, responsable_nom, notes, numero_commande')
+    toutes(() => admin.from(TABLE[plateforme]).select('id, type, origine, cle_auto, montant, responsable_id, responsable_nom, notes, numero_commande, detail')
       .eq('restaurant_id', restaurantId).eq('date', jour).order('id')),
   ])
   const lecture = await lirePos(restaurantId, plateforme, jour, dernierJour)

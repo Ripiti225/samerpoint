@@ -30,6 +30,7 @@ import { chargerLitigesRestaurant, chargerShiftsEcart } from '../lib/litigesGlob
 import { restoSansLitige } from '../lib/litigesResume'
 import { exporterPdf } from '../lib/pdfDocuments'
 import { usePhoto } from '../lib/usePhoto'
+import { detailApresChoix, estChoisi, personnesParGroupe } from '../lib/responsablesLitige'
 
 function fmt(n) { return Math.round(n || 0).toLocaleString('fr-FR') + ' FCFA' }
 function fmtShort(n) { return Math.round(n || 0).toLocaleString('fr-FR') }
@@ -241,8 +242,10 @@ export default function LitigesScreen() {
   const [showFormPPF, setShowFormPPF] = useState(false)
   const [formPPF, setFormPPF] = useState({ responsable_id: null, responsable_nom: '', montant: '', notes: '', date_saisie: TODAY, id: null })
 
-  // ── Utilisateurs du restaurant (pour picker responsable) ─────
+  // ── Utilisateurs + équipe du restaurant (pour picker responsable) ─────
   const [utilisateurs, setUtilisateurs] = useState([])
+  const [travailleurs, setTravailleurs] = useState([])
+  const [rechercheResp, setRechercheResp] = useState('')
 
   const plage = useMemo(
     () => getPlage(periodeKey, dateUnique, dateDebut, dateFin),
@@ -279,6 +282,12 @@ export default function LitigesScreen() {
       .from('utilisateurs').select('id, nom, role')
       .eq('restaurant_id', restoId).eq('actif', true).order('nom')
     setUtilisateurs(data || [])
+    // Toute l'équipe (cuisiniers, gérant…) : un litige n'est pas toujours la
+    // faute du caissier (remboursement d'un plat raté, etc.).
+    const { data: equipe } = await supabase
+      .from('travailleurs').select('id, nom, poste')
+      .eq('restaurant_id', restoId).eq('actif', true).order('nom')
+    setTravailleurs(equipe || [])
   }
 
   async function chargerDatesAvec(restoId) {
@@ -1401,6 +1410,8 @@ export default function LitigesScreen() {
     const dateToSave = formYango.date_saisie || TODAY
     let err
     if (formYango.id) {
+      // Litige automatique : un responsable choisi ici n'est plus écrasé par le recalcul.
+      const detail = detailApresChoix(formYango.litige, formYango.responsable_id || null, formYango.responsable_nom || null)
       const { error } = await supabase.from('litiges_yango').update({
         type: formYango.type, montant,
         notes: formYango.notes || null,
@@ -1408,6 +1419,7 @@ export default function LitigesScreen() {
         date: dateToSave,
         responsable_id: formYango.responsable_id || null,
         responsable_nom: formYango.responsable_nom || null,
+        ...(detail ? { detail } : {}),
       }).eq('id', formYango.id)
       err = error
     } else {
@@ -1437,6 +1449,8 @@ export default function LitigesScreen() {
     const dateToSave = formGlovo.date_saisie || TODAY
     let err
     if (formGlovo.id) {
+      // Litige automatique : un responsable choisi ici n'est plus écrasé par le recalcul.
+      const detail = detailApresChoix(formGlovo.litige, formGlovo.responsable_id || null, formGlovo.responsable_nom || null)
       const { error } = await supabase.from('litiges_glovo').update({
         type: formGlovo.type, montant,
         notes: formGlovo.notes || null,
@@ -1444,6 +1458,7 @@ export default function LitigesScreen() {
         date: dateToSave,
         responsable_id: formGlovo.responsable_id || null,
         responsable_nom: formGlovo.responsable_nom || null,
+        ...(detail ? { detail } : {}),
       }).eq('id', formGlovo.id)
       err = error
     } else {
@@ -1542,7 +1557,7 @@ export default function LitigesScreen() {
     setShowFormYango(true)
   }
   function ouvrirEditYango(y) {
-    setFormYango({ type: y.type, montant: y.montant?.toString() || '', notes: y.notes || '', numero_commande: y.numero_commande || '', date_saisie: y.date || TODAY, responsable_id: y.responsable_id || null, responsable_nom: y.responsable_nom || '', id: y.id })
+    setFormYango({ type: y.type, montant: y.montant?.toString() || '', notes: y.notes || '', numero_commande: y.numero_commande || '', date_saisie: y.date || TODAY, responsable_id: y.responsable_id || null, responsable_nom: y.responsable_nom || '', id: y.id, litige: y })
     setShowFormYango(true)
   }
   function ouvrirAddGlovo() {
@@ -1551,7 +1566,7 @@ export default function LitigesScreen() {
     setShowFormGlovo(true)
   }
   function ouvrirEditGlovo(g) {
-    setFormGlovo({ type: g.type, montant: g.montant?.toString() || '', notes: g.notes || '', numero_commande: g.numero_commande || '', date_saisie: g.date || TODAY, responsable_id: g.responsable_id || null, responsable_nom: g.responsable_nom || '', id: g.id })
+    setFormGlovo({ type: g.type, montant: g.montant?.toString() || '', notes: g.notes || '', numero_commande: g.numero_commande || '', date_saisie: g.date || TODAY, responsable_id: g.responsable_id || null, responsable_nom: g.responsable_nom || '', id: g.id, litige: g })
     setShowFormGlovo(true)
   }
   function ouvrirAddPPF() {
@@ -1565,28 +1580,45 @@ export default function LitigesScreen() {
   }
 
   // ── Picker responsable (inline JSX, pas un composant React) ────
-  function renderResponsablePicker(value, onChange) {
+  // Caissiers, gérant et toute l'équipe, rangés par poste. Un travailleur sans
+  // compte est enregistré par son nom seul (responsable_id = null).
+  function renderResponsablePicker(valueId, valueNom, onChange) {
+    const groupes = personnesParGroupe(utilisateurs, travailleurs, rechercheResp)
+    const aucun = !valueId && !valueNom
     return (
       <View>
         <Text style={styles.formLabel}>Responsable</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, marginBottom: 12 }}>
-          <View style={{ flexDirection: 'row', gap: 6 }}>
+        <TextInput style={styles.formInput} value={rechercheResp} onChangeText={setRechercheResp}
+          placeholder="Chercher un nom…" placeholderTextColor="#bbb" />
+        <ScrollView style={{ maxHeight: 220, marginBottom: 12 }} nestedScrollEnabled>
+          <View style={styles.responsableLigne}>
             <TouchableOpacity
-              style={[styles.responsableChip, !value && styles.responsableChipActive]}
+              style={[styles.responsableChip, aucun && styles.responsableChipActive]}
               onPress={() => onChange(null, '')}
             >
-              <Text style={[styles.responsableChipTxt, !value && styles.responsableChipTxtActive]}>— Aucun</Text>
+              <Text style={[styles.responsableChipTxt, aucun && styles.responsableChipTxtActive]}>— Aucun</Text>
             </TouchableOpacity>
-            {utilisateurs.map(u => (
-              <TouchableOpacity
-                key={u.id}
-                style={[styles.responsableChip, value === u.id && styles.responsableChipActive]}
-                onPress={() => onChange(u.id, u.nom)}
-              >
-                <Text style={[styles.responsableChipTxt, value === u.id && styles.responsableChipTxtActive]}>{u.nom}</Text>
-              </TouchableOpacity>
-            ))}
           </View>
+          {groupes.map(g => (
+            <View key={g.groupe}>
+              <Text style={styles.responsableGroupe}>{g.groupe}</Text>
+              <View style={styles.responsableLigne}>
+                {g.personnes.map(u => {
+                  const actif = estChoisi(u, valueId, valueNom)
+                  return (
+                    <TouchableOpacity
+                      key={u.cle}
+                      style={[styles.responsableChip, actif && styles.responsableChipActive]}
+                      onPress={() => { onChange(u.id, u.nom); setRechercheResp('') }}
+                    >
+                      <Text style={[styles.responsableChipTxt, actif && styles.responsableChipTxtActive]}>{u.nom}</Text>
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+            </View>
+          ))}
+          {!groupes.length && <Text style={styles.ligneSous}>Personne ne correspond à « {rechercheResp} ».</Text>}
         </ScrollView>
       </View>
     )
@@ -2724,7 +2756,7 @@ export default function LitigesScreen() {
               )
             })()}
 
-            {renderResponsablePicker(formAvis.responsable_id, (id, nom) => setFormAvis(p => ({ ...p, responsable_id: id, responsable_nom: nom })))}
+            {renderResponsablePicker(formAvis.responsable_id, formAvis.responsable_nom, (id, nom) => setFormAvis(p => ({ ...p, responsable_id: id, responsable_nom: nom })))}
             {formAvis.responsable_nom && !formAvis.responsable_id ? (
               <Text style={[styles.ligneSous, { marginTop: -6, marginBottom: 10 }]}>Responsable : {formAvis.responsable_nom} (nom du POS)</Text>
             ) : null}
@@ -2778,7 +2810,7 @@ export default function LitigesScreen() {
             <ChampDate label="Date" styleLabel={styles.formLabel} valeur={formYango.date_saisie}
               onChange={v => setFormYango(p => ({ ...p, date_saisie: v }))} />
 
-            {renderResponsablePicker(formYango.responsable_id, (id, nom) => setFormYango(p => ({ ...p, responsable_id: id, responsable_nom: nom })))}
+            {renderResponsablePicker(formYango.responsable_id, formYango.responsable_nom, (id, nom) => setFormYango(p => ({ ...p, responsable_id: id, responsable_nom: nom })))}
 
             <Text style={styles.formLabel}>Notes (optionnel)</Text>
             <TextInput style={styles.formInput} value={formYango.notes}
@@ -2831,7 +2863,7 @@ export default function LitigesScreen() {
             <ChampDate label="Date" styleLabel={styles.formLabel} valeur={formGlovo.date_saisie}
               onChange={v => setFormGlovo(p => ({ ...p, date_saisie: v }))} />
 
-            {renderResponsablePicker(formGlovo.responsable_id, (id, nom) => setFormGlovo(p => ({ ...p, responsable_id: id, responsable_nom: nom })))}
+            {renderResponsablePicker(formGlovo.responsable_id, formGlovo.responsable_nom, (id, nom) => setFormGlovo(p => ({ ...p, responsable_id: id, responsable_nom: nom })))}
 
             <Text style={styles.formLabel}>Notes (optionnel)</Text>
             <TextInput style={styles.formInput} value={formGlovo.notes}
@@ -2857,7 +2889,7 @@ export default function LitigesScreen() {
           <View style={styles.formModal}>
             <Text style={styles.formTitre}>{formPPF.id ? 'Modifier' : 'Ajouter'} — Point pas fait</Text>
 
-            {renderResponsablePicker(formPPF.responsable_id, (id, nom) => setFormPPF(p => ({ ...p, responsable_id: id, responsable_nom: nom })))}
+            {renderResponsablePicker(formPPF.responsable_id, formPPF.responsable_nom, (id, nom) => setFormPPF(p => ({ ...p, responsable_id: id, responsable_nom: nom })))}
 
             <Text style={styles.formLabel}>Montant (FCFA)</Text>
             <TextInput style={styles.formInput} value={formPPF.montant}
@@ -3408,6 +3440,8 @@ function makeStyles(colors) { return StyleSheet.create({
     backgroundColor: colors.bg, borderWidth: 0.5, borderColor: colors.border,
   },
   responsableChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  responsableLigne: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  responsableGroupe: { fontSize: 11, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
   responsableChipTxt: { fontSize: 13, color: colors.textMuted, fontWeight: '500' },
   responsableChipTxtActive: { color: '#fff', fontWeight: '600' },
 
