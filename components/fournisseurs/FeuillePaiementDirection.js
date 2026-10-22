@@ -101,7 +101,9 @@ export default function FeuillePaiementDirection({ fournisseur, userId, userNom,
               <MaterialCommunityIcons name="information-outline" size={16} color={colors.textSecondary} />
               <Text style={styles.traceNoteTxt}>
                 {v > 0 ? `Après ce paiement : ${reste < 0 ? `${fmt(-reste)} d'avance` : `${fmt(reste)} encore dû`}. ` : ''}
-                Le paiement est noté dans Dépenses direction et compte comme une charge du restaurant ce mois-là.
+                {fournisseur.groupe_id && !fournisseur.restaurant_id
+                  ? 'Le paiement est noté dans Dépenses direction et compte dans le résultat de tous les restaurants, pas d\'un restaurant seul.'
+                  : 'Le paiement est noté dans Dépenses direction et compte comme une charge du restaurant ce mois-là.'}
               </Text>
             </View>
 

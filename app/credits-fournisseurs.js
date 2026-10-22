@@ -41,6 +41,7 @@ import { estDroitAncienTravailleur, sousTitreDepart } from '../lib/droitsAnciens
 import { estAdministratif, libelleEcheance, separerFournisseurs, totalDu as totalDuListe } from '../lib/fournisseursAdmin'
 import { journaliser } from '../lib/journal'
 import { chargerDerniersRestes } from '../lib/derniersRestesFournisseurs'
+import { chargerGroupes } from '../lib/groupesDb'
 import { supabase } from '../lib/supabase'
 import { aujourdhuiISO } from '../lib/tresorerie'
 import { useFocusRecherche } from '../lib/useFocusRecherche'
@@ -104,6 +105,7 @@ export default function CreditsFournisseursScreen() {
   const [montantDu, setMontantDu] = useState(null)                 // fiche administrative
 
   const [restaurants, setRestaurants] = useState([])
+  const [groupes, setGroupes] = useState([])
   const [restoFilter, setRestoFilter] = useState(() => _restoFilterCache)
   const [showRestoPicker, setShowRestoPicker] = useState(false)
   const [fournisseurs, setFournisseurs] = useState([])
@@ -165,10 +167,14 @@ export default function CreditsFournisseursScreen() {
     try {
       await appliquerFacturesMensuelles(supabase)
       let restos = []
+      const groupeMap = {}
       if (peutVoirRestaurants) {
         const { data } = await supabase.from('restaurants').select('id, nom').order('nom')
         restos = data || []
         setRestaurants(restos)
+        const grp = await chargerGroupes()
+        setGroupes(grp)
+        grp.forEach(g => { groupeMap[g.id] = g.nom })
       }
       const restoMap = {}
       restos.forEach(r => { restoMap[r.id] = r.nom })
@@ -185,7 +191,8 @@ export default function CreditsFournisseursScreen() {
       // Source de vérité affichée = credit_actuel (solde officiel maintenu par les
       // saisies gérant/caissier et les déductions). On n'aligne PAS sur la dernière
       // transaction : la chaîne de transactions ne contient pas les déductions gérant.
-      setFournisseurs((fourn || []).map(f => ({ ...f, restaurant_nom: restoMap[f.restaurant_id] || '' })))
+      // Fiche de groupe (sans restaurant) : le nom du groupe à la place du restaurant.
+      setFournisseurs((fourn || []).map(f => ({ ...f, restaurant_nom: restoMap[f.restaurant_id] || groupeMap[f.groupe_id] || '' })))
     } catch {}
     setLoading(false)
   }
@@ -1474,7 +1481,7 @@ ${mouvements.map(m => {
       </Modal>
 
       <FeuilleFournisseurAdmin
-        visible={!!feuilleAdmin} fournisseur={feuilleAdmin?.f || null} restaurants={restaurants}
+        visible={!!feuilleAdmin} fournisseur={feuilleAdmin?.f || null} restaurants={restaurants} groupes={groupes}
         restaurantParDefaut={isGerant ? restaurantId : restoFilter} roleActif={roleActif} userId={userId} userNom={userNom} styles={styles}
         onFermer={() => setFeuilleAdmin(null)}
         onEnregistre={() => { setFeuilleAdmin(null); charger() }}

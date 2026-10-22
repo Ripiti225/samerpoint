@@ -14,6 +14,7 @@ import {
   styleCategorie, useStylesTreso,
 } from './commun'
 import { ONGLET_ANCIENS, paiementsDroit, resumeDroitsParResto, sousTitreDepart } from '../../lib/droitsAnciensTravailleurs'
+import { cleRattachement, estFicheGroupe, nomRattachement } from '../../lib/groupes'
 import {
   chargerDroitsAnciens, creerDroitAncien, modifierDroitAncien, remplacerAncienneFiche,
 } from '../../lib/droitsAnciensTravailleursDb'
@@ -26,7 +27,7 @@ const style = styleCategorie(ONGLET_ANCIENS)
 // onPrevoir(fiche) : ouvre la feuille « Prévoir » de l'écran (même que pour une dette).
 // onModifie() : après chaque enregistrement (l'écran recharge la Trésorerie : prévisions, totaux).
 // rafraichir : change à chaque rechargement de la Trésorerie (retour sur l'écran) → relit les fiches.
-export function OngletAnciensTravailleurs({ niveau, user, restaurants = [], onPrevoir, onModifie, rafraichir }) {
+export function OngletAnciensTravailleurs({ niveau, user, restaurants = [], groupes = [], onPrevoir, onModifie, rafraichir }) {
   const { styles, colors } = useStylesTreso()
   const [donnees, setDonnees] = useState(null)
   const [erreur, setErreur] = useState(null)
@@ -46,14 +47,15 @@ export function OngletAnciensTravailleurs({ niveau, user, restaurants = [], onPr
     () => (donnees ? resumeDroitsParResto(donnees.fiches, donnees.transactions) : {}),
     [donnees],
   )
-  const nomResto = id => restaurants.find(r => r.id === id)?.nom || '—'
+  // Clé = restaurant ou « groupe:<id> » (fiche sans restaurant, ex. Zone 4).
+  const nomResto = cle => nomRattachement(cle, restaurants, groupes)
   const peutSaisir = peut(niveau, 'saisir_anciens')
   const peutPayer = peut(niveau, 'payer')
 
   if (erreur) return <Text style={styles.vide}>{erreur}</Text>
   if (!donnees) return <ActivityIndicator color={colors.primary} style={{ paddingVertical: 24 }} />
 
-  const groupes = Object.entries(parResto)
+  const blocs = Object.entries(parResto)
     .map(([rid, g]) => ({ rid, ...g, fiches: g.fiches.filter(f => !restantsSeulement || !f.solde) }))
     .filter(g => g.fiches.length)
     .sort((a, b) => nomResto(a.rid).localeCompare(nomResto(b.rid)))
@@ -71,10 +73,10 @@ export function OngletAnciensTravailleurs({ niveau, user, restaurants = [], onPr
         </View>
       </Hero>
 
-      {!groupes.length && (
+      {!blocs.length && (
         <Text style={styles.vide}>{restantsSeulement ? 'Rien à payer aux anciens travailleurs.' : 'Aucun ancien travailleur enregistré.'}</Text>
       )}
-      {groupes.map(g => (
+      {blocs.map(g => (
         <View key={g.rid} style={styles.carte}>
           <View style={[styles.carteEntete, { marginBottom: 12 }]}>
             <Pastille icone="storefront-outline" couleur={style.couleur} taille={36} />
@@ -234,7 +236,7 @@ function FeuilleDetailDroit({ fiche, transactions, nomResto, peutSaisir, peutPay
   const paiements = paiementsDroit(transactions.filter(t => t.fournisseur_id === fiche.id))
   return (
     <Feuille visible onFermer={onFermer} titre={fiche.nom}>
-      <Text style={styles.petit}>{nomResto(fiche.restaurant_id)} · {sousTitreDepart(fiche)}</Text>
+      <Text style={styles.petit}>{nomResto(cleRattachement(fiche))} · {sousTitreDepart(fiche)}</Text>
       <View style={{ marginVertical: 12 }}>
         {[
           ['Montant dû', fiche.du, colors.text],
@@ -306,14 +308,16 @@ export function FeuillePayerDroit({ fiche, nomResto, user, onFermer, apres }) {
 
   return (
     <Feuille visible onFermer={onFermer} titre={`Payer · ${fiche.nom}`}>
-      <Text style={styles.petit}>{nomResto(fiche.restaurant_id)} · reste {fmt(fiche.reste)} F</Text>
+      <Text style={styles.petit}>{nomResto(cleRattachement(fiche))} · reste {fmt(fiche.reste)} F</Text>
       <ChampMontant label="Montant payé" valeur={montant} onChange={setMontant} />
       <ChampDate label="Date du paiement" styleLabel={styles.label} valeur={date} onChange={setDate} maxDate={aujourdhuiISO()} />
       <Text style={styles.label}>Payé depuis</Text>
       <Puces options={[...comptes.map(c => ({ valeur: c.id, label: c.nom })), { valeur: 'coffre', label: 'Coffre' }]}
         valeur={source} onChange={setSource} />
       <Text style={[styles.petit, { marginBottom: 10 }]}>
-        Noté dans Dépenses direction ; compte comme une charge du restaurant ce mois-ci.
+        {estFicheGroupe(fiche)
+          ? 'Noté dans Dépenses direction ; compte dans le résultat de tous les restaurants (pas d\'un restaurant seul).'
+          : 'Noté dans Dépenses direction ; compte comme une charge du restaurant ce mois-ci.'}
       </Text>
       <Bouton titre="Enregistrer le paiement" onPress={enregistrer} occupe={occupe} />
     </Feuille>

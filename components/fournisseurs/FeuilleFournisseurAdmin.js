@@ -12,6 +12,7 @@ import { libelleMois } from '../../lib/facturesMensuelles'
 import { TYPE_ADMIN, champsEcheance, choixMoisDepart, estAdministratif } from '../../lib/fournisseursAdmin'
 import { ecritureAjustementCredit } from '../../lib/creditsFournisseurs'
 import { chargerDerniersRestes } from '../../lib/derniersRestesFournisseurs'
+import { cleRattachement, estFicheGroupe, nomRattachement } from '../../lib/groupes'
 import { journaliser } from '../../lib/journal'
 import { supabase } from '../../lib/supabase'
 import { aujourdhuiISO } from '../../lib/tresorerie'
@@ -29,9 +30,11 @@ function Puce({ styles, actif, label, onPress }) {
 /**
  * fournisseur : null = création ; sinon la fiche complète (select '*').
  * restaurants : [{ id, nom }] · restaurantParDefaut : id présélectionné (création).
+ * groupes : [{ id, nom }] — une fiche de groupe (« groupe:<id> » dans le choix)
+ * n'a ni restaurant ni échéance ; seule la direction la paie (22/10/2026).
  */
 export default function FeuilleFournisseurAdmin({
-  visible, fournisseur, restaurants = [], restaurantParDefaut, roleActif, userId, userNom, styles, onFermer, onEnregistre,
+  visible, fournisseur, restaurants = [], groupes = [], restaurantParDefaut, roleActif, userId, userNom, styles, onFermer, onEnregistre,
 }) {
   const { colors } = useTheme()
   const [nom, setNom] = useState('')
@@ -50,7 +53,7 @@ export default function FeuilleFournisseurAdmin({
     if (!visible) return
     const f = fournisseur || {}
     setNom(f.nom || '')
-    setRestaurantId(f.restaurant_id || restaurantParDefaut || null)
+    setRestaurantId(f.restaurant_id || (f.groupe_id ? `groupe:${f.groupe_id}` : null) || restaurantParDefaut || null)
     setMontant(Number(f.facture_mensuelle) > 0 ? String(f.facture_mensuelle) : '')
     setPeriodicite(f.facture_periodicite === 'annuel' ? 'annuel' : 'mensuel')
     setDepuis(f.facture_mensuelle_depuis || null)
@@ -60,7 +63,9 @@ export default function FeuilleFournisseurAdmin({
 
   const choix = choixMoisDepart(periodicite, aujourdhui, depuis)
   const moisChoisi = depuis || choix.find(m => m > `${aujourdhui.slice(0, 7)}-01`) || choix[0]
-  const nomResto = id => restaurants.find(r => r.id === id)?.nom || ''
+  const nomResto = cle => nomRattachement(cle, restaurants, groupes)
+  const choixGroupe = String(restaurantId || '').startsWith('groupe:')
+  const ficheGroupe = choixGroupe || estFicheGroupe(fournisseur)
   const peutEnregistrer = nom.trim() && (fournisseur?.id || restaurantId)
 
   async function enregistrer() {
@@ -68,20 +73,24 @@ export default function FeuilleFournisseurAdmin({
     setOccupe(true)
     setErreur(null)
     try {
-      const champs = { nom: nom.trim(), type: TYPE_ADMIN, ...champsEcheance({ montant, periodicite, depuis: moisChoisi }, aujourdhui) }
-      const resto = fournisseur?.restaurant_id || restaurantId
+      // Fiche de groupe : pas d'échéance automatique (arriérés, payés par la direction).
+      const champs = { nom: nom.trim(), type: TYPE_ADMIN, ...champsEcheance({ montant: ficheGroupe ? 0 : montant, periodicite, depuis: moisChoisi }, aujourdhui) }
+      const resto = fournisseur?.restaurant_id || (choixGroupe ? null : restaurantId)
+      const groupeId = fournisseur ? fournisseur.groupe_id || null : (choixGroupe ? restaurantId.slice('groupe:'.length) : null)
       let nouveauId = null
       if (fournisseur?.id) {
         const { error } = await supabase.from('fournisseurs').update(champs).eq('id', fournisseur.id)
         if (error) throw error
       } else {
         const { data, error } = await supabase.from('fournisseurs')
-          .insert({ ...champs, restaurant_id: resto, actif: true }).select('id').single()
+          .insert({ ...champs, restaurant_id: resto, groupe_id: groupeId, actif: true }).select('id').single()
         if (error) throw error
         nouveauId = data.id
-        await supabase.from('fournisseurs_restaurants').upsert(
-          { fournisseur_id: data.id, restaurant_id: resto, credit_actuel: 0 },
-          { onConflict: 'fournisseur_id,restaurant_id' })
+        if (resto) {
+          await supabase.from('fournisseurs_restaurants').upsert(
+            { fournisseur_id: data.id, restaurant_id: resto, credit_actuel: 0 },
+            { onConflict: 'fournisseur_id,restaurant_id' })
+        }
       }
       if (!dejaAdmin && dejaDu !== '') await poserDejaDu(fournisseur?.id || nouveauId, Number(dejaDu) || 0, champs.nom)
       journaliser(fournisseur?.id ? (dejaAdmin ? 'fournisseur_admin_modifie' : 'fournisseur_passe_administratif') : 'fournisseur_admin_cree', {
@@ -156,11 +165,15 @@ export default function FeuilleFournisseurAdmin({
           <View style={styles.formGroup}>
             <Text style={styles.formLabel}>Restaurant {fournisseur ? '' : '*'}</Text>
             {fournisseur ? (
-              <Text style={{ color: colors.text, fontWeight: '700' }}>{nomResto(fournisseur.restaurant_id) || fournisseur.restaurant_nom || '—'}</Text>
+              <Text style={{ color: colors.text, fontWeight: '700' }}>{nomResto(cleRattachement(fournisseur)) || fournisseur.restaurant_nom || '—'}</Text>
             ) : (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                 {restaurants.map(r => (
                   <Puce key={r.id} styles={styles} actif={restaurantId === r.id} label={r.nom} onPress={() => setRestaurantId(r.id)} />
+                ))}
+                {groupes.map(g => (
+                  <Puce key={g.id} styles={styles} actif={restaurantId === `groupe:${g.id}`} label={g.nom}
+                    onPress={() => setRestaurantId(`groupe:${g.id}`)} />
                 ))}
               </View>
             )}
@@ -179,6 +192,12 @@ export default function FeuilleFournisseurAdmin({
             </View>
           )}
 
+          {ficheGroupe ? (
+            <Text style={[styles.formLabel, { marginBottom: 12 }]}>
+              Fiche du groupe : pas d'échéance automatique, payée par la direction seulement.
+            </Text>
+          ) : (
+          <>
           <View style={styles.formGroup}>
             <Text style={styles.formLabel}>{dejaAdmin ? 'Montant de chaque échéance (FCFA)' : 'Puis, montant qui s\'ajoute à chaque échéance (FCFA)'}</Text>
             <TextInput style={[styles.formInput, { fontSize: 18, fontWeight: '700' }]} value={montant}
@@ -219,11 +238,15 @@ export default function FeuilleFournisseurAdmin({
               </View>
             </>
           )}
+          </>
+          )}
 
           <View style={styles.traceNote}>
             <MaterialCommunityIcons name="information-outline" size={16} color={colors.textSecondary} />
             <Text style={styles.traceNoteTxt}>
-              {dejaAdmin ? 'Pour corriger le retard, « Modifier » sur la fiche (manager). ' : ''}Le gérant le paie dans Déductions gérant → Administratifs ; la direction avec « Payé par la direction ».
+              {dejaAdmin ? 'Pour corriger le retard, « Modifier » sur la fiche (manager). ' : ''}{ficheGroupe
+                ? 'La direction la paie avec « Payé par la direction » ; le paiement compte dans le résultat de tous les restaurants.'
+                : 'Le gérant le paie dans Déductions gérant → Administratifs ; la direction avec « Payé par la direction ».'}
             </Text>
           </View>
 
