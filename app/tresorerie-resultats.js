@@ -15,7 +15,7 @@ import { ActivityIndicator, SafeAreaView, ScrollView, Text, View } from 'react-n
 import {
   Entete, EtatEcran, Hero, HeroCase, Pastille, Progression, Puces, TitreSection, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
-import { derniersMois, resultatsParRestoMois } from '../lib/direction'
+import { depensesGroupeParMois, derniersMois, resultatsParRestoMois } from '../lib/direction'
 import { aujourdhuiISO, fmt, libelleMois, peut } from '../lib/tresorerie'
 import { chargerResultats } from '../lib/tresorerieDb'
 
@@ -44,11 +44,14 @@ export default function TresorerieResultatsScreen() {
   useEffect(() => { if (peut(niveau, 'voir_resultats')) charger() }, [niveau, charger])
 
   const r = useMemo(() => (brut ? resultatsParRestoMois({ ...brut, mois }) : null), [brut, mois])
+  // Arriérés du groupe payés par la direction : dans le total, dans aucun restaurant.
+  const groupeParMois = useMemo(() => (brut ? depensesGroupeParMois(brut.depenses, mois) : {}), [brut, mois])
+  const arrieresGroupe = groupeParMois[moisChoisi] || 0
   const restos = donnees?.restaurants || []
   const lignes = restos
     .map(x => ({ resto: x, c: r?.[x.id]?.[moisChoisi] || null }))
     .sort((a, b) => (b.c?.net ?? -Infinity) - (a.c?.net ?? -Infinity))
-  const total = lignes.reduce((s, l) => s + (l.c?.net || 0), 0)
+  const total = lignes.reduce((s, l) => s + (l.c?.net || 0), 0) - arrieresGroupe
   const provisoire = moisChoisi === moisCourant
   const signe = v => (v < 0 ? `− ${fmt(-v)}` : `+ ${fmt(v)}`)
   const couleurNet = v => (provisoire ? colors.textSecondary : v < 0 ? colors.error : colors.success)
@@ -76,13 +79,20 @@ export default function TresorerieResultatsScreen() {
             <>
               <Hero icone="chart-box" titre={`Groupe · ${libelleMois(`${moisChoisi}-01`)}`}
                 valeur={`${signe(total)} F`} couleurValeur={!provisoire && total < 0 ? '#FECACA' : undefined}
-                sous={provisoire ? 'Mois en cours : chiffre provisoire, il bougera jusqu\'à la fin du mois.' : 'Somme des résultats nets des restaurants'}>
+                sous={provisoire ? 'Mois en cours : chiffre provisoire, il bougera jusqu\'à la fin du mois.' : arrieresGroupe ? 'Restaurants, moins les arriérés du groupe payés par la direction' : 'Somme des résultats nets des restaurants'}>
                 <View style={styles.heroCases}>
                   <HeroCase label="En bénéfice" couleur="#A7F3D0" valeur={`${lignes.filter(l => l.c && l.c.net >= 0).length} resto`} />
                   <HeroCase label="En perte" couleur="#FCA5A5" valeur={`${lignes.filter(l => l.c && l.c.net < 0).length} resto`} />
                   <HeroCase label="Sans point" couleur="rgba(255,255,255,0.5)" valeur={`${lignes.filter(l => !l.c).length}`} />
                 </View>
               </Hero>
+
+              {arrieresGroupe > 0 && (
+                <View style={styles.carte}>
+                  <Detail point="#7C3AED" label="Arriérés du groupe payés par la direction (CNPS, anciens travailleurs)"
+                    valeur={`− ${fmt(arrieresGroupe)}`} />
+                </View>
+              )}
 
               <TitreSection icone="storefront-outline" titre="Par restaurant" droite="du meilleur au moins bon" />
               {lignes.map(({ resto, c }) => {
@@ -129,7 +139,7 @@ export default function TresorerieResultatsScreen() {
             </>
           )}
           <Text style={styles.petit}>
-            Points validés seulement. Loyer et salaires comptent au mois de leur date limite, payés ou non (le loyer de juin, dû début juillet, pèse sur juillet) ; CNPS, timbre, ITS, TEE et bail aussi, jusqu'à leur passage en fournisseurs administratifs. Investissements, retraits perso et rechargements de fond ne comptent pas. Seuls les remboursements et temps d'attente Glovo sont déduits : les autres litiges (écart, tapé ±, inventaire, avis, contacts) sont déjà dans l'encaissé. Crédit fournisseurs : une dette qui monte dans le mois est une marchandise reçue sans être payée, elle est retirée ; une dette qui baisse est ajoutée (cotisations, loyer et anciens CNPS, timbre, bail exclus, déjà dans les charges ; exclus aussi PALMCI, Sécurité, Boss, et les fournisseurs administratifs depuis leur passage, droits des anciens travailleurs compris : leur montant dû n'est pas une charge, seul leur paiement l'est — déjà dans les dépenses du restaurant s'il paie avec la caisse, ou dans les dépenses direction si la direction paie ; avant octobre 2026, un crédit négatif, souvent une facture oubliée, compte pour 0 ; depuis, les corrections « Modifié directement » ne comptent pas).
+            Points validés seulement. Loyer et salaires comptent au mois de leur date limite, payés ou non (le loyer de juin, dû début juillet, pèse sur juillet) ; CNPS, timbre, ITS, TEE et bail aussi, jusqu'à leur passage en fournisseurs administratifs. Investissements, retraits perso et rechargements de fond ne comptent pas. Seuls les remboursements et temps d'attente Glovo sont déduits : les autres litiges (écart, tapé ±, inventaire, avis, contacts) sont déjà dans l'encaissé. Crédit fournisseurs : une dette qui monte dans le mois est une marchandise reçue sans être payée, elle est retirée ; une dette qui baisse est ajoutée (cotisations, loyer et anciens CNPS, timbre, bail exclus, déjà dans les charges ; exclus aussi PALMCI, Sécurité, Boss, et les fournisseurs administratifs depuis leur passage, droits des anciens travailleurs compris : leur montant dû n'est pas une charge, seul leur paiement l'est — déjà dans les dépenses du restaurant s'il paie avec la caisse, ou dans les dépenses direction si la direction paie ; avant octobre 2026, un crédit négatif, souvent une facture oubliée, compte pour 0 ; depuis, les corrections « Modifié directement » ne comptent pas). Les arriérés d'un groupe (CNPS d'avant octobre 2026, anciens d'un site fermé) payés par la direction ne comptent que dans le total de tous les restaurants.
           </Text>
         </ScrollView>
       )}
