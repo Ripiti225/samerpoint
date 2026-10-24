@@ -1494,15 +1494,15 @@
     "semantic_hash": ""
   },
   "app/tresorerie-banque.js": {
-    "mtime": 1792519025.1474876,
-    "seen": 1792587182.135503,
-    "ast_hash": "d47462ced8520185ac994230929eb37b",
+    "mtime": 1792850628.1552384,
+    "seen": 1792850794.712369,
+    "ast_hash": "937dfbb636a1b4643cdca618b225c0bb",
     "semantic_hash": ""
   },
   "app/tresorerie.js": {
-    "mtime": 1792448760.2752402,
-    "seen": 1792448844.232618,
-    "ast_hash": "90b574eb6aa855f60ca7743f57ac9479",
+    "mtime": 1792850695.6496499,
+    "seen": 1792850794.712377,
+    "ast_hash": "5599668a436782016063265170a93076",
     "semantic_hash": ""
   },
   "components/BarreComparaison.js": {
@@ -1572,21 +1572,21 @@
     "semantic_hash": ""
   },
   "lib/tresorerie.js": {
-    "mtime": 1792446360.145364,
-    "seen": 1792446464.4056692,
-    "ast_hash": "86c06dc18c3750a6bb7565820595243c",
+    "mtime": 1792850695.6492054,
+    "seen": 1792850794.712727,
+    "ast_hash": "41433967e493572e6af8be3364e1e6b2",
     "semantic_hash": ""
   },
   "lib/tresorerie.test.mjs": {
-    "mtime": 1792446361.282276,
-    "seen": 1792446464.40567,
-    "ast_hash": "f452d7f710a43fbd5442c77885fd5d34",
+    "mtime": 1792850695.6487489,
+    "seen": 1792850794.712728,
+    "ast_hash": "819f73dacd9f33bab945690d26b0b769",
     "semantic_hash": ""
   },
   "lib/tresorerieDb.js": {
-    "mtime": 1792710428.05443,
-    "seen": 1792711762.673891,
-    "ast_hash": "c6cfb817a9751c54387038ef70528d54",
+    "mtime": 1792850628.1573277,
+    "seen": 1792850794.712729,
+    "ast_hash": "016d2bbb3e4d477207101168ca44e1e6",
     "semantic_hash": ""
   },
   "supabase_tresorerie.sql": {
@@ -1662,9 +1662,9 @@
     "semantic_hash": ""
   },
   "app/tresorerie-resultats.js": {
-    "mtime": 1792710545.6783361,
-    "seen": 1792711762.6735501,
-    "ast_hash": "04e9e68877d1c99f0f0defc2d77fe113",
+    "mtime": 1792850722.0443254,
+    "seen": 1792850794.712376,
+    "ast_hash": "659d97471c07cb88d7276462ff2057e1",
     "semantic_hash": ""
   },
   "lib/direction.js": {
@@ -1716,15 +1716,15 @@
     "semantic_hash": ""
   },
   "lib/chargesMois.js": {
-    "mtime": 1792364155.4542694,
-    "seen": 1792364199.05251,
-    "ast_hash": "1eab3a9e3e68bc98501ba6bcb94d2489",
+    "mtime": 1792850628.156336,
+    "seen": 1792850794.712522,
+    "ast_hash": "9886b215484892c406cc905f1d2966c2",
     "semantic_hash": ""
   },
   "lib/chargesMois.test.mjs": {
-    "mtime": 1791820737.856494,
-    "seen": 1791821162.969495,
-    "ast_hash": "7b1749953dfb18c68c46d66a66c5d06a",
+    "mtime": 1792850628.1565695,
+    "seen": 1792850794.712523,
+    "ast_hash": "b059b2015b688b2ae7974df5324e9ef5",
     "semantic_hash": ""
   },
   "lib/navigation.js": {
@@ -1740,9 +1740,9 @@
     "semantic_hash": ""
   },
   "components/tresorerie/du.js": {
-    "mtime": 1792690903.2950149,
-    "seen": 1792711762.6736262,
-    "ast_hash": "0c3fa235f4b506cb8b7cb750243d1205",
+    "mtime": 1792850638.264749,
+    "seen": 1792850794.7124538,
+    "ast_hash": "9c31b32fd8d122e1b1c818976ac5d402",
     "semantic_hash": ""
   },
   "components/tresorerie/reglagesCharges.js": {
@@ -1770,9 +1770,9 @@
     "semantic_hash": ""
   },
   "components/tresorerie/saisieGroupee.js": {
-    "mtime": 1791820733.1034083,
-    "seen": 1791821162.9694688,
-    "ast_hash": "c5a63e042897d15154dd943c1f06434a",
+    "mtime": 1792850628.155811,
+    "seen": 1792850794.712457,
+    "ast_hash": "18ce23745fcdbfa133b24053fcf1f0e8",
     "semantic_hash": ""
   },
   "supabase_tresorerie_especes.sql": {
@@ -2118,15 +2118,15 @@
     "semantic_hash": ""
   },
   "lib/cotisations.js": {
-    "mtime": 1791054129.9821017,
-    "seen": 1791061425.0435998,
-    "ast_hash": "1abfcf388d1bd287127a7cd2cab662b3",
+    "mtime": 1792850628.156808,
+    "seen": 1792850794.712553,
+    "ast_hash": "b0dda9d90680212021d5b8605475b48f",
     "semantic_hash": ""
   },
   "lib/cotisations.test.mjs": {
-    "mtime": 1791054131.0203166,
-    "seen": 1791061425.0436008,
-    "ast_hash": "99d4392f583962cbc0ad0cbfcb086440",
+    "mtime": 1792850628.157018,
+    "seen": 1792850794.712554,
+    "ast_hash": "c5458365e9824224e4984632e6c529ec",
     "semantic_hash": ""
   },
   "supabase_tresorerie_cotisations.sql": {
@@ -3456,9 +3456,9 @@
     "semantic_hash": ""
   },
   "app/tresorerie-cheques.js": {
-    "mtime": 1792449488.1017041,
-    "seen": 1792587182.135505,
-    "ast_hash": "3472c57941f523b64f023e7a71f3d407",
+    "mtime": 1792850695.650175,
+    "seen": 1792850794.71237,
+    "ast_hash": "aee02965989b397d9574136ba4d4ab53",
     "semantic_hash": ""
   },
   "lib/cheques.js": {
@@ -3639,6 +3639,24 @@
     "mtime": 1792709768.6799605,
     "seen": 1792711762.674077,
     "ast_hash": "462703def0eb05c623f6bc6eeda5181f",
+    "semantic_hash": ""
+  },
+  "supabase_cotisations_banque.sql": {
+    "mtime": 1792850073.4723835,
+    "seen": 1792850794.712783,
+    "ast_hash": "5e45b2acb32abb1a628616c5396b2030",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-24-cotisations-banque.md": {
+    "mtime": 1792850057.4078124,
+    "seen": 1792850794.712899,
+    "ast_hash": "1c2fa2bd16463b8905a0393c3f1a40bd",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-24-cotisations-banque-design.md": {
+    "mtime": 1792849744.2461765,
+    "seen": 1792850794.712929,
+    "ast_hash": "21f45424f6ba6b942fb85a1b90bccaa7",
     "semantic_hash": ""
   }
 }
