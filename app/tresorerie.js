@@ -207,12 +207,13 @@ export default function TresorerieScreen() {
           <Hero icone="scale-balance" titre="Trésorerie nette réelle"
             valeur={`${s.nette < 0 ? '− ' : ''}${fmt(Math.abs(s.nette))} F`}
             couleurValeur={s.nette < 0 ? '#FECACA' : undefined}
-            sous="Banque + espèces + têtes de fond − prévisions">
+            sous="Banque + espèces + têtes de fond + cotisations − prévisions">
             <View style={{ marginTop: 14 }}>
               <BarreRepartition segments={[
                 { valeur: s.banque, couleur: '#A7F3D0' },
                 { valeur: s.especes, couleur: '#FDE68A' },
                 { valeur: s.tetes, couleur: '#BAE6FD' },
+                { valeur: s.cotisations, couleur: '#DDD6FE' },
               ]} />
             </View>
             <View style={styles.heroCases}>
@@ -231,6 +232,7 @@ export default function TresorerieScreen() {
             <Ligne label="Banque (BACI, SIB)" valeur={s.banque} />
             <Ligne label={aEspeces ? 'Espèces' : 'Espèces (migration à passer)'} valeur={s.especes} />
             <Ligne label="Têtes de fond (OM, Wave, Djamo)" valeur={s.tetes} />
+            {s.cotisations !== 0 && <Ligne label="Cotisations reçues (salaire, autres)" valeur={s.cotisations} />}
             <Ligne label={donnees.partenaires === null ? 'Partenaires à recevoir (migration à passer)' : 'Partenaires à recevoir'}
               valeur={s.partenaires} />
             <Text style={[styles.petit, { marginTop: 6 }]}>
@@ -344,7 +346,7 @@ export default function TresorerieScreen() {
 
           <TitreSection icone="apps" titre="Tous les écrans" style={{ marginTop: 18 }} />
           <View style={styles.tuiles}>
-            <Tuile icone="bank" couleur="#0E9F6E" titre="Banque et espèces" sous={`${fmt(s.banque + s.especes + s.tetes)} F`} detail="BACI · SIB · espèces · têtes de fond" route="/tresorerie-banque" />
+            <Tuile icone="bank" couleur="#0E9F6E" titre="Banque et espèces" sous={`${fmt(s.banque + s.especes + s.tetes + s.cotisations)} F`} detail="BACI · SIB · espèces · têtes de fond · cotisations" route="/tresorerie-banque" />
             <Tuile icone="moped" couleur="#E11D48" titre="Partenaires" sous={`${fmt(s.partenaires)} F`} detail="à recevoir" route="/tresorerie-partenaires" />
             <Tuile icone="clipboard-list" couleur="#2563EB" titre="À payer" detail="Loyers · salaires · CNPS · timbre…" route="/tresorerie-a-payer" />
             {peut(niveau, 'voir_banque') && (

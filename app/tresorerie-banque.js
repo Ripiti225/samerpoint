@@ -11,6 +11,11 @@
 // « Recaler » ajoute le mouvement qui aligne l'app sur le relevé (ou sur la
 // caisse comptée, pour les espèces ; le tout premier sert de solde de départ).
 // Un prêt reçu crée aussi la dette du prêteur (dette récente).
+//
+// Comptes « Cotisation salaire » et « Cotisations autres » (24/10/2026,
+// lib/cotisations.js) : « Cotisation reçue » note la remise d'un restaurant le
+// jour où elle arrive. L'argent reste sur ce compte, la fiche de cotisation du
+// restaurant baisse, et son résultat déduit la remise du mois de réception.
 // ──────────────────────────────────────────────────────────────────────────────
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { router } from 'expo-router'
@@ -25,9 +30,12 @@ import { usePhoto } from '../lib/usePhoto'
 import { colonnesCartes } from '../lib/grilleCartes'
 import { historiqueCompte, resumeMois } from '../lib/historiqueCompte'
 import {
-  aujourdhuiISO, fmt, montantRecalage, peut, soldeCompte,
+  COMPTE_COTISATION_SALAIRE, LIBELLES_COTISATION, categoriesDuCompte, cotisationPourCategorie, recuDuMois,
+} from '../lib/cotisations'
+import {
+  aujourdhuiISO, fmt, libelleMois, montantRecalage, peut, soldeCompte,
 } from '../lib/tresorerie'
-import { ajouterMouvement, entreeEspeces, entreePret, supprimerMouvement, virement } from '../lib/tresorerieDb'
+import { ajouterMouvement, annulerCotisation, entreeEspeces, entreePret, recevoirCotisation, supprimerMouvement, virement } from '../lib/tresorerieDb'
 import TexteAjuste from '../components/ui/TexteAjuste'
 
 const LIBELLES_TYPE = {
@@ -55,6 +63,12 @@ const LIES = {
   cotisation: 'Pour l\'enlever, annulez la cotisation reçue depuis le détail de la charge (« À payer ») : le solde de la cotisation sera remis aussi.',
 }
 
+// Remise de Banque (sans charge) liée à ce mouvement, ou null.
+function remiseDuMouvement(m, donnees) {
+  if (m?.type !== 'cotisation') return null
+  return (donnees?.cotisations || []).find(c => c.mouvement_id === m.id && !c.du_id) || null
+}
+
 const estEspeces = c => c?.nom === 'Espèces'
 const estTete = c => String(c?.nom || '').startsWith('Tête de fond')
 
@@ -69,6 +83,7 @@ const ICONES_TYPE = {
 function styleCompte(c) {
   const nom = String(c?.nom || '')
   if (estEspeces(c)) return { icone: 'cash-multiple', couleur: '#D97706' }
+  if (categoriesDuCompte(c)) return { icone: 'piggy-bank-outline', couleur: nom === COMPTE_COTISATION_SALAIRE ? '#7C3AED' : '#DB2777' }
   if (estTete(c)) {
     if (/wave/i.test(nom)) return { icone: 'waves', couleur: '#0284C7' }
     if (/djamo/i.test(nom)) return { icone: 'credit-card-outline', couleur: '#6366F1' }
@@ -184,6 +199,12 @@ export default function TresorerieBanqueScreen() {
               Le compte Espèces apparaîtra après le passage du fichier supabase_tresorerie_especes.sql dans Supabase.
             </Text>
           )}
+          {!comptes.some(c => categoriesDuCompte(c)) && (
+            <Text style={[styles.petit, { marginBottom: 10 }]}>
+              Les comptes « Cotisation salaire » et « Cotisations autres » apparaîtront après le passage du fichier
+              supabase_cotisations_banque.sql dans Supabase.
+            </Text>
+          )}
           {peutSaisir && (
             <View style={[styles.rangee, { marginBottom: 12 }]}>
               <Bouton style={{ flex: 1 }} secondaire icone="swap-horizontal" titre="Virement" onPress={() => setVirementVisible(true)} />
@@ -259,7 +280,7 @@ const PAR_PAGE = 60
 function FeuilleCompte({ compte, comptes, donnees, user, peutSaisir, onFermer, apres }) {
   const { styles, colors } = useStylesTreso()
   const s = useMemo(() => makeStylesBanque(colors), [colors])
-  const [vue, setVue] = useState('historique') // historique | entree | sortie | virement | recalage
+  const [vue, setVue] = useState('historique') // historique | entree | cotisation | sortie | virement | recalage
   const [filtre, setFiltre] = useState('tous')
   const [nbAffiches, setNbAffiches] = useState(PAR_PAGE)
 
@@ -273,12 +294,31 @@ function FeuilleCompte({ compte, comptes, donnees, user, peutSaisir, onFermer, a
   if (!compte) return null
 
   const sc = styleCompte(compte)
+  const categoriesCotisation = categoriesDuCompte(compte)
   const solde = soldeCompte(compte.mouvements)
   const { entrees, sorties } = resumeMois(compte.mouvements, moisCourant())
   const nomCompte = id => comptes.find(c => c.id === id)?.nom || '?'
   const retour = () => setVue('historique')
 
   function confirmerSuppression(m) {
+    const remise = remiseDuMouvement(m, donnees)
+    if (remise) {
+      const resto = donnees.restaurants.find(r => r.id === remise.restaurant_id)?.nom || 'restaurant'
+      Alert.alert(
+        'Annuler cette cotisation reçue ?',
+        `${LIBELLES_COTISATION[remise.categorie] || 'Cotisation'} · ${resto} · ${fmt(remise.montant)} F. Le montant sort du compte, la fiche de cotisation du restaurant et son résultat reviennent comme avant.`,
+        [
+          { text: 'Garder', style: 'cancel' },
+          {
+            text: 'Annuler la cotisation', style: 'destructive', onPress: async () => {
+              try { await annulerCotisation(remise, user); await apres() }
+              catch (e) { Alert.alert('Annulation impossible', e?.message || 'Réessayez.') }
+            },
+          },
+        ],
+      )
+      return
+    }
     if (LIES[m.type]) {
       Alert.alert('Mouvement lié', LIES[m.type])
       return
@@ -303,6 +343,7 @@ function FeuilleCompte({ compte, comptes, donnees, user, peutSaisir, onFermer, a
   const TITRES = {
     historique: compte.nom,
     entree: estEspeces(compte) ? 'Entrée d\'espèces' : `${estTete(compte) ? 'Entrée' : 'Reçu banque'} · ${compte.nom}`,
+    cotisation: `Cotisation reçue · ${compte.nom}`,
     sortie: `Sortie · ${compte.nom}`,
     virement: `Virement depuis ${compte.nom}`,
     recalage: `Recaler ${compte.nom}`,
@@ -327,6 +368,9 @@ function FeuilleCompte({ compte, comptes, donnees, user, peutSaisir, onFermer, a
             <MaterialCommunityIcons name="chevron-left" size={20} color={colors.primary} />
             <Text style={{ color: colors.primary, fontWeight: '700' }}>Historique</Text>
           </TouchableOpacity>
+          {vue === 'cotisation' && categoriesCotisation && (
+            <FormCotisation compte={compte} categories={categoriesCotisation} donnees={donnees} user={user} apres={apres} onTermine={retour} />
+          )}
           {vue === 'entree' && estEspeces(compte) && (
             <FormEntreeEspeces compte={compte} donnees={donnees} user={user} apres={apres} onTermine={retour} />
           )}
@@ -351,7 +395,9 @@ function FeuilleCompte({ compte, comptes, donnees, user, peutSaisir, onFermer, a
 
           {peutSaisir && (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-              <Bouton style={{ flexBasis: '47%', flexGrow: 1, minWidth: 130 }} icone="arrow-down-bold-circle-outline" titre="Entrée" onPress={() => setVue('entree')} />
+              {categoriesCotisation
+                ? <Bouton style={{ flexBasis: '47%', flexGrow: 1, minWidth: 130 }} icone="piggy-bank-outline" titre="Cotisation reçue" onPress={() => setVue('cotisation')} />
+                : <Bouton style={{ flexBasis: '47%', flexGrow: 1, minWidth: 130 }} icone="arrow-down-bold-circle-outline" titre="Entrée" onPress={() => setVue('entree')} />}
               <Bouton style={{ flexBasis: '47%', flexGrow: 1, minWidth: 130 }} danger icone="arrow-up-bold-circle-outline" titre="Sortie" onPress={() => setVue('sortie')} />
               <Bouton style={{ flexBasis: '47%', flexGrow: 1, minWidth: 130 }} secondaire icone="swap-horizontal" titre="Virement" onPress={() => setVue('virement')} />
               <Bouton style={{ flexBasis: '47%', flexGrow: 1, minWidth: 130 }} secondaire icone="tune-variant" titre="Recaler" onPress={() => setVue('recalage')} />
@@ -581,6 +627,85 @@ function FormEntreeEspeces({ compte, donnees, user, apres, onTermine }) {
       <ChampCalendrier label="Date" valeur={date} onChange={setDate} />
       <Champ label="Note (facultatif)" value={note} onChangeText={setNote} />
       <Bouton titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
+    </>
+  )
+}
+
+// Cotisation reçue d'un restaurant, sur « Cotisation salaire » ou « Cotisations
+// autres » (lib/cotisations.js) : l'argent reste sur le compte, la fiche de
+// cotisation du restaurant baisse, et son résultat déduit la remise des charges
+// du mois de réception. Plusieurs remises du mois s'additionnent.
+function FormCotisation({ compte, categories, donnees, user, apres, onTermine }) {
+  const { styles, colors } = useStylesTreso()
+  const [restaurantId, setRestaurantId] = useState(null)
+  const [categorie, setCategorie] = useState(categories.length === 1 ? categories[0] : null)
+  const [montant, setMontant] = useState('')
+  const [date, setDate] = useState(aujourdhuiISO())
+  const [note, setNote] = useState('')
+  const [occupe, setOccupe] = useState(false)
+
+  const installe = Array.isArray(donnees.cotisations)
+  const nomResto = donnees.restaurants.find(r => r.id === restaurantId)?.nom || ''
+  const fiche = restaurantId && categorie ? cotisationPourCategorie(categorie, donnees.fournisseurs, restaurantId) : null
+  const dejaRecu = restaurantId && categorie ? recuDuMois(donnees.cotisations, { restaurantId, categorie, mois: date }) : 0
+  const libelle = categorie ? LIBELLES_COTISATION[categorie] : ''
+
+  async function enregistrer() {
+    const v = montant === '' ? 0 : parseInt(montant, 10)
+    if (!restaurantId) { Alert.alert('Restaurant manquant', 'Quel restaurant vous a remis cet argent ?'); return }
+    if (!categorie) { Alert.alert('Cotisation manquante', 'De quelle cotisation s\'agit-il ?'); return }
+    if (!v) { Alert.alert('Montant manquant', 'Combien le restaurant vous a-t-il remis ?'); return }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Choisissez la date dans le calendrier.'); return }
+    setOccupe(true)
+    try {
+      await recevoirCotisation({
+        restaurantId, categorie, compteId: compte.id, fournisseur: fiche, montant: v, date, note: note.trim(), nomResto,
+      }, user)
+      await apres()
+      onTermine()
+    } catch (e) {
+      Alert.alert('Non enregistré', e?.message || 'Réessayez.')
+    } finally {
+      setOccupe(false)
+    }
+  }
+
+  if (!installe) {
+    return (
+      <View style={styles.avert}>
+        <Text style={styles.avertTxt}>Passez d'abord le fichier supabase_tresorerie_cotisations.sql dans Supabase.</Text>
+      </View>
+    )
+  }
+
+  return (
+    <>
+      <Text style={styles.label}>Restaurant</Text>
+      <Puces options={donnees.restaurants.map(r => ({ valeur: r.id, label: r.nom }))} valeur={restaurantId} onChange={setRestaurantId} />
+      {categories.length > 1 && (
+        <>
+          <Text style={styles.label}>Cotisation</Text>
+          <Puces options={categories.map(c => ({ valeur: c, label: LIBELLES_COTISATION[c] }))} valeur={categorie} onChange={setCategorie} />
+        </>
+      )}
+      <ChampMontant label="Montant reçu" valeur={montant} onChange={setMontant} />
+      <ChampCalendrier label="Date de réception" valeur={date} onChange={setDate} />
+      <Champ label="Note (facultatif)" value={note} onChangeText={setNote} />
+      {restaurantId && categorie && (
+        <View style={styles.avert}>
+          <Text style={styles.avertTxt}>
+            {fiche
+              ? `La fiche « ${fiche.nom.trim()} » de ${nomResto} (${fmt(fiche.credit_actuel)} F) baisse d'autant.`
+              : `Aucune fiche « ${libelle} » trouvée pour ${nomResto} : seuls le compte et le résultat changent.`}
+            {` Le résultat de ${nomResto} en ${libelleMois(date)} déduit ce montant de ses charges.`}
+            {dejaRecu > 0 ? ` Déjà reçu ce mois-ci : ${fmt(dejaRecu)} F.` : ''}
+          </Text>
+        </View>
+      )}
+      <Bouton titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
+      <Text style={[styles.petit, { marginTop: 10, color: colors.textMuted }]}>
+        L'argent reste sur ce compte. Pour payer des salaires ou une charge avec, choisissez « {compte.nom} » au moment de payer (À payer).
+      </Text>
     </>
   )
 }

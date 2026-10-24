@@ -15,11 +15,11 @@ import {
   CATEGORIES_MONTANT_FIXE, LIBELLES_CATEGORIE, aujourdhuiISO, fmt, jourCommun, libelleMois, moisEntre,
   paiementsParDu, planSaisieBaux, planSaisieGroupee, premierDuMois,
 } from '../../lib/tresorerie'
-import { cotisationPourCategorie, cotiseParDu } from '../../lib/cotisations'
+import { CATEGORIES_COTISABLES, cotiseParDu, recuDuMois } from '../../lib/cotisations'
 import { chargerLitigesRestaurant } from '../../lib/litigesGlobal'
 import { lireRegleRetenue } from '../../lib/retenueLitiges'
 import { supabase } from '../../lib/supabase'
-import { appliquerPlanDus, enregistrerChargeFixe, enregistrerRetenueLitiges, recevoirCotisation } from '../../lib/tresorerieDb'
+import { appliquerPlanDus, enregistrerChargeFixe, enregistrerRetenueLitiges } from '../../lib/tresorerieDb'
 import { Bouton, Feuille, Puces, useStylesTreso } from './commun'
 
 const TITRES = {
@@ -75,8 +75,6 @@ export function FeuilleSaisieMois({ categorie, donnees, user, onFermer, apres })
   const courant = premierDuMois(aujourdhuiISO())
   const [mois, setMois] = useState(null)
   const [valeurs, setValeurs] = useState({})
-  // « dont cotisé » : ce que chaque restaurant remet au RH aujourd'hui (lib/cotisations.js).
-  const [cotises, setCotises] = useState({})
   // Salaires : retenue sur les litiges du mois (« 30% » ou un montant) par restaurant.
   const [litiges, setLitiges] = useState(null)   // { [restaurant_id]: total } une fois calculés
   const [retenues, setRetenues] = useState({})
@@ -85,7 +83,9 @@ export function FeuilleSaisieMois({ categorie, donnees, user, onFermer, apres })
   const parDu = useMemo(() => paiementsParDu(donnees.paiements), [donnees])
   const dejaCotise = useMemo(() => cotiseParDu(donnees.cotisations || []), [donnees])
   const ligneDe = restaurantId => donnees.dus.find(d => d.categorie === categorie && d.restaurant_id === restaurantId && d.mois === mois)
-  const cotisationsActives = Array.isArray(donnees.cotisations)
+  // Cotisations remises dans Banque ce mois-ci (lib/cotisations.js) : rappel seulement,
+  // elles comptent toutes seules dans le résultat du mois de leur réception.
+  const cotisationsActives = Array.isArray(donnees.cotisations) && CATEGORIES_COTISABLES.includes(categorie)
 
   // Post-payé : on saisit d'habitude le mois écoulé (l'état de septembre en octobre).
   useEffect(() => {
@@ -103,7 +103,6 @@ export function FeuilleSaisieMois({ categorie, donnees, user, onFermer, apres })
       const v = d ? d.montant_du : CATEGORIES_MONTANT_FIXE.includes(categorie) ? fixes[r.id] : null
       return [r.id, v != null ? String(v) : '']
     })))
-    setCotises({})
     setRetenues(Object.fromEntries(donnees.restaurants.map(r => [r.id, ligneDe(r.id)?.retenue_regle || ''])))
   }, [categorie, mois])
 
@@ -138,7 +137,6 @@ export function FeuilleSaisieMois({ categorie, donnees, user, onFermer, apres })
       categorie, mois, montants, jour: jourCommun(donnees.echeances, categorie),
       dus: donnees.dus, paiements: donnees.paiements,
     })
-    const aCotiser = donnees.restaurants.map(r => ({ r, montant: lireMontant(cotises[r.id]) || 0 })).filter(x => x.montant > 0)
     // Retenues sur litiges modifiées (salaires seulement).
     const aRetenir = categorie === 'salaire' && litiges ? donnees.restaurants.map(r => {
       const avant = ligneDe(r.id)?.retenue_regle || ''
@@ -149,13 +147,13 @@ export function FeuilleSaisieMois({ categorie, donnees, user, onFermer, apres })
     const erreurRetenue = aRetenir.find(x => x.lecture.erreur)
     if (erreurRetenue) { Alert.alert(`Retenue · ${erreurRetenue.r.nom}`, erreurRetenue.lecture.erreur); return }
     const rienAuPlan = !plan.aCreer.length && !plan.aModifier.length && !plan.aSupprimer.length
-    if (rienAuPlan && !aCotiser.length && !aRetenir.length) {
+    if (rienAuPlan && !aRetenir.length) {
       Alert.alert('Rien à enregistrer', 'Aucun montant n\'a changé.'); return
     }
     setOccupe(true)
     try {
       if (!rienAuPlan) await appliquerPlanDus(plan, user, { categorie, mois })
-      if (aCotiser.length || aRetenir.length) {
+      if (aRetenir.length) {
         // Les lignes du mois, à jour (celles qu'on vient de créer comprises).
         const { data: lignes, error } = await supabase.from('tresorerie_dus').select('*')
           .eq('categorie', categorie).eq('mois', mois)
@@ -166,15 +164,6 @@ export function FeuilleSaisieMois({ categorie, donnees, user, onFermer, apres })
           await enregistrerRetenueLitiges(lecture.vide
             ? { du, total: 0, regle: null, retenu: 0 }
             : { du, total: litiges[r.id] || 0, regle: lecture.regle, retenu: lecture.retenu }, user)
-        }
-        const especes = (donnees.comptes || []).find(c => c.nom === 'Espèces')
-        for (const { r, montant } of aCotiser) {
-          const du = (lignes || []).find(d => d.restaurant_id === r.id)
-          if (!du) throw new Error(`${r.nom} : saisissez d'abord le montant du mois avant la part cotisée.`)
-          await recevoirCotisation({
-            du, montant, date: aujourdhuiISO(), compteEspecesId: especes?.id, nomResto: r.nom,
-            fournisseur: cotisationPourCategorie(categorie, donnees.fournisseurs, r.id),
-          }, user)
         }
       }
       await apres()
@@ -200,37 +189,31 @@ export function FeuilleSaisieMois({ categorie, donnees, user, onFermer, apres })
             : 'Champ vide = pas de ligne pour ce restaurant ce mois-ci.'}
         </Text>
       )}
-      {mois && cotisationsActives && (
-        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginBottom: 4 }}>
-          <Text style={[styles.label, { width: 130, textAlign: 'right', marginBottom: 0 }]}>Montant du mois</Text>
-          <Text style={[styles.label, { width: 110, textAlign: 'right', marginBottom: 0 }]}>Dont cotisé</Text>
-        </View>
-      )}
       {mois && donnees.restaurants.map(r => {
         const d = entamee(r)
         const ligne = ligneDe(r.id)
         const deja = ligne ? dejaCotise[ligne.id] || 0 : 0
-        const champCotise = cotisationsActives ? (
-          <Saisie montant largeur={110} valeur={cotises[r.id] ?? ''} placeholder="0"
-            onChange={v => setCotises(x => ({ ...x, [r.id]: v }))} />
-        ) : null
+        const recuBanque = cotisationsActives ? recuDuMois(donnees.cotisations, { restaurantId: r.id, categorie, mois }) : 0
         return (
           <View key={r.id}>
             {d ? (
               <Rangee nom={r.nom}>
-                <Text style={[styles.petit, { width: 130, textAlign: 'right' }]}>{fmt(d.montant_du)} F · déjà payé en partie</Text>
-                {champCotise}
+                <Text style={[styles.petit, { width: 150, textAlign: 'right' }]}>{fmt(d.montant_du)} F · déjà payé en partie</Text>
               </Rangee>
             ) : (
               <Rangee nom={r.nom}>
-                <Saisie montant largeur={cotisationsActives ? 130 : 150} valeur={valeurs[r.id] ?? ''} placeholder="0"
+                <Saisie montant largeur={150} valeur={valeurs[r.id] ?? ''} placeholder="0"
                   onChange={v => setValeurs(x => ({ ...x, [r.id]: v }))} />
-                {champCotise}
               </Rangee>
             )}
             {deja > 0 && (
               <Text style={[styles.petit, { textAlign: 'right', marginTop: -4, marginBottom: 8, color: colors.successDark }]}>
                 déjà {fmt(deja)} F cotisés reçus pour ce mois
+              </Text>
+            )}
+            {recuBanque > 0 && (
+              <Text style={[styles.petit, { textAlign: 'right', marginTop: -4, marginBottom: 8, color: colors.successDark }]}>
+                cotisations reçues en {libelleMois(mois)} (Banque) : {fmt(recuBanque)} F
               </Text>
             )}
             {categorie === 'salaire' && (() => {
@@ -260,8 +243,8 @@ export function FeuilleSaisieMois({ categorie, donnees, user, onFermer, apres })
       )}
       {mois && cotisationsActives && (
         <Text style={[styles.petit, { marginBottom: 6 }]}>
-          « Dont cotisé » : l'argent que le restaurant vous remet aujourd'hui. Il entre dans les espèces, le solde de sa
-          cotisation baisse, et son résultat ne déduit plus que le reste.
+          Les cotisations se notent dans Banque, le jour où le restaurant les remet (compte « Cotisation salaire » ou
+          « Cotisations autres ») : elles s'additionnent toutes seules et réduisent les charges de son résultat du mois.
         </Text>
       )}
       <View style={[styles.ligne, { marginVertical: 10 }]}>

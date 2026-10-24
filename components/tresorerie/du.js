@@ -7,7 +7,7 @@ import { Alert, Image, Text, TouchableOpacity, View } from 'react-native'
 
 import { PARTENAIRES_PREVISION, etatPrevision, trierPrevisions } from '../../lib/previsions'
 import { chequeDePrevision, chequeDuPaiement, libelleCheque } from '../../lib/cheques'
-import { CATEGORIES_COTISABLES, cotisationPourCategorie } from '../../lib/cotisations'
+import { CATEGORIES_COTISABLES } from '../../lib/cotisations'
 import { chargerLitigesRestaurant } from '../../lib/litigesGlobal'
 import { lireRegleRetenue, phraseRetenue } from '../../lib/retenueLitiges'
 import { usePhoto } from '../../lib/usePhoto'
@@ -16,7 +16,7 @@ import {
   libelleMois, libelleMoisCourt, moisEntre, peut, premierDuMois, repartirPaiement, resteDu, totalPaye,
 } from '../../lib/tresorerie'
 import {
-  ajouterADette, ajouterPrevision, annulerCotisation, annulerPaiement, basculerDette, enregistrerRetenueLitiges, recevoirCotisation, chargerDusLoyer, enregistrerDu, payer, payerAvant, retirerAjoutDette, supprimerDu, supprimerPrevision,
+  ajouterADette, ajouterPrevision, annulerCotisation, annulerPaiement, basculerDette, enregistrerRetenueLitiges, chargerDusLoyer, enregistrerDu, payer, payerAvant, retirerAjoutDette, supprimerDu, supprimerPrevision,
 } from '../../lib/tresorerieDb'
 import { Bouton, Champ, ChampCalendrier, ChampMontant, Feuille, ItemIcone, Ligne, Pastille, Progression, Puces, TitreSection, styleCategorie, useStylesTreso } from './commun'
 
@@ -393,54 +393,25 @@ function SectionRetenueLitiges({ du, donnees, niveau, user, apres }) {
   )
 }
 
-// ── Cotisation reçue du restaurant (lib/cotisations.js) ──────────────────────
-// Le restaurant remet au RH l'argent mis de côté pour cette charge : il entre en
-// Espèces, le solde de sa cotisation baisse, et le résultat du restaurant ne
-// déduit plus que le reste. La charge, elle, reste à payer en entier.
-function SectionCotisation({ du, donnees, niveau, nomResto, user, apres }) {
+// ── Cotisations reçues rattachées à cette charge (lib/cotisations.js) ────────
+// Anciennes remises, saisies sur la charge avant le 24/10/2026 : elles sont
+// entrées en Espèces et la charge ne pèse plus que pour le reste. Les nouvelles
+// se notent dans Banque (« Cotisation salaire », « Cotisations autres »), au
+// mois de leur réception ; on les rappelle ici sans les rattacher.
+function SectionCotisation({ du, donnees, niveau, user, apres }) {
   const { styles, colors } = useStylesTreso()
-  const [ouvert, setOuvert] = useState(false)
-  const [montant, setMontant] = useState('')
-  const [date, setDate] = useState(aujourdhuiISO())
-  const [fournisseurId, setFournisseurId] = useState(undefined)
-  const [occupe, setOccupe] = useState(false)
-
-  const installe = Array.isArray(donnees.cotisations)
   const recues = (donnees.cotisations || []).filter(c => c.du_id === du.id)
   const total = recues.reduce((s2, c) => s2 + Number(c.montant || 0), 0)
   const peutSaisir = peut(niveau, 'saisir_charges')
-  const duResto = (donnees.fournisseurs || []).filter(f => f.restaurant_id === du.restaurant_id && f.actif !== false)
-  const attendue = cotisationPourCategorie(du.categorie, donnees.fournisseurs, du.restaurant_id)
-  const choisie = fournisseurId === undefined ? attendue?.id || null : fournisseurId
-  const nomFourn = id => duResto.find(f => f.id === id)?.nom?.trim() || 'aucune'
+  const nomFourn = id => (donnees.fournisseurs || []).find(f => f.id === id)?.nom?.trim() || 'aucune'
 
-  if (!installe) {
-    return peutSaisir ? (
-      <View style={styles.avert}>
-        <Text style={styles.avertTxt}>Cotisations des restaurants : passez le fichier supabase_tresorerie_cotisations.sql dans Supabase pour les activer.</Text>
-      </View>
+  if (!recues.length) {
+    return Array.isArray(donnees.cotisations) && peutSaisir ? (
+      <Text style={[styles.petit, { marginBottom: 12 }]}>
+        Cotisation du restaurant : notez-la dans Banque le jour où il vous la remet (« Cotisation salaire » ou
+        « Cotisations autres »). Elle réduit les charges de son résultat du mois de réception.
+      </Text>
     ) : null
-  }
-  if (!recues.length && !peutSaisir) return null
-
-  async function enregistrer() {
-    const v = montant === '' ? 0 : parseInt(montant, 10)
-    if (!v) { Alert.alert('Montant manquant', 'Combien le restaurant vous a-t-il remis ?'); return }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Choisissez la date dans le calendrier.'); return }
-    setOccupe(true)
-    try {
-      await recevoirCotisation({
-        du, montant: v, date, nomResto: nomResto(du.restaurant_id),
-        compteEspecesId: (donnees.comptes || []).find(c => c.nom === 'Espèces')?.id,
-        fournisseur: duResto.find(f => f.id === choisie) || null,
-      }, user)
-      setMontant(''); setOuvert(false)
-      await apres()
-    } catch (e) {
-      Alert.alert('Non enregistré', e?.message || 'Réessayez.')
-    } finally {
-      setOccupe(false)
-    }
   }
 
   function annuler(c) {
@@ -463,8 +434,7 @@ function SectionCotisation({ du, donnees, niveau, nomResto, user, apres }) {
         <View style={{ flex: 1 }}>
           <Text style={[styles.itemTitre, { fontSize: 15 }]}>Cotisation du restaurant</Text>
           <Text style={styles.petit}>
-            {total ? `dont ${fmt(total)} F cotisés par le restaurant · le résultat ne déduit que ${fmt(Math.max(0, Number(du.montant_du) - total))} F`
-              : `Cotisation : ${attendue ? attendue.nom.trim() : 'aucune trouvée pour ce restaurant'}`}
+            dont {fmt(total)} F cotisés par le restaurant · le résultat ne déduit que {fmt(Math.max(0, Number(du.montant_du) - total))} F
           </Text>
         </View>
       </View>
@@ -478,28 +448,6 @@ function SectionCotisation({ du, donnees, niveau, nomResto, user, apres }) {
             </TouchableOpacity>
           ) : null} />
       ))}
-      {peutSaisir && !ouvert && (
-        <Bouton secondaire icone="cash-plus" titre="Cotisation reçue du restaurant" onPress={() => setOuvert(true)} />
-      )}
-      {peutSaisir && ouvert && (
-        <View style={{ marginTop: 6 }}>
-          <ChampMontant label="Montant remis par le restaurant" valeur={montant} onChange={setMontant} />
-          <ChampCalendrier label="Date" valeur={date} onChange={setDate} />
-          <Text style={styles.label}>Cotisation à diminuer</Text>
-          <Puces
-            options={[...duResto.filter(f => Number(f.credit_actuel) < 0 || f.id === attendue?.id)
-              .map(f => ({ valeur: f.id, label: `${f.nom.trim()}${Number(f.credit_actuel) ? ` (${fmt(f.credit_actuel)})` : ''}` })),
-            { valeur: null, label: 'Aucune' }]}
-            valeur={choisie} onChange={setFournisseurId} />
-          <Text style={[styles.petit, { marginBottom: 10 }]}>
-            L'argent entre dans les espèces ; le solde de « {nomFourn(choisie)} » baisse d'autant. La charge reste à payer en entier.
-          </Text>
-          <View style={styles.rangee}>
-            <Bouton style={{ flex: 1 }} secondaire titre="Annuler" onPress={() => setOuvert(false)} />
-            <Bouton style={{ flex: 1 }} icone="check" titre="Enregistrer" onPress={enregistrer} occupe={occupe} />
-          </View>
-        </View>
-      )}
     </View>
   )
 }

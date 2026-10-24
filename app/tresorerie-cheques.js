@@ -19,7 +19,7 @@ import { titreDu } from '../components/tresorerie/du'
 import { libelleCheque, montantEnCirculation, statutCheque, suggestionsOrdre, trierCheques } from '../lib/cheques'
 import { usePhoto } from '../lib/usePhoto'
 import {
-  LIBELLES_CATEGORIE, aujourdhuiISO, estTeteDeFond, fmt, formatDateFR, paiementsParDu, peut, resteDu, soldeCompte,
+  LIBELLES_CATEGORIE, aujourdhuiISO, estCompteCotisation, estTeteDeFond, fmt, formatDateFR, paiementsParDu, peut, resteDu, soldeCompte,
 } from '../lib/tresorerie'
 import { annulerCheque, annulerEncaissementCheque, encaisserCheque, enregistrerCheque } from '../lib/tresorerieDb'
 
@@ -30,7 +30,7 @@ const FILTRES = [
   { valeur: 'tous', label: 'Tous' },
 ]
 
-const estBanque = c => c && c.nom !== 'Espèces' && !estTeteDeFond(c)
+const estBanque = c => c && c.nom !== 'Espèces' && !estTeteDeFond(c) && !estCompteCotisation(c)
 
 // Couleur et icône de chaque état.
 function styleEtat(cle, colors) {
