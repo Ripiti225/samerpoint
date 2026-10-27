@@ -14,8 +14,8 @@
 // ──────────────────────────────────────────────────────────────────────────────
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { router, useLocalSearchParams } from 'expo-router'
-import { useEffect, useMemo, useState } from 'react'
-import { Alert, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Alert, Platform, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
 
 import {
   Bouton, Champ, ChampCalendrier, ChampMontant, Entete, EtatEcran, Feuille, Hero, HeroCase, Ligne, Pastille, Puces, STYLE_PARTENAIRE,
@@ -33,6 +33,7 @@ import {
   recevoir, recevoirDetaille, supprimerImport, supprimerLignePub,
 } from '../lib/tresorerieDb'
 import { useFocusRecherche } from '../lib/useFocusRecherche'
+import { ORIGINE_YANGO, etatPub, messageValide, pubParCode, semainesProposees } from '../lib/ventesYangoFavori'
 
 const LIBELLES_MODE = {
   groupe: 'un virement pour tous les restaurants',
@@ -49,6 +50,8 @@ export default function TresoreriePartenairesScreen() {
   const [reglage, setReglage] = useState(null)        // partenaire
   const [importP, setImportP] = useState(null)        // partenaire
   const aujourdhui = aujourdhuiISO()
+  // Ouvert par le favori « Ventes Yango » depuis le portail : import Yango en mode favori.
+  const [favori] = useState(() => Platform.OS === 'web' && params.favori === 'yango')
 
   const p = donnees?.partenaires
   const nomResto = id => donnees?.restaurants.find(r => r.id === id)?.nom || 'Groupe'
@@ -63,6 +66,15 @@ export default function TresoreriePartenairesScreen() {
     if (s) setOuverte({ partenaire: params.partenaire, periode: s.periode })
     router.setParams({ partenaire: undefined, periode: undefined })
   }, [vues, params.partenaire, params.periode])
+
+  // Une seule fois, dès que les partenaires sont chargés.
+  const partenairesCharges = !!p
+  const favoriOuvert = useRef(false)
+  useEffect(() => {
+    if (!favori || !partenairesCharges || favoriOuvert.current) return
+    favoriOuvert.current = true
+    setImportP('yango')
+  }, [favori, partenairesCharges])
 
   const total = Object.values(vues).reduce((s, v) => s + v.total, 0)
   const bloque = (t.loading && !donnees) || t.erreur || !peut(niveau, 'voir_partenaires')
@@ -122,7 +134,7 @@ export default function TresoreriePartenairesScreen() {
             onImporter={() => { setImportP(ouverte.partenaire) }}
           />
           <FeuilleReglage partenaire={reglage} reglages={p.reglages} user={user} onFermer={() => setReglage(null)} apres={recharger} />
-          <FeuilleImport partenaire={importP} donnees={donnees} user={user} onFermer={() => setImportP(null)} apres={recharger} />
+          <FeuilleImport partenaire={importP} donnees={donnees} user={user} onFermer={() => setImportP(null)} apres={recharger} favori={favori && importP === 'yango'} />
         </>
       )}
     </SafeAreaView>
@@ -758,7 +770,7 @@ function FeuilleReglage({ partenaire, reglages, user, onFermer, apres }) {
 
 // ── Import d'un export brut ─────────────────────────────────────────────────
 
-function FeuilleImport({ partenaire, donnees, user, onFermer, apres }) {
+function FeuilleImport({ partenaire, donnees, user, onFermer, apres, favori }) {
   const { styles, colors } = useStylesTreso()
   const [fichier, setFichier] = useState(null)        // { nom, lignes }
   const [seuil, setSeuil] = useState(null)
@@ -767,11 +779,49 @@ function FeuilleImport({ partenaire, donnees, user, onFermer, apres }) {
   const [lecture, setLecture] = useState(false)
   const [occupe, setOccupe] = useState(false)
   const [erreur, setErreur] = useState(null)
+  const [pubFavori, setPubFavori] = useState(null)        // { pubs, pubAJourAu } lus par le favori
+  const [etatFavori, setEtatFavori] = useState(null)      // { etape: 'attente'|'pret'|'lecture'|'erreur', texte }
+  const semaines = useMemo(() => semainesProposees(aujourdhuiISO()), [])
+  const [semaine, setSemaine] = useState(null)
 
   useEffect(() => {
     if (!partenaire) return
-    setFichier(null); setSeuil(null); setPeriode(null); setCodes({}); setErreur(null)
+    setFichier(null); setSeuil(null); setPeriode(null); setCodes({}); setErreur(null); setPubFavori(null)
   }, [partenaire])
+
+  // Mode favori : la fenêtre a été ouverte par le favori depuis le portail Yango.
+  useEffect(() => {
+    if (!favori) return
+    const opener = typeof window !== 'undefined' ? window.opener : null
+    if (!opener) {
+      setEtatFavori({ etape: 'erreur', texte: 'Cette fenêtre s’ouvre en cliquant sur le favori « Ventes Yango », depuis le portail Yango.' })
+      return
+    }
+    setEtatFavori({ etape: 'attente', texte: 'Connexion au favori…' })
+    function ecoute(e) {
+      if (!messageValide(e, opener)) return
+      const d = e.data
+      if (d.type === 'favori') setEtatFavori({ etape: 'pret', texte: '' })
+      else if (d.type === 'progression') setEtatFavori({ etape: 'lecture', texte: String(d.texte || '') })
+      else if (d.type === 'erreur') setEtatFavori({ etape: 'erreur', texte: String(d.message || 'La lecture Yango n’a pas abouti.') })
+      else if (d.type === 'ventes' && Array.isArray(d.lignes) && d.periode?.debut) {
+        setFichier({ nom: `Favori Yango du ${formatDateFR(aujourdhuiISO())}`, lignes: d.lignes })
+        setSeuil(null)
+        setPeriode(periodeDe('yango', d.periode.debut))
+        setPubFavori({ pubs: Array.isArray(d.pubs) ? d.pubs : [], pubAJourAu: d.pubAJourAu || null })
+        setEtatFavori({ etape: 'pret', texte: '' })
+      }
+    }
+    window.addEventListener('message', ecoute)
+    opener.postMessage({ type: 'pret' }, ORIGINE_YANGO)
+    return () => window.removeEventListener('message', ecoute)
+  }, [favori])
+
+  function lireSemaine(s) {
+    setErreur(null)
+    setEtatFavori({ etape: 'lecture', texte: 'Lecture sur le portail Yango…' })
+    window.opener?.postMessage({ type: 'lire', debut: s.debut, fin: s.fin }, ORIGINE_YANGO)
+  }
 
   const analyse = useMemo(() => {
     if (!fichier) return null
@@ -790,14 +840,16 @@ function FeuilleImport({ partenaire, donnees, user, onFermer, apres }) {
     const connus = Object.fromEntries((donnees.partenaires.alias || []).map(a => [a.code, a.restaurant_id]))
     setCodes(c => {
       const out = { ...c }
-      for (const code of Object.keys(analyse.parCode)) if (out[code] === undefined && connus[code]) out[code] = connus[code]
+      for (const code of [...Object.keys(analyse.parCode), ...Object.keys(pubParCode(pubFavori?.pubs))]) {
+        if (out[code] === undefined && connus[code]) out[code] = connus[code]
+      }
       return out
     })
     if (!periode && analyse.j1) {
       // Yango : l'export part du jeudi (veille de la semaine) ; Glovo : du 1er jour.
       setPeriode(periodeDe(partenaire, partenaire === 'yango' ? ajouterJours(analyse.j1, 1) : analyse.j1))
     }
-  }, [analyse])
+  }, [analyse, pubFavori])
 
   if (!partenaire) return null
   const info = INFOS_PARTENAIRE[partenaire]
@@ -807,7 +859,7 @@ function FeuilleImport({ partenaire, donnees, user, onFermer, apres }) {
     setLecture(true)
     try {
       const f = await choisirEtLireExcel()
-      if (f) { setFichier(f); setPeriode(null); setSeuil(null) }
+      if (f) { setFichier(f); setPeriode(null); setSeuil(null); setPubFavori(null) }
     } catch (e) {
       setErreur(`Fichier illisible : ${e?.message || 'format inconnu'}.`)
     } finally {
@@ -815,12 +867,24 @@ function FeuilleImport({ partenaire, donnees, user, onFermer, apres }) {
     }
   }
 
-  const codesExport = analyse && !analyse.erreur ? Object.keys(analyse.parCode) : []
+  // Codes des ventes, plus ceux de la pub lue par le favori (à associer aussi).
+  const codesExport = analyse && !analyse.erreur
+    ? [...new Set([...Object.keys(analyse.parCode), ...Object.keys(pubParCode(pubFavori?.pubs))])]
+    : []
+  const totauxCode = code => analyse.parCode[code] || { nb: 0, montant: 0, paye: 0 }
   const manquants = codesExport.filter(c => !codes[c])
   const choixPeriodes = periode
     ? [periodeDe(partenaire, ajouterJours(periode.debut, -1)), periode, periodeDe(partenaire, ajouterJours(periode.fin, 1))]
     : []
   const dejaImporte = periode && donnees.partenaires.imports.some(i => i.partenaire === partenaire && i.periode_debut === periode.debut)
+  const dejaSaisie = periode
+    ? donnees.partenaires.lignes
+      .filter(l => l.partenaire === 'yango' && l.type === 'pub' && l.periode_debut === periode.debut)
+      .reduce((s, l) => s + Number(l.montant || 0), 0)
+    : 0
+  const pub = partenaire === 'yango' && pubFavori && periode
+    ? etatPub({ ...pubFavori, periode, codes, dejaSaisie })
+    : null
 
   async function confirmer() {
     if (!periode) { Alert.alert('Période manquante', 'Choisissez la période de cet export.'); return }
@@ -830,7 +894,8 @@ function FeuilleImport({ partenaire, donnees, user, onFermer, apres }) {
     for (const code of codesExport) {
       const r = codes[code]
       if (r === 'ignorer') continue
-      const t = analyse.parCode[code]
+      const t = totauxCode(code)
+      if (!t.nb) continue
       if (!parResto[r]) parResto[r] = { restaurant_id: r, montant: 0, brut: 0 }
       parResto[r].montant += t.paye
       parResto[r].brut += t.montant
@@ -848,6 +913,9 @@ function FeuilleImport({ partenaire, donnees, user, onFermer, apres }) {
         },
         lignes: Object.values(parResto),
       }, user)
+      if (pub?.statut === 'a_jour') {
+        await ajouterPubs({ partenaire: 'yango', periodeDebut: periode.debut, parts: pub.parts, note: 'Lue sur le portail Yango' }, user)
+      }
       await apres()
       onFermer()
     } catch (e) {
@@ -858,7 +926,7 @@ function FeuilleImport({ partenaire, donnees, user, onFermer, apres }) {
   }
 
   const restos = [...donnees.restaurants.map(r => ({ valeur: r.id, label: r.nom })), { valeur: 'ignorer', label: 'Ignorer' }]
-  const totalPaye = codesExport.reduce((s, c) => s + (codes[c] === 'ignorer' ? 0 : analyse.parCode[c].paye), 0)
+  const totalPaye = codesExport.reduce((s, c) => s + (codes[c] === 'ignorer' ? 0 : totauxCode(c).paye), 0)
 
   return (
     <Feuille visible onFermer={onFermer} titre={`Importer l'export ${info.nom}`}>
@@ -867,6 +935,23 @@ function FeuilleImport({ partenaire, donnees, user, onFermer, apres }) {
           ? "Export brut Yango (du jeudi au vendredi). L'app garde la fenêtre 22h → 22h (21h en hiver), retire les commandes non payables (les annulées que Yango paie quand même sont comptées), puis applique Montant × 0,77."
           : "Export brut Glovo (orderDetails). L'app retire les commandes non payables, puis calcule PAYE = vente − commission 29,5 % − frais opérationnels − frais d'annonces − frais d'attente."}
       </Text>
+      {favori && (
+        <View style={[styles.carte, { marginBottom: 10 }]}>
+          <Text style={styles.lbl}>Lire une semaine sur le portail Yango</Text>
+          {!!etatFavori?.texte && (
+            <Text style={[etatFavori.etape === 'erreur' ? styles.erreur : styles.petit, { marginTop: 6 }]}>{etatFavori.texte}</Text>
+          )}
+          {etatFavori && etatFavori.etape !== 'attente' && window.opener ? (
+            <>
+              <Puces options={semaines.map(s => ({ valeur: s.debut, label: libellePeriode(s) }))}
+                valeur={semaine?.debut} onChange={d => setSemaine(semaines.find(s => s.debut === d))} />
+              <Bouton titre={semaine ? `Lire la semaine ${libellePeriode(semaine)}` : 'Choisissez une semaine'}
+                onPress={() => lireSemaine(semaine)} desactive={!semaine || etatFavori.etape === 'lecture'}
+                occupe={etatFavori.etape === 'lecture'} />
+            </>
+          ) : null}
+        </View>
+      )}
       <Bouton secondaire titre={fichier ? `Fichier : ${fichier.nom} · changer` : '📂 Choisir le fichier Excel'} onPress={choisir} occupe={lecture} />
       {!!erreur && <Text style={[styles.erreur, { marginTop: 10 }]}>{erreur}</Text>}
       {analyse?.erreur && <Text style={[styles.erreur, { marginTop: 10 }]}>{analyse.erreur}</Text>}
@@ -902,7 +987,7 @@ function FeuilleImport({ partenaire, donnees, user, onFermer, apres }) {
 
           <Text style={[styles.lbl, { marginVertical: 8 }]}>Par restaurant</Text>
           {codesExport.map(code => {
-            const tot = analyse.parCode[code]
+            const tot = totauxCode(code)
             return (
               <View key={code} style={styles.carte}>
                 <View style={styles.ligne}>
@@ -917,6 +1002,32 @@ function FeuilleImport({ partenaire, donnees, user, onFermer, apres }) {
               </View>
             )
           })}
+
+          {pub && (
+            <View style={styles.carte}>
+              <Text style={styles.lbl}>Pub Yango</Text>
+              {pub.statut === 'a_jour' && (
+                <>
+                  <Text style={styles.petit}>Lue sur le portail : enregistrée avec l'import.</Text>
+                  {Object.entries(pub.parCode).map(([code, m]) => (
+                    <Ligne key={code} label={code === '?' ? 'Noms inconnus' : code} valeur={m} signe="-" />
+                  ))}
+                  <Ligne label="Total pub" valeur={pub.total} signe="-" fort />
+                </>
+              )}
+              {pub.statut === 'pas_a_jour' && (
+                <Text style={[styles.petit, { color: colors.error }]}>
+                  {pubFavori.pubAJourAu
+                    ? `Yango n'a compté la pub que jusqu'au ${formatDateFR(pubFavori.pubAJourAu)} : elle n'est pas enregistrée. Recliquez sur le favori plus tard, ou saisissez-la à la main.`
+                    : "Yango n'a encore compté aucune pub pour cette semaine : elle n'est pas enregistrée. Recliquez sur le favori plus tard, ou saisissez-la à la main."}
+                </Text>
+              )}
+              {pub.statut === 'deja_saisie' && (
+                <Text style={styles.petit}>Pub déjà saisie pour cette semaine : {fmt(dejaSaisie)} F. Rien n'est ajouté.</Text>
+              )}
+              {pub.statut === 'aucune' && <Text style={styles.petit}>Aucune pub Yango cette semaine.</Text>}
+            </View>
+          )}
 
           <View style={styles.carte}>
             <Ligne label={partenaire === 'yango' ? 'Total SOUS TOTAL' : 'Total PAYE'} valeur={totalPaye} fort />
