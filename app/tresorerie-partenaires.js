@@ -205,6 +205,10 @@ function CartePartenaire({ partenaire, vue, niveau, onOuvrir, onRegler, onImport
         {info.importable && peut(niveau, 'recevoir_partenaires') && reg.date_depart && (
           <Bouton style={[styles.btnPetit, { flex: 1 }]} secondaire icone="file-import-outline" titre={`Importer l'export`} onPress={onImporter} />
         )}
+        {partenaire === 'yango' && Platform.OS === 'web' && peut(niveau, 'recevoir_partenaires') && (
+          <Bouton style={[styles.btnPetit, { flexShrink: 0, paddingHorizontal: 14 }]} secondaire icone="bookmark-outline"
+            titre="Favori" onPress={() => router.push('/bouton-ventes-yango')} />
+        )}
         {peut(niveau, 'regler_partenaires') && (
           <Bouton
             style={[styles.btnPetit, info.importable && reg.date_depart ? { flexShrink: 0, minWidth: 96, paddingHorizontal: 16 } : { flex: 1 }]}
