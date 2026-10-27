@@ -844,6 +844,7 @@ function FeuilleImport({ partenaire, donnees, user, onFermer, apres }) {
         details: {
           j1: analyse.j1, jn: analyse.jn, seuil: analyse.seuil ?? null, ecarte: analyse.ecarte,
           nb_commandes: analyse.nbCommandes, noms_inconnus: analyse.nomsInconnus, par_code: analyse.parCode,
+          annulees_payees: analyse.annuleesPayees ?? null,
         },
         lignes: Object.values(parResto),
       }, user)
@@ -863,7 +864,7 @@ function FeuilleImport({ partenaire, donnees, user, onFermer, apres }) {
     <Feuille visible onFermer={onFermer} titre={`Importer l'export ${info.nom}`}>
       <Text style={[styles.petit, { marginBottom: 10 }]}>
         {partenaire === 'yango'
-          ? "Export brut Yango (du jeudi au vendredi). L'app garde la fenêtre 22h → 22h (21h en hiver), retire les commandes non payables et annulées, puis applique Montant × 0,77."
+          ? "Export brut Yango (du jeudi au vendredi). L'app garde la fenêtre 22h → 22h (21h en hiver), retire les commandes non payables (les annulées que Yango paie quand même sont comptées), puis applique Montant × 0,77."
           : "Export brut Glovo (orderDetails). L'app retire les commandes non payables, puis calcule PAYE = vente − commission 29,5 % − frais opérationnels − frais d'annonces − frais d'attente."}
       </Text>
       <Bouton secondaire titre={fichier ? `Fichier : ${fichier.nom} · changer` : '📂 Choisir le fichier Excel'} onPress={choisir} occupe={lecture} />
@@ -879,6 +880,9 @@ function FeuilleImport({ partenaire, donnees, user, onFermer, apres }) {
             <Text style={styles.petit}>
               Écartées : {Object.entries(analyse.ecarte).map(([k, v]) => `${v} ${LIBELLES_ECARTE[k]}`).join(' · ')}
             </Text>
+            {!!analyse.annuleesPayees && (
+              <Text style={styles.petit}>Dont {analyse.annuleesPayees} annulée{analyse.annuleesPayees > 1 ? 's' : ''} que Yango paie : comptée{analyse.annuleesPayees > 1 ? 's' : ''}</Text>
+            )}
           </View>
 
           {partenaire === 'yango' && (
@@ -932,5 +936,4 @@ const LIBELLES_ECARTE = {
   bordDebut: 'avant la coupure du 1er jour',
   bordFin: 'après la coupure du dernier jour',
   nonPayables: 'non payables',
-  annulees: 'annulées',
 }

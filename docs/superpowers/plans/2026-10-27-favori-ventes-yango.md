@@ -53,12 +53,13 @@ Dans `lib/partenairesImport.test.mjs`, test « cadrage 22h, filtres et Montant �
   test('annulée non payable : écartée comme non payable', () => {
     const r = analyserYango([
       entetes,
+      [kms, 'C0', 4000, 'Livré', 'Oui', '2026-09-19 23:00:00'],
       [kms, 'C1', 4000, 'Annulé', 'Non', '2026-09-20 12:00:00'],
       [kms, 'C2', 4000, 'Livré', 'Oui', '2026-09-21 12:00:00'],
     ])
     assert.equal(r.ecarte.nonPayables, 1)
     assert.equal(r.annuleesPayees, 0)
-    assert.equal(r.nbCommandes, 1)
+    assert.equal(r.nbCommandes, 2)
   })
 ```
 
