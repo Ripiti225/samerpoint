@@ -112,9 +112,8 @@ jour depuis le 06/10** (« Mis à jour 6 octobre » sur le portail, 0 F chaque j
 - Moteur : conversion d'une commande du portail en ligne d'export (statut, Oui/Non, date
   UTC `AAAA-MM-JJ hh:mm:ss`) ; semaine → bornes de lecture (jeudi → jeudi) ; pub par
   boutique ; `pubAJourAu`.
-- Fixture tirée de la semaine du 25/09 (forme exacte du portail, sans données client) :
-  `analyserYango` sur les lignes converties redonne 417 + 20 annulées payées et les totaux
-  par code de l'export (avec les annulées payées en plus).
+- Commandes à la forme exacte du portail (relevée le 26/10) : `analyserYango` sur les lignes
+  converties applique la coupure, écarte les non payables et garde les annulées payées.
 - `lib/ventesYangoFavori.js` : semaines proposées, pub à jour / pas à jour / déjà saisie.
 
 ## Hors périmètre
