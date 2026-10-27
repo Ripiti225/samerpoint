@@ -1608,9 +1608,9 @@
     "semantic_hash": ""
   },
   "app/tresorerie-partenaires.js": {
-    "mtime": 1792068091.0778434,
-    "seen": 1792068127.794422,
-    "ast_hash": "ec3bf10c1d68c3978aef04e0c8bfe29b",
+    "mtime": 1793109957.0158613,
+    "seen": 1793110003.198849,
+    "ast_hash": "ed5c8da033474d71526cacf7bb36ac5b",
     "semantic_hash": ""
   },
   "lib/lireExcel.js": {
@@ -1632,15 +1632,15 @@
     "semantic_hash": ""
   },
   "lib/partenairesImport.js": {
-    "mtime": 1790862671.0519562,
-    "seen": 1790870329.678415,
-    "ast_hash": "56966c44a2f94743e35d3eaeb5fccc7d",
+    "mtime": 1793109682.7589266,
+    "seen": 1793110003.199151,
+    "ast_hash": "32c68dfd82a0f95de68c3b0713245831",
     "semantic_hash": ""
   },
   "lib/partenairesImport.test.mjs": {
-    "mtime": 1790862671.0521011,
-    "seen": 1790870329.6784158,
-    "ast_hash": "9bb6b5d7dae2c48d3f2989bb07a5f1b5",
+    "mtime": 1793109698.0036995,
+    "seen": 1793110003.1991522,
+    "ast_hash": "ca1c079fd17f972867f485ac4395802f",
     "semantic_hash": ""
   },
   "supabase_tresorerie_partenaires.sql": {
@@ -3657,6 +3657,60 @@
     "mtime": 1792849744.2461765,
     "seen": 1792850794.712929,
     "ast_hash": "21f45424f6ba6b942fb85a1b90bccaa7",
+    "semantic_hash": ""
+  },
+  "app/bouton-ventes-yango.js": {
+    "mtime": 1793109955.8689227,
+    "seen": 1793110003.198791,
+    "ast_hash": "a6ad55fc5f37b152cfcabd24f7d0fed2",
+    "semantic_hash": ""
+  },
+  "lib/boutonVentesYango.js": {
+    "mtime": 1793109732.6976998,
+    "seen": 1793110003.198993,
+    "ast_hash": "f7ed407e8adb3997e46311f3d8882f2c",
+    "semantic_hash": ""
+  },
+  "lib/boutonVentesYango.test.mjs": {
+    "mtime": 1793109733.7270029,
+    "seen": 1793110003.198994,
+    "ast_hash": "a37f145529af40ab192f5c7c6ec27717",
+    "semantic_hash": ""
+  },
+  "lib/ventesYangoFavori.js": {
+    "mtime": 1793109809.9052446,
+    "seen": 1793110003.199222,
+    "ast_hash": "95e0bf6d30d07a29ca816e0eeb82dc9c",
+    "semantic_hash": ""
+  },
+  "lib/ventesYangoFavori.test.mjs": {
+    "mtime": 1793109808.870864,
+    "seen": 1793110003.199223,
+    "ast_hash": "cceee69d5d716318b254aa4daa76e2de",
+    "semantic_hash": ""
+  },
+  "public/bouton-ventes-yango.js": {
+    "mtime": 1793109775.0919557,
+    "seen": 1793110003.199234,
+    "ast_hash": "b824f34851e2c15f80871a38dceb131e",
+    "semantic_hash": ""
+  },
+  "supabase_nettoyage_entrees_supprimees.sql": {
+    "mtime": 1793109853.9976685,
+    "seen": 1793110003.199306,
+    "ast_hash": "bba45c654d992243517e251e78cc0feb",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-27-favori-ventes-yango.md": {
+    "mtime": 1793109704.3168402,
+    "seen": 1793110003.199391,
+    "ast_hash": "83ceb754488cdeea8af7f43c057cab42",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-27-favori-ventes-yango-design.md": {
+    "mtime": 1793109595.0531073,
+    "seen": 1793110003.199423,
+    "ast_hash": "9dd04749cbc2347cba986805042366dc",
     "semantic_hash": ""
   }
 }
