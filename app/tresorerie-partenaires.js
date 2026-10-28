@@ -184,8 +184,8 @@ function CartePartenaire({ partenaire, vue, niveau, onOuvrir, onRegler, onImport
         </View>
       ) : null}
 
-      {aRecevoir.map(s => <LignePeriode key={s.periode.debut} s={s} onPress={() => onOuvrir(s.periode)} />)}
-      {enCours.map(s => <LignePeriode key={s.periode.debut} s={s} onPress={() => onOuvrir(s.periode)} enCours />)}
+      {aRecevoir.map(s => <LignePeriode key={s.periode.debut} s={s} partenaire={partenaire} onPress={() => onOuvrir(s.periode)} />)}
+      {enCours.map(s => <LignePeriode key={s.periode.debut} s={s} partenaire={partenaire} onPress={() => onOuvrir(s.periode)} enCours />)}
       {reg.date_depart && !situations.length && <Text style={styles.vide}>Aucune période depuis la date de départ.</Text>}
       {reg.date_depart && situations.length > 0 && !aRecevoir.length && (
         <Text style={[styles.petit, { marginTop: 8 }]}>Rien à recevoir sur les périodes terminées.</Text>
@@ -220,7 +220,7 @@ function CartePartenaire({ partenaire, vue, niveau, onOuvrir, onRegler, onImport
   )
 }
 
-function LignePeriode({ s, onPress, enCours }) {
+function LignePeriode({ s, partenaire, onPress, enCours }) {
   const { styles, colors } = useStylesTreso()
   const badge = enCours
     ? { label: 'en cours', fond: colors.warningLight, texte: colors.warningDark }
@@ -258,8 +258,17 @@ function LignePeriode({ s, onPress, enCours }) {
           </View>
           {pubs > 0 && (
             <View style={styles.ligne}>
-              <Text style={styles.petit}>− Pub</Text>
-              <Text style={[styles.petit, { color: colors.error }]}>− {fmt(pubs)}</Text>
+              {INFOS_PARTENAIRE[partenaire]?.pubHorsVirement ? (
+                <>
+                  <Text style={styles.petit}>Pub (charge, hors virement)</Text>
+                  <Text style={styles.petit}>{fmt(pubs)}</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.petit}>− Pub</Text>
+                  <Text style={[styles.petit, { color: colors.error }]}>− {fmt(pubs)}</Text>
+                </>
+              )}
             </View>
           )}
         </>
@@ -363,7 +372,7 @@ function FeuillePeriode({ ouverte, situation, vue, donnees, niveau, nomResto, us
                     ? <Text style={{ textDecorationLine: 'line-through' }}>estimé {fmt(r.estime)}</Text>
                     : `estimé ${fmt(r.estime)}`}
                   {r.reel !== null ? ` · export ${fmt(r.reel)}` : ''}
-                  {r.pub ? ` · pub − ${fmt(r.pub)}` : ''}
+                  {r.pub ? (info.pubHorsVirement ? ` · pub ${fmt(r.pub)} (hors virement)` : ` · pub − ${fmt(r.pub)}`) : ''}
                   {!groupe && r.recuFait ? ` · reçu ${fmt(r.recu)}${r.nbRecus > 1 ? ` en ${r.nbRecus} virements` : ''}${r.ecart ? ` (écart ${r.ecart > 0 ? '+' : '−'} ${fmt(Math.abs(r.ecart))})` : ''}` : ''}
                 </Text>
               </View>
@@ -708,6 +717,9 @@ function FeuillePub({ visible, partenaire, periode, situation, donnees, user, on
       {partenaire === 'glovo' && (
         <Text style={[styles.petit, { marginBottom: 10 }]}>Cette pub s'ajoute aux frais d'annonces déjà déduits dans l'export Glovo.</Text>
       )}
+      {INFOS_PARTENAIRE[partenaire]?.pubHorsVirement && (
+        <Text style={[styles.petit, { marginBottom: 10 }]}>La pub Yango compte comme charge du restaurant dans Résultats, mais ne baisse pas le montant attendu : Yango la retient à une date qu'on ne connaît pas. L'écart du virement montre ce qu'il a vraiment retenu.</Text>
+      )}
       <Bouton
         titre={parts.length ? `Enregistrer · ${parts.length} restaurant${parts.length > 1 ? 's' : ''} · ${fmt(total)} F` : 'Enregistrer la pub'}
         onPress={enregistrer} occupe={occupe} />
@@ -1012,7 +1024,7 @@ function FeuilleImport({ partenaire, donnees, user, onFermer, apres, favori }) {
               <Text style={styles.lbl}>Pub Yango</Text>
               {pub.statut === 'a_jour' && (
                 <>
-                  <Text style={styles.petit}>Lue sur le portail : enregistrée avec l'import.</Text>
+                  <Text style={styles.petit}>Lue sur le portail : enregistrée avec l'import. La pub Yango compte comme charge du restaurant dans Résultats, mais ne baisse pas le montant attendu : Yango la retient à une date qu'on ne connaît pas. L'écart du virement montre ce qu'il a vraiment retenu.</Text>
                   {Object.entries(pub.parCode).map(([code, m]) => (
                     <Ligne key={code} label={code === '?' ? 'Noms inconnus' : code} valeur={m} signe="-" />
                   ))}
