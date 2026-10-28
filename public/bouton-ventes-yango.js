@@ -168,15 +168,34 @@ function moteurVentesYango() {
     })
   }
 
+  // Les en-têtes captés viennent souvent d'une simple lecture de la page
+  // (v2/active), sans Content-Type : la liste des commandes (POST JSON)
+  // répondait alors 400 à chaque essai (28/10/2026). On l'ajoute s'il manque.
+  function optionsAppel(entetes, corps) {
+    const headers = Object.assign({}, entetes)
+    if (corps && !Object.keys(headers).some(function (k) { return /^content-type$/i.test(k) })) {
+      headers['Content-Type'] = 'application/json'
+    }
+    return {
+      method: corps ? 'POST' : 'GET', headers: headers, credentials: 'include',
+      body: corps ? JSON.stringify(corps) : undefined,
+    }
+  }
+
+  // Session expirée ou demande refusée : réessayer n'y changerait rien.
+  // Trop de demandes (429) ou panne du portail (5xx) : on réessaie.
+  function erreurHttp(status) {
+    if (status === 401 || status === 403) { const e = erreurFr(SESSION); e.definitif = true; return e }
+    const e = erreurFr(INCOMPLET)
+    if (status >= 400 && status < 500 && status !== 429) e.definitif = true
+    return e
+  }
+
   async function appel(entetes, chemin, params, corps) {
     const u = new URL(RACINE + chemin, location.origin)
     Object.keys(params || {}).forEach(function (k) { u.searchParams.set(k, params[k]) })
-    const r = await fetch(u.toString(), {
-      method: corps ? 'POST' : 'GET', headers: entetes, credentials: 'include',
-      body: corps ? JSON.stringify(corps) : undefined,
-    })
-    if (r.status === 401 || r.status === 403) { const e = erreurFr(SESSION); e.definitif = true; throw e }
-    if (!r.ok) throw erreurFr(INCOMPLET)
+    const r = await fetch(u.toString(), optionsAppel(entetes, corps))
+    if (!r.ok) throw erreurHttp(r.status)
     return r.json()
   }
 
@@ -295,6 +314,8 @@ function moteurVentesYango() {
     pubAJourAu: pubAJourAu,
     avecReprise: avecReprise,
     aConnexion: aConnexion,
+    optionsAppel: optionsAppel,
+    erreurHttp: erreurHttp,
     lancer: lancer,
   }
 }
