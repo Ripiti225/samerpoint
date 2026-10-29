@@ -70,7 +70,8 @@
         '<div class="sous">' + esc(d.poste || '') + (d.restaurant ? ' · ' + esc(d.restaurant) : '') + '</div></div></div>' +
         // Validité affichée seulement si elle a un sens (carte valide ou expirée).
         (d.etat === 'valide' || d.etat === 'expiree'
-          ? '<div class="ligne"><span>' + (d.etat === 'expiree' ? 'Expirée le' : 'Valable jusqu\'au') + '</span><span>' + esc(dateFr(d.valide_jusqua)) + '</span></div>'
+          ? '<div class="ligne"><span>' + (d.etat === 'expiree' ? 'Expirée le' : 'Valable') + '</span><span>' +
+              (d.valide_jusqua ? (d.etat === 'expiree' ? '' : 'jusqu\'au ') + esc(dateFr(d.valide_jusqua)) : 'Contrat en cours (CDI)') + '</span></div>'
           : '') + '</div>'
     }
     h += contacts(classe === 'ok' ? 'Une question ?' : 'Merci de garder la carte et de nous prévenir :')

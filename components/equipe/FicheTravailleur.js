@@ -5,8 +5,8 @@ import { ActivityIndicator, Alert, Image, Linking, Modal, SafeAreaView, ScrollVi
 import {
   BLEU, PERIODES, STATUTS, couleurTaux, fmt, formatDate, friseJours, plageDates, statsTravailleur, titrePeriode,
 } from '../../lib/equipe'
-import { carteEnCours, htmlCarteTravailleur, numeroCarte, VALIDITE_MOIS } from '../../lib/carteTravailleur'
-import { derniereCarte, emettreCarte, marquerBadgeRendu, qrSvgCarte } from '../../lib/cartesTravailleursDb'
+import { carteEnCours, htmlCarteTravailleur, libelleValidite, numeroCarte, validiteCarte } from '../../lib/carteTravailleur'
+import { chargerContratsTravailleur, derniereCarte, emettreCarte, marquerBadgeRendu, qrSvgCarte } from '../../lib/cartesTravailleursDb'
 import { aujourdhuiISO } from '../../lib/contrats'
 import { chargerDocuments, chargerHistoriqueTravailleur, chargerPaiesGerantTravailleur, chargerPoints } from '../../lib/equipeDb'
 import { completerPresences, nomJour } from '../../lib/joursRepos'
@@ -40,6 +40,7 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
   // { indisponible } = migration pas passée, sinon { id, valide_jusqua, emise_le }.
   const [carte, setCarte] = useState(undefined)
   const [creation, setCreation] = useState(false)
+  const [contrats, setContrats] = useState(null)   // null = pas encore chargés
   const [badgeRendu, setBadgeRendu] = useState(null)
   const { userNom } = useApp()
 
@@ -51,8 +52,10 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
   useEffect(() => {
     if (!visible || !trav?.id) return
     setCarte(undefined)
+    setContrats(null)
     setBadgeRendu(trav.badge_rendu ?? null)
     derniereCarte(trav.id).then(setCarte).catch(() => setCarte(null))
+    chargerContratsTravailleur(trav.id).then(setContrats).catch(() => setContrats([]))
   }, [visible, trav?.id, trav?.badge_rendu])
 
   // Calculé à l'avance : l'impression doit partir sans attente (Safari iPhone).
@@ -94,6 +97,8 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
   const frise = plage ? friseJours(presences, plage.fin, Math.min(31, nbJoursEntre(plage.debut, plage.fin))) : []
 
   const enCours = carteEnCours(carte, aujourdhuiISO())
+  // Validité d'une NOUVELLE carte : fin du contrat en cours, CDI = jusqu'au départ, sinon 6 mois.
+  const validite = contrats ? validiteCarte(trav, contrats, aujourdhuiISO()) : null
 
   // Aucun `await` avant exporterPdf : la fenêtre d'impression doit s'ouvrir
   // dans le geste du toucher, sinon Safari iPhone la bloque.
@@ -112,7 +117,7 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
     if (creation) return
     setCreation(true)
     try {
-      setCarte(await emettreCarte(trav.id, userNom))
+      setCarte(await emettreCarte(trav.id, userNom, validite.valideJusqua))
     } catch (e) {
       Alert.alert('Carte', e.message)
     }
@@ -132,7 +137,7 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
   const texteCarte = carte === undefined ? 'Chargement…'
     : carte?.indisponible ? 'Vérification pas encore activée'
     : !carte ? 'Aucune carte imprimée'
-    : enCours ? `N° ${numeroCarte(carte.id)} · valable jusqu'au ${dateLongue(carte.valide_jusqua)}`
+    : enCours ? `N° ${numeroCarte(carte.id)} · valable ${carte.valide_jusqua ? `jusqu'au ${dateLongue(carte.valide_jusqua)}` : 'pendant le CDI'}`
     : `N° ${numeroCarte(carte.id)} · expirée le ${dateLongue(carte.valide_jusqua)}`
 
   const ligneInfo = (icone, label, val, onPress) => {
@@ -210,11 +215,11 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
                 <Text style={[s2.actionTxt, { color: '#fff' }]}>{exporting ? 'Génération…' : '📄 Imprimer la carte'}</Text>
               </TouchableOpacity>
             )}
-            {!archive && peutEditer && carte !== undefined && !carte?.indisponible && (
+            {!archive && peutEditer && carte !== undefined && !carte?.indisponible && validite && (
               <TouchableOpacity style={[s2.action, { backgroundColor: enCours ? teinte(BLEU) : BLEU }, creation && { opacity: 0.6 }]}
                 onPress={creerCarte} disabled={creation}>
                 <Text style={[s2.actionTxt, { color: enCours ? BLEU : '#fff' }]}>
-                  {creation ? 'Création…' : enCours ? '🆕 Remplacer la carte' : `🆕 Créer la carte (${VALIDITE_MOIS} mois)`}
+                  {creation ? 'Création…' : enCours ? '🆕 Remplacer la carte' : `🆕 Créer la carte (${libelleValidite(validite.valideJusqua)})`}
                 </Text>
               </TouchableOpacity>
             )}
@@ -226,7 +231,8 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
           </View>
           {!archive && enCours && peutEditer && (
             <Text style={[s2.vide, { marginTop: -10, marginBottom: 16 }]}>
-              « Remplacer la carte » rend l'ancienne invalide au scan (carte perdue, photo changée…).
+              « Remplacer la carte » rend l'ancienne invalide au scan (carte perdue, photo changée, contrat renouvelé…).
+              {validite ? ` Nouvelle carte : ${libelleValidite(validite.valideJusqua)}${validite.source === 'defaut' ? ' (aucun contrat saisi : 6 mois)' : validite.source === 'contrat' ? ' (fin du contrat)' : ''}.` : ''}
             </Text>
           )}
 
