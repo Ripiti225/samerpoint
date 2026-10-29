@@ -6,7 +6,7 @@
 --    secret mis dans le QR du verso. Une nouvelle carte rend la précédente
 --    « remplacée ». Validité : 6 mois (calculée par l'application).
 --  • verifier_carte(jeton) : seule porte ouverte à la page publique
---    /verifier.html. Ne renvoie que nom, poste, photo, restaurant, validité
+--    https://verif-personnel.vercel.app. Ne renvoie que nom, poste, photo, restaurant, validité
 --    et l'état — jamais la CNI, la naissance, le téléphone ni le salaire.
 --      valide     = travailleur non archivé (actif ou inactif), carte la plus
 --                   récente, pas expirée

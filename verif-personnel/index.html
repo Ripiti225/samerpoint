@@ -6,9 +6,13 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Vérification de carte</title>
   <!--
-    Page ouverte par le QR au verso de la carte du travailleur
-    (lib/carteTravailleur.js). Adresse gravée sur les cartes : ne pas la
-    renommer. Lit uniquement verifier_carte(jeton) (supabase_cartes_travailleurs.sql),
+    Site À PART https://verif-personnel.vercel.app (projet Vercel « verif-personnel »),
+    ouvert par le QR au verso de la carte du travailleur (lib/carteTravailleur.js).
+    Indépendant de l'application : si Samtrackly change d'hébergement, les
+    cartes imprimées continuent de marcher. Adresse gravée sur les cartes :
+    ne jamais supprimer ni renommer ce projet Vercel.
+    Publier : cd verif-personnel && npx vercel deploy --prod --yes
+    Lit uniquement verifier_carte(jeton) (supabase_cartes_travailleurs.sql),
     qui ne renvoie ni CNI, ni naissance, ni téléphone, ni salaire.
   -->
   <style>
