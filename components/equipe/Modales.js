@@ -7,26 +7,36 @@ import {
   Alert, Image, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, Text, TextInput, TouchableOpacity,
   TouchableWithoutFeedback, View,
 } from 'react-native'
-import { CalendrierPeriode } from '../ChampDate'
+import ChampDate, { CalendrierPeriode } from '../ChampDate'
 import { aujourdhuiISO } from '../../lib/contrats'
 import { BLEU, MOTIFS_ARCHIVE, formatDate } from '../../lib/equipe'
 import { enregistrerTravailleur } from '../../lib/equipeDb'
 import { JOURS_COURTS, nomJour } from '../../lib/joursRepos'
+import { CIVILITES, SITUATIONS_FAMILLE } from '../../lib/recrutement'
 import { uploaderFichier } from '../../lib/uploadFichier'
 import { usePhoto } from '../../lib/usePhoto'
 import FormulaireTravailleur from '../FormulaireTravailleur'
 
 const TYPES_PAPIERS = ['CNI', 'Passeport', 'Permis de conduire', 'Autre']
 
+// État civil et pièce d'identité : les mêmes champs que le formulaire complet
+// d'ajout (FormulaireDemande), modifiables ici ; ils alimentent la Carte PDF.
+const CHAMPS_IDENTITE = [
+  'civilite', 'nom_famille', 'prenoms', 'date_naissance', 'lieu_naissance', 'nationalite',
+  'situation_famille', 'cni_numero', 'nni_numero', 'lieu_residence',
+]
+const identiteDepuis = t => Object.fromEntries(CHAMPS_IDENTITE.map(c => [c, t?.[c] || '']))
+
 function formVide() {
   return {
     nom: '', poste: '', type_contrat: 'CDD', contact: '', salaire_journalier: '', date_embauche: aujourdhuiISO(), photo_url: null,
-    jour_repos_choix: 'auto',
+    jour_repos_choix: 'auto', ...identiteDepuis(null),
   }
 }
 
 function formDepuis(t) {
   return {
+    ...identiteDepuis(t),
     nom: t.nom, poste: t.poste || '', type_contrat: t.type_contrat || 'CDD', contact: t.contact || '',
     salaire_journalier: t.salaire_journalier?.toString() || '', date_embauche: t.date_embauche || '', photo_url: t.photo_url || null,
     // 'auto' = l'analyse décide ; 1…7 ou 'aucun' = fixé à la main (lib/equipeDb.js).
@@ -152,6 +162,8 @@ export function ModalFormTravailleur({ visible, edition, restaurants, restoParDe
 
           <FormulaireTravailleur form={form} setForm={setForm} colors={colors} nomEditable={!edition} />
 
+          <SectionIdentite form={form} setForm={setForm} styles={styles} />
+
           <Text style={styles.modalLabel}>Jour de repos</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
             {[{ v: 'auto', l: 'Automatique' }, ...JOURS_COURTS.map((l, i) => ({ v: i + 1, l })), { v: 'aucun', l: 'Aucun jour fixe' }].map(c => {
@@ -215,6 +227,49 @@ export function ModalFormTravailleur({ visible, edition, restaurants, restoParDe
         </ScrollView>
       </FondModal>
     </Modal>
+  )
+}
+
+// ── État civil et pièce d'identité ───────────────────────────────────────────
+function SectionIdentite({ form, setForm, styles }) {
+  const maj = (cle, v) => setForm(p => ({ ...p, [cle]: v }))
+  const texte = (cle, label, props = {}) => (
+    <>
+      <Text style={styles.modalLabel}>{label}</Text>
+      <TextInput style={styles.modalInput} value={form[cle] || ''} onChangeText={v => maj(cle, v)} placeholderTextColor="#999" {...props} />
+    </>
+  )
+  const puces = (cle, elements) => (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+      {elements.map(([v, l]) => (
+        // Toucher le choix actif l'efface (champ facultatif).
+        <TouchableOpacity key={v} style={[styles.motifBtn, form[cle] === v && styles.motifBtnActive]} onPress={() => maj(cle, form[cle] === v ? '' : v)}>
+          <Text style={[styles.motifTxt, form[cle] === v && styles.motifTxtActive]}>{l}</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  )
+  return (
+    <>
+      <Text style={[styles.modalTitre, { flex: 0, fontSize: 15, marginTop: 4, marginBottom: 10 }]}>État civil</Text>
+      <Text style={styles.modalLabel}>Civilité</Text>
+      {puces('civilite', CIVILITES.map(c => [c, c === 'M.' ? 'Monsieur' : 'Madame']))}
+      {texte('nom_famille', 'Nom de famille', { placeholder: 'Ex. GBADIE', autoCapitalize: 'characters' })}
+      {texte('prenoms', 'Prénoms', { placeholder: 'Ex. Gogre Tanguy' })}
+      <View style={{ marginBottom: 14 }}>
+        <ChampDate label="Date de naissance" valeur={form.date_naissance || ''} onChange={v => maj('date_naissance', v)}
+          maxDate={aujourdhuiISO()} naissance effacable />
+      </View>
+      {texte('lieu_naissance', 'Lieu de naissance', { placeholder: 'Ex. Yopougon' })}
+      {texte('nationalite', 'Nationalité', { placeholder: 'Ex. Ivoirienne' })}
+      <Text style={styles.modalLabel}>Situation de famille</Text>
+      {puces('situation_famille', SITUATIONS_FAMILLE.map(s => [s, s]))}
+      {texte('lieu_residence', 'Lieu de résidence', { placeholder: 'Ex. Yopougon' })}
+
+      <Text style={[styles.modalTitre, { flex: 0, fontSize: 15, marginTop: 4, marginBottom: 10 }]}>Pièce d'identité</Text>
+      {texte('cni_numero', "N° de carte d'identité (CNI)", { placeholder: 'Ex. CI007879705', autoCapitalize: 'characters' })}
+      {texte('nni_numero', 'NNI (si connu)', { placeholder: 'Ex. 11919240401', keyboardType: 'number-pad' })}
+    </>
   )
 }
 
