@@ -1,20 +1,32 @@
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import { BLEU, STATUTS, couleurTaux, fmt } from '../../lib/equipe'
 import { JOURS_COURTS } from '../../lib/joursRepos'
-import Avatar from './Avatar'
+import Avatar, { couleurResto } from './Avatar'
+import { teinte } from './styles'
 
 function CarteTravailleur({ styles, t, s, tous, peutEditer, onOuvrir, onModifier, onMenu }) {
   const inactif = !t.actif
+  // Couleur du restaurant : bandeau à gauche + fond légèrement teinté.
+  const c = t.restaurants ? couleurResto(t.restaurants) : null
   return (
-    <View style={[styles.carte, { flexDirection: 'row', alignItems: 'center', gap: 10 }, inactif && { opacity: 0.6 }]}>
+    <View style={[
+      styles.carte, { flexDirection: 'row', alignItems: 'center', gap: 10 },
+      c && { borderLeftWidth: 5, borderLeftColor: c, overflow: 'hidden' },
+      inactif && { opacity: 0.6 },
+    ]}>
+      {c && <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: teinte(c, '12') }} />}
       <TouchableOpacity style={styles.ligneGauche} onPress={() => onOuvrir(t)} activeOpacity={0.75}>
-        <Avatar nom={t.nom} photo={t.photo_url} resto={t.restaurants} gris={inactif} />
+        <Avatar nom={t.nom} photo={t.photo_url} resto={t.restaurants} gris={inactif} logo />
         <View style={{ flex: 1 }}>
           <Text style={styles.nom}>{t.nom}</Text>
           <Text style={styles.sousNom}>{t.poste || 'Sans poste'}{t.type_contrat ? ` — ${t.type_contrat}` : ''}</Text>
           {t.contact ? <Text style={styles.lien}>{t.contact}</Text> : null}
           <View style={styles.badgeRow}>
-            {tous && <View style={styles.badge}><Text style={styles.badgeTxt}>{t.restaurants?.nom || 'Sans restaurant'}</Text></View>}
+            {tous && (
+              <View style={[styles.badge, c && { backgroundColor: teinte(c, '26') }]}>
+                <Text style={[styles.badgeTxt, c && { color: c, fontWeight: '800' }]}>{t.restaurants?.nom?.trim() || 'Sans restaurant'}</Text>
+              </View>
+            )}
             {t.identifiant ? <View style={styles.badgeBleu}><Text style={styles.badgeBleuTxt}>{t.identifiant}</Text></View> : null}
             {t.jour_repos ? (
               <View style={styles.badge}>
