@@ -5,6 +5,7 @@ import { ActivityIndicator, Image, Linking, Modal, SafeAreaView, ScrollView, Sty
 import {
   BLEU, PERIODES, STATUTS, couleurTaux, fmt, formatDate, friseJours, plageDates, statsTravailleur, titrePeriode,
 } from '../../lib/equipe'
+import { htmlCarteTravailleur } from '../../lib/carteTravailleur'
 import { aujourdhuiISO } from '../../lib/contrats'
 import { chargerDocuments, chargerHistoriqueTravailleur, chargerPaiesGerantTravailleur, chargerPoints } from '../../lib/equipeDb'
 import { completerPresences, nomJour } from '../../lib/joursRepos'
@@ -15,40 +16,8 @@ import { teinte } from './styles'
 
 const TYPE_DOC_ICONS = { 'CNI': '🪪', 'Passeport': '📕', 'Permis de conduire': '🚗', 'Contrat': '📄', 'Autre': '📎' }
 
-const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-
 function libelleStatut(t) {
   return t.statut === 'archive' ? 'Archivé' : t.actif ? 'Actif' : 'Inactif'
-}
-
-function htmlCarte(t, restoNom) {
-  const salaire = t.salaire_journalier ? `${Number(t.salaire_journalier).toLocaleString('fr-FR')} F / jour` : '—'
-  const ini = String(t.nom || '').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-  const photo = t.photo_url
-    ? `<img src="${esc(t.photo_url)}" style="width:100px;height:100px;border-radius:50%;border:4px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,0.2);object-fit:cover;" />`
-    : `<div style="width:100px;height:100px;border-radius:50%;background:#EF9F27;display:flex;align-items:center;justify-content:center;margin:auto;font-size:32px;font-weight:700;color:#fff;">${esc(ini)}</div>`
-  const ligne = (icone, label, val) => `<tr><td style="color:#888;">${icone} ${label}</td><td style="text-align:right;font-weight:600;color:#1a1a1a;">${esc(val)}</td></tr>`
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Carte — ${esc(t.nom)}</title></head>
-  <body style="font-family:Arial,sans-serif;padding:30px;background:#f0f2f5;margin:0;">
-    <div style="background:white;border-radius:20px;padding:30px;max-width:400px;margin:auto;box-shadow:0 4px 20px rgba(0,0,0,0.1);">
-      <h2 style="text-align:center;color:${BLEU};margin:0 0 5px;letter-spacing:1.5px;text-transform:uppercase;font-size:13px;">${esc(restoNom)}</h2>
-      <hr style="border:none;border-top:1px solid #eee;margin:12px 0;" />
-      <div style="text-align:center;margin:20px 0;">${photo}
-        <h1 style="margin:12px 0 4px;font-size:22px;color:#1a1a1a;">${esc(t.nom)}</h1>
-        <p style="color:#888;margin:0;font-size:14px;">${esc(t.poste)}</p>
-      </div>
-      <hr style="border:none;border-top:1px solid #eee;margin:12px 0;" />
-      <table style="width:100%;font-size:14px;line-height:2.2;border-collapse:collapse;">
-        ${ligne('📍', 'Restaurant', restoNom)}
-        ${ligne('📞', 'Téléphone', t.contact || '—')}
-        ${ligne('💰', 'Salaire', salaire)}
-        ${ligne('📋', 'Contrat', t.type_contrat || '—')}
-        ${ligne('🟢', 'Statut', libelleStatut(t))}
-      </table>
-      <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
-      <p style="text-align:center;color:#bbb;font-size:11px;margin:0;">SAMER — Gestion Restauration</p>
-    </div>
-  </body></html>`
 }
 
 function nbJoursEntre(debut, fin) {
@@ -110,7 +79,7 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
     if (exporting) return
     setExporting(true)
     try {
-      await exporterPdf(htmlCarte(trav, restoNom), `Carte_${String(trav.nom).replace(/\s+/g, '_')}.pdf`, `Carte — ${trav.nom}`)
+      await exporterPdf(htmlCarteTravailleur(trav, resto, aujourdhuiISO()), `Carte_${String(trav.nom).replace(/\s+/g, '_')}.pdf`, `Carte — ${trav.nom}`)
     } finally {
       setExporting(false)
     }
