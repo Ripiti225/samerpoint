@@ -20,6 +20,9 @@ export default function OngletArchives({ styles, archives, loading, tous, peutEd
               <Text style={[styles.nom, { opacity: 0.75 }]}>{t.nom}</Text>
               <Text style={styles.sousNom}>{t.poste || 'Sans poste'}{tous && t.restaurants?.nom ? ` · ${t.restaurants.nom}` : ''}</Text>
               {t.archive_motif ? <View style={styles.archiveMotif}><Text style={styles.archiveMotifTxt}>{t.archive_motif}</Text></View> : null}
+              {t.badge_rendu === false ? (
+                <View style={[styles.archiveMotif, { backgroundColor: '#C0392B1F' }]}><Text style={[styles.archiveMotifTxt, { color: '#C0392B' }]}>⚠️ Badge non rendu</Text></View>
+              ) : null}
               {t.archived_at ? <Text style={[styles.sousNom, { fontSize: 11 }]}>Archivé le {formatDate(t.archived_at.split('T')[0])}</Text> : null}
             </View>
           </TouchableOpacity>

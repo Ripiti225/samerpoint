@@ -1,11 +1,12 @@
 // Fiche complète d'un travailleur : carte professionnelle (ex-Équipe globale),
 // actions, papiers, puis historique de présences (ex-fiche RH).
 import { useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, Image, Linking, Modal, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, Alert, Image, Linking, Modal, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import {
   BLEU, PERIODES, STATUTS, couleurTaux, fmt, formatDate, friseJours, plageDates, statsTravailleur, titrePeriode,
 } from '../../lib/equipe'
-import { htmlCarteTravailleur } from '../../lib/carteTravailleur'
+import { carteEnCours, htmlCarteTravailleur, numeroCarte, VALIDITE_MOIS } from '../../lib/carteTravailleur'
+import { derniereCarte, emettreCarte, marquerBadgeRendu, qrSvgCarte } from '../../lib/cartesTravailleursDb'
 import { aujourdhuiISO } from '../../lib/contrats'
 import { chargerDocuments, chargerHistoriqueTravailleur, chargerPaiesGerantTravailleur, chargerPoints } from '../../lib/equipeDb'
 import { completerPresences, nomJour } from '../../lib/joursRepos'
@@ -13,6 +14,7 @@ import { exporterPdf } from '../../lib/pdfDocuments'
 import Avatar from './Avatar'
 import { PastilleStatut } from './OngletPresences'
 import { teinte } from './styles'
+import { useApp } from '../../context/AppContext'
 
 const TYPE_DOC_ICONS = { 'CNI': '🪪', 'Passeport': '📕', 'Permis de conduire': '🚗', 'Contrat': '📄', 'Autre': '📎' }
 
@@ -34,11 +36,27 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
   const [loadingDocs, setLoadingDocs] = useState(false)
   const [zoom, setZoom] = useState(false)
   const [exporting, setExporting] = useState(false)
+  // Carte imprimée : undefined = en chargement, null = aucune,
+  // { indisponible } = migration pas passée, sinon { id, valide_jusqua, emise_le }.
+  const [carte, setCarte] = useState(undefined)
+  const [creation, setCreation] = useState(false)
+  const [badgeRendu, setBadgeRendu] = useState(null)
+  const { userNom } = useApp()
 
   const plage = useMemo(() => plageDates(periode, perso), [periode, perso])
   const periodes = PERIODES.filter(p => p.key !== 'custom' || (perso.debut && perso.fin))
 
   useEffect(() => { setPeriode('month'); setZoom(false) }, [trav?.id])
+
+  useEffect(() => {
+    if (!visible || !trav?.id) return
+    setCarte(undefined)
+    setBadgeRendu(trav.badge_rendu ?? null)
+    derniereCarte(trav.id).then(setCarte).catch(() => setCarte(null))
+  }, [visible, trav?.id, trav?.badge_rendu])
+
+  // Calculé à l'avance : l'impression doit partir sans attente (Safari iPhone).
+  const qrSvg = useMemo(() => (carte?.id ? qrSvgCarte(carte.id) : null), [carte?.id])
 
   useEffect(() => {
     if (!visible || !trav?.id) return
@@ -75,15 +93,47 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
   const totalPercu = s.totalPaye + totalGerant
   const frise = plage ? friseJours(presences, plage.fin, Math.min(31, nbJoursEntre(plage.debut, plage.fin))) : []
 
+  const enCours = carteEnCours(carte, aujourdhuiISO())
+
+  // Aucun `await` avant exporterPdf : la fenêtre d'impression doit s'ouvrir
+  // dans le geste du toucher, sinon Safari iPhone la bloque.
   async function exporter() {
-    if (exporting) return
+    if (exporting || !enCours || !qrSvg) return
     setExporting(true)
     try {
-      await exporterPdf(htmlCarteTravailleur(trav, resto, aujourdhuiISO()), `Carte_${String(trav.nom).replace(/\s+/g, '_')}.pdf`, `Carte — ${trav.nom}`)
+      const html = htmlCarteTravailleur(trav, resto, aujourdhuiISO(), { jeton: carte.id, qrSvg, valideJusqua: carte.valide_jusqua })
+      await exporterPdf(html, `Carte_${String(trav.nom).replace(/\s+/g, '_')}.pdf`, `Carte — ${trav.nom}`)
     } finally {
       setExporting(false)
     }
   }
+
+  async function creerCarte() {
+    if (creation) return
+    setCreation(true)
+    try {
+      setCarte(await emettreCarte(trav.id, userNom))
+    } catch (e) {
+      Alert.alert('Carte', e.message)
+    }
+    setCreation(false)
+  }
+
+  async function badgeRapporte() {
+    try {
+      await marquerBadgeRendu(trav.id)
+      setBadgeRendu(true)
+    } catch (e) {
+      Alert.alert('Badge', e.message)
+    }
+  }
+
+  const dateLongue = iso => new Date(`${iso}T00:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+  const texteCarte = carte === undefined ? 'Chargement…'
+    : carte?.indisponible ? 'Vérification pas encore activée'
+    : !carte ? 'Aucune carte imprimée'
+    : enCours ? `N° ${numeroCarte(carte.id)} · valable jusqu'au ${dateLongue(carte.valide_jusqua)}`
+    : `N° ${numeroCarte(carte.id)} · expirée le ${dateLongue(carte.valide_jusqua)}`
 
   const ligneInfo = (icone, label, val, onPress) => {
     const contenu = (
@@ -133,6 +183,9 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
               {trav.date_embauche ? ligneInfo('📅', "Date d'embauche",
                 new Date(trav.date_embauche).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })) : null}
               {archive && trav.archive_motif ? ligneInfo('📦', 'Motif', trav.archive_motif) : null}
+              {archive ? ligneInfo('🪪', 'Badge', badgeRendu === true
+                ? `Rendu${trav.badge_rendu_le ? ` le ${dateLongue(trav.badge_rendu_le)}` : ''}`
+                : badgeRendu === false ? '⚠️ Non rendu' : 'Non renseigné') : ligneInfo('🪪', 'Carte', texteCarte)}
             </View>
           </View>
 
@@ -151,10 +204,31 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
                 </TouchableOpacity>
               </>
             )}
-            <TouchableOpacity style={[s2.action, { backgroundColor: BLEU }, exporting && { opacity: 0.6 }]} onPress={exporter} disabled={exporting}>
-              <Text style={[s2.actionTxt, { color: '#fff' }]}>{exporting ? 'Génération…' : '📄 Carte PDF'}</Text>
-            </TouchableOpacity>
+            {/* Carte : créer (base) puis imprimer ; une nouvelle carte rend l'ancienne invalide au scan. */}
+            {!archive && enCours && (
+              <TouchableOpacity style={[s2.action, { backgroundColor: BLEU }, exporting && { opacity: 0.6 }]} onPress={exporter} disabled={exporting}>
+                <Text style={[s2.actionTxt, { color: '#fff' }]}>{exporting ? 'Génération…' : '📄 Imprimer la carte'}</Text>
+              </TouchableOpacity>
+            )}
+            {!archive && peutEditer && carte !== undefined && !carte?.indisponible && (
+              <TouchableOpacity style={[s2.action, { backgroundColor: enCours ? teinte(BLEU) : BLEU }, creation && { opacity: 0.6 }]}
+                onPress={creerCarte} disabled={creation}>
+                <Text style={[s2.actionTxt, { color: enCours ? BLEU : '#fff' }]}>
+                  {creation ? 'Création…' : enCours ? '🆕 Remplacer la carte' : `🆕 Créer la carte (${VALIDITE_MOIS} mois)`}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {archive && badgeRendu === false && peutEditer && (
+              <TouchableOpacity style={[s2.action, { backgroundColor: teinte('#1E9E5A') }]} onPress={badgeRapporte}>
+                <Text style={[s2.actionTxt, { color: '#1E9E5A' }]}>✅ Badge rendu</Text>
+              </TouchableOpacity>
+            )}
           </View>
+          {!archive && enCours && peutEditer && (
+            <Text style={[s2.vide, { marginTop: -10, marginBottom: 16 }]}>
+              « Remplacer la carte » rend l'ancienne invalide au scan (carte perdue, photo changée…).
+            </Text>
+          )}
 
           {/* ─── Papiers ─── */}
           <Text style={styles.sectionTitre}>Papiers</Text>

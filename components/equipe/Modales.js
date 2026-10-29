@@ -223,12 +223,14 @@ export function ModalArchive({ trav, styles, peutSupprimer, onFermer, onArchiver
   const [motif, setMotif] = useState('Démission')
   const [autre, setAutre] = useState('')
   const [saving, setSaving] = useState(false)
-  useEffect(() => { if (trav) { setMotif('Démission'); setAutre('') } }, [trav])
+  const [badge, setBadge] = useState(null)   // true = rendu, false = gardé ; obligatoire
+  useEffect(() => { if (trav) { setMotif('Démission'); setAutre(''); setBadge(null) } }, [trav])
   if (!trav) return null
 
   async function archiver() {
+    if (badge === null) return
     setSaving(true)
-    await onArchiver(trav, motif === 'Autre' ? (autre.trim() || 'Autre') : motif)
+    await onArchiver(trav, motif === 'Autre' ? (autre.trim() || 'Autre') : motif, badge)
     setSaving(false)
   }
 
@@ -251,8 +253,21 @@ export function ModalArchive({ trav, styles, peutSupprimer, onFermer, onArchiver
               <TextInput style={styles.modalInput} placeholder="Ex : Fin de mission, Mutation…" value={autre} onChangeText={setAutre} placeholderTextColor="#999" />
             </>
           )}
+          <Text style={styles.modalLabel}>Badge (carte du travailleur) récupéré ?</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 6 }}>
+            {[[true, '✅ Oui, rendu'], [false, '⚠️ Non, gardé']].map(([v, l]) => (
+              <TouchableOpacity key={l} style={[styles.motifBtn, { flex: 1, alignItems: 'center' }, badge === v && styles.motifBtnActive]} onPress={() => setBadge(v)}>
+                <Text style={[styles.motifTxt, badge === v && styles.motifTxtActive]}>{l}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={[styles.sousNom, { marginBottom: 12 }]}>
+            {badge === false
+              ? 'Sa carte affichera « Ne fait plus partie du personnel » au scan. La fiche gardera « Badge non rendu ».'
+              : 'Une fois archivé, sa carte affiche « Ne fait plus partie du personnel » au scan.'}
+          </Text>
           <View style={{ gap: 8, marginTop: 6 }}>
-            <TouchableOpacity style={[styles.modalConfirm, { flex: 0 }, saving && { opacity: 0.6 }]} onPress={archiver} disabled={saving}>
+            <TouchableOpacity style={[styles.modalConfirm, { flex: 0 }, (saving || badge === null) && { opacity: 0.5 }]} onPress={archiver} disabled={saving || badge === null}>
               <Text style={styles.modalConfirmTxt}>{saving ? 'Archivage…' : '📦 Archiver ce travailleur'}</Text>
             </TouchableOpacity>
             {peutSupprimer && (

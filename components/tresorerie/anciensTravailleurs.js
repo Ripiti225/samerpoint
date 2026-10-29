@@ -49,6 +49,8 @@ export function OngletAnciensTravailleurs({ niveau, user, restaurants = [], grou
   )
   // Clé = restaurant ou « groupe:<id> » (fiche sans restaurant, ex. Zone 4).
   const nomResto = cle => nomRattachement(cle, restaurants, groupes)
+  // Badge gardé au départ (case de l'archivage) : rappelé sur sa fiche de droits.
+  const badgesNonRendus = new Set((donnees?.archives || []).filter(t => t.badge_rendu === false).map(t => t.id))
   const peutSaisir = peut(niveau, 'saisir_anciens')
   const peutPayer = peut(niveau, 'payer')
 
@@ -94,7 +96,7 @@ export function OngletAnciensTravailleurs({ niveau, user, restaurants = [], grou
             <ItemIcone key={f.id} onPress={() => setDetail(f)}
               icone="account-outline" couleur={f.solde ? colors.success : style.couleur}
               titre={f.nom}
-              sous={`${sousTitreDepart(f)} · dû ${fmt(f.du)} · payé ${fmt(f.paye)}${f.nbPaiements > 1 ? ` en ${f.nbPaiements} fois` : ''}`}
+              sous={`${sousTitreDepart(f)} · dû ${fmt(f.du)} · payé ${fmt(f.paye)}${f.nbPaiements > 1 ? ` en ${f.nbPaiements} fois` : ''}${badgesNonRendus.has(f.travailleur_id) ? ' · ⚠️ badge non rendu' : ''}`}
               droite={f.solde ? 'Soldé' : `${fmt(f.reste)} F`}
               couleurDroite={f.solde ? colors.success : colors.error}
             />

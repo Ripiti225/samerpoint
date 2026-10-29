@@ -172,8 +172,8 @@ export default function EquipeScreen() {
     setFiche(travParId[id] || { id, nom: repli?.nom, poste: repli?.poste, restaurant_id: repli?.restaurant_id, actif: false })
   }
 
-  async function archiver(trav, motif) {
-    await db.archiverTravailleur(trav, motif)
+  async function archiver(trav, motif, badgeRendu) {
+    await db.archiverTravailleur(trav, motif, badgeRendu)
     setAArchiver(null); setFiche(null)
     charger()
     // CDI : ses droits de fin de contrat se saisissent tout de suite.
