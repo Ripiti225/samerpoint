@@ -19,6 +19,7 @@ import * as Print from 'expo-print'
 import * as Sharing from 'expo-sharing'
 import { supabase } from '../lib/supabase'
 import { venteRetenue, venteTheorique } from '../lib/venteMachine'
+import { beneficeSC } from '../lib/beneficeCorrige'
 import { TexteTheorique } from '../components/ui/VenteDouble'
 import { listerMoisAvecTotaux, chargerRapportMensuel } from '../lib/rapportMensuel'
 import { chargerAnalyse } from '../lib/analyseMoisDb'
@@ -60,7 +61,7 @@ function buildRapport(lundi, points, restaurants) {
     // venteTotal = vente machine ; venteTheo = vente théorique, le comparatif (lib/venteMachine.js).
     parResto[p.restaurant_id].venteTotal += venteRetenue(p)
     parResto[p.restaurant_id].venteTheo += venteTheorique(p)
-    parResto[p.restaurant_id].beneficeTotal += p.benefice_sc || 0
+    parResto[p.restaurant_id].beneficeTotal += beneficeSC(p)
     parResto[p.restaurant_id].depenseTotal += p.depense_total || 0
     parResto[p.restaurant_id].nbJours++
   })
@@ -83,7 +84,7 @@ function buildRapport(lundi, points, restaurants) {
     nb_restaurants: new Set(points.map(p => p.restaurant_id)).size,
     vente_total: Math.round(points.reduce((s, p) => s + venteRetenue(p), 0)),
     vente_theorique: Math.round(points.reduce((s, p) => s + venteTheorique(p), 0)),
-    benefice_total: Math.round(points.reduce((s, p) => s + (p.benefice_sc || 0), 0)),
+    benefice_total: Math.round(points.reduce((s, p) => s + beneficeSC(p), 0)),
     depense_total: Math.round(points.reduce((s, p) => s + (p.depense_total || 0), 0)),
     detail_restaurants,
   }
@@ -132,7 +133,7 @@ export default function RapportsScreen() {
       dateMin.setMonth(dateMin.getMonth() - 3)
       const { data: points, error } = await supabase
         .from('points')
-        .select('id, date, restaurant_id, vente_total, vente_machine, depense_total, benefice_sc')
+        .select('id, date, restaurant_id, vente_total, vente_machine, depense_total, benefice_sc, ecart_regularisations')
         .gte('date', dateMin.toISOString().split('T')[0])
         .order('date', { ascending: false })
       if (error) throw error

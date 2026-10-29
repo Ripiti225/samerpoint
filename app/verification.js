@@ -31,6 +31,7 @@ import { depensesSalairesShift } from '../lib/depensesShift'
 import { decisionEcartShiftPOS, SOURCE_DECISION_POS } from '../lib/ecartPOS'
 import { preparerEntreesVerification } from '../lib/entreesVerification'
 import { venteRetenue, venteTheorique } from '../lib/venteMachine'
+import { beneficeSC, correctionAnnulations } from '../lib/beneficeCorrige'
 import VenteDouble from '../components/ui/VenteDouble'
 import FeuilleTransfertFond from '../components/tresorerie/FeuilleTransfertFond'
 import { photosCanalDisponibles } from '../lib/photosVerification'
@@ -2189,11 +2190,19 @@ export default function VerificationScreen() {
 
                       <View style={styles.recapSep} />
 
-                      {/* Bénéfice */}
+                      {/* Bénéfice — écarts annulés de cette journée compris (lib/beneficeCorrige.js) */}
+                      {correctionAnnulations(p?.ecart_regularisations) !== 0 && (
+                        <View style={styles.recapRow}>
+                          <Text style={styles.recapLabel}>Dont écarts annulés</Text>
+                          <Text style={[styles.recapVal, { color: correctionAnnulations(p.ecart_regularisations) >= 0 ? '#2E7D32' : '#C62828' }]}>
+                            {correctionAnnulations(p.ecart_regularisations) > 0 ? '+' : ''}{fmt(correctionAnnulations(p.ecart_regularisations))}
+                          </Text>
+                        </View>
+                      )}
                       <View style={[styles.recapRow, { borderBottomWidth: 0, paddingVertical: 12 }]}>
                         <Text style={[styles.recapLabel, { fontSize: 14, fontWeight: '700' }]}>Bénéfice SC</Text>
                         <Text style={{ fontSize: 18, fontWeight: '800', color: '#3B6D11' }}>
-                          {fmt(p?.benefice_sc || 0)}
+                          {fmt(beneficeSC(p))}
                         </Text>
                       </View>
                     </View>

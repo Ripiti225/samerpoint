@@ -39,7 +39,7 @@ import TexteAjuste from '../components/ui/TexteAjuste'
 
 
 // Les colonnes de `points` que cet écran lit — une seule liste, trois requêtes.
-const CHAMPS_POINTS = 'id, date, restaurant_id, vente_total, vente_machine, depense_total, benefice_sc, yango_cse, yango_tab, glovo_cse, glovo_tab, wave, om, djamo, fond_recu, fc_compte'
+const CHAMPS_POINTS = 'id, date, restaurant_id, vente_total, vente_machine, depense_total, benefice_sc, ecart_regularisations, yango_cse, yango_tab, glovo_cse, glovo_tab, wave, om, djamo, fond_recu, fc_compte'
 
 // Alertes et Litiges sont des listes d'événements déjà datables, pas des
 // agrégats à confronter : ils restent en lecture simple sur le terme A.

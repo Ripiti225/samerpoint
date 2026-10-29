@@ -16,6 +16,7 @@ import { useTheme } from '../context/ThemeContext'
 import VenteDouble, { TexteTheorique } from '../components/ui/VenteDouble'
 import { venteRetenue, venteTheorique } from '../lib/venteMachine'
 import { getDepensesPeriode, getFournisseursPeriodePaye, getPaiesGerantPeriode, getPointsPeriode, getPresencesPeriode } from '../lib/api'
+import { avecBeneficeCorrige } from '../lib/beneficeCorrige'
 import { FOURNISSEURS_LABOR, FOURNISSEURS_NON_FOOD } from '../lib/constants'
 import { chargerChargesMois } from '../lib/chargesMois'
 import { depensesSalairesShift } from '../lib/depensesShift'
@@ -157,7 +158,7 @@ export default function DashboardScreen() {
     const range = getDateRange()
     if (range && range.debut && range.fin) {
       const data = await getPointsPeriode(restaurantId, range.debut, range.fin)
-      setPoints(data)
+      setPoints(avecBeneficeCorrige(data)) // BSC avec les écarts annulés (lib/beneficeCorrige.js)
     }
     setLoading(false)
   }
@@ -212,7 +213,7 @@ export default function DashboardScreen() {
     setPeriodeKey('custom')
     setLoading(true)
     const data = await getPointsPeriode(restaurantId, debut, fin)
-    setPoints(data)
+    setPoints(avecBeneficeCorrige(data))
     setLoading(false)
   }
 

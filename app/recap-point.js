@@ -15,6 +15,7 @@ import { creerNotification } from '../lib/notificationsInterne'
 import { verifierEtGenererRapportHebdo } from '../lib/rapportHebdo'
 import { sauvegarderSurOneDrive, estatConnecte } from '../lib/onedrive'
 import { COEFFICIENTS } from '../lib/constants'
+import { beneficeSC } from '../lib/beneficeCorrige'
 import { facturesGerantSansPhoto } from '../lib/creditsFournisseurs'
 import { cloturesPOS, resumerEcartsGlobaux } from '../lib/cloturesCaisse'
 import { depensesSalairesShift } from '../lib/depensesShift'
@@ -198,7 +199,7 @@ export default function RecapPointScreen() {
   async function chargerComparaison() {
     if (!restaurantId || !dateJour) return
     setLoadingComparaison(true)
-    const cols = 'vente_total, benefice_sc, depense_total, reste_especes, yango_cse, yango_tab, glovo_cse, glovo_tab'
+    const cols = 'vente_total, benefice_sc, ecart_regularisations, depense_total, reste_especes, yango_cse, yango_tab, glovo_cse, glovo_tab'
     const dateSemaine = getDateSemainePrecedente(dateJour)
     const dateMois = getDateMoisPrecedent(dateJour)
     const [{ data: pointSemaine }, { data: pointMois }] = await Promise.all([
@@ -889,7 +890,7 @@ export default function RecapPointScreen() {
 
               const indicateurs = [
                 { label: 'Vente totale', key: 'vente', today: todayVente, getRef: (p) => p?.vente_total, inverse: false },
-                { label: 'Bénéfice SC', key: 'benef', today: todayBenef, getRef: (p) => p?.benefice_sc, inverse: false },
+                { label: 'Bénéfice SC', key: 'benef', today: todayBenef, getRef: (p) => (p ? beneficeSC(p) : null), inverse: false },
                 { label: 'Dépenses', key: 'dep', today: todayDep, getRef: (p) => p?.depense_total, inverse: true },
                 { label: 'Espèces caisse', key: 'esp', today: todayEspeces, getRef: (p) => p?.reste_especes, inverse: false },
                 { label: 'Total Yango', key: 'yango', today: todayYango, getRef: (p) => p ? (p.yango_cse || 0) + (p.yango_tab || 0) : null, inverse: false },
