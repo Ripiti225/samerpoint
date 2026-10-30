@@ -15,11 +15,14 @@ import { ActivityIndicator, SafeAreaView, ScrollView, Text, TouchableOpacity, Vi
 
 import FeuilleSignature from '../components/contrats/FeuilleSignature'
 import FormulaireDemande from '../components/contrats/FormulaireDemande'
+import OngletMiseAJour from '../components/contrats/OngletMiseAJour'
 import Avatar from '../components/equipe/Avatar'
 import { Bouton, EnTete, Pastille, Puces, Vide, teinte, useEcranModerne } from '../components/ui/EcranModerne'
 import { useApp } from '../context/AppContext'
-import { formatFR } from '../lib/contrats'
+import { aujourdhuiISO, formatFR } from '../lib/contrats'
 import { chargerDemandes, chargerTousTravailleurs } from '../lib/contratsSignesDb'
+import { listeEquipe, nbACompleter } from '../lib/miseAJourFiches'
+import { chargerEquipeRestaurant } from '../lib/miseAJourFichesDb'
 import { STATUTS_DEMANDE_TRAV, nomComplet } from '../lib/recrutement'
 import { supabase } from '../lib/supabase'
 
@@ -34,7 +37,7 @@ export default function RecrutementScreen() {
   const { styles, accent, principale } = useEcranModerne('orange')
   const params = useLocalSearchParams()
 
-  const [onglet, setOnglet] = useState(params.onglet === 'signer' ? 'signer' : 'demandes')
+  const [onglet, setOnglet] = useState(params.onglet === 'signer' ? 'signer' : params.onglet === 'equipe' ? 'equipe' : 'demandes')
   const [demandes, setDemandes] = useState([])
   const [contrats, setContrats] = useState([])
   const [connus, setConnus] = useState([])
@@ -42,6 +45,8 @@ export default function RecrutementScreen() {
   const [formVisible, setFormVisible] = useState(false)
   const [demandeEditee, setDemandeEditee] = useState(null)
   const [contratOuvert, setContratOuvert] = useState(null)
+  const [equipe, setEquipe] = useState([])
+  const [majOuverte, setMajOuverte] = useState(null) // { trav, demande }
 
   const ctx = { userId: userId || null, userNom: userNom || null }
   const restaurant = { id: restaurantId || null, nom: restaurantNom || '' }
@@ -57,8 +62,12 @@ export default function RecrutementScreen() {
         .order('envoye_le', { ascending: false })
         .range(0, 999)
       if (restaurantId) q = q.eq('restaurant_id', restaurantId)
-      const [d, c, t] = await Promise.all([chargerDemandes({ restaurantId }), q, chargerTousTravailleurs()])
+      const [d, c, t, e] = await Promise.all([
+        chargerDemandes({ restaurantId }), q, chargerTousTravailleurs(),
+        restaurantId ? chargerEquipeRestaurant(restaurantId).catch(() => []) : [],
+      ])
       setDemandes(d)
+      setEquipe(e)
       setContrats(c.data || [])
       setConnus(t)
     } catch (_) {
@@ -69,7 +78,10 @@ export default function RecrutementScreen() {
   }
 
   const aSigner = useMemo(() => contrats.filter(c => c.statut === 'a_signer'), [contrats])
-  const demandesOuvertes = demandes.filter(d => d.statut !== 'acceptee').length
+  const embauches = demandes.filter(d => (d.type || 'embauche') === 'embauche')
+  const demandesOuvertes = embauches.filter(d => d.statut !== 'acceptee').length
+  const lignesEquipe = useMemo(() => listeEquipe(equipe, demandes), [equipe, demandes])
+  const nbEquipe = nbACompleter(equipe, demandes)
 
   function renderDemande(d) {
     const cfg = STATUTS_DEMANDE_TRAV[d.statut] || STATUTS_DEMANDE_TRAV.envoyee
@@ -130,20 +142,25 @@ export default function RecrutementScreen() {
       <Puces ligne styles={styles} actif={onglet} onChoisir={setOnglet} elements={[
         { cle: 'demandes', label: `🧑‍🍳 Mes demandes${demandesOuvertes ? ` (${demandesOuvertes})` : ''}` },
         { cle: 'signer', label: `✍️ Contrats à faire signer${aSigner.length ? ` (${aSigner.length})` : ''}` },
+        { cle: 'equipe', label: `📋 Mettre à jour mon équipe${nbEquipe ? ` (${nbEquipe})` : ''}` },
       ]} />
 
       {loading ? (
         <View style={styles.loadingBox}><ActivityIndicator size="large" color={accent} /></View>
       ) : (
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-          {onglet === 'demandes' && (demandes.length
-            ? demandes.map(renderDemande)
+          {onglet === 'demandes' && (embauches.length
+            ? embauches.map(renderDemande)
             : <Vide icone="🧑‍🍳" styles={styles} texte="Aucune demande pour l'instant."
               sous="Un nouveau travailleur ? Appuie sur « + Nouveau travailleur » : la RH valide, puis prépare son contrat." />)}
           {onglet === 'signer' && (contrats.length
             ? contrats.map(renderContrat)
             : <Vide icone="✍️" styles={styles} texte="Aucun contrat à faire signer."
               sous="Quand la RH prépare un contrat pour ton restaurant, il apparaît ici." />)}
+          {onglet === 'equipe' && (
+            <OngletMiseAJour styles={styles} principale={principale} lignes={lignesEquipe}
+              aujourdhui={aujourdhuiISO()} onOuvrir={x => setMajOuverte(x)} />
+          )}
           <View style={{ height: 100 }} />
         </ScrollView>
       )}
@@ -166,6 +183,17 @@ export default function RecrutementScreen() {
         ctx={ctx}
         onFermer={() => setFormVisible(false)}
         onEnvoye={() => { setFormVisible(false); charger() }}
+      />
+
+      <FormulaireDemande
+        visible={!!majOuverte}
+        travailleur={majOuverte?.trav || null}
+        demande={majOuverte?.demande || null}
+        restaurant={restaurant}
+        travailleursConnus={connus}
+        ctx={ctx}
+        onFermer={() => setMajOuverte(null)}
+        onEnvoye={() => { setMajOuverte(null); charger() }}
       />
 
       <FeuilleSignature
