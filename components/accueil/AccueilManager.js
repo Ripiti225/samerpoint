@@ -31,6 +31,7 @@ import { CHAMPS_VENTE, venteRetenue, venteTheorique, ventesDouble } from '../../
 import BandeauGerant from './BandeauGerant'
 import { contratsSignes, resumeContrats } from '../../lib/contrats'
 import { nbACompleter } from '../../lib/miseAJourFiches'
+import { compterFichesPaieIncompletes } from '../../lib/paieDb'
 import {
   ICONES_TUILES, etatPointsDuJour, groupeDeTuile, messagesTresorerie, nbAVerifier, organiserAccueil,
 } from '../../lib/groupesAccueil'
@@ -194,7 +195,7 @@ function useEtatDuJour(role, userId, restaurantId) {
       // Avis Glovo/Yango reçus un jour donné (date de l'avis), sans les charger.
       const nbAvis = jour => supabase.from('platform_reviews').select('id', { count: 'exact', head: true })
         .eq('review_date', isoLocal(jour)).then(x => (x.error ? null : x.count || 0))
-      const [p, r, d, treso, contrats, avisHier, avisAvantHier, avisSemainePrec, contactsJours, embauches] = await Promise.all([
+      const [p, r, d, treso, contrats, avisHier, avisAvantHier, avisSemainePrec, contactsJours, embauches, fichesPaie] = await Promise.all([
         supabase.from('points').select('restaurant_id, date, valide, verifie')
           .gte('date', isoLocal(depuis)).lte('date', isoLocal(auj)).order('date').range(0, 999),
         supabase.from('restaurants').select('id, nom').order('nom'),
@@ -210,6 +211,8 @@ function useEtatDuJour(role, userId, restaurantId) {
         // Demandes d'embauche des gérants en attente (tuile « Nouveaux travailleurs »).
         supabase.from('demandes_travailleurs').select('id', { count: 'exact', head: true }).eq('statut', 'envoyee')
           .then(x => (x.error ? 0 : x.count || 0), () => 0),
+        // CDD/CDI dont la fiche paie est incomplète (tuile « Salaires du mois »).
+        compterFichesPaieIncompletes().catch(() => 0),
       ])
       if (p.error || r.error) return
       setEtat({
@@ -218,6 +221,7 @@ function useEtatDuJour(role, userId, restaurantId) {
         aVerifier: nbAVerifier(p.data),
         demandes: d.error ? 0 : d.count || 0,
         embauches,
+        fichesPaie,
         treso,
         contrats,
         avisHier: avisHier === null ? null
@@ -270,6 +274,7 @@ export default function AccueilManager({ items, role, userId, restaurantId }) {
     'verification': etat?.aVerifier ? `${etat.aVerifier} à vérifier` : null,
     'demandes-admin': etat?.demandes ? `${etat.demandes} en attente` : null,
     'embauches': etat?.embauches ? `${etat.embauches} à valider` : null,
+    'salaires': etat?.fichesPaie ? `${etat.fichesPaie} fiche${etat.fichesPaie > 1 ? 's' : ''} paie à compléter` : null,
     'recrutement': etat?.fichesACompleter ? `${etat.fichesACompleter} fiche${etat.fichesACompleter > 1 ? 's' : ''} à compléter` : null,
   }
   const badgeGroupe = g => {
