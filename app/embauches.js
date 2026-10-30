@@ -13,16 +13,19 @@
 // le formulaire de génération de ce travailleur.
 // ──────────────────────────────────────────────────────────────────────────────
 import { router, useLocalSearchParams } from 'expo-router'
-import { useEffect, useState } from 'react'
-import { ActivityIndicator, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { useEffect, useMemo, useState } from 'react'
+import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 
 import FeuilleDemandeRH from '../components/contrats/FeuilleDemandeRH'
 import FeuilleMiseAJourRH from '../components/contrats/FeuilleMiseAJourRH'
+import OngletSuiviCampagne from '../components/contrats/OngletSuiviCampagne'
 import Avatar from '../components/equipe/Avatar'
 import { EnTete, Pastille, Puces, Vide, useEcranModerne } from '../components/ui/EcranModerne'
 import { useApp } from '../context/AppContext'
-import { formatFR } from '../lib/contrats'
+import { aujourdhuiISO, formatFR } from '../lib/contrats'
 import { chargerDemandes, chargerTousTravailleurs } from '../lib/contratsSignesDb'
+import { resumeCampagne } from '../lib/miseAJourFiches'
+import { chargerCampagne, relancerGerants } from '../lib/miseAJourFichesDb'
 import { STATUTS_DEMANDE_TRAV, nomComplet } from '../lib/recrutement'
 import { supabase } from '../lib/supabase'
 
@@ -42,20 +45,23 @@ export default function EmbauchesScreen() {
   const [filtreResto, setFiltreResto] = useState(typeof params.restaurant_id === 'string' ? params.restaurant_id : 'tous')
   const [demandeOuverte, setDemandeOuverte] = useState(null)
   const [majOuverte, setMajOuverte] = useState(null)
+  const [campagne, setCampagne] = useState({ travailleurs: [], contrats: [] })
 
   useEffect(() => { charger() }, [])
 
   async function charger() {
     setLoading(true)
     try {
-      const [{ data: restos }, d, t] = await Promise.all([
+      const [{ data: restos }, d, t, cp] = await Promise.all([
         supabase.from('restaurants').select('id, nom').order('nom'),
         chargerDemandes(),
         chargerTousTravailleurs(),
+        chargerCampagne().catch(() => ({ travailleurs: [], contrats: [] })),
       ])
       setRestaurants(restos || [])
       setDemandes(d)
       setConnus(t)
+      setCampagne(cp)
     } catch (_) {
       setDemandes([])
     } finally {
@@ -66,7 +72,22 @@ export default function EmbauchesScreen() {
   const restoNom = id => restaurants.find(r => r.id === id)?.nom || ''
   const dansResto = d => filtreResto === 'tous' || d.restaurant_id === filtreResto
   const nb = statut => demandes.filter(d => d.statut === statut && dansResto(d)).length
-  const affichees = demandes.filter(d => d.statut === ONGLETS[onglet] && dansResto(d))
+  const affichees = onglet === 'suivi' ? [] : demandes.filter(d => d.statut === ONGLETS[onglet] && dansResto(d))
+
+  const resume = useMemo(() => resumeCampagne({
+    travailleurs: campagne.travailleurs, demandes, contrats: campagne.contrats,
+    restaurants: restaurants.filter(r => filtreResto === 'tous' || r.id === filtreResto), aujourdhui: aujourdhuiISO(),
+  }), [campagne, demandes, restaurants, filtreResto])
+
+  async function relancer(l) {
+    try { await relancerGerants({ restaurantId: l.restaurant_id, nombre: l.aCompleter }); Alert.alert('Relance envoyée', `Les gérants de ${l.nom} ont reçu un rappel.`) }
+    catch { Alert.alert('Relance', "La notification n'est pas partie. Réessaie.") }
+  }
+  async function prevenirTous() {
+    const cibles = resume.lignes.filter(l => l.aCompleter > 0)
+    await Promise.all(cibles.map(l => relancerGerants({ restaurantId: l.restaurant_id, nombre: l.aCompleter }).catch(() => {})))
+    Alert.alert('Gérants prévenus', `${cibles.length} restaurant${cibles.length > 1 ? 's' : ''} prévenu${cibles.length > 1 ? 's' : ''}.`)
+  }
 
   const estMaj = d => d.type === 'mise_a_jour'
   const nomDemande = d => nomComplet(d) || connus.find(t => t.id === d.travailleur_id)?.nom || ''
@@ -115,7 +136,7 @@ export default function EmbauchesScreen() {
     valider: { icone: '✅', texte: 'Aucune demande à valider.', sous: 'Quand un gérant propose un nouveau travailleur, sa demande arrive ici.' },
     refusees: { icone: '❌', texte: 'Aucune demande refusée en attente.', sous: 'Une demande refusée repart chez le gérant, qui la corrige et la renvoie.' },
     acceptees: { icone: '🧑‍🍳', texte: 'Aucune demande acceptée.', sous: null },
-  }[onglet]
+  }[onglet] || {}
   const nbValider = nb('envoyee')
   const nbRefusees = nb('refusee')
 
@@ -130,15 +151,18 @@ export default function EmbauchesScreen() {
         { cle: 'valider', label: `🟡 À valider${nbValider ? ` (${nbValider})` : ''}` },
         { cle: 'refusees', label: `❌ Refusées${nbRefusees ? ` (${nbRefusees})` : ''}` },
         { cle: 'acceptees', label: '✅ Acceptées' },
+        { cle: 'suivi', label: '📊 Suivi' },
       ]} />
 
       {loading ? (
         <View style={styles.loadingBox}><ActivityIndicator size="large" color={accent} /></View>
       ) : (
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-          {affichees.length
-            ? affichees.map(renderDemande)
-            : <Vide icone={vides.icone} styles={styles} texte={vides.texte} sous={vides.sous} />}
+          {onglet === 'suivi'
+            ? <OngletSuiviCampagne styles={styles} accent={accent} resume={resume} onRelancer={relancer} onPrevenirTous={prevenirTous} />
+            : affichees.length
+              ? affichees.map(renderDemande)
+              : <Vide icone={vides.icone} styles={styles} texte={vides.texte} sous={vides.sous} />}
           <View style={{ height: 60 }} />
         </ScrollView>
       )}
