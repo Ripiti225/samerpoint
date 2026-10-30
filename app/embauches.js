@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react'
 import { ActivityIndicator, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 
 import FeuilleDemandeRH from '../components/contrats/FeuilleDemandeRH'
+import FeuilleMiseAJourRH from '../components/contrats/FeuilleMiseAJourRH'
 import Avatar from '../components/equipe/Avatar'
 import { EnTete, Pastille, Puces, Vide, useEcranModerne } from '../components/ui/EcranModerne'
 import { useApp } from '../context/AppContext'
@@ -40,6 +41,7 @@ export default function EmbauchesScreen() {
   const [onglet, setOnglet] = useState('valider')
   const [filtreResto, setFiltreResto] = useState(typeof params.restaurant_id === 'string' ? params.restaurant_id : 'tous')
   const [demandeOuverte, setDemandeOuverte] = useState(null)
+  const [majOuverte, setMajOuverte] = useState(null)
 
   useEffect(() => { charger() }, [])
 
@@ -66,7 +68,11 @@ export default function EmbauchesScreen() {
   const nb = statut => demandes.filter(d => d.statut === statut && dansResto(d)).length
   const affichees = demandes.filter(d => d.statut === ONGLETS[onglet] && dansResto(d))
 
+  const estMaj = d => d.type === 'mise_a_jour'
+  const nomDemande = d => nomComplet(d) || connus.find(t => t.id === d.travailleur_id)?.nom || ''
+
   function ouvrir(d) {
+    if (d.statut === 'envoyee' && estMaj(d)) { setMajOuverte(d); return }
     if (d.statut === 'envoyee') setDemandeOuverte(d)
     else if (d.statut === 'acceptee' && d.travailleur_id) {
       router.push({ pathname: '/contrats', params: { travailleur_id: d.travailleur_id, restaurant_id: d.restaurant_id || '' } })
@@ -80,9 +86,9 @@ export default function EmbauchesScreen() {
       <TouchableOpacity key={d.id} style={styles.carte} activeOpacity={cliquable ? 0.8 : 1}
         onPress={cliquable ? () => ouvrir(d) : undefined}>
         <View style={styles.carteTop}>
-          <Avatar nom={nomComplet(d)} photo={d.photo_url} taille={44} />
+          <Avatar nom={nomDemande(d)} photo={d.photo_url} taille={44} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.carteTitre}>{nomComplet(d)}</Text>
+            <Text style={styles.carteTitre}>{nomDemande(d)}</Text>
             <Text style={styles.carteSous}>
               {restoNom(d.restaurant_id) || 'Sans restaurant'} · {d.poste}{d.date_embauche ? ` · dès le ${formatFR(d.date_embauche)}` : ''}
             </Text>
@@ -91,11 +97,14 @@ export default function EmbauchesScreen() {
           {d.statut === 'acceptee' && d.travailleur_id && <Text style={{ color: accent, fontWeight: '800' }}>Contrat ›</Text>}
         </View>
         <Pastille cfg={cfg} styles={styles} />
+        {estMaj(d) && (
+          <Text style={{ alignSelf: 'flex-start', marginTop: 6, color: '#2F6FD8', fontWeight: '800', fontSize: 12 }}>📋 Mise à jour de fiche</Text>
+        )}
         {d.statut === 'refusee' && d.motif_refus
           ? <Text style={[styles.infoTxt, { color: cfg.couleur, marginTop: 8, flex: 0 }]}>Raison : {d.motif_refus}</Text>
           : null}
         <Text style={[styles.infoTxt, { marginTop: 6, flex: 0 }]}>
-          Demandée par {d.cree_par_nom || 'le gérant'} le {formatFR(String(d.created_at).slice(0, 10))}
+          {estMaj(d) ? 'Envoyée' : 'Demandée'} par {d.cree_par_nom || 'le gérant'} le {formatFR(String(d.created_at).slice(0, 10))}
           {d.statut === 'acceptee' && d.traite_le ? ` · acceptée le ${formatFR(String(d.traite_le).slice(0, 10))}${d.traite_par_nom ? ` par ${d.traite_par_nom}` : ''}` : ''}
         </Text>
       </TouchableOpacity>
@@ -147,6 +156,20 @@ export default function EmbauchesScreen() {
           await charger()
           if (generer && travailleur?.id) {
             router.push({ pathname: '/contrats', params: { travailleur_id: travailleur.id, generer: '1', demande_id: demandeId || '' } })
+          }
+        }}
+      />
+
+      <FeuilleMiseAJourRH
+        visible={!!majOuverte}
+        demande={majOuverte}
+        ctx={ctx}
+        onFermer={() => setMajOuverte(null)}
+        onTraitee={async ({ travailleur, generer }) => {
+          setMajOuverte(null)
+          await charger()
+          if (generer && travailleur?.id) {
+            router.push({ pathname: '/contrats', params: { travailleur_id: travailleur.id, generer: '1' } })
           }
         }}
       />
