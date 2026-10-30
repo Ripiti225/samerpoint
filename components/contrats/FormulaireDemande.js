@@ -26,6 +26,8 @@ import ChampDate from '../ChampDate'
 import { Bouton, Champ, Feuille, Info, Libelle, Puces, teinte, useEcranModerne } from '../ui/EcranModerne'
 import { uploadFichier } from '../../lib/api'
 import { ajouterTravailleurDirect, corrigerEtRenvoyer, envoyerDemande } from '../../lib/contratsSignesDb'
+import { ficheVersFormulaire } from '../../lib/miseAJourFiches'
+import { envoyerMiseAJour } from '../../lib/miseAJourFichesDb'
 import { isOnlineNow } from '../../lib/networkStatus'
 import { estPhotoEnAttente } from '../../lib/photoQueue'
 import { CIVILITES, SITUATIONS_FAMILLE, estPdf, manquantsDemande, trouverDoublon } from '../../lib/recrutement'
@@ -51,11 +53,14 @@ function depuisDemande(d) {
 
 export default function FormulaireDemande({
   visible, demande, restaurant, travailleursConnus, ctx, onFermer, onEnvoye,
-  direct = false, restaurants = [], restoParDefaut = null,
+  direct = false, restaurants = [], restoParDefaut = null, travailleur = null,
 }) {
+  const maj = !!travailleur
+  // Mise à jour : la demande refusée (si elle existe) a priorité, sinon la fiche.
+  const initial = () => (maj && !demande ? ficheVersFormulaire(travailleur) : depuisDemande(demande))
   const { styles, colors, accent, principale } = useEcranModerne('orange')
   const { prendrePhoto, choisirPhoto } = usePhoto()
-  const [form, setForm] = useState(depuisDemande(demande))
+  const [form, setForm] = useState(initial)
   const [envoi, setEnvoi] = useState(false)
   const [photoEnCours, setPhotoEnCours] = useState(null)
   const [restoId, setRestoId] = useState(restoParDefaut)
@@ -63,17 +68,17 @@ export default function FormulaireDemande({
 
   useEffect(() => {
     if (!visible) return
-    setForm(depuisDemande(demande))
+    setForm(initial())
     setRestoId(restoParDefaut)
     setReutiliser(true)
-  }, [visible, demande, restoParDefaut])
+  }, [visible, demande, restoParDefaut, travailleur?.id])
 
   const restoChoisi = direct ? restaurants.find(r => r.id === restoId) || null : restaurant
   // Ajout direct : l'ancien employé se repère pendant la saisie, et c'est la
   // personne qui ajoute qui décide (pas de RH derrière pour vérifier).
   const doublonDirect = direct ? trouverDoublon(form, travailleursConnus || []) : null
 
-  const maj = (cle, val) => setForm(f => ({ ...f, [cle]: val }))
+  const majChamp = (cle, val) => setForm(f => ({ ...f, [cle]: val }))
 
   // mode : 'camera' | 'galerie' | 'pdf'.
   // Une photo prise hors connexion revient sous forme de jeton « en attente » :
@@ -147,9 +152,12 @@ export default function FormulaireDemande({
   async function envoyer(doublon) {
     setEnvoi(true)
     try {
-      const contenu = { ...form, doublon_travailleur_id: doublon?.id || null }
-      if (demande) await corrigerEtRenvoyer(demande, contenu, ctx)
-      else await envoyerDemande(contenu, ctx, restaurant)
+      if (maj) await envoyerMiseAJour(travailleur, form, ctx, demande)
+      else {
+        const contenu = { ...form, doublon_travailleur_id: doublon?.id || null }
+        if (demande) await corrigerEtRenvoyer(demande, contenu, ctx)
+        else await envoyerDemande(contenu, ctx, restaurant)
+      }
       onEnvoye?.()
     } catch (e) {
       Alert.alert('Envoi impossible', e.message)
@@ -160,6 +168,17 @@ export default function FormulaireDemande({
 
   function valider() {
     const { bloquants, incomplets } = manquantsDemande(form)
+    // Mise à jour : le poste et le salaire restent ceux de la fiche.
+    if (maj) {
+      const b = bloquants.filter(x => x !== 'Poste')
+      const inc = incomplets.filter(x => x !== 'Salaire journalier')
+      if (b.length) { Alert.alert('Il manque des informations', `Obligatoire : ${b.join(', ')}.`); return }
+      if (!inc.length) { envoyer(null); return }
+      Alert.alert('Informations incomplètes',
+        `Encore à compléter : ${inc.join(', ')}.\n\nTu peux envoyer quand même : la RH valide ce qui est rempli.`,
+        [{ text: 'Compléter', style: 'cancel' }, { text: 'Envoyer quand même', onPress: () => envoyer(null) }])
+      return
+    }
     if (direct && !restoChoisi) bloquants.unshift('Restaurant')
     if (bloquants.length) {
       Alert.alert('Il manque des informations', `Obligatoire : ${bloquants.join(', ')}.`)
@@ -198,7 +217,7 @@ export default function FormulaireDemande({
   const champTexte = (cle, libelle, props = {}) => (
     <>
       <Libelle styles={styles}>{libelle}</Libelle>
-      <Champ styles={styles} colors={colors} value={form[cle]} onChangeText={v => maj(cle, v)} {...props} />
+      <Champ styles={styles} colors={colors} value={form[cle]} onChangeText={v => majChamp(cle, v)} {...props} />
     </>
   )
 
@@ -241,8 +260,8 @@ export default function FormulaireDemande({
 
   return (
     <Feuille visible={visible} styles={styles} onFermer={onFermer}
-      titre={demande ? 'Corriger la demande' : 'Nouveau travailleur'}
-      sous={demande?.motif_refus ? `Refus de la RH : ${demande.motif_refus}` : direct ? 'Ajout direct — actif tout de suite' : restaurant?.nom}>
+      titre={maj ? 'Mettre à jour la fiche' : demande ? 'Corriger la demande' : 'Nouveau travailleur'}
+      sous={demande?.motif_refus ? `Refus de la RH : ${demande.motif_refus}` : maj ? travailleur.nom : direct ? 'Ajout direct — actif tout de suite' : restaurant?.nom}>
 
       {direct && (
         <>
@@ -261,48 +280,60 @@ export default function FormulaireDemande({
             </View>
           )}
         <View style={{ flex: 1 }}>
-          {boutonsAjout('photos', u => maj('photo_url', u), { pdf: false })}
+          {boutonsAjout('photos', u => majChamp('photo_url', u), { pdf: false })}
           <Text style={[styles.infoTxt, { marginTop: 6, flex: 0 }]}>
             {form.photo_url ? 'Touche un bouton pour la remplacer. ' : ''}Obligatoire : la RH doit pouvoir reconnaître la personne.
           </Text>
         </View>
       </View>
 
+      {maj && (
+        <>
+          <ChampDate label="Date d'embauche (premier jour de travail)" valeur={form.date_embauche}
+            onChange={v => majChamp('date_embauche', v)} couleur={principale} />
+          <Info icone="📅" styles={styles}>C'est la date de début de son contrat.</Info>
+        </>
+      )}
+
       <Libelle styles={styles}>Civilité</Libelle>
-      <Puces styles={styles} actif={form.civilite} onChoisir={v => maj('civilite', v)} elements={CIVILITES.map(c => ({ cle: c, label: c === 'M.' ? 'Monsieur' : 'Madame' }))} />
+      <Puces styles={styles} actif={form.civilite} onChoisir={v => majChamp('civilite', v)} elements={CIVILITES.map(c => ({ cle: c, label: c === 'M.' ? 'Monsieur' : 'Madame' }))} />
 
       {champTexte('nom_famille', 'Nom *', { placeholder: 'Ex. GBADIE', autoCapitalize: 'characters' })}
       {champTexte('prenoms', 'Prénoms *', { placeholder: 'Ex. Gogre Tanguy' })}
 
-      <ChampDate label="Date de naissance" valeur={form.date_naissance} onChange={v => maj('date_naissance', v)}
+      <ChampDate label="Date de naissance" valeur={form.date_naissance} onChange={v => majChamp('date_naissance', v)}
         maxDate={new Date().toISOString().slice(0, 10)} couleur={principale} naissance />
       {champTexte('lieu_naissance', 'Lieu de naissance', { placeholder: 'Ex. Yopougon' })}
       {champTexte('nationalite', 'Nationalité', { placeholder: 'Ex. Ivoirienne' })}
 
       <Libelle styles={styles}>Situation de famille</Libelle>
-      <Puces styles={styles} actif={form.situation_famille} onChoisir={v => maj('situation_famille', v)} elements={SITUATIONS_FAMILLE.map(s => ({ cle: s, label: s }))} />
+      <Puces styles={styles} actif={form.situation_famille} onChoisir={v => majChamp('situation_famille', v)} elements={SITUATIONS_FAMILLE.map(s => ({ cle: s, label: s }))} />
 
       {champTexte('cni_numero', "N° de carte d'identité (CNI)", { placeholder: 'Ex. CI007879705', autoCapitalize: 'characters' })}
       {champTexte('nni_numero', 'NNI (si connu)', { placeholder: 'Ex. 11919240401', keyboardType: 'number-pad' })}
       {champTexte('lieu_residence', 'Lieu de résidence', { placeholder: 'Ex. Yopougon' })}
       {champTexte('contact', 'Téléphone', { placeholder: 'Ex. 01 01 35 48 69', keyboardType: 'phone-pad' })}
 
+      {!maj && (
+        <>
       <Libelle styles={styles}>Poste *</Libelle>
-      <Puces petit styles={styles} actif={form.poste} onChoisir={v => maj('poste', v)} elements={POSTES_COURANTS.map(p => ({ cle: p, label: p }))} />
-      <Champ styles={styles} colors={colors} value={form.poste} onChangeText={v => maj('poste', v)} placeholder="Ou écris le poste" />
+      <Puces petit styles={styles} actif={form.poste} onChoisir={v => majChamp('poste', v)} elements={POSTES_COURANTS.map(p => ({ cle: p, label: p }))} />
+      <Champ styles={styles} colors={colors} value={form.poste} onChangeText={v => majChamp('poste', v)} placeholder="Ou écris le poste" />
 
       {champTexte('salaire_journalier', direct ? 'Salaire journalier (paie, F)' : 'Salaire journalier proposé (F)', { placeholder: 'Ex. 3000', keyboardType: 'number-pad' })}
-      <ChampDate label="Date d'embauche (premier jour de travail)" valeur={form.date_embauche} onChange={v => maj('date_embauche', v)} couleur={principale} />
+      <ChampDate label="Date d'embauche (premier jour de travail)" valeur={form.date_embauche} onChange={v => majChamp('date_embauche', v)} couleur={principale} />
+        </>
+      )}
 
       <Libelle styles={styles}>Carte d&apos;identité (recto, verso) — facultatif</Libelle>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginBottom: 2 }}>
-        {form.piece_identite_urls.map(u => vignette(u, () => maj('piece_identite_urls', form.piece_identite_urls.filter(x => x !== u))))}
+        {form.piece_identite_urls.map(u => vignette(u, () => majChamp('piece_identite_urls', form.piece_identite_urls.filter(x => x !== u))))}
       </View>
       {boutonsAjout('cni', u => setForm(f => ({ ...f, piece_identite_urls: [...f.piece_identite_urls, u] })))}
 
       <Libelle styles={styles}>Autres papiers — facultatif</Libelle>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginBottom: 2 }}>
-        {form.papiers_urls.map(u => vignette(u, () => maj('papiers_urls', form.papiers_urls.filter(x => x !== u))))}
+        {form.papiers_urls.map(u => vignette(u, () => majChamp('papiers_urls', form.papiers_urls.filter(x => x !== u))))}
       </View>
       {boutonsAjout('papiers', u => setForm(f => ({ ...f, papiers_urls: [...f.papiers_urls, u] })))}
       <View style={{ height: 8 }} />
@@ -320,7 +351,9 @@ export default function FormulaireDemande({
       )}
 
       <Info icone="ℹ️" styles={styles}>
-        {direct
+        {maj
+          ? 'La RH vérifie puis met la fiche à jour ; rien ne change avant sa validation.'
+          : direct
           ? 'Le travailleur est actif tout de suite (équipe, pointage, POS). Son contrat se génère ensuite dans Contrats.'
           : 'Le salaire du contrat et le type de contrat seront fixés par la RH.'}
       </Info>
@@ -328,7 +361,7 @@ export default function FormulaireDemande({
       {envoi
         ? <ActivityIndicator size="large" color={accent} />
         : <Bouton grand styles={styles} couleur={principale} variante="plein"
-          label={direct ? 'Enregistrer le travailleur' : demande ? 'Renvoyer à la RH' : 'Envoyer à la RH'} onPress={valider} />}
+          label={direct ? 'Enregistrer le travailleur' : maj ? 'Envoyer à la RH' : demande ? 'Renvoyer à la RH' : 'Envoyer à la RH'} onPress={valider} />}
     </Feuille>
   )
 }
