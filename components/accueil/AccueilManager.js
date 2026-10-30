@@ -30,6 +30,7 @@ import { objectifDuMois } from '../../lib/objectifs'
 import { CHAMPS_VENTE, venteRetenue, venteTheorique, ventesDouble } from '../../lib/venteMachine'
 import BandeauGerant from './BandeauGerant'
 import { contratsSignes, resumeContrats } from '../../lib/contrats'
+import { nbACompleter } from '../../lib/miseAJourFiches'
 import {
   ICONES_TUILES, etatPointsDuJour, groupeDeTuile, messagesTresorerie, nbAVerifier, organiserAccueil,
 } from '../../lib/groupesAccueil'
@@ -121,7 +122,7 @@ function useEtatDuJour(role, userId, restaurantId) {
         // Objectif du mois : ventes des jours terminés (aujourd'hui exclu).
         const debutMois = isoLocal(new Date(auj.getFullYear(), auj.getMonth(), 1))
         const joursMois = new Date(auj.getFullYear(), auj.getMonth() + 1, 0).getDate()
-        const [pts, corr, dem, expl, aH, aAH, aSP, contactsJours, shiftsHier, resto, ptsMois, supVisite, supTaches] = await Promise.all([
+        const [pts, corr, dem, expl, aH, aAH, aSP, contactsJours, shiftsHier, resto, ptsMois, supVisite, supTaches, equipeG, majG] = await Promise.all([
           supabase.from('points').select(`date, valide, verifie, ${CHAMPS_VENTE}`).eq('restaurant_id', restaurantId).in('date', dates),
           supabase.from('deverouillages_points').select('id', { count: 'exact', head: true })
             .eq('restaurant_id', restaurantId).eq('statut', 'ouvert'),
@@ -145,6 +146,10 @@ function useEtatDuJour(role, userId, restaurantId) {
             .eq('restaurant_id', restaurantId).eq('statut', 'terminee').order('debut_at', { ascending: false }).limit(1),
           supabase.from('supervision_taches').select('id', { count: 'exact', head: true })
             .eq('restaurant_id', restaurantId).eq('statut', 'a_faire'),
+          // Campagne fiches (29/10/2026) : fiches à compléter par le gérant.
+          supabase.from('travailleurs').select('*').eq('restaurant_id', restaurantId).neq('statut', 'archive').range(0, 999),
+          supabase.from('demandes_travailleurs').select('id, type, travailleur_id, statut, created_at')
+            .eq('restaurant_id', restaurantId).in('statut', ['envoyee', 'refusee']),
         ])
         if (pts.error) return
         const parDate = Object.fromEntries((pts.data || []).map(x => [x.date, x]))
@@ -178,6 +183,7 @@ function useEtatDuJour(role, userId, restaurantId) {
               taches: supTaches.error ? 0 : supTaches.count || 0,
             },
           },
+          fichesACompleter: equipeG.error ? 0 : nbACompleter(equipeG.data || [], majG.error ? [] : majG.data || []),
           avisHier: texteHier({ hier: aH, avantHier: aAH, semainePrec: aSP }, dates[0]),
           contactsHier: contactsJours === null ? null : texteHier({
             hier: contactsJours[dates[0]] || 0, avantHier: contactsJours[dates[1]] || 0, semainePrec: contactsJours[dates[2]] || 0,
@@ -264,6 +270,7 @@ export default function AccueilManager({ items, role, userId, restaurantId }) {
     'verification': etat?.aVerifier ? `${etat.aVerifier} à vérifier` : null,
     'demandes-admin': etat?.demandes ? `${etat.demandes} en attente` : null,
     'embauches': etat?.embauches ? `${etat.embauches} à valider` : null,
+    'recrutement': etat?.fichesACompleter ? `${etat.fichesACompleter} fiche${etat.fichesACompleter > 1 ? 's' : ''} à compléter` : null,
   }
   const badgeGroupe = g => {
     const b = g.tuiles.map(t => badges[t.id]).filter(Boolean)
