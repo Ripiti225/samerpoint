@@ -39,7 +39,8 @@ export default function FeuilleMiseAJourRH({ visible, demande, ctx, onFermer, on
       const generer = await new Promise(resolve => Alert.alert('Fiche mise à jour',
         `${t.nom} : fiche à jour.\n\nGénérer son contrat maintenant (${typeContratPropose(t)} proposé) ?`,
         [{ text: 'Plus tard', style: 'cancel', onPress: () => resolve(false) },
-          { text: 'Générer le contrat', onPress: () => resolve(true) }]))
+          { text: 'Générer le contrat', onPress: () => resolve(true) }],
+        { cancelable: false }))
       onTraitee?.({ travailleur: t, generer })
     } catch (e) {
       Alert.alert('Validation impossible', e.message)

@@ -74,19 +74,33 @@ export default function EmbauchesScreen() {
   const nb = statut => demandes.filter(d => d.statut === statut && dansResto(d)).length
   const affichees = onglet === 'suivi' ? [] : demandes.filter(d => d.statut === ONGLETS[onglet] && dansResto(d))
 
-  const resume = useMemo(() => resumeCampagne({
+  const resumeTous = useMemo(() => resumeCampagne({
     travailleurs: campagne.travailleurs, demandes, contrats: campagne.contrats,
-    restaurants: restaurants.filter(r => filtreResto === 'tous' || r.id === filtreResto), aujourdhui: aujourdhuiISO(),
-  }), [campagne, demandes, restaurants, filtreResto])
+    restaurants, aujourdhui: aujourdhuiISO(),
+  }), [campagne, demandes, restaurants])
+  const resume = useMemo(() => ({
+    ...resumeTous, lignes: resumeTous.lignes.filter(l => filtreResto === 'tous' || l.restaurant_id === filtreResto),
+  }), [resumeTous, filtreResto])
+  const [envoiEnCours, setEnvoiEnCours] = useState(false)
 
   async function relancer(l) {
     try { await relancerGerants({ restaurantId: l.restaurant_id, nombre: l.aCompleter }); Alert.alert('Relance envoyée', `Les gérants de ${l.nom} ont reçu un rappel.`) }
     catch { Alert.alert('Relance', "La notification n'est pas partie. Réessaie.") }
   }
-  async function prevenirTous() {
-    const cibles = resume.lignes.filter(l => l.aCompleter > 0)
-    await Promise.all(cibles.map(l => relancerGerants({ restaurantId: l.restaurant_id, nombre: l.aCompleter }).catch(() => {})))
-    Alert.alert('Gérants prévenus', `${cibles.length} restaurant${cibles.length > 1 ? 's' : ''} prévenu${cibles.length > 1 ? 's' : ''}.`)
+  function prevenirTous() {
+    if (envoiEnCours) return
+    const cibles = resumeTous.lignes.filter(l => l.aCompleter > 0)
+    if (!cibles.length) { Alert.alert('Rien à envoyer', 'Toutes les fiches sont à jour ou en attente de validation.'); return }
+    Alert.alert('Prévenir les gérants ?', `${cibles.length} restaurant${cibles.length > 1 ? 's' : ''} recevront un rappel.`, [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Envoyer', onPress: async () => {
+        setEnvoiEnCours(true)
+        try {
+          await Promise.all(cibles.map(l => relancerGerants({ restaurantId: l.restaurant_id, nombre: l.aCompleter }).catch(() => {})))
+          Alert.alert('Gérants prévenus', `${cibles.length} restaurant${cibles.length > 1 ? 's' : ''} prévenu${cibles.length > 1 ? 's' : ''}.`)
+        } finally { setEnvoiEnCours(false) }
+      } },
+    ])
   }
 
   const estMaj = d => d.type === 'mise_a_jour'
@@ -159,7 +173,7 @@ export default function EmbauchesScreen() {
       ) : (
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
           {onglet === 'suivi'
-            ? <OngletSuiviCampagne styles={styles} accent={accent} resume={resume} onRelancer={relancer} onPrevenirTous={prevenirTous} />
+            ? <OngletSuiviCampagne styles={styles} accent={accent} resume={resume} onRelancer={relancer} onPrevenirTous={prevenirTous} total={resumeTous.total} envoiEnCours={envoiEnCours} />
             : affichees.length
               ? affichees.map(renderDemande)
               : <Vide icone={vides.icone} styles={styles} texte={vides.texte} sous={vides.sous} />}

@@ -26,7 +26,7 @@ import ChampDate from '../ChampDate'
 import { Bouton, Champ, Feuille, Info, Libelle, Puces, teinte, useEcranModerne } from '../ui/EcranModerne'
 import { uploadFichier } from '../../lib/api'
 import { ajouterTravailleurDirect, corrigerEtRenvoyer, envoyerDemande } from '../../lib/contratsSignesDb'
-import { ficheVersFormulaire } from '../../lib/miseAJourFiches'
+import { ficheVersFormulaire, formulaireCorrection } from '../../lib/miseAJourFiches'
 import { envoyerMiseAJour } from '../../lib/miseAJourFichesDb'
 import { isOnlineNow } from '../../lib/networkStatus'
 import { estPhotoEnAttente } from '../../lib/photoQueue'
@@ -57,7 +57,7 @@ export default function FormulaireDemande({
 }) {
   const maj = !!travailleur
   // Mise à jour : la demande refusée (si elle existe) a priorité, sinon la fiche.
-  const initial = () => (maj && !demande ? ficheVersFormulaire(travailleur) : depuisDemande(demande))
+  const initial = () => (maj ? (demande ? formulaireCorrection(travailleur, demande) : ficheVersFormulaire(travailleur)) : depuisDemande(demande))
   const { styles, colors, accent, principale } = useEcranModerne('orange')
   const { prendrePhoto, choisirPhoto } = usePhoto()
   const [form, setForm] = useState(initial)

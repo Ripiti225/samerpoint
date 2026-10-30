@@ -1192,4 +1192,4 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 1:** `git push` ; `graphify update .` (règle du projet) puis commit `chore(graphify): graphe à jour` si des fichiers changent.
 - [ ] **Step 2:** Mettre à jour la mémoire `mise-a-jour-fiches-campagne.md` (commits, migration à passer, rien de publié).
-- [ ] **Step 3:** Dire à l'utilisateur : passer `supabase_mise_a_jour_fiches.sql` ; publier (Vercel **et** EAS, les gérants ont l'app installée) ; puis « 📣 Prévenir tous les gérants » dans Nouveaux travailleurs → Suivi.
+- [ ] **Step 3:** Publier d'abord (Vercel **et** EAS) ; faire recharger le web et relancer deux fois l'application sur les postes RH et manager ; **ensuite seulement** passer `supabase_mise_a_jour_fiches.sql` ; puis « 📣 Prévenir tous les gérants » (Nouveaux travailleurs → Suivi). Code avant migration = sans danger ; migration avant code = une mise à jour pourrait être acceptée comme une embauche par un ancien écran.

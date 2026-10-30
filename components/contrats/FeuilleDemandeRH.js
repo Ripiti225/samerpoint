@@ -48,6 +48,7 @@ export default function FeuilleDemandeRH({ visible, demande, restaurantNom, trav
           { text: 'Plus tard', style: 'cancel', onPress: () => resolve(false) },
           { text: 'Générer le contrat', onPress: () => resolve(true) },
         ],
+        { cancelable: false },
       ))
       onTraitee?.({ travailleur: trav, generer })
     } catch (e) {

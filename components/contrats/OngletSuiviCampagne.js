@@ -12,8 +12,8 @@ function Barre({ part, couleur }) {
   )
 }
 
-export default function OngletSuiviCampagne({ styles, accent, resume, onRelancer, onPrevenirTous }) {
-  const t = resume.total
+export default function OngletSuiviCampagne({ styles, accent, resume, total, envoiEnCours, onRelancer, onPrevenirTous }) {
+  const t = total || resume.total
   return (
     <>
       <View style={styles.carte}>
@@ -21,10 +21,11 @@ export default function OngletSuiviCampagne({ styles, accent, resume, onRelancer
         <Text style={styles.carteSous}>Fiches à jour {t.aJour}/{t.total} · en attente RH {t.enAttente} · contrats signés {t.contratsSignes}/{t.total}</Text>
         <Barre part={t.total ? t.aJour / t.total : 0} couleur="#3B8D2F" />
         <View style={{ marginTop: 10 }}>
-          <Bouton styles={styles} couleur={accent} variante="plein" label="📣 Prévenir tous les gérants" onPress={onPrevenirTous} />
+          <Bouton styles={styles} couleur={accent} variante="plein" label="📣 Prévenir tous les gérants" disabled={envoiEnCours} onPress={onPrevenirTous} />
         </View>
       </View>
       <Info icone="ℹ️" styles={styles}>Envoyez la notification de lancement une fois la version publiée (web et application).</Info>
+      <Text style={styles.carteSous}>Vert : fiches à jour · Bleu : contrats signés</Text>
       {resume.lignes.map(l => (
         <View key={l.restaurant_id} style={styles.carte}>
           <Text style={styles.carteTitre}>{l.nom}</Text>

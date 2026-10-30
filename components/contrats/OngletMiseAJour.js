@@ -19,7 +19,9 @@ export default function OngletMiseAJour({ styles, principale, lignes, aujourdhui
   return (
     <>
       <Info icone={depasse ? '⏰' : '📋'} styles={styles} couleur={depasse ? '#C2462B' : principale}>
-        {depasse ? 'Date limite dépassée' : 'Complétez les fiches de votre équipe'} : avant le {TEXTE_DATE_LIMITE}. {aJour} / {lignes.length} à jour.
+        {depasse
+          ? `Date limite dépassée (${TEXTE_DATE_LIMITE}) : ${aJour} / ${lignes.length} à jour.`
+          : `Complétez les fiches de votre équipe avant le ${TEXTE_DATE_LIMITE} : ${aJour} / ${lignes.length} à jour.`}
       </Info>
       <View style={{ height: 8 }} />
       {lignes.length === 0
