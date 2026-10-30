@@ -12,6 +12,7 @@ import { chargerDocuments, chargerHistoriqueTravailleur, chargerPaiesGerantTrava
 import { completerPresences, nomJour } from '../../lib/joursRepos'
 import { exporterPdf } from '../../lib/pdfDocuments'
 import Avatar from './Avatar'
+import SectionPaie from './SectionPaie'
 import { PastilleStatut } from './OngletPresences'
 import { teinte } from './styles'
 import { useApp } from '../../context/AppContext'
@@ -42,7 +43,7 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
   const [creation, setCreation] = useState(false)
   const [contrats, setContrats] = useState(null)   // null = pas encore chargés
   const [badgeRendu, setBadgeRendu] = useState(null)
-  const { userNom } = useApp()
+  const { userId, userNom } = useApp()
 
   const plage = useMemo(() => plageDates(periode, perso), [periode, perso])
   const periodes = PERIODES.filter(p => p.key !== 'custom' || (perso.debut && perso.fin))
@@ -234,6 +235,10 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
               « Remplacer la carte » rend l'ancienne invalide au scan (carte perdue, photo changée, contrat renouvelé…).
               {validite ? ` Nouvelle carte : ${libelleValidite(validite.valideJusqua)}${validite.source === 'defaut' ? ' (aucun contrat saisi : 6 mois)' : validite.source === 'contrat' ? ' (fin du contrat)' : ''}.` : ''}
             </Text>
+          )}
+
+          {peutEditer && !archive && ['CDD', 'CDI'].includes(trav.type_contrat) && contrats !== null && (
+            <SectionPaie trav={trav} contrats={contrats} ctx={{ userId: userId || null, userNom: userNom || null }} colors={colors} accent={BLEU} />
           )}
 
           {/* ─── Papiers ─── */}
