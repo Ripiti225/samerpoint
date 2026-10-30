@@ -9,6 +9,8 @@
 // l'utilisateur, 14/10/2026) ; un CDD/CDI commence le lendemain du contrat
 // précédent, sinon à l'embauche. La fin découle toujours de la durée : le texte
 // du contrat cite les deux, ils ne peuvent pas se contredire.
+// Type proposé à l'ouverture : Journalier → Stage, CDI → CDI, sinon CDD
+// (lib/miseAJourFiches.js, 29/10/2026).
 // ──────────────────────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Alert, Text, TouchableOpacity, View } from 'react-native'
@@ -18,10 +20,11 @@ import ChampDate from '../ChampDate'
 import { debutParDefaut } from '../FormulaireContrat'
 import { Bouton, Champ, Feuille, Info, Libelle, Puces, teinte, useEcranModerne } from '../ui/EcranModerne'
 import { baremePour, differeDuBareme, montantsDepuisBareme } from '../../lib/baremes'
-import { DUREES_MOIS, TYPES_CONTRAT, calculerDateFin, formatFR, validerDureeLibre } from '../../lib/contrats'
+import { DUREES_MOIS, TYPES_CONTRAT, aujourdhuiISO, calculerDateFin, formatFR, validerDureeLibre } from '../../lib/contrats'
 import {
   completerFiche, corrigerContratRefuse, enregistrerBareme, genererContrat, marqueDuResto,
 } from '../../lib/contratsSignesDb'
+import { contratDejaTermine, typeContratPropose } from '../../lib/miseAJourFiches'
 import { champsManquantsContrat, donneesDepuisFiche, marqueContrat } from '../../lib/modelesContrat'
 import { CIVILITES, SITUATIONS_FAMILLE } from '../../lib/recrutement'
 
@@ -81,7 +84,7 @@ export default function FormulaireGeneration({
   useEffect(() => {
     if (!visible || !travailleur) return
     const d = contratRefuse?.donnees
-    const t = contratRefuse?.type || 'CDD'
+    const t = contratRefuse?.type || typeContratPropose(travailleur)
     setType(t)
     const mois = d?.duree_mois || 3
     setDuree(DUREES_MOIS.includes(mois) ? mois : 'autre')
@@ -195,6 +198,11 @@ export default function FormulaireGeneration({
         <ChampDate label="Date de début" valeur={dateDebut} onChange={setDateDebut} couleur={principale} />
       )}
       {fin ? <Info icone="🏁" styles={styles}>Fin du contrat : le {formatFR(fin)}</Info> : null}
+      {contratDejaTermine(fin, aujourdhuiISO()) ? (
+        <Info icone="⚠️" styles={styles} couleur="#C2462B">
+          Avec cette durée, le contrat serait déjà terminé le {formatFR(fin)} : il commence à la date d&apos;embauche. Choisis une durée plus longue.
+        </Info>
+      ) : null}
 
       <Text style={[styles.resultat, { marginTop: 14 }]}>Rémunération{bareme ? ' — barème du poste' : ''}</Text>
       {estStage ? (
