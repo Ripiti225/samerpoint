@@ -4,6 +4,46 @@
 
 ---
 
+## Session 2026-10-30 — États de salaire et bulletins de paie (remplace Sage)
+
+**Codé et poussé sur main, PAS publié** (commits `f9fb154` → `bc3e838`).
+Conception : `docs/superpowers/specs/2026-10-30-etats-salaire-bulletins-design.md` ·
+plan : `docs/superpowers/plans/2026-10-30-etats-salaire-bulletins.md`.
+
+- **Calcul** : `lib/paie.js` (bulletin ivoirien, taux en pour dix mille), `lib/etatSalaire.js`
+  (lignes de l'état, saisies RH, règles de soumission), `lib/bulletin.js` (en-tête, congés,
+  cumuls), `lib/pdfBulletin.js` (PDF format Sage + état). 43 tests ; les 5 bulletins Sage de
+  juillet 2026 sont reproduits **au franc près** (jeux anonymisés, les vrais bulletins sont
+  dans `~/Downloads/07_juillet` et ne vont jamais dans le dépôt).
+- **Circuit** (`lib/paieDb.js`, écran `/salaires`) : RH prépare / recalcule / corrige
+  (absences justifiées, éléments variables, avances, motif obligatoire) → soumet (refusé si le
+  mois n'est pas fini ou une fiche paie CDD/CDI incomplète) → manager valide ou renvoie.
+  Validation = état figé (jsonb `bulletin`) + dû Trésorerie `salaire` du restaurant pour le
+  mois. **Un seul dû salaire par resto/mois** (index unique) : s'il existe sans paiement, son
+  montant est remplacé (ancien gardé pour la réouverture) ; déjà payé → pas touché, avertissement.
+- **Fiche** : section « Paie » (CDD/CDI, RH/manager) pré-remplie depuis le contrat signé,
+  liste des bulletins validés. Badge « fiches paie à compléter » sur la tuile.
+
+**Reste à faire (utilisateur)**
+1. Passer `supabase_paie.sql` dans le SQL Editor **Samtrackly** (contrôle : 2, 5, 1, 3, true).
+   Sans elle, l'écran Salaires affiche « La migration supabase_paie.sql n'est pas encore passée ».
+2. Appliquer `docs/correctif-pont-pointeuse.md` sur le **master Windows** et redéployer
+   `samtrackly-points` (heures réelles de la pointeuse dans `presences`).
+3. Faire valider par le comptable : **taux de l'indemnité de fin de CDD** (3 % mis par défaut,
+   6 % selon certaines sources), **méthode des congés payés**, **seuils ITS au-delà de 240 000**.
+   Changement = nouvelle ligne `parametres_paie` (date d'effet), jamais modifier l'ancienne.
+4. Saisir les employeurs Al Kayan et À la Braise (écran Salaires → « Employeurs », manager),
+   puis les fiches paie des CDD/CDI.
+5. Novembre 2026 **en double avec Sage**, comparer, puis abandonner Sage en décembre.
+6. Publier (Vercel + EAS) quand l'utilisateur le demande.
+
+**Pas d'écran pour la reprise des cumuls Sage** (`cumuls_reprise`, `cumuls_reprise_au`,
+`conges_acquis_reprise`, `conges_reste_reprise` de `fiches_paie`) : import SQL depuis Sage si
+l'on veut des cumuls 2026 complets. Contrôle SQL de la tâche 6 (jointure des bulletins
+précédents) à refaire une fois la migration passée.
+
+---
+
 ## Session 2026-09-25 — Point caissier, suppression de compte, contacts RH
 
 **Déployé en production** (commit `95e0292`, web Vercel + OTA EAS `production`).

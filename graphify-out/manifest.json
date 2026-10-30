@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "app/_layout.tsx": {
-    "mtime": 1792413236.0068698,
-    "seen": 1792413256.736843,
-    "ast_hash": "e1a69adafe594d353316fc8a37fd6a1f",
+    "mtime": 1793376187.5003705,
+    "seen": 1793376300.289666,
+    "ast_hash": "bbe62c1df9f5f7bfd82b67cea285e923",
     "semantic_hash": ""
   },
   "app/accueil.js": {
@@ -606,9 +606,9 @@
     "semantic_hash": ""
   },
   "lib/menus.js": {
-    "mtime": 1792068055.1689785,
-    "seen": 1792068127.794543,
-    "ast_hash": "f757f94827bce3981f1a9315325b968b",
+    "mtime": 1793376189.55882,
+    "seen": 1793376300.2900212,
+    "ast_hash": "5c793f46553d13dc9f8ac6fb12c8cf0e",
     "semantic_hash": ""
   },
   "lib/networkStatus.js": {
@@ -1080,9 +1080,9 @@
     "semantic_hash": ""
   },
   "handoff.md": {
-    "mtime": 1790349675.063124,
-    "seen": 1790819998.874283,
-    "ast_hash": "6bf8c580c954c4b53697dd624567d3da",
+    "mtime": 1793376282.3921685,
+    "seen": 1793376300.2903428,
+    "ast_hash": "3478f624ea31cb891be94f0f4e05b92e",
     "semantic_hash": ""
   },
   "securite-plan-edge-functions.md": {
@@ -1944,9 +1944,9 @@
     "semantic_hash": ""
   },
   "lib/groupesAccueil.js": {
-    "mtime": 1792068055.1691124,
-    "seen": 1792068127.7945302,
-    "ast_hash": "b620dec8d00d6f7fb5de3b727dbfb53c",
+    "mtime": 1793376191.612619,
+    "seen": 1793376300.289987,
+    "ast_hash": "1896bb48537a9e88b1dbad576ee9caca",
     "semantic_hash": ""
   },
   "lib/groupesAccueil.test.mjs": {
@@ -1956,9 +1956,9 @@
     "semantic_hash": ""
   },
   "components/accueil/AccueilManager.js": {
-    "mtime": 1793319878.861549,
-    "seen": 1793320546.258152,
-    "ast_hash": "d1bc8424b0f687a74a92c2d6a33af3c4",
+    "mtime": 1793376210.693245,
+    "seen": 1793376300.2897532,
+    "ast_hash": "4aee540ca70e2d009210cdca29f25359",
     "semantic_hash": ""
   },
   "components/ui/Survol.js": {
@@ -2160,9 +2160,9 @@
     "semantic_hash": ""
   },
   "components/equipe/FicheTravailleur.js": {
-    "mtime": 1793287780.9246285,
-    "seen": 1793320546.2581918,
-    "ast_hash": "6d51b513205ad66a419c7ceaef2cee73",
+    "mtime": 1793376100.4395158,
+    "seen": 1793376300.289779,
+    "ast_hash": "a454e6e316ff80821ae0575aa87c26fd",
     "semantic_hash": ""
   },
   "components/equipe/Modales.js": {
@@ -3819,6 +3819,114 @@
     "mtime": 1793287781.028084,
     "seen": 1793320546.258773,
     "ast_hash": "590e2d9d6a2beb7e5c31000265f7e626",
+    "semantic_hash": ""
+  },
+  "app/salaires.js": {
+    "mtime": 1793376171.63713,
+    "seen": 1793376300.289717,
+    "ast_hash": "c01db97c89c18ae026319708ad7be945",
+    "semantic_hash": ""
+  },
+  "components/equipe/SectionPaie.js": {
+    "mtime": 1793376092.2115343,
+    "seen": 1793376300.289786,
+    "ast_hash": "2d5fe1a43caaf71dbf4dc286a7d074db",
+    "semantic_hash": ""
+  },
+  "components/salaires/DetailEtat.js": {
+    "mtime": 1793376171.6401339,
+    "seen": 1793376300.2898052,
+    "ast_hash": "cac244f21ad1eadf1d2b98bbe4af2541",
+    "semantic_hash": ""
+  },
+  "components/salaires/FeuilleEmployeurs.js": {
+    "mtime": 1793376171.6412363,
+    "seen": 1793376300.2898061,
+    "ast_hash": "ff6ac02d70d457c5cf934736fe9d66ac",
+    "semantic_hash": ""
+  },
+  "components/salaires/FeuilleLigne.js": {
+    "mtime": 1793376171.640699,
+    "seen": 1793376300.289807,
+    "ast_hash": "d9308cea00738d10f81a0ea844afb9d8",
+    "semantic_hash": ""
+  },
+  "lib/bulletin.js": {
+    "mtime": 1793375726.9664323,
+    "seen": 1793376300.289888,
+    "ast_hash": "f431ea94d4faaf4c5e0069952c700049",
+    "semantic_hash": ""
+  },
+  "lib/bulletin.test.mjs": {
+    "mtime": 1793375726.817654,
+    "seen": 1793376300.289889,
+    "ast_hash": "6181a936b9f526ad96dff0f2a81e7650",
+    "semantic_hash": ""
+  },
+  "lib/etatSalaire.js": {
+    "mtime": 1793375726.619528,
+    "seen": 1793376300.289967,
+    "ast_hash": "8c7597117704ef87f433e20c9f75c3cc",
+    "semantic_hash": ""
+  },
+  "lib/etatSalaire.test.mjs": {
+    "mtime": 1793375726.4771957,
+    "seen": 1793376300.289968,
+    "ast_hash": "8e75212621edbf3d9bde49ddd212f77b",
+    "semantic_hash": ""
+  },
+  "lib/paie.js": {
+    "mtime": 1793375726.2432039,
+    "seen": 1793376300.290045,
+    "ast_hash": "0679838458467ef9baee4150b297018f",
+    "semantic_hash": ""
+  },
+  "lib/paie.test.mjs": {
+    "mtime": 1793375725.9853327,
+    "seen": 1793376300.290046,
+    "ast_hash": "4a08fc8cf18c70d95794fe589c18f99b",
+    "semantic_hash": ""
+  },
+  "lib/paieDb.js": {
+    "mtime": 1793376061.4342918,
+    "seen": 1793376300.290047,
+    "ast_hash": "19cf2baea7a88a5bbc4e982fce9c6aa9",
+    "semantic_hash": ""
+  },
+  "lib/pdfBulletin.js": {
+    "mtime": 1793375727.3086715,
+    "seen": 1793376300.2900531,
+    "ast_hash": "6da25cb8de8b50b44da69d461fcf03e5",
+    "semantic_hash": ""
+  },
+  "lib/pdfBulletin.test.mjs": {
+    "mtime": 1793375727.1621294,
+    "seen": 1793376300.2900538,
+    "ast_hash": "d05932fda337121a4c62320be4055b03",
+    "semantic_hash": ""
+  },
+  "supabase_paie.sql": {
+    "mtime": 1793375712.7766376,
+    "seen": 1793376300.2902138,
+    "ast_hash": "0869a326b2a3c2cb23c1aabc6e75c727",
+    "semantic_hash": ""
+  },
+  "docs/correctif-pont-pointeuse.md": {
+    "mtime": 1793375712.8441982,
+    "seen": 1793376300.2902699,
+    "ast_hash": "8e0adfec760bd440315899ca49c9aa8b",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-10-30-etats-salaire-bulletins.md": {
+    "mtime": 1793374879.5158954,
+    "seen": 1793376300.2903008,
+    "ast_hash": "41f93ecbbd7f9a544ad1cbf47f3ba4ed",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-10-30-etats-salaire-bulletins-design.md": {
+    "mtime": 1793374877.9437094,
+    "seen": 1793376300.290335,
+    "ast_hash": "92665b1fd53cac0ab87e97067b28b94d",
     "semantic_hash": ""
   }
 }
