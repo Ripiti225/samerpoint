@@ -193,9 +193,12 @@ Le taux de fin de CDD (3 % ou 6 % selon les sources consultées) et la méthode 
 
 1. Brouillon (RH) → **Soumettre** : refusé si le mois n'est pas terminé ou si une fiche paie CDD/CDI est
    incomplète (message nominatif : « Il manque le n° CNPS de … »).
-2. Soumis → **Valider** (manager) : fige les lignes et le jsonb `bulletin`, crée **un dû Trésorerie** par
-   restaurant (`tresorerie_dus`, « Salaires novembre 2026 — <restaurant> », montant = total des restes à payer),
-   payable par le gérant ou la direction comme les autres dus.
+2. Soumis → **Valider** (manager) : fige les lignes et le jsonb `bulletin`, et pose **le dû Trésorerie**
+   « Salaires » du restaurant pour ce mois (`tresorerie_dus`, catégorie `salaire`, montant = total des restes à
+   payer), payable par le gérant ou la direction comme les autres dus. La base n'autorise qu'**un** dû salaire par
+   restaurant et par mois, et des dus saisis à la main existent déjà (septembre 2026 : 7 lignes) : s'il existe et
+   n'a reçu aucun paiement, son montant est remplacé (l'ancien est gardé pour une réouverture) ; s'il a déjà reçu
+   un paiement, il n'est pas touché et le manager est averti.
 3. Soumis → **Renvoyer** (manager, motif) → brouillon.
 4. Validé → **Rouvrir** (manager) seulement si le dû n'a reçu aucun paiement ; supprime le dû ; journalisé.
 
