@@ -16,7 +16,7 @@ import FeuilleEmployeurs from '../components/salaires/FeuilleEmployeurs'
 import { EnTete, Pastille, useEcranModerne } from '../components/ui/EcranModerne'
 import { useApp } from '../context/AppContext'
 import { chargerRestaurants } from '../lib/equipeDb'
-import { chargerEtatsDuMois, libelleMois } from '../lib/paieDb'
+import { chargerEtatsDuMois, libelleMois, restoAvecPaie } from '../lib/paieDb'
 
 export const STATUTS_ETAT = {
   aucun: { label: 'À préparer', couleur: '#64748B' },
@@ -58,7 +58,7 @@ export default function SalairesScreen() {
     setErreur('')
     try {
       const [r, e] = await Promise.all([chargerRestaurants(), chargerEtatsDuMois(mois)])
-      setRestaurants(r)
+      setRestaurants(r.filter(restoAvecPaie))
       setEtats(e)
     } catch (e) {
       setErreur(e.message)

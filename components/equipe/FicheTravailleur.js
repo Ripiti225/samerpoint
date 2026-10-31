@@ -10,6 +10,7 @@ import { chargerContratsTravailleur, derniereCarte, emettreCarte, marquerBadgeRe
 import { aujourdhuiISO } from '../../lib/contrats'
 import { chargerDocuments, chargerHistoriqueTravailleur, chargerPaiesGerantTravailleur, chargerPoints } from '../../lib/equipeDb'
 import { completerPresences, nomJour } from '../../lib/joursRepos'
+import { restoAvecPaie } from '../../lib/paieDb'
 import { exporterPdf } from '../../lib/pdfDocuments'
 import Avatar from './Avatar'
 import SectionPaie from './SectionPaie'
@@ -237,7 +238,7 @@ export default function FicheTravailleur({ visible, trav, resto, styles, colors,
             </Text>
           )}
 
-          {peutEditer && !archive && ['CDD', 'CDI'].includes(trav.type_contrat) && contrats !== null && (
+          {peutEditer && !archive && ['CDD', 'CDI'].includes(trav.type_contrat) && restoAvecPaie(resto || trav.restaurants) && contrats !== null && (
             <SectionPaie trav={trav} contrats={contrats} ctx={{ userId: userId || null, userNom: userNom || null }} colors={colors} accent={BLEU} />
           )}
 

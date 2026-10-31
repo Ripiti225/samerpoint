@@ -395,3 +395,10 @@ ALTER TABLE historique_credit_fournisseurs
 - IDs produits dans `CATEGORIES_INVENTAIRE` sont des clés DB — ne pas les modifier
 - `expo-notifications` plugin retiré de `app.json` (push notifications Android non fonctionnelles)
 - Push notifications iOS via Safari PWA non affectées
+
+### 31/10/2026 — Paie : Al Kayan, À la Braise, fin de CDD
+- Bulletins Sage Al Kayan (3, juillet) reproduits au franc près : seule différence avec Samer = accident du travail **3 %** (Samer 2 %). Colonne `employeurs_paie.taux_accident_travail` (pour dix mille) + `parametresEmployeur()` (lib/paie.js) ; saisie dans Salaires → Employeurs.
+- En-tête Al Kayan : AL KAYAN, 21 BP 915 ABIDJAN 21, ABIDJAN YOPOUGON, responsable M. ADOU ERIC JC + tél (cachet Sage).
+- **Migration `supabase_paie_employeurs.sql` à passer** (sinon l'enregistrement d'un employeur échoue).
+- À la Braise : ni état, ni bulletin, ni fiche paie (`restoAvecPaie`, lib/paieDb.js).
+- Fin de CDD 3 % confirmé. Congés payés : en attente du comptable (1/12 de la rémunération annuelle ou moyenne/30 × jours calendaires = ouvrables × 1,25).
