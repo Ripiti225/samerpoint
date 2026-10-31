@@ -8,7 +8,13 @@ alter table public.employeurs_paie
 comment on column public.employeurs_paie.taux_accident_travail is
   'Accident du travail en pour dix mille (300 = 3 %). Vide = taux des paramètres (2 %).';
 
-update public.employeurs_paie set taux_accident_travail = 200 where marque = 'samer';
+-- M. Adou est responsable administratif des deux sociétés.
+update public.employeurs_paie set
+  responsable           = 'M. ADOU ERIC JC',
+  telephone             = '07 79 69 63 70 / 05 66 96 86 72',
+  taux_accident_travail = 200,
+  updated_at            = now()
+where marque = 'samer';
 
 update public.employeurs_paie set
   raison_sociale        = 'AL KAYAN',
@@ -20,6 +26,6 @@ update public.employeurs_paie set
   updated_at            = now()
 where marque = 'alkayan';
 
--- Contrôle : samer 200, alkayan 300 avec son adresse.
+-- Contrôle : samer 200, alkayan 300, M. ADOU ERIC JC sur les deux.
 select marque, raison_sociale, adresse, ville, responsable, taux_accident_travail
 from public.employeurs_paie order by marque;
