@@ -402,3 +402,5 @@ ALTER TABLE historique_credit_fournisseurs
 - **Migration `supabase_paie_employeurs.sql` à passer** (sinon l'enregistrement d'un employeur échoue).
 - À la Braise : ni état, ni bulletin, ni fiche paie (`restoAvecPaie`, lib/paieDb.js).
 - Fin de CDD 3 % confirmé. Congés payés : en attente du comptable (1/12 de la rémunération annuelle ou moyenne/30 × jours calendaires = ouvrables × 1,25).
+- **CNPS / ITS → Trésorerie (31/10)** : à la validation d'un état, `totaux.cnps` (6,3 % salarié + retraite 7,7 + PF + AM + AT, sans CMU) et `totaux.its` (ITS + CN + apprentissage + FPC + TFC) deviennent un « montant dû » (`montant_du_admin`, daté du dernier jour du mois) sur les fiches administratives « CNPS » et « ITS » du restaurant (CNPS passée en administratif, ITS créée si absente). Rouvrir l'état les retire (`retirer_transaction_hors_point`). **Migration `supabase_paie_cotisations.sql` à passer.**
+- Reprise Sage (cumuls + congés à fin octobre) : en attente des bulletins Sage d'octobre ; je les lirai et j'écrirai les `cumuls_reprise*` des fiches paie.

@@ -66,7 +66,7 @@ export default function DetailEtat({ visible, resto, mois, ctx, estManager, onFe
         <>
           {etat && (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-              {[['Reste à payer', etat.totaux?.reste_a_payer], ['Déjà versé', etat.totaux?.deja_verse], ['Brut bulletins', etat.totaux?.brut], ['Charges patronales', etat.totaux?.charges_patronales]].map(([l, v]) => (
+              {[['Reste à payer', etat.totaux?.reste_a_payer], ['Déjà versé', etat.totaux?.deja_verse], ['Brut bulletins', etat.totaux?.brut], ['Charges patronales', etat.totaux?.charges_patronales], ['CNPS du mois', etat.totaux?.cnps], ['ITS du mois', etat.totaux?.its]].map(([l, v]) => (
                 <View key={l} style={{ minWidth: 140, flex: 1, padding: 10, borderRadius: 12, backgroundColor: colors.surfaceAlt }}>
                   <Text style={{ color: colors.textMuted, fontSize: 12 }}>{l}</Text>
                   <Text style={{ color: colors.text, fontWeight: '800', fontSize: 16 }}>{F(v)}</Text>
@@ -110,7 +110,7 @@ export default function DetailEtat({ visible, resto, mois, ctx, estManager, onFe
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <Bouton styles={styles} flex couleur="#B91C1C" variante="contour" disabled={occupe} label="↩️ Renvoyer" onPress={() => setRenvoi(true)} />
                 <Bouton styles={styles} flex couleur="#047857" variante="plein" disabled={occupe} label="✅ Valider"
-                  onPress={() => agir(() => validerEtat({ etat, resto }, ctx), 'État validé : le reste à payer est dans Trésorerie.')} />
+                  onPress={() => agir(() => validerEtat({ etat, resto }, ctx), 'État validé : le reste à payer est dans Trésorerie, la CNPS et l\'ITS du mois sur leurs fiches administratives.')} />
               </View>
             )}
             {renvoi && (
@@ -128,7 +128,7 @@ export default function DetailEtat({ visible, resto, mois, ctx, estManager, onFe
                   onPress={() => telechargerEtat({ resto, etat, lignes }).catch(e => Alert.alert('PDF', e.message))} />
                 {estManager && (
                   <Bouton styles={styles} couleur="#B91C1C" variante="contour" disabled={occupe} label="Rouvrir l'état"
-                    onPress={() => agir(() => rouvrirEtat({ etat, resto }, ctx), 'État rouvert : la RH peut le corriger.')} />
+                    onPress={() => agir(() => rouvrirEtat({ etat, resto }, ctx), 'État rouvert : la RH peut le corriger. La CNPS et l\'ITS du mois ont été retirées.')} />
                 )}
               </>
             )}

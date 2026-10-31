@@ -1080,9 +1080,9 @@
     "semantic_hash": ""
   },
   "handoff.md": {
-    "mtime": 1793376282.3921685,
-    "seen": 1793376300.2903428,
-    "ast_hash": "3478f624ea31cb891be94f0f4e05b92e",
+    "mtime": 1793486426.0008228,
+    "seen": 1793486437.747031,
+    "ast_hash": "725d4950dddbf2be6c56091aed9dd014",
     "semantic_hash": ""
   },
   "securite-plan-edge-functions.md": {
@@ -2160,9 +2160,9 @@
     "semantic_hash": ""
   },
   "components/equipe/FicheTravailleur.js": {
-    "mtime": 1793376100.4395158,
-    "seen": 1793376300.289779,
-    "ast_hash": "a454e6e316ff80821ae0575aa87c26fd",
+    "mtime": 1793483129.319679,
+    "seen": 1793483184.603852,
+    "ast_hash": "6a36bb4507bb7039c38dc49715003cbc",
     "semantic_hash": ""
   },
   "components/equipe/Modales.js": {
@@ -3822,9 +3822,9 @@
     "semantic_hash": ""
   },
   "app/salaires.js": {
-    "mtime": 1793376171.63713,
-    "seen": 1793376300.289717,
-    "ast_hash": "c01db97c89c18ae026319708ad7be945",
+    "mtime": 1793483129.3189435,
+    "seen": 1793483184.603787,
+    "ast_hash": "4578b7de84ba50de88d90c9a897c8222",
     "semantic_hash": ""
   },
   "components/equipe/SectionPaie.js": {
@@ -3834,15 +3834,15 @@
     "semantic_hash": ""
   },
   "components/salaires/DetailEtat.js": {
-    "mtime": 1793376171.6401339,
-    "seen": 1793376300.2898052,
-    "ast_hash": "cac244f21ad1eadf1d2b98bbe4af2541",
+    "mtime": 1793486395.5580387,
+    "seen": 1793486437.746469,
+    "ast_hash": "22e4ac8771fcc0dd94351783952afee4",
     "semantic_hash": ""
   },
   "components/salaires/FeuilleEmployeurs.js": {
-    "mtime": 1793376171.6412363,
-    "seen": 1793376300.2898061,
-    "ast_hash": "ff6ac02d70d457c5cf934736fe9d66ac",
+    "mtime": 1793483129.3201878,
+    "seen": 1793483184.603883,
+    "ast_hash": "14d3b21db86410bc6b9cd87fefa6c3e5",
     "semantic_hash": ""
   },
   "components/salaires/FeuilleLigne.js": {
@@ -3864,33 +3864,33 @@
     "semantic_hash": ""
   },
   "lib/etatSalaire.js": {
-    "mtime": 1793375726.619528,
-    "seen": 1793376300.289967,
-    "ast_hash": "8c7597117704ef87f433e20c9f75c3cc",
+    "mtime": 1793486356.8553755,
+    "seen": 1793486437.746637,
+    "ast_hash": "ad60a8eb4b890083759df3ec73b9157c",
     "semantic_hash": ""
   },
   "lib/etatSalaire.test.mjs": {
-    "mtime": 1793375726.4771957,
-    "seen": 1793376300.289968,
-    "ast_hash": "8e75212621edbf3d9bde49ddd212f77b",
+    "mtime": 1793486349.162585,
+    "seen": 1793486437.746638,
+    "ast_hash": "b166e1390472d110dbc6b8e30df5bc91",
     "semantic_hash": ""
   },
   "lib/paie.js": {
-    "mtime": 1793375726.2432039,
-    "seen": 1793376300.290045,
-    "ast_hash": "0679838458467ef9baee4150b297018f",
+    "mtime": 1793483098.4813445,
+    "seen": 1793483184.604125,
+    "ast_hash": "977d19c17f2855ddf88f4159fc070794",
     "semantic_hash": ""
   },
   "lib/paie.test.mjs": {
-    "mtime": 1793375725.9853327,
-    "seen": 1793376300.290046,
-    "ast_hash": "4a08fc8cf18c70d95794fe589c18f99b",
+    "mtime": 1793483083.449294,
+    "seen": 1793483184.604126,
+    "ast_hash": "574b44e5853a3bc7d07ca73a7ec25a58",
     "semantic_hash": ""
   },
   "lib/paieDb.js": {
-    "mtime": 1793376061.4342918,
-    "seen": 1793376300.290047,
-    "ast_hash": "19cf2baea7a88a5bbc4e982fce9c6aa9",
+    "mtime": 1793486385.9761066,
+    "seen": 1793486437.74672,
+    "ast_hash": "03725525aaffb9777c4c9f3518bdfd42",
     "semantic_hash": ""
   },
   "lib/pdfBulletin.js": {
@@ -3927,6 +3927,18 @@
     "mtime": 1793374877.9437094,
     "seen": 1793376300.290335,
     "ast_hash": "92665b1fd53cac0ab87e97067b28b94d",
+    "semantic_hash": ""
+  },
+  "supabase_paie_employeurs.sql": {
+    "mtime": 1793483762.2823365,
+    "seen": 1793486437.746898,
+    "ast_hash": "7f7ae75607ea6dd5b7b819926eebca6f",
+    "semantic_hash": ""
+  },
+  "supabase_paie_cotisations.sql": {
+    "mtime": 1793486363.5967119,
+    "seen": 1793486437.746897,
+    "ast_hash": "4e16cf8902f37a9aac6be28730440421",
     "semantic_hash": ""
   }
 }
