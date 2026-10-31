@@ -78,6 +78,16 @@ export default function DetailEtat({ visible, resto, mois, ctx, estManager, onFe
             ? <Info icone="↩️" styles={styles} couleur="#C2410C">Renvoyé par le manager : {etat.renvoi_motif}</Info>
             : null}
 
+          {!etat && (
+            <Info icone="📭" styles={styles}>
+              {estManager
+                ? `La RH n'a pas encore préparé l'état de ${libelleMois(mois)} pour ce restaurant. Il apparaîtra ici dès qu'elle l'aura préparé.`
+                : `Aucun état pour ${libelleMois(mois)}. Touchez « Préparer l'état » pour le calculer à partir des présences.`}
+            </Info>
+          )}
+          {etat && !lignes.length && (
+            <Info icone="📭" styles={styles}>Personne à payer ce mois-ci : aucun CDD/CDI ni stagiaire avec un reste à payer.</Info>
+          )}
           {lignes.map(l => (
             <TouchableOpacity key={l.id} disabled={statut !== 'brouillon' || estManager} onPress={() => setLigneOuverte(l)}
               style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border }}>
