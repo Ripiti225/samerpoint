@@ -18,6 +18,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { destinatairesRappels, elementsDuJour, messagePour } from '../../../lib/rappelsTresorerie.js'
+import { attacherLignes } from '../../../lib/cheques.js'
 
 const URL_SUPABASE = Deno.env.get('SUPABASE_URL')!
 const CLE_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -73,7 +74,7 @@ Deno.serve(async (req) => {
     const dateEssai = essai && /^\d{4}-\d{2}-\d{2}$/.test(corpsRequete.date || '') ? corpsRequete.date : null
     const aujourdhui = dateEssai || new Date().toISOString().slice(0, 10)
 
-    const [dus, paiements, previsions, receptions, emprunts, cheques, restaurants, utilisateurs, droits, tokens] = await Promise.all([
+    const [dus, paiements, previsions, receptions, emprunts, chequesSeuls, lignesCheques, restaurants, utilisateurs, droits, tokens] = await Promise.all([
       toutes('tresorerie_dus'),
       // '*' : prevision_id n'existe qu'après supabase_tresorerie_previsions.sql.
       toutes('tresorerie_paiements'),
@@ -82,12 +83,15 @@ Deno.serve(async (req) => {
       facultatif(toutes('tresorerie_coffre_emprunts')),
       // Chèques émis : vides tant que supabase_tresorerie_cheques.sql n'est pas passé.
       facultatif(toutes('tresorerie_cheques', '*', q => q.eq('statut', 'emis'))),
+      // Lignes des chèques (un chèque paie plusieurs lignes) : vides avant supabase_tresorerie_cheques_lignes.sql.
+      facultatif(toutes('tresorerie_cheques_lignes')),
       toutes('restaurants', 'id, nom'),
       toutes('utilisateurs', 'id, nom, role, actif', q => q.in('role', ['manager', 'directeur', 'rh']).eq('actif', true)),
       toutes('tresorerie_droits', 'user_id, niveau', undefined, 'user_id'),
       toutes('admin_push_tokens', 'id, user_id, token'),
     ])
 
+    const cheques = attacherLignes(chequesSeuls, lignesCheques)
     const nomResto = (id: string) => (restaurants.find((r: any) => r.id === id)?.nom || 'Groupe').trim()
     const elements = elementsDuJour({ moment, aujourdhui, dus, paiements, previsions, receptions, emprunts, cheques, nomResto })
     const destinataires = destinatairesRappels({ utilisateurs, droits })

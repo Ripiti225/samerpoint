@@ -22,7 +22,7 @@ import FeuilleTransfertFond from '../components/tresorerie/FeuilleTransfertFond'
 import { FeuillePayerDroit } from '../components/tresorerie/anciensTravailleurs'
 import { Badge, FeuilleDetail, FeuillePaiement, FeuillePrevision, couleursStatut, titreDu } from '../components/tresorerie/du'
 import { etatPrevision, totalPrevu, trierPrevisions } from '../lib/previsions'
-import { chequeDePrevision, chequesHorsPrevisions, libelleCheque, montantEnCirculation, statutCheque } from '../lib/cheques'
+import { chequeDePrevision, chequesHorsPrevisions, libelleCheque, montantEnCirculation, montantHorsPrevisions, statutCheque } from '../lib/cheques'
 import { objectifDuMois, progression, resteARembourser, soldeCoffre } from '../lib/direction'
 import { chargerAlertes, chargerPlafonds, enregistrerPlafonds } from '../lib/alertesDb'
 import { totalPartenaires } from '../lib/partenaires'
@@ -89,13 +89,14 @@ export default function TresorerieScreen() {
     const ouvertes = trierPrevisions(lignes.filter(l => l.etat.statut !== 'realisee'))
     const parLigne = {}
     for (const l of ouvertes) parLigne[l.du.id] = (parLigne[l.du.id] || 0) + l.etat.reste
-    // Chèques émis sans prévision de ligne (ordre libre) : prévus eux aussi.
+    // Part des chèques émis sans prévision de ligne (ordre libre, administratifs) : prévue elle aussi.
     const cheques = chequesHorsPrevisions(donnees.cheques, donnees.previsions)
+      .map(c => ({ ...c, hors_previsions: montantHorsPrevisions(c, donnees.previsions) }))
     return {
       ouvertes,
       realisees: lignes.filter(l => l.etat.statut === 'realisee').reverse(),
       total: totalPrevu(donnees.previsions, dusPrev, paiementsPrev, donnees.receptions, aujourdhui)
-        + cheques.reduce((x, c) => x + Number(c.montant || 0), 0),
+        + cheques.reduce((x, c) => x + c.hors_previsions, 0),
       parDu: parLigne,
       cheques,
     }
@@ -272,7 +273,7 @@ export default function TresorerieScreen() {
                   surligne={orange ? colors.warningLight : null}
                   titre={`Chèque · ${c.ordre}`}
                   sous={<Text style={[styles.petit, orange && { color: colors.warningDark, fontWeight: '700' }]}>{`${libelleCheque(c)} · ${e.message.toLowerCase()}`}</Text>}
-                  droite={`${fmt(c.montant)} F`} />
+                  droite={`${fmt(c.hors_previsions)} F`} />
               )
             })}
             {peut(niveau, 'payer') && (

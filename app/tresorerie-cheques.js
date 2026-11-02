@@ -15,12 +15,12 @@ import {
   Bouton, Champ, ChampCalendrier, ChampMontant, Entete, EtatEcran, Feuille, Hero, HeroCase, ItemIcone, Ligne, Puces,
   TitreSection, styleCategorie, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
-import { titreDu } from '../components/tresorerie/du'
-import { libelleCheque, montantEnCirculation, statutCheque, suggestionsOrdre, trierCheques } from '../lib/cheques'
-import { usePhoto } from '../lib/usePhoto'
 import {
-  LIBELLES_CATEGORIE, aujourdhuiISO, estCompteCotisation, estTeteDeFond, fmt, formatDateFR, paiementsParDu, peut, resteDu, soldeCompte,
-} from '../lib/tresorerie'
+  FILTRES_LIGNES, cleLigne, libelleCheque, lignesDuCheque, lignesPayables, montantEnCirculation, statutCheque, suggestionsOrdre,
+  titreLignePayable, trierCheques,
+} from '../lib/cheques'
+import { usePhoto } from '../lib/usePhoto'
+import { aujourdhuiISO, estCompteCotisation, estTeteDeFond, fmt, formatDateFR, peut, soldeCompte } from '../lib/tresorerie'
 import { annulerCheque, annulerEncaissementCheque, encaisserCheque, enregistrerCheque } from '../lib/tresorerieDb'
 
 const FILTRES = [
@@ -70,7 +70,17 @@ export default function TresorerieChequesScreen() {
 
   const peutSaisir = peut(niveau, 'saisir_banque')
   const nomResto = id => donnees?.restaurants.find(r => r.id === id)?.nom || 'Groupe'
-  const duDe = id => (donnees?.dus || []).find(d => d.id === id)
+  const nomGroupe = id => (donnees?.groupes || []).find(g => g.id === id)?.nom || null
+  // Ce que paie un chèque, ligne par ligne : { titre, montant }.
+  const lignesAffichees = c => lignesDuCheque(c).map(l => {
+    const du = l.du_id ? (donnees?.dus || []).find(d => d.id === l.du_id) : null
+    const fournisseur = l.fournisseur_id ? (donnees?.fournisseurs || []).find(f => f.id === l.fournisseur_id) : null
+    return { titre: du || fournisseur ? titreLignePayable({ du, fournisseur }, nomResto, nomGroupe) : 'Ligne supprimée', montant: l.montant }
+  })
+  const resumeLignes = c => {
+    const l = lignesAffichees(c)
+    return l.length === 0 ? '' : l.length === 1 ? `paie ${l[0].titre}` : `paie ${l.length} lignes`
+  }
 
   const solde = compte ? soldeCompte(compte.mouvements) : 0
   const circulation = montantEnCirculation(cheques || [], compteId)
@@ -81,7 +91,7 @@ export default function TresorerieChequesScreen() {
   function annulerEncaissement(c) {
     Alert.alert(
       'Annuler l\'encaissement ?',
-      `${libelleCheque(c)} · ${fmt(c.montant)} F. La sortie de banque${c.du_id ? ' et le paiement de la ligne' : ''} seront retirés ; le chèque redevient « à encaisser ».`,
+      `${libelleCheque(c)} · ${fmt(c.montant)} F. La sortie de banque${lignesDuCheque(c).length ? ' et les paiements des lignes' : ''} seront retirés ; le chèque redevient « à encaisser ».`,
       [
         { text: 'Garder', style: 'cancel' },
         {
@@ -129,13 +139,12 @@ export default function TresorerieChequesScreen() {
               )}
               {lignes.map(({ cheque: c, etat }) => {
                 const se = styleEtat(etat.cle, colors)
-                const du = c.du_id ? duDe(c.du_id) : null
                 return (
                   <ItemIcone key={c.id} onPress={() => setDetail(c)} icone={se.icone} couleur={se.couleur}
                     surligne={se.surligne || null} estompe={etat.cle === 'annule'}
                     titre={`N° ${c.numero} · ${c.ordre}`}
                     sous={<Text style={[styles.petit, se.surligne && { color: se.couleur, fontWeight: '700' }]}>
-                      {[etat.message, `émis le ${formatDateFR(c.date_emission)}`, du ? `paie ${titreDu(du, nomResto)}` : ''].filter(Boolean).join(' · ')}
+                      {[etat.message, `émis le ${formatDateFR(c.date_emission)}`, resumeLignes(c)].filter(Boolean).join(' · ')}
                     </Text>}
                     droite={`${fmt(c.montant)} F`} couleurDroite={etat.cle === 'encaisse' ? colors.successDark : colors.text}
                     sousDroite={c.statut === 'emis' && peutSaisir ? (
@@ -154,9 +163,9 @@ export default function TresorerieChequesScreen() {
 
       {donnees && cheques && (
         <>
-          <FeuilleCheque cheque={edition} banques={banques} donnees={donnees} nomResto={nomResto} user={user}
+          <FeuilleCheque cheque={edition} banques={banques} donnees={donnees} nomResto={nomResto} nomGroupe={nomGroupe} user={user}
             onFermer={() => setEdition(null)} apres={recharger} />
-          <FeuilleDetailCheque cheque={detail} du={detail?.du_id ? duDe(detail.du_id) : null} nomResto={nomResto}
+          <FeuilleDetailCheque cheque={detail} lignes={detail ? lignesAffichees(detail) : []}
             aujourdhui={aujourdhui} peutSaisir={peutSaisir} onFermer={() => setDetail(null)}
             onEncaisser={c => { setDetail(null); setEncaissement(c) }}
             onModifier={c => { setDetail(null); setEdition(c) }}
@@ -172,7 +181,7 @@ export default function TresorerieChequesScreen() {
 
 // ── Détail ───────────────────────────────────────────────────────────────────
 
-function FeuilleDetailCheque({ cheque: c, du, nomResto, aujourdhui, peutSaisir, onFermer, onEncaisser, onModifier, onAnnuler, onAnnulerEncaissement }) {
+function FeuilleDetailCheque({ cheque: c, lignes, aujourdhui, peutSaisir, onFermer, onEncaisser, onModifier, onAnnuler, onAnnulerEncaissement }) {
   const { styles, colors } = useStylesTreso()
   if (!c) return null
   const etat = statutCheque(c, aujourdhui)
@@ -190,10 +199,11 @@ function FeuilleDetailCheque({ cheque: c, du, nomResto, aujourdhui, peutSaisir, 
           <LigneTexte label="Date d'encaissement prévue" valeur={formatDateFR(c.date_encaissement)} />
           {c.encaisse_le && <LigneTexte label="Encaissé le" valeur={formatDateFR(c.encaisse_le)} />}
         </View>
-        {du && (
-          <Text style={[styles.petit, { marginTop: 6 }]}>
-            Paie : {LIBELLES_CATEGORIE[du.categorie]} · {titreDu(du, nomResto)}
-          </Text>
+        {lignes.length > 0 && (
+          <View style={{ marginTop: 6 }}>
+            <Text style={styles.label}>Ce que paie le chèque</Text>
+            {lignes.map((l, i) => <LigneTexte key={i} label={l.titre} valeur={`${fmt(l.montant)} F`} />)}
+          </View>
         )}
         {!!c.note && <Text style={[styles.petit, { marginTop: 6 }]}>{c.note}</Text>}
         {!!c.cree_par_nom && <Text style={styles.petit}>Saisi par {c.cree_par_nom}</Text>}
@@ -229,15 +239,16 @@ function LigneTexte({ label, valeur }) {
 
 // ── Saisie / modification ────────────────────────────────────────────────────
 
-function FeuilleCheque({ cheque, banques, donnees, nomResto, user, onFermer, apres }) {
+function FeuilleCheque({ cheque, banques, donnees, nomResto, nomGroupe, user, onFermer, apres }) {
   const { styles, colors } = useStylesTreso()
   const { choisirPhoto } = usePhoto()
   const [compteId, setCompteId] = useState(null)
   const [numero, setNumero] = useState('')
   const [banque, setBanque] = useState('')
   const [ordre, setOrdre] = useState('')
-  const [lien, setLien] = useState('libre')          // 'libre' | 'ligne'
-  const [duId, setDuId] = useState(null)
+  const [lien, setLien] = useState('libre')          // 'libre' | 'lignes'
+  const [choix, setChoix] = useState({})             // { cle: montant tapé (texte) }
+  const [filtre, setFiltre] = useState('loyer')
   const [recherche, setRecherche] = useState('')
   const [montant, setMontant] = useState('')
   const [dateEmission, setDateEmission] = useState(aujourdhuiISO())
@@ -250,12 +261,14 @@ function FeuilleCheque({ cheque, banques, donnees, nomResto, user, onFermer, apr
   useEffect(() => {
     if (!cheque) return
     const cpt = banques.find(b => b.id === cheque.compte_id) || banques[0]
+    const lignes = lignesDuCheque(cheque)
     setCompteId(cpt?.id || null)
     setNumero(cheque.numero || '')
     setBanque(cheque.banque || cpt?.nom || '')
     setOrdre(cheque.ordre || '')
-    setLien(cheque.du_id ? 'ligne' : 'libre')
-    setDuId(cheque.du_id || null)
+    setLien(lignes.length ? 'lignes' : 'libre')
+    setChoix(Object.fromEntries(lignes.map(l => [cleLigne(l), String(l.montant)])))
+    setFiltre('loyer')
     setRecherche('')
     setMontant(cheque.montant ? String(cheque.montant) : '')
     setDateEmission(cheque.date_emission || aujourdhuiISO())
@@ -264,27 +277,32 @@ function FeuilleCheque({ cheque, banques, donnees, nomResto, user, onFermer, apr
     setPhoto(cheque.photo_url || null)
   }, [cheque]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const parDu = useMemo(() => paiementsParDu(donnees.paiements), [donnees])
-  // Lignes qu'un chèque peut payer : celles qui ont un reste, dettes d'abord.
-  const lignesOuvertes = useMemo(() => (donnees.dus || [])
-    .map(d => ({ du: d, reste: resteDu(d, parDu[d.id]) }))
-    .filter(x => x.reste > 0 || x.du.id === cheque?.du_id)
-    .sort((a, b) => (a.du.categorie === 'dette' ? 0 : 1) - (b.du.categorie === 'dette' ? 0 : 1)
-      || titreDu(a.du, nomResto).localeCompare(titreDu(b.du, nomResto))), [donnees, parDu, cheque]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Tout ce qui reste à payer (plus les lignes déjà sur le chèque modifié).
+  const payables = useMemo(() => lignesPayables({
+    dus: donnees.dus, paiements: donnees.paiements, fournisseurs: donnees.fournisseurs,
+    garder: cheque ? lignesDuCheque(cheque).map(cleLigne) : [], nomResto,
+  }), [donnees, cheque]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!cheque) return null
   const modification = !!cheque.id
-  const choisie = lignesOuvertes.find(x => x.du.id === duId)
-  // La prévision du chèque ne baisse pas le reste : en modification, le plafond ne change pas.
-  const resteLigne = choisie?.reste ?? 0
+  const titre = x => titreLignePayable(x, nomResto, nomGroupe)
+  const parCle = Object.fromEntries(payables.map(x => [x.cle, x]))
+  const cochees = Object.keys(choix).filter(k => parCle[k])
+  const total = cochees.reduce((s, k) => s + (parseInt(choix[k], 10) || 0), 0)
   // Noms déjà écrits : ils apparaissent dès les premières lettres tapées.
   const suggestions = suggestionsOrdre(ordre, { cheques: donnees.cheques, dus: donnees.dus })
-  const filtrees = lignesOuvertes.filter(x => !recherche.trim()
-    || `${LIBELLES_CATEGORIE[x.du.categorie]} ${titreDu(x.du, nomResto)}`.toLowerCase().includes(recherche.trim().toLowerCase()))
+  const nbParFiltre = Object.fromEntries(FILTRES_LIGNES.map(f => [f.valeur, payables.filter(x => x.filtre === f.valeur).length]))
+  const cherche = recherche.trim().toLowerCase()
+  const visibles = payables.filter(x => (cherche ? titre(x).toLowerCase().includes(cherche) : x.filtre === filtre))
 
-  function choisirLigne(du) {
-    setDuId(du.id)
-    if (!ordre.trim()) setOrdre(du.categorie === 'dette' ? du.creancier || '' : titreDu(du, nomResto))
+  function basculer(x) {
+    setChoix(c => {
+      if (c[x.cle] !== undefined) { const { [x.cle]: _, ...reste } = c; return reste }
+      return { ...c, [x.cle]: String(x.reste) }
+    })
+    if (!ordre.trim()) {
+      setOrdre(x.fournisseur ? x.fournisseur.nom : x.du.categorie === 'dette' ? x.du.creancier || '' : titre(x))
+    }
   }
 
   function choisirCompte(id) {
@@ -302,27 +320,36 @@ function FeuilleCheque({ cheque, banques, donnees, nomResto, user, onFermer, apr
   }
 
   async function enregistrer() {
-    const v = montant === '' ? 0 : parseInt(montant, 10) || 0
+    const avecLignes = lien === 'lignes'
+    const v = avecLignes ? total : (montant === '' ? 0 : parseInt(montant, 10) || 0)
     if (!compteId) { Alert.alert('Compte manquant', 'Sur quel compte le chèque est-il tiré ?'); return }
     if (!numero.trim()) { Alert.alert('Numéro manquant', 'Recopiez le numéro du chèque.'); return }
     if (!banque.trim()) { Alert.alert('Banque manquante', 'Quelle banque ?'); return }
-    if (lien === 'ligne' && !duId) { Alert.alert('Ligne manquante', 'Choisissez ce que paie le chèque, ou « Sans lien ».'); return }
+    if (avecLignes && !cochees.length) { Alert.alert('Rien de coché', 'Cochez ce que paie le chèque, ou choisissez « Sans lien ».'); return }
+    for (const k of cochees) {
+      const m = parseInt(choix[k], 10) || 0
+      if (!m) { Alert.alert('Montant manquant', `Quel montant pour « ${titre(parCle[k])} » ?`); return }
+      if (m > parCle[k].reste) {
+        Alert.alert('Montant trop élevé', `Il ne reste que ${fmt(parCle[k].reste)} F à payer sur « ${titre(parCle[k])} ».`); return
+      }
+    }
     if (!ordre.trim()) { Alert.alert('Ordre manquant', 'À l\'ordre de qui est le chèque ?'); return }
     if (!v) { Alert.alert('Montant manquant', 'Quel est le montant du chèque ?'); return }
-    if (lien === 'ligne' && v > resteLigne) {
-      Alert.alert('Montant trop élevé', `Il ne reste que ${fmt(resteLigne)} F à payer sur cette ligne.`); return
-    }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateEmission) || !/^\d{4}-\d{2}-\d{2}$/.test(dateEncaissement)) {
       Alert.alert('Date manquante', 'Choisissez la date d\'émission et la date d\'encaissement dans le calendrier.'); return
     }
     if (dateEncaissement < dateEmission) {
       Alert.alert('Dates à vérifier', 'La date d\'encaissement ne peut pas être avant la date d\'émission.'); return
     }
+    const lignes = avecLignes ? cochees.map(k => {
+      const x = parCle[k]
+      return x.du ? { du_id: x.du.id, montant: parseInt(choix[k], 10) } : { fournisseur_id: x.fournisseur.id, montant: parseInt(choix[k], 10) }
+    }) : []
     setOccupe(true)
     try {
       await enregistrerCheque({
         id: cheque.id, compte_id: compteId, numero: numero.trim(), banque: banque.trim(), ordre: ordre.trim(),
-        du_id: lien === 'ligne' ? duId : null, montant: v, date_emission: dateEmission, date_encaissement: dateEncaissement,
+        lignes, montant: v, date_emission: dateEmission, date_encaissement: dateEncaissement,
         note: note.trim(), photo_url: photo,
       }, user)
       await apres()
@@ -342,29 +369,44 @@ function FeuilleCheque({ cheque, banques, donnees, nomResto, user, onFermer, apr
       <Champ label="Banque" value={banque} onChangeText={setBanque} />
 
       <Text style={styles.label}>Ce que paie le chèque</Text>
-      <Puces valeur={lien} onChange={v => { setLien(v); if (v === 'libre') setDuId(null) }}
-        options={[{ valeur: 'libre', label: 'Sans lien' }, { valeur: 'ligne', label: 'Une dette ou une charge' }]} />
-      {lien === 'ligne' && (
-        choisie ? (
-          <View style={[styles.carte, { marginBottom: 12 }]}>
-            <Text style={styles.itemTitre}>{LIBELLES_CATEGORIE[choisie.du.categorie]} · {titreDu(choisie.du, nomResto)}</Text>
-            <Text style={styles.petit}>Reste à payer : {fmt(choisie.reste)} F</Text>
-            <TouchableOpacity onPress={() => setDuId(null)} style={{ marginTop: 6 }}>
-              <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>Changer</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={{ marginBottom: 12 }}>
-            <Champ label="Chercher" value={recherche} onChangeText={setRecherche} placeholder="ex. dette, loyer…" />
-            {filtrees.length === 0 && <Text style={styles.vide}>Aucune ligne à payer.</Text>}
-            {filtrees.slice(0, 40).map(({ du, reste }) => (
-              <ItemIcone key={du.id} onPress={() => choisirLigne(du)}
-                icone={styleCategorie(du.categorie).icone} couleur={styleCategorie(du.categorie).couleur}
-                titre={`${LIBELLES_CATEGORIE[du.categorie]} · ${titreDu(du, nomResto)}`}
-                droite={`${fmt(reste)} F`} />
-            ))}
-          </View>
-        )
+      <Puces valeur={lien} onChange={v => { setLien(v); if (v === 'libre') setChoix({}) }}
+        options={[{ valeur: 'libre', label: 'Sans lien' }, { valeur: 'lignes', label: 'Des lignes à payer' }]} />
+      {lien === 'lignes' && (
+        <View style={{ marginBottom: 12 }}>
+          {cochees.length > 0 && (
+            <View style={[styles.carte, { marginBottom: 12 }]}>
+              <Text style={[styles.itemTitre, { marginBottom: 6 }]}>{cochees.length} ligne{cochees.length > 1 ? 's' : ''} payée{cochees.length > 1 ? 's' : ''} · {fmt(total)} F</Text>
+              {cochees.map(k => (
+                <View key={k} style={{ paddingVertical: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={[styles.petit, { flex: 1, color: colors.text, fontWeight: '700' }]}>{titre(parCle[k])}</Text>
+                    <TouchableOpacity onPress={() => basculer(parCle[k])} hitSlop={10}>
+                      <Text style={{ color: colors.error, fontWeight: '700', fontSize: 13 }}>Retirer</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <ChampMontant label={`Montant payé (reste ${fmt(parCle[k].reste)} F)`} valeur={choix[k]}
+                    onChange={t => setChoix(c => ({ ...c, [k]: t }))} />
+                </View>
+              ))}
+            </View>
+          )}
+          <Champ label="Chercher" value={recherche} onChangeText={setRecherche} placeholder="ex. Palmeraie, février, CNPS…" />
+          {!cherche && (
+            <Puces valeur={filtre} onChange={setFiltre}
+              options={FILTRES_LIGNES.map(f => ({ valeur: f.valeur, label: `${f.label} (${nbParFiltre[f.valeur]})` }))} />
+          )}
+          {visibles.length === 0 && <Text style={styles.vide}>Rien à payer ici.</Text>}
+          {visibles.map(x => {
+            const coche = choix[x.cle] !== undefined
+            return (
+              <ItemIcone key={x.cle} onPress={() => basculer(x)}
+                icone={coche ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                couleur={coche ? colors.success : (x.du ? styleCategorie(x.du.categorie).couleur : colors.textMuted)}
+                surligne={coche ? colors.successLight : null}
+                titre={titre(x)} droite={`${fmt(x.reste)} F`} />
+            )
+          })}
+        </View>
       )}
 
       <Champ label="À l'ordre de" value={ordre} onChangeText={setOrdre} placeholder="Nom du bénéficiaire" autoCorrect={false} />
@@ -373,7 +415,9 @@ function FeuilleCheque({ cheque, banques, donnees, nomResto, user, onFermer, apr
           <Puces options={suggestions.map(nom => ({ valeur: nom, label: nom }))} valeur={null} onChange={setOrdre} />
         </View>
       )}
-      <ChampMontant label="Montant" valeur={montant} onChange={setMontant} />
+      {lien === 'lignes'
+        ? <Ligne label="Montant du chèque (total des lignes)" valeur={total} fort />
+        : <ChampMontant label="Montant" valeur={montant} onChange={setMontant} />}
       <ChampCalendrier label="Date d'émission" valeur={dateEmission} onChange={setDateEmission} />
       <ChampCalendrier label="Date d'encaissement prévue" valeur={dateEncaissement} onChange={setDateEncaissement} />
       <Champ label="Note (facultatif)" value={note} onChangeText={setNote} />
@@ -383,7 +427,7 @@ function FeuilleCheque({ cheque, banques, donnees, nomResto, user, onFermer, apr
         occupe={photoEnCours} style={{ marginBottom: 14 }} />
       <Bouton titre={modification ? 'Enregistrer' : 'Enregistrer le chèque'} onPress={enregistrer} occupe={occupe} />
       <Text style={[styles.petit, { marginTop: 10 }]}>
-        Le montant est retiré tout de suite de la trésorerie nette réelle (prévision). Le solde de la banque ne baisse qu'au moment où vous cochez « Encaissé ». Rappel la veille, le jour même et chaque jour de retard.
+        Le montant est retiré tout de suite de la trésorerie nette réelle (prévision). Le solde de la banque ne baisse qu'au moment où vous cochez « Encaissé » : chaque ligne cochée est alors payée. Rappel la veille, le jour même et chaque jour de retard.
       </Text>
     </Feuille>
   )
@@ -419,7 +463,7 @@ function FeuilleEncaissement({ cheque: c, user, onFermer, apres }) {
       <ChampCalendrier label="Date du débit (relevé)" valeur={date} onChange={setDate} />
       <Bouton icone="check" titre="Confirmer l'encaissement" onPress={confirmer} occupe={occupe} />
       <Text style={[styles.petit, { marginTop: 10 }]}>
-        {fmt(c.montant)} F sortent du solde {c.banque} à cette date{c.du_id ? ', et la ligne payée baisse d\'autant' : ''}. La prévision disparaît.
+        {fmt(c.montant)} F sortent du solde {c.banque} à cette date{lignesDuCheque(c).length ? ', et chaque ligne payée baisse d\'autant (dette, loyer, crédit de l\'administratif)' : ''}. La prévision disparaît.
       </Text>
     </Feuille>
   )
