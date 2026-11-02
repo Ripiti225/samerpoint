@@ -14,7 +14,7 @@ import { niveauRythme } from '../../lib/objectifs'
 import { fmtNote, noteRetenueVisite } from '../../lib/supervision'
 import Jauge from '../ui/Jauge'
 import Survol from '../ui/Survol'
-import VenteDouble, { TexteTheorique } from '../ui/VenteDouble'
+import VenteDouble from '../ui/VenteDouble'
 import Indicateur from './Indicateur'
 
 const fcfa = n => Math.round(n || 0).toLocaleString('fr-FR')
@@ -26,7 +26,7 @@ function titreObjectif() {
 }
 
 export default function BandeauGerant({ etat, styles, colors }) {
-  const { hier, point, ventes, ventesTheo, ventesEvo, demandes, nbDemandes, caissiers = [], objectif, objectifMensuel, ventesMois, ventesMoisTheo, supervision } = etat
+  const { hier, point, ventes, ventesTheo, ventesEvo, demandes, nbDemandes, caissiers = [], objectif, supervision } = etat
   const pointUi = {
     corrections: { icone: 'pencil-alert', couleur: colors.error, route: '/correction-point' },
     verifie: { icone: 'check-decagram', couleur: colors.success },
@@ -41,7 +41,7 @@ export default function BandeauGerant({ etat, styles, colors }) {
   return (
     <Animated.View entering={FadeIn.duration(300)}>
       <View style={styles.bandeau}>
-        {objectif && <BlocObjectif o={objectif} montant={objectifMensuel} ventesMois={ventesMois} ventesMoisTheo={ventesMoisTheo} styles={styles} colors={colors} />}
+        {objectif && <BlocObjectif o={objectif} colors={colors} />}
 
         <Text style={styles.bandeauLabel}>
           Hier · {hier.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
@@ -143,30 +143,14 @@ export default function BandeauGerant({ etat, styles, colors }) {
 // ── Objectif du mois : la barre se colore selon le RYTHME (où il finira le mois),
 // pas selon le remplissage, sinon elle serait rouge chaque début de mois.
 // Vert = objectif tenu (≥ 100 %), orange = presque (90–99 %), rouge = en retard.
-function BlocObjectif({ o, montant, ventesMois, ventesMoisTheo, styles, colors }) {
+// Le gérant ne voit que la jauge et son pourcentage, aucun montant (02/11/2026).
+function BlocObjectif({ o, colors }) {
   const couleurs = { bon: colors.success, presque: colors.warningDark, retard: colors.error }
   const couleur = o.atteint ? colors.success : couleurs[niveauRythme(o.pctProjete)] || colors.primary
   return (
-    <View style={{ marginBottom: 14, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: colors.border, gap: 6 }}
-      accessibilityLabel={`${titreObjectif()} : ${o.pct} % atteint, ${fcfa(ventesMois)} francs sur ${fcfa(montant)}.`}>
-      <Jauge variante="barre" pct={o.pct} couleur={couleur} libelle={`${titreObjectif()} · ${fcfa(montant)} F`} />
-      <Text style={{ fontSize: 13, color: colors.textSecondary }}>
-        <Text style={{ fontWeight: '800', color: colors.text }}>{fcfa(ventesMois)} F</Text> réalisés (vente machine)
-      </Text>
-      {ventesMoisTheo != null && <TexteTheorique machine={ventesMois} theorique={ventesMoisTheo} colors={colors} />}
-      {o.atteint ? (
-        <Indicateur icone="trophy" couleur={colors.success}
-          texte={`Objectif atteint ! ${fcfa(ventesMois - montant)} F au-dessus, bravo`} styles={styles} />
-      ) : (
-        <>
-          {o.pctProjete != null && (
-            <Indicateur icone={o.enAvance ? 'trending-up' : 'trending-down'} couleur={couleur}
-              texte={`Au rythme actuel : ${o.pctProjete} % en fin de mois`} styles={styles} />
-          )}
-          <Indicateur icone="flag-checkered" couleur={colors.text}
-            texte={`Il reste ${fcfa(o.reste)} F, soit ${fcfa(o.parJour)} F par jour`} styles={styles} />
-        </>
-      )}
+    <View style={{ marginBottom: 14, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: colors.border }}
+      accessibilityLabel={`${titreObjectif()} : ${o.pct} % atteint.`}>
+      <Jauge variante="barre" pct={o.pct} couleur={couleur} libelle={titreObjectif()} />
     </View>
   )
 }
