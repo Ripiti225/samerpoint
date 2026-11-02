@@ -32,9 +32,9 @@ import { venteRetenue, venteTheorique } from '../lib/venteMachine'
 import VenteDouble, { TexteTheorique } from '../components/ui/VenteDouble'
 import {
   JOURS_COURTS, ORDRE_HEURES, canauxParHeure, canauxParPlat, faitsMarquants, grilleSemaine, heurePic, heuresDuService, joursForts,
-  libelleCreneau, mixCanaux, mixPaiements, ticketMoyen,
+  libelleCreneau, mixCanaux, mixPaiements, platsInvendus, ticketMoyen,
 } from '../lib/statsPOS'
-import { POS_NON_INSTALLE, chargerStatsPOS } from '../lib/statsPOSDb'
+import { POS_NON_INSTALLE, chargerPlatsPOS, chargerStatsPOS } from '../lib/statsPOSDb'
 import { supabase } from '../lib/supabase'
 import TexteAjuste from '../components/ui/TexteAjuste'
 
@@ -123,6 +123,7 @@ export default function DashboardGlobalScreen() {
   // Bornes réellement chargées (déclenchent la lecture des statistiques POS).
   const [rangeCharge, setRangeCharge] = useState(null)
   const [statsPOS, setStatsPOS] = useState(null)        // { stats } | { erreur }
+  const [platsPOS, setPlatsPOS] = useState(null)        // { plats } | { plats: null, erreur }
   const [chargementPOS, setChargementPOS] = useState(false)
   // Mois en cours, quelle que soit la période : objectifs et effectifs.
   const [moisEnCours, setMoisEnCours] = useState({ ventes: {}, ventesTheo: {}, employes: {} })
@@ -145,6 +146,10 @@ export default function DashboardGlobalScreen() {
     setChargementPOS(true)
     chargerStatsPOS({ debut: rangeCharge.debut, fin: rangeCharge.fin, restaurantId: restoFiltre })
       .then(res => { if (vivant) { setStatsPOS(res); setChargementPOS(false) } })
+    // Plats invendus (pos_cloud_stats_plats.sql) : à part, une absence ne bloque rien.
+    setPlatsPOS(null)
+    chargerPlatsPOS({ debut: rangeCharge.debut, fin: rangeCharge.fin, restaurantId: restoFiltre })
+      .then(res => { if (vivant) setPlatsPOS(res) })
     return () => { vivant = false }
   }, [rangeCharge, restoFiltre])
 
@@ -1221,6 +1226,7 @@ export default function DashboardGlobalScreen() {
     const iPic = picPOS ? heures.findIndex(h => h.h === picPOS.h) : null
     const canauxHeure = canauxParHeure(pos.par_heure_type)
     const canauxPlat = canauxParPlat(pos.top_type)
+    const invendus = platsInvendus(platsPOS?.plats)
     const { grille, max: maxGrille } = grilleSemaine(pos.semaine)
     const { parJour, meilleur } = joursForts(pos.semaine)
     const canaux = mixCanaux(pos.par_type)
@@ -1347,6 +1353,57 @@ export default function DashboardGlobalScreen() {
             droite: `${Number(p.qte).toLocaleString('fr-FR')} vendus`, sous: fmt(Number(p.ca) || 0),
             segments: (canauxPlat[p.nom] || []).map(c => ({ nom: c.nom, valeur: c.qte, couleur: c.couleur, texte: `${c.qte} · ${c.part} %` })),
           }))} />
+        )}
+      </CarteGraphique>
+
+      <CarteGraphique icone="food-off-outline" couleur="#64748B" titre="Plats invendus"
+        sous={invendus ? `${invendus.invendus.length} plat${invendus.invendus.length > 1 ? 's' : ''} sur ${invendus.total} sans aucune vente · ${restoFiltre ? 'ce restaurant' : 'aucun restaurant ne les a vendus'}` : 'Plats de la carte qui ne se vendent pas'}>
+        {() => (
+          !platsPOS ? <ActivityIndicator color={colors.primary} />
+            : !invendus ? (
+              <Text style={styles.noteSource}>
+                {platsPOS.erreur === POS_NON_INSTALLE
+                  ? 'Pour voir les plats invendus, passez pos_cloud_stats_plats.sql dans le projet POS (pos-samer-cloud).'
+                  : `Plats indisponibles : ${platsPOS.erreur || 'POS injoignable'}.`}
+              </Text>
+            ) : (
+              <View style={{ gap: 12 }}>
+                {invendus.invendus.length === 0 && (
+                  <Text style={[styles.noteSource, { textAlign: 'left' }]}>Tous les plats de la carte ont été vendus au moins une fois sur la période.</Text>
+                )}
+                {invendus.parCategorie.map(g => (
+                  <View key={g.categorie}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: colors.text, marginBottom: 6 }}>
+                      {g.categorie} <Text style={{ color: colors.textMuted, fontWeight: '600' }}>· {g.plats.length}</Text>
+                    </Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                      {g.plats.map(p => (
+                        <View key={p.nom} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: colors.errorLight }}>
+                          <Text style={{ fontSize: 12.5, color: colors.error, fontWeight: '600' }}>{p.nom}{p.prix ? ` · ${fmt(p.prix)}` : ''}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                ))}
+                {invendus.peuVendus.length > 0 && (
+                  <View>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: colors.text, marginBottom: 6 }}>
+                      Peu vendus <Text style={{ color: colors.textMuted, fontWeight: '600' }}>· 5 ou moins sur la période</Text>
+                    </Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                      {invendus.peuVendus.map(p => (
+                        <View key={p.nom} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: colors.warningLight }}>
+                          <Text style={{ fontSize: 12.5, color: colors.warningDark, fontWeight: '600' }}>{p.nom} · {p.qte}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+                <Text style={[styles.noteSource, { textAlign: 'left', marginBottom: 0 }]}>
+                  Plats actifs de la carte. À retirer ou remplacer : moins de stock immobilisé, moins de pertes, une cuisine plus rapide.
+                </Text>
+              </View>
+            )
         )}
       </CarteGraphique>
 
