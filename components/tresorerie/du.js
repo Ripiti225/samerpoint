@@ -16,7 +16,7 @@ import {
   libelleMois, libelleMoisCourt, moisEntre, peut, premierDuMois, repartirPaiement, resteDu, totalPaye,
 } from '../../lib/tresorerie'
 import {
-  ajouterADette, ajouterPrevision, annulerCotisation, annulerPaiement, basculerDette, enregistrerRetenueLitiges, chargerDusLoyer, enregistrerDu, payer, payerAvant, retirerAjoutDette, supprimerDu, supprimerPrevision,
+  ajouterADette, ajouterPrevision, annulerCotisation, annulerPaiement, basculerDette, compterDetteDansResultat, enregistrerRetenueLitiges, chargerDusLoyer, enregistrerDu, payer, payerAvant, retirerAjoutDette, supprimerDu, supprimerPrevision,
 } from '../../lib/tresorerieDb'
 import { Bouton, Champ, ChampCalendrier, ChampMontant, Feuille, ItemIcone, Ligne, Pastille, Progression, Puces, TitreSection, styleCategorie, useStylesTreso } from './commun'
 
@@ -140,6 +140,15 @@ export function FeuilleDetail({
 
   async function basculer() {
     try { await basculerDette(du, !du.en_dette_depuis, user); await apres(); onFermer() }
+    catch (e) { Alert.alert('Non enregistré', e?.message || 'Réessayez.') }
+  }
+
+  // Dette : ses paiements comptent-ils dans le résultat (du restaurant, ou du groupe) ?
+  const peutCompter = du.categorie === 'dette' && peut(niveau, 'voir_resultats') && peut(niveau, 'payer')
+  const compte = !!du.categorie_direction
+  const ouCompte = du.restaurant_id ? `de ${nomResto?.(du.restaurant_id) || 'son restaurant'}` : 'du groupe'
+  async function basculerResultat() {
+    try { await compterDetteDansResultat(du, !compte, user); await apres(); onFermer() }
     catch (e) { Alert.alert('Non enregistré', e?.message || 'Réessayez.') }
   }
 
@@ -286,6 +295,17 @@ export function FeuilleDetail({
         )}
         {peutBasculer && (
           <Bouton secondaire icone={du.en_dette_depuis ? 'undo-variant' : 'notebook-outline'} titre={du.en_dette_depuis ? 'Remettre à payer' : 'Passer en Dette'} onPress={basculer} />
+        )}
+        {peutCompter && (
+          <>
+            <Bouton secondaire icone={compte ? 'checkbox-marked-outline' : 'checkbox-blank-outline'}
+              titre={`Compte dans le résultat ${ouCompte}`} onPress={basculerResultat} />
+            <Text style={styles.petit}>
+              {compte
+                ? `Coché : chaque paiement de cette dette est retiré du résultat ${ouCompte}, au mois où il est payé.`
+                : `Non coché : les paiements de cette dette ne touchent aucun résultat.`}
+            </Text>
+          </>
         )}
         {peutModifier && (
           <View style={styles.rangee}>
