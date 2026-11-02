@@ -423,7 +423,7 @@ function FeuilleCompte({ compte, comptes, donnees, user, peutSaisir, onFermer, a
                 const couleur = entree ? colors.successDark : colors.error
                 return (
                   <TouchableOpacity key={m.id} style={s.ligne} activeOpacity={peutSaisir ? 0.7 : 1}
-                    onLongPress={peutSaisir ? () => confirmerSuppression(m) : undefined} delayLongPress={500} disabled={!peutSaisir}
+                    onPress={peutSaisir ? () => confirmerSuppression(m) : undefined} disabled={!peutSaisir}
                     accessibilityLabel={`${entree ? 'Entrée' : 'Sortie'} de ${fmt(Math.abs(m.montant))} francs, ${m.libelle || LIBELLES_TYPE[m.type] || ''}`}>
                     <Pastille icone={ICONES_TYPE[m.type] || 'swap-horizontal'} couleur={entree ? colors.success : colors.error} taille={40} />
                     <View style={{ flex: 1, minWidth: 0 }}>
@@ -447,7 +447,7 @@ function FeuilleCompte({ compte, comptes, donnees, user, peutSaisir, onFermer, a
           {nbLignes > nbAffiches && (
             <Bouton secondaire titre={`Voir plus (${nbLignes - nbAffiches} restants)`} onPress={() => setNbAffiches(x => x + PAR_PAGE)} style={{ marginTop: 8 }} />
           )}
-          {peutSaisir && jours.length > 0 && <Text style={[styles.petit, { marginTop: 10 }]}>Appui long sur un mouvement pour le supprimer.</Text>}
+          {peutSaisir && jours.length > 0 && <Text style={[styles.petit, { marginTop: 10 }]}>Touchez un mouvement pour le supprimer.</Text>}
         </>
       )}
     </Feuille>
