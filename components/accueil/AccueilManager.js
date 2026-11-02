@@ -26,7 +26,8 @@ import Survol from '../ui/Survol'
 import { chargerContactsPeriode } from '../../lib/contactsPeriodeDb'
 import { evolutionsHierDetail, texteHier, totalParJour } from '../../lib/hierAccueil'
 import { etatPointHier, lignesCaissiersHier, texteDemandes } from '../../lib/accueilGerant'
-import { objectifDuMois } from '../../lib/objectifs'
+import { objectifDuMois, objectifPour } from '../../lib/objectifs'
+import { chargerObjectifsMois } from '../../lib/objectifsDb'
 import { CHAMPS_VENTE, venteRetenue, venteTheorique, ventesDouble } from '../../lib/venteMachine'
 import BandeauGerant from './BandeauGerant'
 import { contratsSignes, resumeContrats } from '../../lib/contrats'
@@ -123,7 +124,7 @@ function useEtatDuJour(role, userId, restaurantId) {
         // Objectif du mois : ventes des jours terminés (aujourd'hui exclu).
         const debutMois = isoLocal(new Date(auj.getFullYear(), auj.getMonth(), 1))
         const joursMois = new Date(auj.getFullYear(), auj.getMonth() + 1, 0).getDate()
-        const [pts, corr, dem, expl, aH, aAH, aSP, contactsJours, shiftsHier, resto, ptsMois, supVisite, supTaches, equipeG, majG] = await Promise.all([
+        const [pts, corr, dem, expl, aH, aAH, aSP, contactsJours, shiftsHier, resto, ptsMois, supVisite, supTaches, equipeG, majG, lignesObjectifs] = await Promise.all([
           supabase.from('points').select(`date, valide, verifie, ${CHAMPS_VENTE}`).eq('restaurant_id', restaurantId).in('date', dates),
           supabase.from('deverouillages_points').select('id', { count: 'exact', head: true })
             .eq('restaurant_id', restaurantId).eq('statut', 'ouvert'),
@@ -151,6 +152,8 @@ function useEtatDuJour(role, userId, restaurantId) {
           supabase.from('travailleurs').select('*').eq('restaurant_id', restaurantId).neq('statut', 'archive').range(0, 999),
           supabase.from('demandes_travailleurs').select('id, type, travailleur_id, statut, created_at')
             .eq('restaurant_id', restaurantId).in('statut', ['envoyee', 'refusee']),
+          // Objectif du mois (un par mois depuis le 02/11/2026, lib/objectifs.js).
+          chargerObjectifsMois(),
         ])
         if (pts.error) return
         const parDate = Object.fromEntries((pts.data || []).map(x => [x.date, x]))
@@ -159,7 +162,7 @@ function useEtatDuJour(role, userId, restaurantId) {
         const nbDem = dem.error ? 0 : dem.count || 0
         const nbExpl = expl.error ? 0 : expl.count || 0
         const mois = ventesDouble(ptsMois.data || [])
-        const objectifMensuel = Number(resto.data?.objectif_mensuel) || 0
+        const objectifMensuel = objectifPour({ id: restaurantId, objectif_mensuel: resto.data?.objectif_mensuel }, lignesObjectifs, debutMois) || 0
         setEtat({
           hier,
           gerant: {

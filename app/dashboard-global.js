@@ -26,7 +26,8 @@ import { chargerChargesMois } from '../lib/chargesMois'
 import { chargerLitigesRestaurant } from '../lib/litigesGlobal'
 import { resumeLitiges } from '../lib/litigesResume'
 import { fmtCourt, melangerCouleurs } from '../lib/graphiques'
-import { moisObjectif, progressionObjectif, variation } from '../lib/objectifs'
+import { moisObjectif, objectifPour, progressionObjectif, variation } from '../lib/objectifs'
+import { chargerObjectifsMois, enregistrerObjectifsMois } from '../lib/objectifsDb'
 import { venteRetenue, venteTheorique } from '../lib/venteMachine'
 import VenteDouble, { TexteTheorique } from '../components/ui/VenteDouble'
 import {
@@ -76,7 +77,7 @@ const PIE_COLORS = ['#EF9F27', '#3B6D11', '#185FA5', '#993C1D', '#534AB7', '#888
 export default function DashboardGlobalScreen() {
   const { colors } = useTheme()
   const styles = useMemo(() => makeStyles(colors), [colors])
-  const { roleActif } = useApp()
+  const { roleActif, userId, userNom } = useApp()
   // Taux salarial : manager et direction seulement.
   const voitSalaires = roleActif === 'manager' || roleActif === 'directeur'
 
@@ -127,12 +128,14 @@ export default function DashboardGlobalScreen() {
   const [moisEnCours, setMoisEnCours] = useState({ ventes: {}, ventesTheo: {}, employes: {} })
   const [objectifsVisibles, setObjectifsVisibles] = useState(false)   // feuille « Fixer les objectifs »
   const [objectifsSaisis, setObjectifsSaisis] = useState({})          // { restaurantId: texte }
+  const [objectifsLignes, setObjectifsLignes] = useState([])         // objectifs_restaurants (un par mois)
+  const [moisSaisie, setMoisSaisie] = useState(null)                 // 'AAAA-MM-01' de la feuille « Fixer »
   const [objectifEnCours, setObjectifEnCours] = useState(false)
   // Litiges de la période (mêmes calculs que l'écran Litiges), chargés à l'ouverture de l'onglet.
   const [litigesDash, setLitigesDash] = useState(null)   // { cle, donnees }
   const [chargementLitiges, setChargementLitiges] = useState(false)
 
-  useEffect(() => { chargerRestaurants() }, [])
+  useEffect(() => { chargerRestaurants(); chargerObjectifsMois().then(setObjectifsLignes) }, [])
   // Objectifs : le mois suit la période choisie (lib/objectifs.js, moisObjectif).
   useEffect(() => { chargerMoisEnCours(moisObjectif({ periodeKey, dateFin, aujourdhui: jourISO() })) }, [periodeKey, dateFin])
 
@@ -209,9 +212,22 @@ export default function DashboardGlobalScreen() {
     setPointsPrec(grouperParResto(data, list))
   }
 
+  // Feuille « Fixer » : les objectifs d'un mois (celui affiché, puis ‹ › pour un autre).
+  function saisiesDuMois(mois) {
+    setMoisSaisie(mois)
+    setObjectifsSaisis(Object.fromEntries(restaurants.map(r => {
+      const o = objectifPour(r, objectifsLignes, mois)
+      return [r.id, o == null ? '' : String(Math.round(o))]
+    })))
+  }
   function ouvrirObjectifs() {
-    setObjectifsSaisis(Object.fromEntries(restaurants.map(r => [r.id, r.objectif_mensuel == null ? '' : String(Math.round(r.objectif_mensuel))])))
+    saisiesDuMois(moisObjectif({ periodeKey, dateFin, aujourdhui: jourISO() }).debut)
     setObjectifsVisibles(true)
+  }
+  function decalerMoisSaisie(k) {
+    const [a, m] = moisSaisie.split('-').map(Number)
+    const d = new Date(Date.UTC(a, m - 1 + k, 1))
+    saisiesDuMois(d.toISOString().slice(0, 10))
   }
 
   // Enregistre les objectifs modifiés (vide = pas d'objectif).
@@ -224,25 +240,20 @@ export default function DashboardGlobalScreen() {
         Alert.alert('Montant invalide', `${r.nom} : saisissez un nombre positif, ou laissez vide pour retirer l'objectif.`)
         return
       }
-      const avant = r.objectif_mensuel == null ? null : Number(r.objectif_mensuel)
-      if (montant !== avant) changes.push({ id: r.id, montant })
+      const avant = objectifPour(r, objectifsLignes, moisSaisie)
+      if ((montant || null) !== avant) changes.push({ restaurant_id: r.id, montant: montant || null })
     }
     if (!changes.length) { setObjectifsVisibles(false); return }
     setObjectifEnCours(true)
-    for (const c of changes) {
-      const { error } = await supabase.from('restaurants').update({ objectif_mensuel: c.montant }).eq('id', c.id)
-      if (error) {
-        setObjectifEnCours(false)
-        Alert.alert('Enregistrement impossible', /objectif_mensuel/.test(error.message)
-          ? "La colonne « objectif_mensuel » n'existe pas encore. Passez le script supabase_rapport_mensuel.sql dans Supabase, puis réessayez."
-          : error.message)
-        return
-      }
+    try {
+      await enregistrerObjectifsMois(moisSaisie, changes, { userId, userNom })
+      setObjectifsLignes(await chargerObjectifsMois())
+      setObjectifsVisibles(false)
+    } catch (e) {
+      Alert.alert('Enregistrement impossible', e?.message || 'Réessayez.')
+    } finally {
+      setObjectifEnCours(false)
     }
-    const parId = Object.fromEntries(changes.map(c => [c.id, c.montant]))
-    setRestaurants(liste => liste.map(x => (x.id in parId ? { ...x, objectif_mensuel: parId[x.id] } : x)))
-    setObjectifEnCours(false)
-    setObjectifsVisibles(false)
   }
 
   function getDateRange() {
@@ -1031,10 +1042,10 @@ export default function DashboardGlobalScreen() {
       {(() => {
         const lignesObj = restosVus.map(r => {
           const ventes = moisEnCours.ventes[r.id] || 0
-          return { r, ventes, prog: progressionObjectif({ ventes, objectif: r.objectif_mensuel, jour: jourObj, joursMois: mObj.joursMois }) }
+          return { r, ventes, prog: progressionObjectif({ ventes, objectif: objectifPour(r, objectifsLignes, mObj.debut), jour: jourObj, joursMois: mObj.joursMois }) }
         })
         const avecObj = lignesObj.filter(l => l.prog)
-        const objGroupe = avecObj.reduce((x, l) => x + Number(l.r.objectif_mensuel || 0), 0)
+        const objGroupe = avecObj.reduce((x, l) => x + (objectifPour(l.r, objectifsLignes, mObj.debut) || 0), 0)
         const ventesGroupe = avecObj.reduce((x, l) => x + l.ventes, 0)
         const progGroupe = progressionObjectif({ ventes: ventesGroupe, objectif: objGroupe, jour: jourObj, joursMois: mObj.joursMois })
         return (
@@ -1099,7 +1110,7 @@ export default function DashboardGlobalScreen() {
         const resto = restaurants.find(x => x.id === r.id) || {}
         const renta = tauxRenta(r.ventes, r.benefice)
         const ventesMois = moisEnCours.ventes[r.id] || 0
-        const prog = progressionObjectif({ ventes: ventesMois, objectif: resto.objectif_mensuel, jour: jourObj, joursMois: mObj.joursMois })
+        const prog = progressionObjectif({ ventes: ventesMois, objectif: objectifPour(resto, objectifsLignes, mObj.debut), jour: jourObj, joursMois: mObj.joursMois })
         const posResto = pos?.par_resto?.find(x => x.id === r.id)
         return (
           <View key={r.id} style={[styles.restoCarte, { borderLeftColor: r.couleur }]}>
@@ -1130,7 +1141,7 @@ export default function DashboardGlobalScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: prog ? 6 : 0 }}>
                 <MaterialCommunityIcons name="target" size={15} color={prog ? (prog.enAvance ? colors.successDark : colors.warningDark) : colors.textMuted} />
                 <Text style={styles.objectifTxt} numberOfLines={1}>
-                  {prog ? `${fmtCourt(ventesMois)} sur ${fmtCourt(resto.objectif_mensuel)} · ${prog.pct} % (vente machine)` : 'Objectif à définir'}
+                  {prog ? `${fmtCourt(ventesMois)} sur ${fmtCourt(objectifPour(resto, objectifsLignes, mObj.debut))} · ${prog.pct} % (vente machine)` : 'Objectif à définir'}
                 </Text>
                 <MaterialCommunityIcons name="pencil-outline" size={15} color={colors.primary} />
               </View>
@@ -1736,13 +1747,26 @@ export default function DashboardGlobalScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modal, { maxHeight: '88%' }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitre}>Objectifs mensuels</Text>
+              <Text style={styles.modalTitre}>Objectifs du mois</Text>
               <TouchableOpacity onPress={() => setObjectifsVisibles(false)} style={styles.fermerBtn} accessibilityLabel="Fermer">
                 <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
+            {moisSaisie && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 8 }}>
+                <TouchableOpacity onPress={() => decalerMoisSaisie(-1)} hitSlop={12} disabled={objectifEnCours} accessibilityLabel="Mois précédent">
+                  <MaterialCommunityIcons name="chevron-left" size={26} color={colors.primary} />
+                </TouchableOpacity>
+                <Text style={[styles.objectifsTitre, { textTransform: 'capitalize', minWidth: 150, textAlign: 'center' }]}>
+                  {new Date(`${moisSaisie}T12:00:00Z`).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
+                </Text>
+                <TouchableOpacity onPress={() => decalerMoisSaisie(1)} hitSlop={12} disabled={objectifEnCours} accessibilityLabel="Mois suivant">
+                  <MaterialCommunityIcons name="chevron-right" size={26} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+            )}
             <Text style={[styles.restoSous, { marginBottom: 12 }]}>
-              Chiffre d'affaires visé pour le mois, par restaurant. Vide = pas d'objectif. Le rapport mensuel les lit aussi.
+              Chiffre d'affaires visé pour ce mois, par restaurant. Vide = pas d'objectif. Un mois non fixé reprend le dernier mois fixé avant lui. Lus aussi par l'accueil du gérant et les rapports.
             </Text>
             <ScrollView keyboardShouldPersistTaps="handled" style={{ flexGrow: 0 }}>
               {restaurants.map(r => (
