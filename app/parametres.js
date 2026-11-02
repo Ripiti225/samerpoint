@@ -1,5 +1,7 @@
 import { router } from 'expo-router'
 import { estCompteTechnique } from '../lib/comptesTechniques'
+import { codesUtilisateurs, enregistrerUtilisateur, messageReponse } from '../lib/codesDb'
+import { problemeNouveauCode } from '../lib/codes'
 import { useEffect, useMemo, useState } from 'react'
 import FormulaireTravailleur from '../components/FormulaireTravailleur'
 import FormulaireDemande from '../components/contrats/FormulaireDemande'
@@ -70,6 +72,13 @@ export default function ParametresScreen() {
   const [modal, setModal] = useState({ visible: false, type: '', data: null })
   const [form, setForm] = useState({})
   const [loading, setLoading] = useState(false)
+  // Codes personnels (supabase_codes_securises.sql) : jamais lus directement.
+  // Le code du manager, retapé une fois, sert à voir les codes et à
+  // enregistrer un compte pendant cette visite de Paramètres.
+  const [codeAdmin, setCodeAdmin] = useState('')
+  const [codesVus, setCodesVus] = useState(null)        // { [userId]: code }
+  const [demandeCodes, setDemandeCodes] = useState(false)
+  const [saisieAdmin, setSaisieAdmin] = useState('')
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [creditActuel, setCreditActuel] = useState(null)
   const [montantCotise, setMontantCotise] = useState(null)
@@ -163,7 +172,10 @@ export default function ParametresScreen() {
       setTravailleurs(data || [])
     }
     if (sectionActive === 'utilisateurs') {
-      const { data } = await supabase.from('utilisateurs').select('*, restaurants(nom)').order('nom')
+      // Sans la colonne pin : les codes ne quittent plus le serveur.
+      const { data } = await supabase.from('utilisateurs')
+        .select('id, nom, role, restaurant_id, photo_url, type_contrat, poste, date_embauche, actif, created_at, travailleur_id, code_a_changer, code_change_le, pin_longueur, sans_connexion, restaurants(nom)')
+        .order('nom')
       setUtilisateurs(data || [])
     }
     if (sectionActive === 'fournisseurs') {
@@ -385,41 +397,44 @@ export default function ParametresScreen() {
       }
 
       // ── UTILISATEUR ─────────────────────────────────────────
+      // Passe par le serveur (enregistrer_utilisateur), avec le code du manager.
       if (type === 'utilisateur') {
-        if (!form.nom || !form.pin) {
-          Alert.alert('Erreur', 'Nom et PIN obligatoires')
+        const code = String(form.pin || '').trim()
+        if (!form.nom) {
+          Alert.alert('Erreur', 'Le nom est obligatoire')
           setLoading(false); return
         }
-        if (form.pin.length !== 4) {
-          Alert.alert('Erreur', 'Le PIN doit avoir 4 chiffres')
+        if (!data?.id && !code) {
+          Alert.alert('Erreur', 'Donnez un code de 6 chiffres au nouveau compte')
           setLoading(false); return
+        }
+        if (code) {
+          const probleme = problemeNouveauCode(code)
+          if (probleme) { Alert.alert('Code', probleme); setLoading(false); return }
         }
         const estGlobal = ROLES_GLOBAUX.includes(form.role)
         if (!form.restaurant_id && !estGlobal) {
           Alert.alert('Erreur', 'Choisissez un restaurant pour ce rôle')
           setLoading(false); return
         }
-        if (data?.id) {
-          const { error } = await supabase.from('utilisateurs')
-            .update({
-              nom: form.nom,
-              role: form.role,
-              pin: form.pin,
-              restaurant_id: estGlobal ? null : form.restaurant_id,
-            })
-            .eq('id', data.id)
-          if (error) throw error
-        } else {
-          const { error } = await supabase.from('utilisateurs')
-            .insert({
-              nom: form.nom,
-              role: form.role || 'caissier',
-              pin: form.pin,
-              actif: true,
-              restaurant_id: estGlobal ? null : form.restaurant_id,
-            })
-          if (error) throw error
+        const admin = codeAdmin || saisieAdmin
+        if (!admin) {
+          Alert.alert('Votre code', 'Tapez votre code de manager en bas du formulaire pour confirmer.')
+          setLoading(false); return
         }
+        const r = await enregistrerUtilisateur(userId, admin, {
+          id: data?.id || null, nom: form.nom, role: form.role || 'caissier',
+          restaurantId: estGlobal ? null : form.restaurant_id, code,
+        })
+        if (r.statut !== 'ok') {
+          if (['faux', 'bloque', 'refuse'].includes(r.statut)) { setCodeAdmin(''); setSaisieAdmin('') }
+          Alert.alert('Non enregistré', messageReponse(r))
+          setLoading(false); return
+        }
+        setCodeAdmin(admin)
+        setSaisieAdmin('')
+        if (codesVus && code) setCodesVus(c => ({ ...c, [r.id]: code }))
+        if (code) Alert.alert('Code enregistré', `${form.nom} devra choisir son propre code à 6 chiffres à sa prochaine connexion.`)
       }
 
       // ── FOURNISSEUR ─────────────────────────────────────────
@@ -1002,6 +1017,10 @@ export default function ParametresScreen() {
     return (
       <>
         <FiltreRestaurants />
+        <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.surfaceAlt }]}
+          onPress={() => (codesVus ? setCodesVus(null) : setDemandeCodes(true))}>
+          <Text style={[styles.addTxt, { color: colors.text }]}>{codesVus ? '🙈 Masquer les codes' : '👁 Voir les codes (votre code de manager)'}</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.addBtn} onPress={() => ouvrirModal('utilisateur', null, { restaurant_id: restaurantFiltre })}>
           <Text style={styles.addTxt}>+ Ajouter un utilisateur {restoNom ? `— ${restoNom}` : ''}</Text>
         </TouchableOpacity>
@@ -1016,7 +1035,7 @@ export default function ParametresScreen() {
               </View>
               <View>
                 <Text style={styles.itemNom}>{u.nom}</Text>
-                <Text style={styles.itemSub}>{u.role} — PIN: {u.pin}</Text>
+                <Text style={styles.itemSub}>{u.role} — Code : {codesVus?.[u.id] ?? '••••••'}{u.code_a_changer ? ' · à changer' : ''}</Text>
                 <Text style={styles.itemSub2}>Accès global — tous les restaurants</Text>
               </View>
             </View>
@@ -1049,7 +1068,7 @@ export default function ParametresScreen() {
                   <View>
                     <Text style={[styles.itemNom, !u.actif && { color: '#aaa' }]}>{u.nom}</Text>
                     <Text style={styles.itemSub}>
-                      {estCompteTechnique(u) ? `${u.role} — sans connexion (compte du POS)` : `${u.role} — PIN: ${u.pin}`}
+                      {estCompteTechnique(u) ? `${u.role} — sans connexion (compte du POS)` : `${u.role} — Code : ${codesVus?.[u.id] ?? '••••••'}${u.code_a_changer ? ' · à changer' : ''}`}
                     </Text>
                   </View>
                 </View>
@@ -1382,16 +1401,31 @@ export default function ParametresScreen() {
           placeholderTextColor="#bbb"
         />
 
-        <Text style={styles.modalLabel}>Code PIN personnel * (4 chiffres)</Text>
+        <Text style={styles.modalLabel}>{modal.data ? 'Nouveau code (6 chiffres) — vide = inchangé' : 'Code personnel * (6 chiffres)'}</Text>
         <TextInput
           style={styles.modalInput}
           value={form.pin || ''}
-          onChangeText={v => setForm(p => ({ ...p, pin: v }))}
-          placeholder="Ex: 1234"
+          onChangeText={v => setForm(p => ({ ...p, pin: v.replace(/\D/g, '') }))}
+          placeholder={modal.data ? 'Laisser vide pour garder son code' : 'Ex: 482913'}
           keyboardType="numeric"
-          maxLength={4}
+          maxLength={6}
           placeholderTextColor="#bbb"
         />
+        <Text style={[styles.modalLabel, { fontWeight: '400', marginTop: -4 }]}>Un code donné ici devra être changé par la personne à sa prochaine connexion.</Text>
+        {!codeAdmin && (
+          <>
+            <Text style={styles.modalLabel}>Votre code de manager * (pour confirmer)</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={saisieAdmin}
+              onChangeText={v => setSaisieAdmin(v.replace(/\D/g, ''))}
+              keyboardType="numeric"
+              secureTextEntry
+              maxLength={6}
+              placeholderTextColor="#bbb"
+            />
+          </>
+        )}
 
         <Text style={styles.modalLabel}>Rôle</Text>
         <View style={styles.contratRow}>
@@ -1889,6 +1923,39 @@ export default function ParametresScreen() {
             </KeyboardAvoidingView>
           </View>
         </TouchableWithoutFeedback>
+      </Modal>
+
+      <Modal visible={demandeCodes} transparent animationType="fade" onRequestClose={() => setDemandeCodes(false)}>
+        <View style={[styles.modalOverlay, { justifyContent: 'center', padding: 24 }]}>
+          <View style={[styles.modal, { borderRadius: 16 }]}>
+            <Text style={styles.modalTitre}>Voir les codes</Text>
+            <Text style={styles.modalLabel}>Tapez votre code de manager. La consultation est notée dans le journal.</Text>
+            <TextInput
+              style={styles.modalInput} value={saisieAdmin} autoFocus
+              onChangeText={v => setSaisieAdmin(v.replace(/\D/g, ''))}
+              keyboardType="numeric" secureTextEntry maxLength={6} placeholderTextColor="#bbb"
+            />
+            <View style={styles.modalBtns}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => { setDemandeCodes(false); setSaisieAdmin('') }}>
+                <Text style={styles.modalCancelTxt}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirm} onPress={async () => {
+                const admin = codeAdmin || saisieAdmin
+                const r = await codesUtilisateurs(userId, admin)
+                if (r.statut !== 'ok') {
+                  setCodeAdmin(''); setSaisieAdmin('')
+                  Alert.alert('Codes', messageReponse(r))
+                  return
+                }
+                setCodeAdmin(admin); setSaisieAdmin('')
+                setCodesVus(r.codes || {})
+                setDemandeCodes(false)
+              }}>
+                <Text style={styles.modalConfirmTxt}>Voir</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       <FormulaireDemande

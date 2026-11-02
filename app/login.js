@@ -22,6 +22,19 @@ import ClavierCode from '../components/login/ClavierCode'
 import ActivationFaceID from '../components/login/ActivationFaceID'
 import { couleurResto, couleurRole, initiales, libelleRole, themeLogin } from '../components/login/themeLogin'
 import '../lib/webAlert'   // remplace Alert.alert par les dialogues du navigateur
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { empreinteHorsLigne, LONGUEUR_NOUVEAU_CODE, libelleAttente, longueurCode, problemeNouveauCode } from '../lib/codes'
+import { changerMonCode, connexionUtilisateur, messageReponse } from '../lib/codesDb'
+
+// Sans internet, on ne se reconnecte que sur un téléphone où ce compte s'est
+// déjà connecté (empreinte du code, jamais le code lui-même).
+const cleHorsLigne = id => `samtrackly_code_hors_ligne_${id}`
+async function enregistrerHorsLigne(id, code) {
+  try { await AsyncStorage.setItem(cleHorsLigne(id), empreinteHorsLigne(id, code)) } catch {}
+}
+async function verifierHorsLigne(id, code) {
+  try { return (await AsyncStorage.getItem(cleHorsLigne(id))) === empreinteHorsLigne(id, code) } catch { return false }
+}
 
 // ─── Écran principal ─────────────────────────────────────────
 export default function LoginScreen() {
@@ -37,7 +50,12 @@ export default function LoginScreen() {
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [pinError, setPinError] = useState(false)
   const [tentativesResto, setTentativesResto] = useState(0)
-  const [tentativesUser, setTentativesUser] = useState(0)
+  // Code vérifié par le serveur (supabase_codes_securises.sql).
+  const [verifEnCours, setVerifEnCours] = useState(false)
+  const [erreurCode, setErreurCode] = useState(null)
+  const [veutChanger, setVeutChanger] = useState(false)
+  // Changement de code : { ancien, nouveau (1re saisie), oblige }.
+  const [changement, setChangement] = useState(null)
   const [bloqueJusquaResto, setBloqueJusquaResto] = useState(null)
   const [bloqueJusquaUser, setBloqueJusquaUser] = useState(null)
   const [secondesRestantes, setSecondesRestantes] = useState(0)
@@ -192,18 +210,10 @@ export default function LoginScreen() {
     setSelected(user)
     setPin('')
     setPinError(false)
-    setTentativesUser(0)
+    setErreurCode(null)
+    setVeutChanger(false)
+    setChangement(null)
     setBloqueJusquaUser(null)
-    if (Platform.OS === 'web') {
-      try {
-        const stored = localStorage.getItem(`sam_lockout_user_${user.id}`)
-        if (stored) {
-          const until = parseInt(stored)
-          if (Date.now() < until) setBloqueJusquaUser(until)
-          else localStorage.removeItem(`sam_lockout_user_${user.id}`)
-        }
-      } catch {}
-    }
     setEtape(4)
   }
 
@@ -215,14 +225,20 @@ export default function LoginScreen() {
     if (bioSupportee && e) entrerAvecBiometrie(e)
   }
 
+  // Nombre de chiffres attendus : code du restaurant, ancien code (4) ou
+  // nouveau code (6) de la personne, nouveau code en cours de choix.
+  const longueurAttendue = etape === 2 ? (String(selectedResto?.pin ?? '').length || 4)
+    : etape === 6 ? LONGUEUR_NOUVEAU_CODE : longueurCode(selected)
+
   function appuyerChiffre(chiffre) {
-    if (pin.length < 4) {
-      const newPin = pin + chiffre
-      setPin(newPin)
-      if (newPin.length === 4) {
-        if (etape === 2) verifierPinRestaurant(newPin)
-        else if (etape === 4) verifierPinUtilisateur(newPin)
-      }
+    if (verifEnCours || pin.length >= longueurAttendue) return
+    const newPin = pin + chiffre
+    setPin(newPin)
+    if (pinError) { setPinError(false); setErreurCode(null) }
+    if (newPin.length === longueurAttendue) {
+      if (etape === 2) verifierPinRestaurant(newPin)
+      else if (etape === 4) verifierPinUtilisateur(newPin)
+      else if (etape === 6) saisirNouveauCode(newPin)
     }
   }
 
@@ -233,41 +249,88 @@ export default function LoginScreen() {
 
   async function verifierPinUtilisateur(pinSaisi) {
     if (bloqueJusquaUser && Date.now() < bloqueJusquaUser) return
-    const pinOk = pinSaisi === String(selected.pin)
-    if (!pinOk) {
-      const nouvellesTentatives = tentativesUser + 1
-      setTentativesUser(nouvellesTentatives)
+    setVerifEnCours(true)
+    let r = await connexionUtilisateur(selected.id, pinSaisi)
+    if (r.statut === 'hors_ligne') {
+      r = (await verifierHorsLigne(selected.id, pinSaisi))
+        ? { statut: 'ok', code_a_changer: false }
+        : { statut: 'erreur', message: 'Pas d\'internet. Connectez-vous une première fois avec internet sur ce téléphone.' }
+    }
+    setVerifEnCours(false)
+    setPin('')
+    if (r.statut === 'bloque') {
+      setBloqueJusquaUser(new Date(r.bloque_jusqua).getTime())
       setPinError(true)
-      setPin('')
-      if (nouvellesTentatives >= 3) {
-        const until = Date.now() + 30_000
-        setBloqueJusquaUser(until)
-        if (Platform.OS === 'web') {
-          try { localStorage.setItem(`sam_lockout_user_${selected.id}`, String(until)) } catch {}
-        }
-        setTentativesUser(0)
-      }
+      setErreurCode(messageReponse(r))
       return
     }
-
-    if (Platform.OS === 'web') {
-      try { localStorage.removeItem(`sam_lockout_user_${selected.id}`) } catch {}
+    if (r.statut !== 'ok') {
+      setPinError(true)
+      setErreurCode(messageReponse(r))
+      return
     }
     setPinError(false)
+    setErreurCode(null)
+    enregistrerHorsLigne(selected.id, pinSaisi)
+    const user = { ...selected, code_version: r.code_version ?? selected.code_version, code_a_changer: !!r.code_a_changer }
+    setSelected(user)
+    // Code à changer (imposé), ou « Changer mon code » demandé : on choisit
+    // le nouveau code avant d'entrer.
+    if (user.code_a_changer || veutChanger) {
+      setChangement({ ancien: pinSaisi, nouveau: null, oblige: user.code_a_changer })
+      setEtape(6)
+      return
+    }
+    await apresCodeJuste(user)
+  }
 
+  // Nouveau code : 1re saisie (règles), puis confirmation, puis serveur.
+  async function saisirNouveauCode(code) {
+    setPin('')
+    if (!changement.nouveau) {
+      const probleme = problemeNouveauCode(code, changement.ancien)
+      if (probleme) { setPinError(true); setErreurCode(probleme); return }
+      setChangement(c => ({ ...c, nouveau: code }))
+      return
+    }
+    if (code !== changement.nouveau) {
+      setChangement(c => ({ ...c, nouveau: null }))
+      setPinError(true)
+      setErreurCode('Les deux codes ne sont pas pareils. Recommencez.')
+      return
+    }
+    setVerifEnCours(true)
+    const r = await changerMonCode(selected.id, changement.ancien, code)
+    setVerifEnCours(false)
+    if (r.statut !== 'ok') {
+      setChangement(c => ({ ...c, nouveau: null }))
+      setPinError(true)
+      setErreurCode(messageReponse(r))
+      return
+    }
+    enregistrerHorsLigne(selected.id, code)
+    const user = { ...selected, code_version: r.code_version, code_a_changer: false, pin_longueur: LONGUEUR_NOUVEAU_CODE }
+    setSelected(user)
+    setChangement(null)
+    setVeutChanger(false)
+    Alert.alert('Code changé', 'Votre nouveau code à 6 chiffres est enregistré. C\'est lui qui servira désormais. Si Face ID était activé, réactivez-le.')
+    await apresCodeJuste(user)
+  }
+
+  async function apresCodeJuste(user) {
     // Codes justes : c'est le seul moment où l'on peut proposer Face ID,
-    // le gérant venant de prouver qui il est.
-    const dejaActive = enrolementsDe(selected, selectedResto).length > 0
+    // la personne venant de prouver qui elle est.
+    const dejaActive = enrolementsDe(user, selectedResto).length > 0
     if (peutProposerActivation({
-      supporte: bioSupportee, role: selected.role,
-      dejaActive, refuse: await aRefuse(selected.id),
+      supporte: bioSupportee, role: user.role,
+      dejaActive, refuse: await aRefuse(user.id),
     })) {
       setBioMessage('')
-      setActivationEnAttente({ utilisateur: selected, restaurant: selectedResto })
+      setActivationEnAttente({ utilisateur: user, restaurant: selectedResto })
       setEtape(5)
       return
     }
-    ouvrirSession(selected, selectedResto)
+    ouvrirSession(user, selectedResto)
   }
 
   async function activerBiometrie() {
@@ -319,6 +382,12 @@ export default function LoginScreen() {
       }
       setSelectedResto(resto)
       setSelected(user)
+      if (user.code_a_changer) {
+        setPin('')
+        setEtape(4)
+        setBioMessage('Vous devez changer votre code : entrez d\'abord votre code actuel.')
+        return
+      }
       ouvrirSession(user, resto)
     } catch {
       setBioMessage('Connexion impossible pour le moment. Entrez vos codes.')
@@ -422,7 +491,8 @@ export default function LoginScreen() {
           sousTitre: selectedResto?.localisation || 'Abidjan',
         }}
         consigne="Code du restaurant"
-        pin={pin} pinError={pinError} secondesRestantes={secondesRestantes}
+        longueur={longueurAttendue}
+        pin={pin} pinError={pinError} secondesRestantes={libelleAttente(secondesRestantes)}
         bloque={!!(bloqueJusquaResto && Date.now() < bloqueJusquaResto)}
         couleur={couleurResto(selectedResto)}
         appuyerChiffre={appuyerChiffre} supprimer={supprimer}
@@ -477,6 +547,33 @@ export default function LoginScreen() {
     )
   }
 
+  if (etape === 6 && changement) {
+    return (
+      <ClavierCode
+        t={t}
+        entete={{
+          initialesTexte: initiales(selected?.nom),
+          couleur: couleurRole(selected?.role),
+          titre: selected?.nom,
+          sousTitre: changement.oblige ? 'Nouveau code obligatoire' : 'Changer mon code',
+        }}
+        bandeau={changement.oblige
+          ? { titre: 'Changez votre code', texte: 'Pour la sécurité de tous, choisissez un nouveau code personnel à 6 chiffres. C\'est lui qui servira désormais. Évitez 123456, 111111, votre date de naissance…' }
+          : { titre: 'Nouveau code', texte: '6 chiffres, pas trop simples.' }}
+        consigne={changement.nouveau ? 'Retapez le nouveau code' : 'Nouveau code à 6 chiffres'}
+        longueur={LONGUEUR_NOUVEAU_CODE}
+        pin={pin} pinError={pinError} messageErreur={erreurCode} verification={verifEnCours}
+        secondesRestantes={libelleAttente(secondesRestantes)} bloque={false}
+        couleur={couleurRole(selected?.role)}
+        appuyerChiffre={appuyerChiffre} supprimer={supprimer}
+        toucheFaceID={false}
+        lienBas={changement.oblige
+          ? { texte: 'Ce n’est pas moi', onPress: () => { setChangement(null); setEtape(3); setPin(''); setPinError(false) } }
+          : { texte: 'Annuler', onPress: () => { setChangement(null); setVeutChanger(false); apresCodeJuste(selected) } }}
+      />
+    )
+  }
+
   const ici = enrolementsDe(selected, selectedResto)
   return (
     <ClavierCode
@@ -489,15 +586,20 @@ export default function LoginScreen() {
           ? `${libelleRole(selected?.role)} · tous les restaurants`
           : `${selectedResto?.nom} · ${libelleRole(selected?.role)}`,
       }}
-      consigne="Votre code personnel"
-      pin={pin} pinError={pinError} secondesRestantes={secondesRestantes}
+      consigne={veutChanger ? 'Entrez votre code actuel' : 'Votre code personnel'}
+      longueur={longueurAttendue}
+      pin={pin} pinError={pinError} messageErreur={erreurCode} verification={verifEnCours}
+      secondesRestantes={libelleAttente(secondesRestantes)}
       bloque={!!(bloqueJusquaUser && Date.now() < bloqueJusquaUser)}
       couleur={couleurRole(selected?.role)}
       appuyerChiffre={appuyerChiffre} supprimer={supprimer}
       toucheFaceID={bioSupportee && ici.length > 0}
       onFaceID={() => entrerAvecBiometrie(ici[0])}
       bioEnCours={bioEnCours} bioMessage={bioMessage}
-      lienBas={{ texte: 'Ce n’est pas moi', onPress: () => { setEtape(3); setPin(''); setPinError(false); setBioMessage('') } }}
+      liensBas={[
+        { texte: 'Ce n’est pas moi', onPress: () => { setEtape(3); setPin(''); setPinError(false); setBioMessage(''); setVeutChanger(false) } },
+        ...(veutChanger ? [] : [{ texte: 'Changer mon code', onPress: () => { setVeutChanger(true); setPin(''); setPinError(false); setErreurCode(null) } }]),
+      ]}
     />
   )
 }

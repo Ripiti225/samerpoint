@@ -36,9 +36,14 @@ function Touche({ label, onPress, disabled, t }) {
   )
 }
 
+// longueur : nombre de chiffres du code (4 anciens codes, 6 nouveaux) ;
+// bandeau : message mis en avant au-dessus (ex. « Changez votre code ») ;
+// messageErreur : texte d'erreur venant du serveur (essais restants…) ;
+// liensBas : liens sous le clavier (lienBas : un seul, comme avant).
 export default function ClavierCode({
   t, entete, consigne, pin, pinError, bloque, secondesRestantes, couleur,
   appuyerChiffre, supprimer, toucheFaceID, onFaceID, bioEnCours, bioMessage, lienBas,
+  longueur = 4, bandeau = null, messageErreur = null, liensBas = null, verification = false,
 }) {
   const shakeX = useSharedValue(0)
   useEffect(() => {
@@ -77,19 +82,28 @@ export default function ClavierCode({
             <Text style={[styles.sous, { color: t.texteFaible }]} numberOfLines={1}>{entete.sousTitre}</Text>
           </View>
 
+          {bandeau ? (
+            <View style={[styles.bandeau, { borderColor: couleur, backgroundColor: t.sombre ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)' }]}>
+              <Text style={[styles.bandeauTitre, { color: t.texte }]}>{bandeau.titre}</Text>
+              {bandeau.texte ? <Text style={[styles.bandeauTexte, { color: t.texteDoux }]}>{bandeau.texte}</Text> : null}
+            </View>
+          ) : null}
+
           <Text style={[styles.consigne, { color: t.texteDoux }]}>{consigne}</Text>
 
           <Animated.View style={[styles.points, shakeStyle]}>
-            {[0, 1, 2, 3].map(i => (
+            {Array.from({ length: longueur }, (_, i) => i).map(i => (
               <Point key={i} t={t} rempli={pin.length > i} erreur={pinError || !!bloque} couleur={couleur} />
             ))}
           </Animated.View>
 
           <View style={styles.message}>
             {bloque ? (
-              <Text style={[styles.erreur, { color: t.erreur }]}>🔒 Trop de tentatives — réessayez dans {secondesRestantes}s</Text>
+              <Text style={[styles.erreur, { color: t.erreur }]}>🔒 Trop de tentatives — réessayez dans {secondesRestantes}</Text>
+            ) : verification ? (
+              <Text style={[styles.erreur, { color: t.texteDoux }]}>Vérification du code…</Text>
             ) : pinError ? (
-              <Text style={[styles.erreur, { color: t.erreur }]}>Code incorrect, réessayez</Text>
+              <Text style={[styles.erreur, { color: t.erreur }]}>{messageErreur || 'Code incorrect, réessayez'}</Text>
             ) : bioEnCours ? (
               <Text style={[styles.erreur, { color: t.texteDoux }]}>Vérification Face ID…</Text>
             ) : bioMessage ? (
@@ -107,11 +121,11 @@ export default function ClavierCode({
             ))}
           </View>
 
-          {lienBas && (
-            <TouchableOpacity onPress={lienBas.onPress} style={styles.lien}>
-              <Text style={[styles.lienTxt, { color: t.texteDoux }]}>{lienBas.texte}</Text>
+          {(liensBas || (lienBas ? [lienBas] : [])).map(l => (
+            <TouchableOpacity key={l.texte} onPress={l.onPress} style={styles.lien}>
+              <Text style={[styles.lienTxt, { color: t.texteDoux }]}>{l.texte}</Text>
             </TouchableOpacity>
-          )}
+          ))}
         </View>
         <SignatureFooter />
       </ScrollView>
@@ -120,6 +134,9 @@ export default function ClavierCode({
 }
 
 const styles = StyleSheet.create({
+  bandeau: { alignSelf: 'stretch', borderWidth: 1.5, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 14, marginBottom: 14 },
+  bandeauTitre: { fontSize: 16, fontWeight: '800', textAlign: 'center' },
+  bandeauTexte: { fontSize: 13, textAlign: 'center', marginTop: 4, lineHeight: 18 },
   scroll:     { paddingBottom: 30 },
   corps:      { alignItems: 'center', marginTop: -34, paddingHorizontal: 16 },
   qui:        { alignItems: 'center' },
