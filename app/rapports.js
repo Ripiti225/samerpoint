@@ -417,7 +417,7 @@ function OngletMensuel() {
       const rapport = await chargerRapportMensuel(m.mois, suivre)
       // L'analyse (faits, résultat net, POS, équipe) rejoint l'export ; si elle
       // échoue, le rapport sort quand même, sans ces sections.
-      rapport.analyse = await chargerAnalyse(m.mois, suivre).catch(e => {
+      rapport.analyse = await chargerAnalyse(m.mois, suivre, { detailRestos: true }).catch(e => {
         console.warn('[RapportMensuel] analyse indisponible', e?.message)
         return null
       })
