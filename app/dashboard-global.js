@@ -26,7 +26,7 @@ import { chargerChargesMois } from '../lib/chargesMois'
 import { chargerLitigesRestaurant } from '../lib/litigesGlobal'
 import { resumeLitiges } from '../lib/litigesResume'
 import { fmtCourt, melangerCouleurs } from '../lib/graphiques'
-import { progressionObjectif, variation } from '../lib/objectifs'
+import { moisObjectif, progressionObjectif, variation } from '../lib/objectifs'
 import { venteRetenue, venteTheorique } from '../lib/venteMachine'
 import VenteDouble, { TexteTheorique } from '../components/ui/VenteDouble'
 import {
@@ -47,6 +47,12 @@ const PILIERS_COMPARABLES = ['apercu', 'couts', 'clients']
 
 const RAISON_CHARGES = 'charges du mois entier — non comparable sur une période partielle'
 const RAISON_SALAIRE = 'état de salaires du RH compté d’un seul côté — non comparable'
+
+// Date du jour (heure locale, Abidjan = UTC), 'AAAA-MM-JJ'.
+const jourISO = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 const PERIODES = [
   { label: "Aujourd'hui", key: 'today' },
@@ -126,7 +132,9 @@ export default function DashboardGlobalScreen() {
   const [litigesDash, setLitigesDash] = useState(null)   // { cle, donnees }
   const [chargementLitiges, setChargementLitiges] = useState(false)
 
-  useEffect(() => { chargerRestaurants(); chargerMoisEnCours() }, [])
+  useEffect(() => { chargerRestaurants() }, [])
+  // Objectifs : le mois suit la période choisie (lib/objectifs.js, moisObjectif).
+  useEffect(() => { chargerMoisEnCours(moisObjectif({ periodeKey, dateFin, aujourdhui: jourISO() })) }, [periodeKey, dateFin])
 
   useEffect(() => {
     if (!rangeCharge?.debut || !rangeCharge?.fin) return
@@ -166,11 +174,12 @@ export default function DashboardGlobalScreen() {
     if (data?.length) setRestaurants(data)
   }
 
-  async function chargerMoisEnCours() {
-    const auj = new Date()
-    const debut = `${auj.getFullYear()}-${String(auj.getMonth() + 1).padStart(2, '0')}-01`
+  // Ventes du mois des objectifs : jours terminés seulement (jusqu'à hier pour le mois en cours).
+  async function chargerMoisEnCours(m) {
     const [{ data: pts }, { data: trav }] = await Promise.all([
-      supabase.from('points').select('restaurant_id, vente_total, vente_machine').gte('date', debut),
+      m.fin >= m.debut
+        ? supabase.from('points').select('restaurant_id, vente_total, vente_machine').gte('date', m.debut).lte('date', m.fin)
+        : Promise.resolve({ data: [] }),
       supabase.from('travailleurs').select('restaurant_id').eq('actif', true),
     ])
     // Objectif : vente machine (lib/venteMachine.js), la théorique en comparatif.
@@ -840,9 +849,8 @@ export default function DashboardGlobalScreen() {
   const picPOS = posAvecDonnees ? heurePic(pos.par_heure) : null
   const ticketPOS = posAvecDonnees ? ticketMoyen(pos.totaux) : 0
 
-  const aujourdhui = new Date()
-  const joursDuMois = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth() + 1, 0).getDate()
-  const nomMoisCourant = aujourdhui.toLocaleDateString('fr-FR', { month: 'long' })
+  const mObj = moisObjectif({ periodeKey, dateFin, aujourdhui: jourISO() })
+  const jourObj = Math.max(1, mObj.joursEcoules)
 
   function pastille(icone, couleur, taille = 34) {
     return (
@@ -1023,19 +1031,21 @@ export default function DashboardGlobalScreen() {
       {(() => {
         const lignesObj = restosVus.map(r => {
           const ventes = moisEnCours.ventes[r.id] || 0
-          return { r, ventes, prog: progressionObjectif({ ventes, objectif: r.objectif_mensuel, jour: aujourdhui.getDate(), joursMois: joursDuMois }) }
+          return { r, ventes, prog: progressionObjectif({ ventes, objectif: r.objectif_mensuel, jour: jourObj, joursMois: mObj.joursMois }) }
         })
         const avecObj = lignesObj.filter(l => l.prog)
         const objGroupe = avecObj.reduce((x, l) => x + Number(l.r.objectif_mensuel || 0), 0)
         const ventesGroupe = avecObj.reduce((x, l) => x + l.ventes, 0)
-        const progGroupe = progressionObjectif({ ventes: ventesGroupe, objectif: objGroupe, jour: aujourdhui.getDate(), joursMois: joursDuMois })
+        const progGroupe = progressionObjectif({ ventes: ventesGroupe, objectif: objGroupe, jour: jourObj, joursMois: mObj.joursMois })
         return (
           <View style={styles.objectifsCarte}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               {pastille('target', '#10B981', 36)}
               <View style={{ flex: 1 }}>
-                <Text style={styles.objectifsTitre}>Objectifs de {nomMoisCourant}</Text>
-                <Text style={styles.restoSous}>Jour {aujourdhui.getDate()} sur {joursDuMois} · mois en cours, quelle que soit la période</Text>
+                <Text style={styles.objectifsTitre}>Objectifs {/^[aeiouéè]/i.test(mObj.nom) ? "d'" : 'de '}{mObj.nom}</Text>
+                <Text style={styles.restoSous}>
+                  {mObj.termine ? `Mois terminé · ${mObj.joursMois} jours` : `${mObj.joursEcoules} jour${mObj.joursEcoules > 1 ? 's' : ''} terminé${mObj.joursEcoules > 1 ? 's' : ''} sur ${mObj.joursMois} (jusqu'à hier)`}
+                </Text>
               </View>
               <TouchableOpacity style={styles.objectifsBtn} onPress={ouvrirObjectifs} accessibilityRole="button">
                 <MaterialCommunityIcons name="pencil-outline" size={15} color={colors.primary} />
@@ -1050,14 +1060,16 @@ export default function DashboardGlobalScreen() {
                 </View>
                 <View style={[styles.objectifPiste, { height: 12, borderRadius: 6, marginTop: 6 }]}>
                   <View style={[styles.objectifRempli, { height: 12, borderRadius: 6, width: `${Math.min(100, progGroupe.pct)}%`, backgroundColor: progGroupe.enAvance ? colors.success : colors.warning }]} />
-                  <View style={[styles.repereJour, { left: `${Math.round((aujourdhui.getDate() / joursDuMois) * 100)}%` }]} />
+                  {!mObj.termine && <View style={[styles.repereJour, { left: `${Math.round((mObj.joursEcoules / mObj.joursMois) * 100)}%` }]} />}
                 </View>
-                <Text style={[styles.restoSous, { marginTop: 6 }]}>
-                  Au rythme actuel : {fmtCourt(progGroupe.projection)} à la fin du mois ({progGroupe.pctProjete} %). Le trait marque où il faudrait être aujourd'hui.
-                </Text>
+                {!mObj.termine && (
+                  <Text style={[styles.restoSous, { marginTop: 6 }]}>
+                    Au rythme actuel : {fmtCourt(progGroupe.projection)} à la fin du mois ({progGroupe.pctProjete} %). Le trait marque où il faudrait être hier soir.
+                  </Text>
+                )}
               </View>
             ) : (
-              <Text style={[styles.restoSous, { marginTop: 10 }]}>Aucun objectif fixé pour {nomMoisCourant}. Appuyez sur « Fixer ».</Text>
+              <Text style={[styles.restoSous, { marginTop: 10 }]}>Aucun objectif fixé. Appuyez sur « Fixer ».</Text>
             )}
             {avecObj.length > 0 && (
               <View style={{ marginTop: 12, gap: 9 }}>
@@ -1087,7 +1099,7 @@ export default function DashboardGlobalScreen() {
         const resto = restaurants.find(x => x.id === r.id) || {}
         const renta = tauxRenta(r.ventes, r.benefice)
         const ventesMois = moisEnCours.ventes[r.id] || 0
-        const prog = progressionObjectif({ ventes: ventesMois, objectif: resto.objectif_mensuel, jour: aujourdhui.getDate(), joursMois: joursDuMois })
+        const prog = progressionObjectif({ ventes: ventesMois, objectif: resto.objectif_mensuel, jour: jourObj, joursMois: mObj.joursMois })
         const posResto = pos?.par_resto?.find(x => x.id === r.id)
         return (
           <View key={r.id} style={[styles.restoCarte, { borderLeftColor: r.couleur }]}>
@@ -1118,7 +1130,7 @@ export default function DashboardGlobalScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: prog ? 6 : 0 }}>
                 <MaterialCommunityIcons name="target" size={15} color={prog ? (prog.enAvance ? colors.successDark : colors.warningDark) : colors.textMuted} />
                 <Text style={styles.objectifTxt} numberOfLines={1}>
-                  {prog ? `${fmtCourt(ventesMois)} sur ${fmtCourt(resto.objectif_mensuel)} · ${prog.pct} % (vente machine)` : `Objectif de ${nomMoisCourant} à définir`}
+                  {prog ? `${fmtCourt(ventesMois)} sur ${fmtCourt(resto.objectif_mensuel)} · ${prog.pct} % (vente machine)` : 'Objectif à définir'}
                 </Text>
                 <MaterialCommunityIcons name="pencil-outline" size={15} color={colors.primary} />
               </View>
@@ -1127,9 +1139,11 @@ export default function DashboardGlobalScreen() {
                   <View style={styles.objectifPiste}>
                     <View style={[styles.objectifRempli, { width: `${Math.min(100, prog.pct)}%`, backgroundColor: prog.enAvance ? colors.success : colors.warning }]} />
                   </View>
-                  <Text style={[styles.restoSous, { marginTop: 4 }]}>
-                    Au rythme actuel : {fmtCourt(prog.projection)} à la fin du mois ({prog.pctProjete} %)
-                  </Text>
+                  {!mObj.termine && (
+                    <Text style={[styles.restoSous, { marginTop: 4 }]}>
+                      Au rythme actuel : {fmtCourt(prog.projection)} à la fin du mois ({prog.pctProjete} %)
+                    </Text>
+                  )}
                 </>
               ) : null}
             </TouchableOpacity>
@@ -1722,7 +1736,7 @@ export default function DashboardGlobalScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modal, { maxHeight: '88%' }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitre}>Objectifs de {nomMoisCourant}</Text>
+              <Text style={styles.modalTitre}>Objectifs mensuels</Text>
               <TouchableOpacity onPress={() => setObjectifsVisibles(false)} style={styles.fermerBtn} accessibilityLabel="Fermer">
                 <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
