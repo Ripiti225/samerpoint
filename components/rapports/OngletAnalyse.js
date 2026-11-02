@@ -102,7 +102,7 @@ export default function OngletAnalyse({ onExporter }) {
           <View style={styles.heroCases}>
             {[
               { label: 'Bénéfice SC', valeur: fmtCourt(a.totaux.benefice), point: '#A7F3D0' },
-              { label: 'Résultat net', valeur: a.totaux.net === null ? '—' : fmtCourt(a.totaux.net), point: '#FDE68A' },
+              { label: 'Résultat net', valeur: (a.totaux.netGroupe ?? a.totaux.net) == null ? '—' : fmtCourt(a.totaux.netGroupe ?? a.totaux.net), point: '#FDE68A' },
               { label: a.enCours ? 'Objectif (rythme)' : 'Objectif', valeur: a.totaux.pctObjectif === null ? '—' : `${a.totaux.pctObjectif} %`, point: '#BAE6FD' },
             ].map(c => (
               <View key={c.label} style={styles.heroCase}>
