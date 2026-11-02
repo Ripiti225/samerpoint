@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Vérification de carte</title>
+<!--
+  Ancienne adresse gravée sur les premiers badges (avant le 29/10/2026 15 h 34) :
+  renvoie tout de suite vers le site de vérification à part, avec le code du
+  badge. Aucune donnée ni aucun lien vers l'application ici.
+-->
+<script>
+  var c = new URLSearchParams(location.search).get('c') || ''
+  location.replace('https://verif-personnel.vercel.app/' + (c ? '?c=' + encodeURIComponent(c) : ''))
+</script>
+</head>
+<body style="font-family: sans-serif; text-align: center; padding: 40px">
+  <p><a href="https://verif-personnel.vercel.app/">Vérification de carte</a></p>
+</body>
+</html>
