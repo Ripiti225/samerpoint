@@ -282,9 +282,9 @@
     "semantic_hash": ""
   },
   "app/stats-caissiers.js": {
-    "mtime": 1791051401.8168104,
-    "seen": 1791051493.692517,
-    "ast_hash": "f902859c226916e4d73f04cf3b1105aa",
+    "mtime": 1793915926.3515537,
+    "seen": 1793915983.946753,
+    "ast_hash": "78fef7cfca9e9ba0499d5b0dfeba7c3c",
     "semantic_hash": ""
   },
   "app/ventes.js": {
@@ -2052,15 +2052,15 @@
     "semantic_hash": ""
   },
   "lib/noteCaissier.js": {
-    "mtime": 1791051439.6813662,
-    "seen": 1791051493.692589,
-    "ast_hash": "4ec6d9ca4cf1a1b2b1258439786a5ed4",
+    "mtime": 1793915925.446143,
+    "seen": 1793915983.947118,
+    "ast_hash": "a2bd02a75314b92bffe62b2f3a37976d",
     "semantic_hash": ""
   },
   "lib/noteCaissier.test.mjs": {
-    "mtime": 1791051390.9626567,
-    "seen": 1791051493.69259,
-    "ast_hash": "03d775d3add89f09981d51d9e5f21753",
+    "mtime": 1793915895.7846546,
+    "seen": 1793915983.9471202,
+    "ast_hash": "6d85ca906fe13516cd8799768432c275",
     "semantic_hash": ""
   },
   "lib/noteCaissierDb.js": {
@@ -2070,9 +2070,9 @@
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-10-03-note-caissiers-design.md": {
-    "mtime": 1791051463.6512537,
-    "seen": 1791051493.6926699,
-    "ast_hash": "9a5ff42b149d641e19a3ea3df4f00b21",
+    "mtime": 1793915926.3555148,
+    "seen": 1793915983.947428,
+    "ast_hash": "9b5a9c0b31e507358bda5802a8160de8",
     "semantic_hash": ""
   },
   "lib/attributionAvis.js": {

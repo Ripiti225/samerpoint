@@ -16,7 +16,7 @@ Période : **30 derniers jours glissants**. Progression : comparée aux 30 jours
 
 | Critère | Points | Mesure | Paliers |
 |---|---|---|---|
-| Justesse de la caisse | 7 | Shifts mesurés sans manquant > 500 F, après décisions de Vérification | 7 × part des shifts justes, au demi-point |
+| Justesse de la caisse | 7 | Shifts mesurés sans manquant ni surplus > 500 F, après décisions de Vérification (surplus ajouté le 2026-11-05 ; il reste hors des litiges) | 7 × part des shifts justes, au demi-point |
 | Numéros des clients | 4 | Contacts POS ÷ livraisons Yango + Glovo | 4 ≥ 95 % · 3,5 ≥ 90 % · 3 ≥ 80 % · 2 ≥ 70 % · 1 ≥ 50 % · 0 |
 | Inventaire et comptage | 4 | (déductions inventaire + vérificateur) ÷ shifts | 4 ≤ 300 F · 3 ≤ 750 · 2 ≤ 1 500 · 1 ≤ 3 000 · 0 |
 | Clients et plateformes | 3 | Mauvais avis, erreurs Yango/Glovo, points pas faits à son nom, pour 20 shifts | 3 si aucun · 2 ≤ 1 · 1 ≤ 2 · 0 ; bon avis +0,5 |
@@ -35,7 +35,7 @@ arrondie au demi-point. Appréciation : 17+ Excellent · 14+ Très bien · 12+ B
    ticket. Ses points sont répartis sur les autres critères.
 3. **Ce qui est justifié ou annulé dans Vérification ne compte pas** (même règle que
    l'écran Litiges : `decisionEcartShiftPOS`).
-4. **Tolérance** : un manquant de 500 F ou moins n'est pas une faute ; un surplus non plus.
+4. **Tolérance** : un manquant ou un surplus de 500 F ou moins n'est pas une faute.
 5. **Taux, pas totaux** : un caissier qui travaille plus n'est pas plus pénalisé.
 6. **30 jours glissants** : les vieilles erreurs s'effacent.
 7. **Transparence** : barème affiché dans l'écran, détail et conseil par critère.

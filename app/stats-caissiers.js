@@ -22,7 +22,7 @@ import {
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { choisirInventaireShift, resumerEcartShift, resumerInventaire } from '../lib/statsCaissiers'
-import { BAREME, MIN_SHIFTS, TOLERANCE_MANQUANT, appreciation } from '../lib/noteCaissier'
+import { BAREME, MIN_SHIFTS, TOLERANCE_ECART, appreciation } from '../lib/noteCaissier'
 import { chargerNotesCaissiers } from '../lib/noteCaissierDb'
 
 function fmt(n) {
@@ -213,7 +213,7 @@ export default function StatsCaissiers() {
 // Le barème et les garde-fous, affichés tels quels : la note ne doit pas être une boîte noire.
 function Regles({ styles, colors, posErreur }) {
   const lignes = [
-    ['caisse', `${BAREME.caisse} pts`, `Part des shifts sans manquant de plus de ${TOLERANCE_MANQUANT} F. Un surplus n’est pas une faute.`],
+    ['caisse', `${BAREME.caisse} pts`, `Part des shifts sans manquant ni surplus de plus de ${TOLERANCE_ECART} F : un surplus est aussi une erreur de caisse.`],
     ['contacts', `${BAREME.contacts} pts`, 'Part des livraisons où le numéro est noté : 4 à partir de 95 %, 3,5 dès 90 %, 3 dès 80 %, 2 dès 70 %, 1 dès 50 %.'],
     ['inventaire', `${BAREME.inventaire} pts`, 'Montants imputés par shift : 4 jusqu’à 300 F, 3 jusqu’à 750 F, 2 jusqu’à 1 500 F, 1 jusqu’à 3 000 F.'],
     ['clients', `${BAREME.clients} pts`, 'Mauvais avis, erreurs Yango/Glovo et points pas faits à son nom, pour 20 shifts. Un bon avis rapporte 0,5.'],

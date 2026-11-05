@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "app/_layout.tsx": {
-    "mtime": 1793376187.5003705,
-    "seen": 1793376300.289666,
-    "ast_hash": "bbe62c1df9f5f7bfd82b67cea285e923",
+    "mtime": 1793914579.9299579,
+    "seen": 1793914667.384683,
+    "ast_hash": "574fcba5937e96ed820eb827a3a863eb",
     "semantic_hash": ""
   },
   "app/accueil.js": {
@@ -96,9 +96,9 @@
     "semantic_hash": ""
   },
   "app/credits-fournisseurs.js": {
-    "mtime": 1792710456.0563207,
-    "seen": 1792711762.673502,
-    "ast_hash": "42cf5119f088ac05423b926094b0c9f3",
+    "mtime": 1793914583.1853125,
+    "seen": 1793914667.3846989,
+    "ast_hash": "27e5c0a0d301508d8bf74e737fa36b4e",
     "semantic_hash": ""
   },
   "app/dashboard-global.js": {
@@ -108,9 +108,9 @@
     "semantic_hash": ""
   },
   "app/dashboard.js": {
-    "mtime": 1793913798.1373405,
-    "seen": 1793913892.7357051,
-    "ast_hash": "dc9493e40036a60d184a14fc4bb7a900",
+    "mtime": 1793914605.0338504,
+    "seen": 1793914667.384701,
+    "ast_hash": "31472e0cc1629347ceede8d56d39e148",
     "semantic_hash": ""
   },
   "app/deductions-gerant.js": {
@@ -156,9 +156,9 @@
     "semantic_hash": ""
   },
   "app/equipe.js": {
-    "mtime": 1793284541.7506993,
-    "seen": 1793320546.258079,
-    "ast_hash": "e7c56526dac9ba12b1b8aa5429046f2e",
+    "mtime": 1793914581.5652535,
+    "seen": 1793914667.384712,
+    "ast_hash": "7399438fc7cc0d8c564db2a1c54969e7",
     "semantic_hash": ""
   },
   "app/fournisseurs.js": {
@@ -978,9 +978,9 @@
     "semantic_hash": ""
   },
   "vercel.json": {
-    "mtime": 1781578324.0,
-    "seen": 1788454354.111383,
-    "ast_hash": "c7b96c6bb7e468fecd06940a2a89d5d3",
+    "mtime": 1793914585.6382587,
+    "seen": 1793914667.385366,
+    "ast_hash": "10f7dc5f2de1b646a0b2ccf926ebc5fd",
     "semantic_hash": ""
   },
   ".github/workflows/build-android.yml": {
@@ -1614,9 +1614,9 @@
     "semantic_hash": ""
   },
   "lib/lireExcel.js": {
-    "mtime": 1790822923.7085614,
-    "seen": 1790823092.6444328,
-    "ast_hash": "a9b371b0a0d515a154020fe233cf3c29",
+    "mtime": 1793914584.8065338,
+    "seen": 1793914667.385056,
+    "ast_hash": "5f40e6cdaf9fefff6b7f9d8aeab15398",
     "semantic_hash": ""
   },
   "lib/partenaires.js": {
@@ -4044,9 +4044,45 @@
     "semantic_hash": ""
   },
   "components/ui/Squelette.js": {
-    "mtime": 1793913876.052083,
-    "seen": 1793913892.735869,
-    "ast_hash": "daf28e1ff635a948c84bf9ad07d2365b",
+    "mtime": 1793914577.4906034,
+    "seen": 1793914667.384863,
+    "ast_hash": "29a998ed2327c9ec61947879f6086753",
+    "semantic_hash": ""
+  },
+  "components/dashboard/EcranDashboard.js": {
+    "mtime": 1793914622.8767567,
+    "seen": 1793914667.384801,
+    "ast_hash": "e31dc4a9ea3e0936d9c83ce9c4dd6e0d",
+    "semantic_hash": ""
+  },
+  "lib/mesuresVitesse.js": {
+    "mtime": 1793914571.0599632,
+    "seen": 1793914667.385071,
+    "ast_hash": "1222d8cc838d9e382fe27b59c77c664b",
+    "semantic_hash": ""
+  },
+  "lib/mesuresVitesse.test.mjs": {
+    "mtime": 1793914570.2880893,
+    "seen": 1793914667.3850722,
+    "ast_hash": "c49078fc09d4367e9cf157e9213cec1d",
+    "semantic_hash": ""
+  },
+  "lib/mesuresVitesseDb.js": {
+    "mtime": 1793914571.829771,
+    "seen": 1793914667.385073,
+    "ast_hash": "92652a87fa10318abd2481153e5429b8",
+    "semantic_hash": ""
+  },
+  "supabase_index_performance.sql": {
+    "mtime": 1793914410.4024801,
+    "seen": 1793914667.38526,
+    "ast_hash": "27cd15c6a6087c8649c52968945313c4",
+    "semantic_hash": ""
+  },
+  "supabase_mesures_vitesse.sql": {
+    "mtime": 1793914572.6042964,
+    "seen": 1793914667.385273,
+    "ast_hash": "6f83f06c6697a10573d47c933376ba63",
     "semantic_hash": ""
   }
 }
