@@ -21,7 +21,6 @@ import {
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
-import * as XLSX from 'xlsx'
 import { ChampPeriode } from '../components/ChampDate'
 import FeuilleFournisseurAdmin from '../components/fournisseurs/FeuilleFournisseurAdmin'
 import FeuilleMontantDu from '../components/fournisseurs/FeuilleMontantDu'
@@ -603,6 +602,7 @@ ${mouvements.map(m => {
         }),
       ]
 
+      const XLSX = await import('xlsx')
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetFourn), 'Fournisseurs')
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetCotis), 'Cotisations')

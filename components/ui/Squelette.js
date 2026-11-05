@@ -4,7 +4,9 @@
 // la connexion est rapide.
 import { useEffect, useMemo, useRef } from 'react'
 import { AccessibilityInfo, Animated, Easing, Platform, StyleSheet, View } from 'react-native'
+import { useApp } from '../../context/AppContext'
 import { useTheme } from '../../context/ThemeContext'
+import { enregistrerMesure } from '../../lib/mesuresVitesseDb'
 
 const DELAI_AFFICHAGE = 200
 const DUREE_PULSATION = 800
@@ -12,8 +14,16 @@ const OPACITE_BASSE = 0.5
 const NATIF = Platform.OS !== 'web'
 
 // Anime tout le groupe d'un bloc : un seul minuteur, quel que soit le nombre de formes.
-export function ZoneSquelette({ style, children }) {
+// « ecran » : le temps passé à l'écran est l'attente réelle, enregistrée à la disparition.
+export function ZoneSquelette({ ecran, style, children }) {
   const opacite = useRef(new Animated.Value(0)).current
+  const { roleActif, restaurantId } = useApp()
+
+  useEffect(() => {
+    if (!ecran) return
+    const debut = Date.now()
+    return () => enregistrerMesure({ ecran, dureeMs: Date.now() - debut, role: roleActif, restaurantId })
+  }, [ecran, roleActif, restaurantId])
 
   useEffect(() => {
     let annule = false
@@ -68,7 +78,7 @@ function useStyles() {
 export function SqueletteBandeau() {
   const s = useStyles()
   return (
-    <ZoneSquelette style={s.bandeau}>
+    <ZoneSquelette ecran="accueil" style={s.bandeau}>
       <View style={s.ligne}>
         <View style={s.souple}>
           <Bloc largeur="55%" />
@@ -86,10 +96,10 @@ export function SqueletteBandeau() {
 }
 
 // Dashboard : quatre chiffres clés et une carte de graphique.
-export function SqueletteDashboard({ style }) {
+export function SqueletteDashboard({ ecran, style }) {
   const s = useStyles()
   return (
-    <ZoneSquelette style={style}>
+    <ZoneSquelette ecran={ecran} style={style}>
       <View style={s.grille}>
         {[0, 1, 2, 3].map(i => (
           <View key={i} style={s.kpi}>
@@ -110,7 +120,7 @@ export function SqueletteDashboard({ style }) {
 export function SqueletteListePoints() {
   const s = useStyles()
   return (
-    <ZoneSquelette style={s.liste}>
+    <ZoneSquelette ecran="verification_liste" style={s.liste}>
       <View style={s.resume}>
         {[0, 1, 2].map(i => (
           <View key={i} style={[s.resumeCase, i > 0 && s.resumeSep]}>
@@ -136,7 +146,7 @@ export function SqueletteListePoints() {
 export function SqueletteFichePoint() {
   const s = useStyles()
   return (
-    <ZoneSquelette style={s.fiche}>
+    <ZoneSquelette ecran="verification_fiche" style={s.fiche}>
       <View style={s.ficheResume}>
         <Bloc largeur={110} hauteur={20} rayon={10} />
         <Bloc largeur="45%" hauteur={11} style={s.espaceHautLarge} />

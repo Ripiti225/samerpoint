@@ -8,7 +8,6 @@
 import { router, useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
-import * as XLSX from 'xlsx'
 import FicheTravailleur from '../components/equipe/FicheTravailleur'
 import FormulaireDemande from '../components/contrats/FormulaireDemande'
 import { ModalArchive, ModalCalendrier, ModalDroitsDus, ModalFormTravailleur, ModalTransfert } from '../components/equipe/Modales'
@@ -260,6 +259,7 @@ export default function EquipeScreen() {
       const { resume, detail, salaires } = feuillesExcel({
         travailleurs: travFiltres, presences: presFiltrees, paiesGerant: paiesFiltrees, tous, nomResto,
       })
+      const XLSX = await import('xlsx')
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resume), 'Résumé')
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detail), 'Présences')

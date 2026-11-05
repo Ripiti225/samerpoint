@@ -10,12 +10,13 @@ import { NetworkProvider } from '../context/NetworkContext'
 import { NotificationsProvider } from '../context/NotificationsContext'
 import { ThemeProvider } from '../context/ThemeContext'
 import { estInactif, INACTIVITY_TIMEOUT_MS } from '../lib/inactivityLock'
+import { mesurerDemarrage } from '../lib/mesuresVitesseDb'
 
 const PUBLIC_ROUTES = ['login', 'index', '(tabs)', '']
 
 function SessionGuard() {
   const {
-    roleActif, lastRoute,
+    roleActif, restaurantId, lastRoute,
     setRoleActif, setRestaurantId, setRestaurantNom,
     setUserId, setUserNom, setPointId, setDateJour, setPointValide,
     setLastRoute,
@@ -26,6 +27,9 @@ function SessionGuard() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const roleRef = useRef(roleActif)
   roleRef.current = roleActif
+
+  // Une seule mesure par ouverture : mesurerDemarrage ignore les appels suivants.
+  useEffect(() => { mesurerDemarrage({ role: roleActif, restaurantId }) }, [roleActif, restaurantId])
 
   // Listener push — ici on a accès au rôle pour filtrer la navigation
   useEffect(() => {
