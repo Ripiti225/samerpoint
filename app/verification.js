@@ -25,6 +25,7 @@ import { creerNotification } from '../lib/notificationsInterne'
 import { messageDecision, messagePointVerifie, nettoyerCommentaire, COMMENTAIRE_MAX, ciblesVerification } from '../lib/commentaireVerification'
 import { envoyerNotifFactureCorrigee } from '../lib/notifications'
 import PhotoJustificatif, { photoConsultable } from '../components/PhotoJustificatif'
+import LitigesStockInitial from '../components/LitigesStockInitial'
 import { estPhotoEnAttente } from '../lib/photoQueue'
 import { cloturesPOS, resumerEcartsGlobaux } from '../lib/cloturesCaisse'
 import { depensesSalairesShift } from '../lib/depensesShift'
@@ -3649,6 +3650,14 @@ export default function VerificationScreen() {
                     </View>
                   )
                 })}
+
+                {peutVoirEcarts && (
+                  <LitigesStockInitial
+                    pointId={pointSelectionne?.id}
+                    par={userNom || roleActif || 'Manager'}
+                    onDecide={() => chargerInventaire(pointSelectionne)}
+                  />
+                )}
 
                 {/* ══ SECTION 2 : Produits avec écarts (manager/directeur) ══
                     Une ligne par produit ; ✅ / ❌ décident en un appui, un appui

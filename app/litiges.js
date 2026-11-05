@@ -11,6 +11,7 @@ import ChampDate, { CalendrierFr, CalendrierPeriode } from '../components/ChampD
 import PhotoJustificatif from '../components/PhotoJustificatif'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
+import { compterLitigesStockEnAttente } from '../lib/correctionStockInitial'
 import { useFocusRecherche } from '../lib/useFocusRecherche'
 import { CATEGORIES_INVENTAIRE } from '../lib/constants'
 import { supabase } from '../lib/supabase'
@@ -149,6 +150,7 @@ export default function LitigesScreen() {
   // ── Restaurant ──────────────────────────────────────────────
   const [restaurants, setRestaurants] = useState([])
   const [restoSelectionne, setRestoSelectionne] = useState(null)
+  const [litigesStock, setLitigesStock] = useState(0)
   const [showRestoPicker, setShowRestoPicker] = useState(false)
 
   // ── Période ─────────────────────────────────────────────────
@@ -302,6 +304,7 @@ export default function LitigesScreen() {
   async function chargerTout() {
     if (!restoSelectionne) return
     setLoading(true)
+    compterLitigesStockEnAttente(restoSelectionne.id).then(setLitigesStock)
     await Promise.all([chargerEcarts(), chargerResponsables(), chargerInventaire(), chargerAvis(), chargerYango(), chargerGlovo(), chargerEcartContacts(), chargerPointPasFait(), chargerDeducVerifResto(), chargerARelier(), chargerErreursSaisie()])
     setLoading(false)
   }
@@ -2651,6 +2654,13 @@ export default function LitigesScreen() {
             </View>
           ) : (
             <>
+              {litigesStock > 0 && (
+                <TouchableOpacity style={styles.bandeauRelier} onPress={() => router.push('/verification')}>
+                  <Text style={styles.bandeauRelierTxt}>
+                    {litigesStock} litige{litigesStock > 1 ? 's' : ''} de stock initial à décider dans l’écran Vérification →
+                  </Text>
+                </TouchableOpacity>
+              )}
               {onglet === 'ecarts' && (<>{renderEcarts()}{renderResponsablesEcarts()}</>)}
               {onglet === 'inventaire' && renderInventaire()}
               {onglet === 'avis' && renderAvis()}
