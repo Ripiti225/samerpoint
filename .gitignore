@@ -52,3 +52,7 @@ supabase/.temp/
 factures_sans_photo.csv
 
 .superpowers/
+
+# Import historique Google Sheets (données de production)
+scripts/import-sheets/raw/
+scripts/import-sheets/out/
