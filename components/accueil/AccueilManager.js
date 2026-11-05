@@ -23,6 +23,7 @@ import { useTheme } from '../../context/ThemeContext'
 import Jauge from '../ui/Jauge'
 import Indicateur from './Indicateur'
 import Survol from '../ui/Survol'
+import { SqueletteBandeau } from '../ui/Squelette'
 import { chargerContactsPeriode } from '../../lib/contactsPeriodeDb'
 import { evolutionsHierDetail, texteHier, totalParJour } from '../../lib/hierAccueil'
 import { etatPointHier, lignesCaissiersHier, texteDemandes } from '../../lib/accueilGerant'
@@ -104,8 +105,10 @@ async function chargerContrats(jour) {
 
 // Points des 7 derniers jours, restaurants, demandes en attente, messages
 // Trésorerie et contrats. null tant que rien n'est chargé (ou hors ligne) : pas de bandeau.
+// premierChargement distingue « ça arrive » (squelette) de « échec » (rien, comme avant).
 function useEtatDuJour(role, userId, restaurantId) {
   const [etat, setEtat] = useState(null)
+  const [premierChargement, setPremierChargement] = useState(true)
   const charger = useCallback(async () => {
     try {
       const auj = new Date()
@@ -236,10 +239,12 @@ function useEtatDuJour(role, userId, restaurantId) {
             semainePrec: contactsJours[isoLocal(semainePrec)] || 0,
           }, isoLocal(hier), ['contact', 'contacts']),
       })
-    } catch (_) { /* hors ligne : pas de bandeau */ }
+    } catch (_) { /* hors ligne : pas de bandeau */ } finally {
+      setPremierChargement(false)
+    }
   }, [role, userId, restaurantId])
   useFocusEffect(useCallback(() => { charger() }, [charger]))
-  return etat
+  return { etat, premierChargement }
 }
 
 export default function AccueilManager({ items, role, userId, restaurantId }) {
@@ -250,7 +255,7 @@ export default function AccueilManager({ items, role, userId, restaurantId }) {
     () => (role === 'rh' ? items.map(t => (t.id === 'tresorerie' ? { ...t, route: '/tresorerie-a-payer' } : t)) : items),
     [items, role],
   )
-  const etat = useEtatDuJour(role, userId, restaurantId)
+  const { etat, premierChargement } = useEtatDuJour(role, userId, restaurantId)
   // Sous-titres vivants : les lignes « Avis clients » et « Contacts » donnent
   // le chiffre d'hier et son évolution.
   const tuilesVivantes = useMemo(() => {
@@ -292,6 +297,7 @@ export default function AccueilManager({ items, role, userId, restaurantId }) {
 
   return (
     <View>
+      {!etat && premierChargement && <SqueletteBandeau />}
       {etat && (role === 'gerant'
         ? (etat.gerant ? <BandeauGerant etat={etat.gerant} styles={styles} colors={colors} /> : null)
         : role === 'rh'

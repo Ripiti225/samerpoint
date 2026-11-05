@@ -32,6 +32,7 @@ import { decisionEcartShiftPOS, SOURCE_DECISION_POS } from '../lib/ecartPOS'
 import { preparerEntreesVerification } from '../lib/entreesVerification'
 import { venteRetenue, venteTheorique } from '../lib/venteMachine'
 import { beneficeSC, correctionAnnulations } from '../lib/beneficeCorrige'
+import { SqueletteFichePoint, SqueletteListePoints } from '../components/ui/Squelette'
 import VenteDouble from '../components/ui/VenteDouble'
 import FeuilleTransfertFond from '../components/tresorerie/FeuilleTransfertFond'
 import { photosCanalDisponibles } from '../lib/photosVerification'
@@ -1870,10 +1871,7 @@ export default function VerificationScreen() {
       )}
 
       {loading ? (
-        <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingTxt}>Chargement des points...</Text>
-        </View>
+        <SqueletteListePoints />
       ) : (
         <ScrollView
           style={styles.body} showsVerticalScrollIndicator={false}
@@ -1966,10 +1964,7 @@ export default function VerificationScreen() {
           </View>
 
           {loadingDetail ? (
-            <View style={styles.loadingBox}>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.loadingTxt}>Chargement...</Text>
-            </View>
+            <SqueletteFichePoint />
           ) : detailPoint && (
             <>
             <ScrollView style={{ padding: 14 }} showsVerticalScrollIndicator={false}>
@@ -4734,8 +4729,6 @@ function makeStyles(colors) { return StyleSheet.create({
   statVal: { fontSize: 20, fontWeight: '700' },
   statLabel: { fontSize: 10, color: colors.textMuted, marginTop: 2 },
   statDivider: { width: 0.5, backgroundColor: '#eee', marginVertical: 6 },
-  loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
-  loadingTxt: { fontSize: 13, color: colors.textMuted, marginTop: 12 },
   body: { flex: 1, padding: 14 },
   emptyBox: { alignItems: 'center', paddingVertical: 60 },
   emptyIcon: { fontSize: 50, marginBottom: 12 },

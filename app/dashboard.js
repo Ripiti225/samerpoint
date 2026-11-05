@@ -1,7 +1,7 @@
 import { router } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import {
-  ActivityIndicator, Dimensions, Modal,
+  Dimensions, Modal,
   SafeAreaView, ScrollView, StyleSheet,
   Text, TouchableOpacity, View
 } from 'react-native'
@@ -13,6 +13,7 @@ import {
 } from 'victory-native'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
+import { SqueletteDashboard } from '../components/ui/Squelette'
 import VenteDouble, { TexteTheorique } from '../components/ui/VenteDouble'
 import { venteRetenue, venteTheorique } from '../lib/venteMachine'
 import { getDepensesPeriode, getFournisseursPeriodePaye, getPaiesGerantPeriode, getPointsPeriode, getPresencesPeriode } from '../lib/api'
@@ -484,10 +485,7 @@ export default function DashboardScreen() {
       )}
 
       {loading || chargementShifts ? (
-        <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color="#EF9F27" />
-          <Text style={styles.loadingTxt}>Chargement des données...</Text>
-        </View>
+        <SqueletteDashboard style={styles.body} />
       ) : (
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
           {pilier === 'apercu' && (!isToday && points.length === 0 ? (
@@ -809,10 +807,7 @@ export default function DashboardScreen() {
           {/* Pilier 2 — Structure des coûts */}
           {pilier === 'couts' && (
             chargementCouts ? (
-              <View style={styles.loadingBox}>
-                <ActivityIndicator size="large" color="#EF9F27" />
-                <Text style={styles.loadingTxt}>Chargement des coûts...</Text>
-              </View>
+              <SqueletteDashboard />
             ) : caPeriode <= 0 ? (
               <View style={styles.emptyBox}>
                 <Text style={styles.emptyIcon}>📊</Text>
@@ -1097,8 +1092,6 @@ function makeStyles(colors) { return StyleSheet.create({
   },
   periodeBannerTxt: { fontSize: 13, color: colors.orangeDark, fontWeight: '500' },
   periodeBannerSub: { fontSize: 11, color: '#BA7517' },
-  loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
-  loadingTxt: { fontSize: 13, color: colors.textMuted, marginTop: 12 },
   emptyBox: { alignItems: 'center', paddingVertical: 60 },
   emptyIcon: { fontSize: 40, marginBottom: 12 },
   emptyTxt: { fontSize: 14, color: colors.textMuted, fontWeight: '500' },
