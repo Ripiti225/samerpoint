@@ -57,8 +57,8 @@ export default function DeductionsGerantScreen() {
   }, [restaurantId, dateJour])
 
   // Rechargées aussi à l'ouverture du choix : le pointage arrive du POS en cours de journée.
-  // Plus récentes d'abord : à 40 lignes par jour au plus, 14 jours restent sous la limite
-  // de 1 000 lignes de Supabase, et ce seraient les plus anciennes qui sauteraient.
+  // Plus récentes d'abord : 14 jours font moins de 400 lignes (Palmeraie, novembre 2026), loin de la
+  // limite de 1 000 lignes de Supabase ; si elle était atteinte, seules les plus anciennes sauteraient.
   async function chargerPresences() {
     const { data, error } = await supabase
       .from('presences')
