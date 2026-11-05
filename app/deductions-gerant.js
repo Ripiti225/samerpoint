@@ -15,6 +15,7 @@ import { estDroitAncienTravailleur, fournisseurAAfficherGerant, sousTitreDepart 
 import { separerFournisseurs } from '../lib/fournisseursAdmin'
 import { logErreur } from '../lib/logErreur'
 import { manquantsDeductions, resumeDeductions } from '../lib/manquantsSaisie'
+import { JOURS_HISTORIQUE_PRESENCE, dateIlYA, indexerPresences } from '../lib/presencesPaie'
 import { supabase } from '../lib/supabase'
 import { usePhoto } from '../lib/usePhoto'
 
@@ -36,6 +37,7 @@ export default function DeductionsGerantScreen() {
   const [fournOuverts, setFournOuverts] = useState(new Set())
   const [fournisseursList, setFournisseursList] = useState([])
   const [travailleurs, setTravailleurs] = useState([])
+  const [presencesRecentes, setPresencesRecentes] = useState(null) // null = pas encore lues : rien à afficher
   const [uploading, setUploading] = useState(false)
   const [chargement, setChargement] = useState(false)
   const [modalPaie, setModalPaie] = useState(false)
@@ -50,6 +52,25 @@ export default function DeductionsGerantScreen() {
     if (pointId) chargerBrouillon()
   }, [pointId])
 
+  useEffect(() => {
+    if (restaurantId && dateJour) chargerPresences()
+  }, [restaurantId, dateJour])
+
+  // Rechargées aussi à l'ouverture du choix : le pointage arrive du POS en cours de journée.
+  // Plus récentes d'abord : à 40 lignes par jour au plus, 14 jours restent sous la limite
+  // de 1 000 lignes de Supabase, et ce seraient les plus anciennes qui sauteraient.
+  async function chargerPresences() {
+    const { data, error } = await supabase
+      .from('presences')
+      .select('travailleur_id, date, statut, heure_debut, heure_fin')
+      .eq('restaurant_id', restaurantId)
+      .gte('date', dateIlYA(dateJour, JOURS_HISTORIQUE_PRESENCE))
+      .lte('date', dateJour)
+      .order('date', { ascending: false })
+    if (error) logErreur('deductionsGerant.chargerPresences', error, { restaurantId, dateJour })
+    else setPresencesRecentes(data || [])
+  }
+
   async function chargerDonnees() {
     setChargement(true)
     // Avant toute lecture : la facture mensuelle du 1er doit être dans la chaîne.
@@ -57,7 +78,7 @@ export default function DeductionsGerantScreen() {
     const [{ data: fours }, { data: travs }] = await Promise.all([
       // '*' : depart_le (droits des anciens travailleurs), absent avant migration.
       supabase.from('fournisseurs').select('*').eq('restaurant_id', restaurantId).order('nom'),
-      supabase.from('travailleurs').select('id, nom, poste').eq('restaurant_id', restaurantId).order('nom'),
+      supabase.from('travailleurs').select('id, nom, poste').eq('restaurant_id', restaurantId).eq('actif', true).order('nom'),
     ])
 
     setTravailleurs(travs || [])
@@ -290,6 +311,7 @@ export default function DeductionsGerantScreen() {
   function ouvrirSelecteurTravailleur(index) {
     setPaieEditIndex(index)
     setModalPaie(true)
+    if (restaurantId && dateJour) chargerPresences()
   }
 
   function selectionnerTravailleur(trav) {
@@ -404,6 +426,7 @@ export default function DeductionsGerantScreen() {
   )
   const libelleBouton = saveStatus === 'ok' ? '✅ Sauvegardé' : saveStatus === 'error' ? '❌ Erreur — Réessayez' : 'Sauvegarder'
   const totalTexte = total > 0 ? `− ${fmt(total)}` : fmt(0)
+  const presenceDe = presencesRecentes ? indexerPresences(presencesRecentes, dateJour) : null
 
   return (
     <SafeAreaView style={styles.ecran}>
@@ -451,6 +474,7 @@ export default function DeductionsGerantScreen() {
         {onglet === 'paies' ? (
           <OngletPaies
             paies={paiesGerantCaisse}
+            presenceDe={presenceDe}
             choisirTravailleur={ouvrirSelecteurTravailleur}
             majMontant={(i, v) => setPaiesGerantCaisse(prev => prev.map((l, j) => (j === i ? { ...l, montant: v } : l)))}
             supprimer={i => setPaiesGerantCaisse(prev => prev.filter((_, j) => j !== i))}
@@ -472,9 +496,12 @@ export default function DeductionsGerantScreen() {
           <Vide texte="Aucun travailleur enregistré pour ce restaurant" />
         ) : travailleurs.map(trav => {
           const deja = paiesGerantCaisse.some((l, i) => i !== paieEditIndex && l.travailleur_id === trav.id)
+          const presence = !deja && presenceDe ? presenceDe(trav.id) : null
           return (
-            <Choix key={trav.id} nom={trav.nom} sous={trav.poste} desactive={deja}
-              etiquette={deja ? 'Déjà payé' : null} onPress={() => selectionnerTravailleur(trav)} />
+            <Choix key={trav.id} nom={trav.nom} desactive={deja}
+              sous={[trav.poste, presence?.detail].filter(Boolean).join(' · ')}
+              etiquette={deja ? 'Déjà payé' : presence?.etiquette} tonEtiquette={presence?.ton}
+              onPress={() => selectionnerTravailleur(trav)} />
           )
         })}
       </Feuille>

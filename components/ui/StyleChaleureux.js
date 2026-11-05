@@ -487,7 +487,7 @@ export function Feuille({ visible, titre, onFermer, children }) {
   )
 }
 
-export function Choix({ nom, sous, etiquette, desactive, onPress }) {
+export function Choix({ nom, sous, etiquette, tonEtiquette = 'ok', desactive, onPress }) {
   const { styles } = useStyleChaleureux()
   return (
     <TouchableOpacity style={[styles.choix, desactive && { opacity: 0.4 }]} onPress={onPress} disabled={desactive}
@@ -496,7 +496,7 @@ export function Choix({ nom, sous, etiquette, desactive, onPress }) {
         <Text style={styles.choixNom}>{nom}</Text>
         {sous ? <Text style={styles.choixSous}>{sous}</Text> : null}
       </View>
-      {etiquette ? <Etiquette ton="ok" texte={etiquette} /> : null}
+      {etiquette ? <Etiquette ton={tonEtiquette} texte={etiquette} /> : null}
     </TouchableOpacity>
   )
 }

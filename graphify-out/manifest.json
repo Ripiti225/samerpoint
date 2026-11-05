@@ -24,9 +24,9 @@
     "semantic_hash": ""
   },
   "app.json": {
-    "mtime": 1791137066.8079457,
-    "seen": 1791154476.4738822,
-    "ast_hash": "ae694f3f4f0c649f2c87a2c44ea0b7c2",
+    "mtime": 1793910727.1968844,
+    "seen": 1793912233.455145,
+    "ast_hash": "d44ce8b79ee91e874a0425d97767c7dd",
     "semantic_hash": ""
   },
   "app/(tabs)/_layout.tsx": {
@@ -114,9 +114,9 @@
     "semantic_hash": ""
   },
   "app/deductions-gerant.js": {
-    "mtime": 1791826999.0914333,
-    "seen": 1791827066.768268,
-    "ast_hash": "0cff72e820f2080a66b71deca26657a1",
+    "mtime": 1793912155.7738626,
+    "seen": 1793912233.455169,
+    "ast_hash": "2e8864346c746634e92a3d4f22979071",
     "semantic_hash": ""
   },
   "app/demandes-admin.js": {
@@ -1494,9 +1494,9 @@
     "semantic_hash": ""
   },
   "app/tresorerie-banque.js": {
-    "mtime": 1792850628.1552384,
-    "seen": 1792850794.712369,
-    "ast_hash": "937dfbb636a1b4643cdca618b225c0bb",
+    "mtime": 1793637985.2624786,
+    "seen": 1793912233.455212,
+    "ast_hash": "0a0daecbe043d5fdb8a14a165cc01dc2",
     "semantic_hash": ""
   },
   "app/tresorerie.js": {
@@ -2640,15 +2640,15 @@
     "semantic_hash": ""
   },
   "components/deductions/OngletPaies.js": {
-    "mtime": 1791238420.118643,
-    "seen": 1791238514.840111,
-    "ast_hash": "3ad3b24d573fbefe19eec1b8a2adcf9e",
+    "mtime": 1793912149.1091747,
+    "seen": 1793912233.4552681,
+    "ast_hash": "ff3bcff03335b3a9b4ad40cfe2eb2ea5",
     "semantic_hash": ""
   },
   "components/ui/StyleChaleureux.js": {
-    "mtime": 1792519025.1496704,
-    "seen": 1792587182.135596,
-    "ast_hash": "3b399dbbfa907a8b11c235185a056608",
+    "mtime": 1793912147.4754717,
+    "seen": 1793912233.455319,
+    "ast_hash": "a0d007e97139ebd5c08ad86c085bf3bc",
     "semantic_hash": ""
   },
   "components/ventes/EtapeFondBenefice.js": {
@@ -4029,6 +4029,18 @@
     "mtime": 1793631045.3248818,
     "seen": 1793631095.897316,
     "ast_hash": "ded19f28b6b06aefaee9a7c80675fa88",
+    "semantic_hash": ""
+  },
+  "lib/presencesPaie.js": {
+    "mtime": 1793912145.0661528,
+    "seen": 1793912233.455578,
+    "ast_hash": "d1508ec81aca6ba63dcba2f3fe7f452f",
+    "semantic_hash": ""
+  },
+  "lib/presencesPaie.test.mjs": {
+    "mtime": 1793912145.8565423,
+    "seen": 1793912233.45558,
+    "ast_hash": "cccd779d2aab161db1645e6783db246f",
     "semantic_hash": ""
   }
 }
