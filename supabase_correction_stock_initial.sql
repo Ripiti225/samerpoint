@@ -411,12 +411,14 @@ $$;
 
 -- Les fonctions internes ne s'appellent jamais de l'extérieur. Le pont utilise
 -- la clé service_role ; l'écran passe par les mêmes rôles que les autres décisions.
-REVOKE ALL ON FUNCTION public._montant_correction_stock(public.inventaire_lignes, numeric, numeric) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public._appliquer_ecart_correction(public.inventaire_lignes, numeric, numeric, numeric, numeric) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public._id_ligne_de_service(uuid, text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public._imputer_sortant(public.corrections_stock_initial) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public._imputer_place(public.corrections_stock_initial) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.transmettre_correction_stock_initial(jsonb) FROM PUBLIC;
+-- Révoquer PUBLIC ne suffit pas : Supabase accorde par défaut EXECUTE à anon,
+-- authenticated et service_role sur toute nouvelle fonction du schéma public.
+REVOKE ALL ON FUNCTION public._montant_correction_stock(public.inventaire_lignes, numeric, numeric) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public._appliquer_ecart_correction(public.inventaire_lignes, numeric, numeric, numeric, numeric) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public._id_ligne_de_service(uuid, text) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public._imputer_sortant(public.corrections_stock_initial) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public._imputer_place(public.corrections_stock_initial) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.transmettre_correction_stock_initial(jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.transmettre_correction_stock_initial(jsonb) TO service_role;
 GRANT EXECUTE ON FUNCTION public.decider_correction_stock_initial(uuid, text, text) TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.corrections_stock_initial_du_point(uuid) TO anon, authenticated, service_role;

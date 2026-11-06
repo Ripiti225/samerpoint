@@ -8,6 +8,9 @@ CREATE ROLE anon;
 CREATE ROLE authenticated;
 CREATE ROLE service_role;
 
+-- Comme sur Supabase : toute nouvelle fonction est exécutable par ces rôles.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;
+
 CREATE TABLE points (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), montant_inventaire numeric DEFAULT 0);
 CREATE TABLE inventaires_shifts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -231,5 +234,31 @@ DO $$ DECLARE r sc%ROWTYPE; BEGIN
   PERFORM transmettre('explique', 'RECONNUE_SORTANT', 8, 7);
   PERFORM egal((SELECT montant_deduit FROM inventaire_lignes WHERE id = r.ligne_sortant), 16000::numeric, 'explique : −3 moins 1 expliqué');
 END $$;
+
+-- 11. Droits : seul le pont transmet, personne n'appelle les fonctions internes.
+DO $$ DECLARE f text; r text; BEGIN
+  PERFORM egal(has_function_privilege('anon', 'transmettre_correction_stock_initial(jsonb)', 'EXECUTE'), false, 'droits : anon ne transmet pas');
+  PERFORM egal(has_function_privilege('authenticated', 'transmettre_correction_stock_initial(jsonb)', 'EXECUTE'), false, 'droits : authenticated ne transmet pas');
+  PERFORM egal(has_function_privilege('service_role', 'transmettre_correction_stock_initial(jsonb)', 'EXECUTE'), true, 'droits : le pont transmet');
+  FOREACH f IN ARRAY ARRAY[
+    '_montant_correction_stock(inventaire_lignes,numeric,numeric)',
+    '_appliquer_ecart_correction(inventaire_lignes,numeric,numeric,numeric,numeric)',
+    '_id_ligne_de_service(uuid,text)',
+    '_imputer_sortant(corrections_stock_initial)',
+    '_imputer_place(corrections_stock_initial)'
+  ] LOOP
+    FOREACH r IN ARRAY ARRAY['anon', 'authenticated', 'service_role'] LOOP
+      PERFORM egal(has_function_privilege(r, f, 'EXECUTE'), false, 'droits : ' || r || ' sur ' || f);
+    END LOOP;
+  END LOOP;
+  PERFORM egal(has_function_privilege('authenticated', 'decider_correction_stock_initial(uuid,text,text)', 'EXECUTE'), true, 'droits : l''écran décide');
+END $$;
+
+-- 12. Les décisions passent toujours avec les fonctions internes révoquées.
+SET ROLE service_role;
+DO $$ BEGIN
+  PERFORM egal((SELECT count(*)::int FROM corrections_stock_initial_du_point(gen_random_uuid())), 0, 'droits : aperçu appelable');
+END $$;
+RESET ROLE;
 
 SELECT 'TOUS LES TESTS PASSENT' AS resultat;
