@@ -10,8 +10,9 @@ import {
 import ChampDate, { CalendrierPeriode } from '../ChampDate'
 import { aujourdhuiISO } from '../../lib/contrats'
 import { BLEU, MOTIFS_ARCHIVE, formatDate } from '../../lib/equipe'
-import { enregistrerTravailleur } from '../../lib/equipeDb'
+import { champsIdentite, enregistrerTravailleur } from '../../lib/equipeDb'
 import { JOURS_COURTS, nomJour } from '../../lib/joursRepos'
+import { nomSuivi } from '../../lib/miseAJourFiches'
 import { CIVILITES, SITUATIONS_FAMILLE } from '../../lib/recrutement'
 import { uploaderFichier } from '../../lib/uploadFichier'
 import { usePhoto } from '../../lib/usePhoto'
@@ -69,7 +70,7 @@ function EnTete({ styles, titre, onFermer }) {
 }
 
 // ── Ajout / modification ──────────────────────────────────────────────────────
-export function ModalFormTravailleur({ visible, edition, restaurants, restoParDefaut, styles, colors, onFermer, onEnregistre }) {
+export function ModalFormTravailleur({ visible, edition, restaurants, restoParDefaut, styles, colors, ctx, onFermer, onEnregistre }) {
   const { choisirPhoto } = usePhoto()
   const [form, setForm] = useState(formVide())
   const [restoId, setRestoId] = useState(null)
@@ -87,6 +88,7 @@ export function ModalFormTravailleur({ visible, edition, restaurants, restoParDe
 
   const resto = restaurants.find(r => r.id === restoId) || null
   const peutEnregistrer = form.nom.trim() && form.poste.trim() && (edition || resto)
+  const nouveauNom = edition ? nomSuivi(edition, champsIdentite(form)) : null
 
   async function photoProfil() {
     setUploadPhoto(true)
@@ -121,11 +123,11 @@ export function ModalFormTravailleur({ visible, edition, restaurants, restoParDe
     if (!edition && !resto) { Alert.alert('Erreur', 'Choisissez le restaurant du travailleur'); return }
     setSaving(true)
     try {
-      await enregistrerTravailleur({ form, travailleurEdition: edition, resto, papiers })
+      await enregistrerTravailleur({ form, travailleurEdition: edition, resto, papiers, ctx })
       onEnregistre()
       Alert.alert('Succès', edition ? 'Travailleur modifié !' : 'Travailleur ajouté !')
-    } catch {
-      Alert.alert('Erreur', "L'enregistrement a échoué. Vérifiez la connexion et réessayez.")
+    } catch (e) {
+      Alert.alert('Erreur', e?.francais ? e.message : "L'enregistrement a échoué. Vérifiez la connexion et réessayez.")
     }
     setSaving(false)
   }
@@ -163,6 +165,11 @@ export function ModalFormTravailleur({ visible, edition, restaurants, restoParDe
           <FormulaireTravailleur form={form} setForm={setForm} colors={colors} nomEditable={!edition} />
 
           <SectionIdentite form={form} setForm={setForm} styles={styles} />
+          {nouveauNom && (
+            <Text style={[styles.motifTxt, { fontSize: 13, fontWeight: '700', marginBottom: 14 }]}>
+              ✏️ Nom complet : {edition.nom} → {nouveauNom}
+            </Text>
+          )}
 
           <Text style={styles.modalLabel}>Jour de repos</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>

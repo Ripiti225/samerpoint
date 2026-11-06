@@ -394,7 +394,7 @@ export default function EquipeScreen() {
       />
       <ModalFormTravailleur
         visible={form.visible} edition={form.edition} restaurants={restaurants} restoParDefaut={restoId}
-        styles={styles} colors={colors}
+        styles={styles} colors={colors} ctx={{ userId: userId || null, userNom: userNom || null }}
         onFermer={() => setForm({ visible: false, edition: null })}
         onEnregistre={() => { setForm({ visible: false, edition: null }); setFiche(null); charger() }}
       />
