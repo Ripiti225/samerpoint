@@ -4,10 +4,13 @@
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Alert, Image, Linking, Text, TouchableOpacity, View } from 'react-native'
 
+import ChampsCorrectionFiche from './ChampsCorrectionFiche'
 import { Bouton, Champ, Feuille, Info, Libelle, useEcranModerne } from '../ui/EcranModerne'
 import { formatFR } from '../../lib/contrats'
 import { refuserDemande } from '../../lib/contratsSignesDb'
-import { diffFiche, fusionFiche, manquantsFiche, typeContratPropose } from '../../lib/miseAJourFiches'
+import {
+  correctionComplete, correctionsRH, demandeCorrigee, diffFiche, formulaireCorrection, fusionFiche, manquantsFiche, typeContratPropose,
+} from '../../lib/miseAJourFiches'
 import { accepterMiseAJour, chargerTravailleur } from '../../lib/miseAJourFichesDb'
 import { estPdf } from '../../lib/recrutement'
 
@@ -20,22 +23,32 @@ export default function FeuilleMiseAJourRH({ visible, demande, ctx, onFermer, on
   const [refus, setRefus] = useState(false)
   const [motif, setMotif] = useState('')
   const [occupe, setOccupe] = useState(false)
+  const [depart, setDepart] = useState(null)
+  const [form, setForm] = useState(null)
 
   useEffect(() => {
     if (!visible || !demande) return
-    setTrav(null); setRefus(false); setMotif('')
+    setTrav(null); setRefus(false); setMotif(''); setDepart(null); setForm(null)
     chargerTravailleur(demande.travailleur_id).then(setTrav).catch(e => Alert.alert('Fiche', e.message))
   }, [visible, demande])
 
   if (!demande) return null
-  const diff = trav ? diffFiche(trav, demande) : []
-  const { nouvellesPieces, nouveauxPapiers } = trav ? fusionFiche(trav, demande) : { nouvellesPieces: [], nouveauxPapiers: [] }
-  const encore = trav ? manquantsFiche({ ...trav, ...fusionFiche(trav, demande).maj }) : []
+  const effective = form ? demandeCorrigee(demande, form) : demande
+  const diff = trav ? diffFiche(trav, effective) : []
+  const { maj, nouvellesPieces, nouveauxPapiers } = trav ? fusionFiche(trav, effective) : { maj: {}, nouvellesPieces: [], nouveauxPapiers: [] }
+  const encore = trav ? manquantsFiche({ ...trav, ...maj }) : []
+  const peutAccepter = !form || correctionComplete(form)
+
+  function ouvrirCorrection() {
+    const f = formulaireCorrection(trav, demande)
+    setDepart(f)
+    setForm(f)
+  }
 
   async function accepter() {
     setOccupe(true)
     try {
-      const t = await accepterMiseAJour(demande, ctx)
+      const t = await accepterMiseAJour(effective, ctx, form ? correctionsRH(depart, form) : [])
       const generer = await new Promise(resolve => Alert.alert('Fiche mise à jour',
         `${t.nom} : fiche à jour.\n\nGénérer son contrat maintenant (${typeContratPropose(t)} proposé) ?`,
         [{ text: 'Plus tard', style: 'cancel', onPress: () => resolve(false) },
@@ -74,6 +87,9 @@ export default function FeuilleMiseAJourRH({ visible, demande, ctx, onFermer, on
       sous={`Mise à jour envoyée par ${demande.cree_par_nom || 'le gérant'} le ${formatFR(String(demande.updated_at || demande.created_at).slice(0, 10))}`}>
       {!trav ? <ActivityIndicator size="large" color={accent} /> : (
         <>
+          {demande.statut === 'refusee' && demande.motif_refus
+            ? <Info icone="❌" styles={styles} couleur="#C2462B">Refusée : {demande.motif_refus}</Info>
+            : null}
           <Libelle styles={styles}>Ce qui change</Libelle>
           {diff.length === 0
             ? <Text style={[styles.infoTxt, { flex: 0 }]}>Aucun changement sur la fiche.</Text>
@@ -99,6 +115,13 @@ export default function FeuilleMiseAJourRH({ visible, demande, ctx, onFermer, on
               Encore manquant après validation : {encore.join(', ')}. Le contrat demandera de compléter.
             </Info>
           )}
+          {form
+            ? <ChampsCorrectionFiche form={form} setForm={setForm} styles={styles} colors={colors} />
+            : (
+              <View style={{ marginTop: 10 }}>
+                <Bouton styles={styles} couleur={accent} label="✏️ Corriger / compléter" onPress={ouvrirCorrection} />
+              </View>
+            )}
           {occupe ? <ActivityIndicator size="large" color={accent} style={{ marginTop: 14 }} /> : refus ? (
             <View style={{ marginTop: 12 }}>
               <Libelle styles={styles}>Raison du refus (le gérant la verra)</Libelle>
@@ -111,8 +134,8 @@ export default function FeuilleMiseAJourRH({ visible, demande, ctx, onFermer, on
             </View>
           ) : (
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-              <Bouton flex styles={styles} couleur="#C2462B" label="❌ Refuser" onPress={() => setRefus(true)} />
-              <Bouton flex grand styles={styles} couleur="#3B8D2F" variante="plein" label="✅ Accepter" onPress={accepter} />
+              {demande.statut === 'envoyee' && <Bouton flex styles={styles} couleur="#C2462B" label="❌ Refuser" onPress={() => setRefus(true)} />}
+              <Bouton flex grand styles={styles} couleur="#3B8D2F" variante="plein" label="✅ Accepter" disabled={!peutAccepter} onPress={accepter} />
             </View>
           )}
         </>

@@ -107,7 +107,7 @@ export default function EmbauchesScreen() {
   const nomDemande = d => nomComplet(d) || connus.find(t => t.id === d.travailleur_id)?.nom || ''
 
   function ouvrir(d) {
-    if (d.statut === 'envoyee' && estMaj(d)) { setMajOuverte(d); return }
+    if ((d.statut === 'envoyee' || d.statut === 'refusee') && estMaj(d)) { setMajOuverte(d); return }
     if (d.statut === 'envoyee') setDemandeOuverte(d)
     else if (d.statut === 'acceptee' && d.travailleur_id) {
       router.push({ pathname: '/contrats', params: { travailleur_id: d.travailleur_id, restaurant_id: d.restaurant_id || '' } })
@@ -116,7 +116,7 @@ export default function EmbauchesScreen() {
 
   function renderDemande(d) {
     const cfg = STATUTS_DEMANDE_TRAV[d.statut] || STATUTS_DEMANDE_TRAV.envoyee
-    const cliquable = d.statut === 'envoyee' || (d.statut === 'acceptee' && d.travailleur_id)
+    const cliquable = d.statut === 'envoyee' || (d.statut === 'refusee' && estMaj(d)) || (d.statut === 'acceptee' && d.travailleur_id)
     return (
       <TouchableOpacity key={d.id} style={styles.carte} activeOpacity={cliquable ? 0.8 : 1}
         onPress={cliquable ? () => ouvrir(d) : undefined}>
@@ -129,6 +129,7 @@ export default function EmbauchesScreen() {
             </Text>
           </View>
           {d.statut === 'envoyee' && <Text style={{ color: accent, fontWeight: '800' }}>Valider ›</Text>}
+          {d.statut === 'refusee' && estMaj(d) && <Text style={{ color: accent, fontWeight: '800' }}>Reprendre ›</Text>}
           {d.statut === 'acceptee' && d.travailleur_id && <Text style={{ color: accent, fontWeight: '800' }}>Contrat ›</Text>}
         </View>
         <Pastille cfg={cfg} styles={styles} />

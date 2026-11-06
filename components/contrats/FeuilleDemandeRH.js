@@ -9,9 +9,11 @@
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Alert, Image, Linking, Text, TouchableOpacity, View } from 'react-native'
 
+import ChampsCorrectionFiche from './ChampsCorrectionFiche'
 import { Bouton, Champ, Feuille, Info, Libelle, Puces, teinte, useEcranModerne } from '../ui/EcranModerne'
 import { formatFR } from '../../lib/contrats'
 import { accepterDemande, refuserDemande } from '../../lib/contratsSignesDb'
+import { correctionComplete, correctionsRH, demandeCorrigee, formulaireCorrection } from '../../lib/miseAJourFiches'
 import { estPdf, manquantsDemande, nomComplet, trouverDoublon } from '../../lib/recrutement'
 
 export default function FeuilleDemandeRH({ visible, demande, restaurantNom, travailleursConnus, ctx, onFermer, onTraitee }) {
@@ -21,6 +23,8 @@ export default function FeuilleDemandeRH({ visible, demande, restaurantNom, trav
   const [refus, setRefus] = useState(false)
   const [motif, setMotif] = useState('')
   const [occupe, setOccupe] = useState(false)
+  const [depart, setDepart] = useState(null)
+  const [form, setForm] = useState(null)
 
   useEffect(() => {
     if (!visible || !demande) return
@@ -28,19 +32,29 @@ export default function FeuilleDemandeRH({ visible, demande, restaurantNom, trav
     setReutiliser(true)
     setRefus(false)
     setMotif('')
+    setDepart(null)
+    setForm(null)
   }, [visible, demande])
 
   if (!demande) return null
 
-  const doublon = (demande.doublon_travailleur_id && (travailleursConnus || []).find(t => t.id === demande.doublon_travailleur_id))
-    || trouverDoublon(demande, travailleursConnus)
-  const { incomplets } = manquantsDemande(demande)
-  const nom = nomComplet(demande)
+  const effective = form ? demandeCorrigee(demande, form) : demande
+  const doublon = (effective.doublon_travailleur_id && (travailleursConnus || []).find(t => t.id === effective.doublon_travailleur_id))
+    || trouverDoublon(effective, travailleursConnus)
+  const { incomplets } = manquantsDemande(effective)
+  const nom = nomComplet(effective)
+  const peutAccepter = !form || correctionComplete(form)
+
+  function ouvrirCorrection() {
+    const f = formulaireCorrection(null, demande)
+    setDepart(f)
+    setForm(f)
+  }
 
   async function accepter() {
     setOccupe(true)
     try {
-      const trav = await accepterDemande(demande, { salaire_journalier: salaire, reutiliserId: doublon && reutiliser ? doublon.id : null }, ctx)
+      const trav = await accepterDemande(effective, { salaire_journalier: salaire, reutiliserId: doublon && reutiliser ? doublon.id : null }, ctx, form ? correctionsRH(depart, form) : [])
       const generer = await new Promise(resolve => Alert.alert(
         'Travailleur ajouté',
         `${nom} fait maintenant partie de l'équipe de ${restaurantNom || 'son restaurant'}.\n\nGénérer son contrat maintenant ?`,
@@ -92,17 +106,24 @@ export default function FeuilleDemandeRH({ visible, demande, restaurantNom, trav
           <Image source={{ uri: demande.photo_url }} style={{ width: 110, height: 110, borderRadius: 14, backgroundColor: colors.surfaceAlt }} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          {ligne('Civilité', demande.civilite)}
-          {ligne('Naissance', [demande.date_naissance ? formatFR(demande.date_naissance) : null, demande.lieu_naissance].filter(Boolean).join(' à '))}
-          {ligne('Nationalité', demande.nationalite)}
-          {ligne('Téléphone', demande.contact)}
+          {ligne('Civilité', effective.civilite)}
+          {ligne('Naissance', [effective.date_naissance ? formatFR(effective.date_naissance) : null, effective.lieu_naissance].filter(Boolean).join(' à '))}
+          {ligne('Nationalité', effective.nationalite)}
+          {ligne('Téléphone', effective.contact)}
         </View>
       </View>
-      {ligne('Situation de famille', demande.situation_famille)}
-      {ligne('CNI', demande.cni_numero)}
-      {ligne('NNI', demande.nni_numero)}
-      {ligne('Lieu de résidence', demande.lieu_residence)}
-      {ligne("Date d'embauche", demande.date_embauche ? formatFR(demande.date_embauche) : null)}
+      {ligne('Situation de famille', effective.situation_famille)}
+      {ligne('CNI', effective.cni_numero)}
+      {ligne('NNI', effective.nni_numero)}
+      {ligne('Lieu de résidence', effective.lieu_residence)}
+      {ligne("Date d'embauche", effective.date_embauche ? formatFR(effective.date_embauche) : null)}
+      {form
+        ? <ChampsCorrectionFiche form={form} setForm={setForm} styles={styles} colors={colors} />
+        : (
+          <View style={{ marginTop: 10 }}>
+            <Bouton styles={styles} couleur={accent} label="✏️ Corriger / compléter" onPress={ouvrirCorrection} />
+          </View>
+        )}
 
       {photos.length > 0 && (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
@@ -161,7 +182,7 @@ export default function FeuilleDemandeRH({ visible, demande, restaurantNom, trav
       ) : (
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
           <Bouton flex styles={styles} couleur="#C2462B" label="❌ Refuser" onPress={() => setRefus(true)} />
-          <Bouton flex grand styles={styles} couleur="#3B8D2F" variante="plein" label="✅ Accepter" onPress={accepter} />
+          <Bouton flex grand styles={styles} couleur="#3B8D2F" variante="plein" label="✅ Accepter" disabled={!peutAccepter} onPress={accepter} />
         </View>
       )}
     </Feuille>
