@@ -23,7 +23,7 @@ import { useTheme } from '../context/ThemeContext'
 import { supabase } from '../lib/supabase'
 import { journaliser } from '../lib/journal'
 import {
-  CLASSIFICATIONS, PLATEFORMES, boutiquesARattacher, classifierAvis,
+  CLASSIFICATIONS, PLATEFORMES, aUnCommentaire, boutiquesARattacher, classifierAvis,
   kpisParPlateforme, kpisParRestaurant, noteSur5, plateforme,
   plateformesEnRetard, texteRetard,
 } from '../lib/avisPlateformes'
@@ -75,6 +75,7 @@ export default function AvisPlateformes() {
   const [restoFilter, setRestoFilter] = useState(typeof params.restaurant_id === 'string' ? params.restaurant_id : null)
   const [platformFilter, setPlatformFilter] = useState(null)
   const [classFilter, setClassFilter] = useState(null)
+  const [avecCommentaire, setAvecCommentaire] = useState(false)
   const [showRestoPicker, setShowRestoPicker] = useState(false)
 
   const [restaurants, setRestaurants] = useState([])
@@ -151,6 +152,10 @@ export default function AvisPlateformes() {
     for (const r of restaurants) m[r.id] = r.nom
     return m
   }, [restaurants])
+
+  // Filtre de la liste seulement : le Résumé compte tous les avis.
+  const nbAvecCommentaire = useMemo(() => avis.filter(aUnCommentaire).length, [avis])
+  const avisListe = useMemo(() => (avecCommentaire ? avis.filter(aUnCommentaire) : avis), [avis, avecCommentaire])
 
   const parPlateforme = useMemo(() => kpisParPlateforme(avis), [avis])
   const parResto = useMemo(() => kpisParRestaurant(avis, nomsParId), [avis, nomsParId])
@@ -322,17 +327,26 @@ export default function AvisPlateformes() {
             ))}
           </View>
 
+          <View style={styles.chipsRow}>
+            <TouchableOpacity
+              style={[styles.chip, avecCommentaire && styles.chipActif]}
+              onPress={() => { setAvecCommentaire(v => !v); setVisible(PAR_PAGE) }}
+            >
+              <Text style={[styles.chipTxt, avecCommentaire && styles.chipTxtActif]}>💬 Avec commentaire ({nbAvecCommentaire})</Text>
+            </TouchableOpacity>
+          </View>
+
           {erreur ? (
             <View style={styles.erreurBox}><Text style={styles.erreurTxt}>{erreur}</Text></View>
           ) : null}
 
           {/* Liste des avis */}
-          {avis.length === 0 && !erreur ? (
+          {avisListe.length === 0 && !erreur ? (
             <View style={styles.emptyBox}>
               <Text style={styles.emptyIcon}>💬</Text>
-              <Text style={styles.emptyTxt}>Aucun avis sur cette période</Text>
+              <Text style={styles.emptyTxt}>{avecCommentaire ? 'Aucun avis avec commentaire sur cette période' : 'Aucun avis sur cette période'}</Text>
             </View>
-          ) : avis.slice(0, visible).map(a => {
+          ) : avisListe.slice(0, visible).map(a => {
             const negatif = classifierAvis(a) === 'negatif'
             const note = noteSur5(a)
             return (
@@ -359,9 +373,9 @@ export default function AvisPlateformes() {
             )
           })}
 
-          {avis.length > visible ? (
+          {avisListe.length > visible ? (
             <TouchableOpacity style={styles.btnSecondaire} onPress={() => setVisible(v => v + PAR_PAGE)}>
-              <Text style={styles.btnSecondaireTxt}>Afficher {Math.min(PAR_PAGE, avis.length - visible)} avis de plus</Text>
+              <Text style={styles.btnSecondaireTxt}>Afficher {Math.min(PAR_PAGE, avisListe.length - visible)} avis de plus</Text>
             </TouchableOpacity>
           ) : null}
 
