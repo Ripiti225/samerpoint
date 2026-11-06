@@ -42,6 +42,10 @@ import { useFocusRecherche } from '../lib/useFocusRecherche'
 // fige la page sur un iPhone.
 const PAR_PAGE = 60
 
+// Un avis négatif et un avis positif doivent se distinguer d'un coup d'œil, en clair comme en sombre.
+const ROUGE_AVIS = '#C62828'
+const VERT_AVIS = '#2E7D32'
+
 function fmtDate(d) {
   if (!d) return '—'
   const [a, m, j] = d.split('-')
@@ -349,21 +353,26 @@ export default function AvisPlateformes() {
           ) : avisListe.slice(0, visible).map(a => {
             const negatif = classifierAvis(a) === 'negatif'
             const note = noteSur5(a)
+            const couleurAvis = negatif ? ROUGE_AVIS : VERT_AVIS
             return (
-              <View key={a.id} {...focus.props(a.id)} style={[styles.card, negatif && styles.cardNegatif, focus.style(a.id)]}>
+              <View key={a.id} {...focus.props(a.id)} style={[styles.card, negatif ? styles.cardNegatif : styles.cardPositif, focus.style(a.id)]}>
                 <View style={styles.ligneHaut}>
                   <Badge texte={plateforme(a.platform)?.label || a.platform} couleur={plateforme(a.platform)?.couleur} />
                   <Text style={styles.ligneSous}>{fmtDate(a.review_date)}</Text>
                   <View style={{ flex: 1 }} />
-                  <Text style={[styles.classif, { color: negatif ? '#C62828' : '#2E7D32' }]}>
-                    {negatif ? '👎 Négatif' : '👍 Bon'}
-                  </Text>
+                  <View style={[styles.classifPastille, { backgroundColor: couleurAvis }]}>
+                    <Text style={styles.classif}>{negatif ? '👎 Négatif' : '👍 Bon'}</Text>
+                  </View>
                 </View>
                 <Text style={styles.ligneNom} numberOfLines={1}>
                   {a.restaurant_id ? (nomsParId[a.restaurant_id] || 'Restaurant inconnu') : `⚠️ ${a.external_store_label || 'Boutique à rattacher'}`}
                 </Text>
                 {note != null ? <Text style={styles.note}>{etoiles(note)} {note}/5</Text> : null}
-                {a.comment ? <Text style={styles.commentaire}>« {a.comment} »</Text> : null}
+                {a.comment ? (
+                  <View style={[styles.commentaireBox, { backgroundColor: `${couleurAvis}1F`, borderLeftColor: couleurAvis }]}>
+                    <Text style={styles.commentaire}>« {a.comment} »</Text>
+                  </View>
+                ) : null}
                 {a.external_ref ? <Text style={styles.ligneSous}>Commande {a.external_ref}</Text> : null}
                 <Text style={styles.ligneSous}>
                   {a.commande_le ? `Commande à ${new Date(a.commande_le).toISOString().slice(11, 16)} · ` : 'Heure de commande inconnue · '}
@@ -474,11 +483,14 @@ function makeStyles(colors) { return StyleSheet.create({
   ligneSous: { fontSize: 11, color: colors.textMuted },
 
   card: { backgroundColor: colors.surface, borderRadius: 12, padding: 14, marginBottom: 10 },
-  cardNegatif: { borderLeftWidth: 3, borderLeftColor: '#C62828' },
+  cardNegatif: { borderLeftWidth: 6, borderLeftColor: ROUGE_AVIS, backgroundColor: `${ROUGE_AVIS}12` },
+  cardPositif: { borderLeftWidth: 6, borderLeftColor: VERT_AVIS, backgroundColor: `${VERT_AVIS}12` },
   ligneHaut: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  classif: { fontSize: 12, fontWeight: '700' },
+  classifPastille: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  classif: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
   note: { fontSize: 13, color: colors.orange, marginTop: 4, letterSpacing: 1 },
-  commentaire: { fontSize: 13, color: colors.textSecondary, marginTop: 6, lineHeight: 19, fontStyle: 'italic' },
+  commentaireBox: { marginTop: 8, marginBottom: 4, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, borderLeftWidth: 3 },
+  commentaire: { fontSize: 14, color: colors.text, lineHeight: 20, fontWeight: '500' },
   boutiqueLabel: { fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 4 },
   boutiqueNb: { fontSize: 12, color: colors.textSecondary },
 
