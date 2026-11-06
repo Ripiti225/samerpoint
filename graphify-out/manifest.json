@@ -1,8 +1,8 @@
 {
   ".claude/settings.json": {
-    "mtime": 1787567987.4837878,
-    "seen": 1788454354.111304,
-    "ast_hash": "6a9839975c3f188d6f9621b426e11185",
+    "mtime": 1793971580.4930491,
+    "seen": 1793971747.501417,
+    "ast_hash": "03d0fd1a7ac0e53d5a91c72f8095733d",
     "semantic_hash": ""
   },
   ".vscode/extensions.json": {
@@ -156,9 +156,9 @@
     "semantic_hash": ""
   },
   "app/equipe.js": {
-    "mtime": 1793914581.5652535,
-    "seen": 1793914667.384712,
-    "ast_hash": "7399438fc7cc0d8c564db2a1c54969e7",
+    "mtime": 1793974253.80301,
+    "seen": 1793974439.7790458,
+    "ast_hash": "929c8df4b3fe63b8785018ff8fd9ac91",
     "semantic_hash": ""
   },
   "app/fournisseurs.js": {
@@ -198,9 +198,9 @@
     "semantic_hash": ""
   },
   "app/litiges.js": {
-    "mtime": 1792704791.3165483,
-    "seen": 1792711762.67352,
-    "ast_hash": "b88638fb39b97c4ab1f0ec6d48d53ba7",
+    "mtime": 1793967988.926332,
+    "seen": 1793971747.501473,
+    "ast_hash": "37edc50f502a7a793e5b2a3521369f4e",
     "semantic_hash": ""
   },
   "app/livraisons.js": {
@@ -300,9 +300,9 @@
     "semantic_hash": ""
   },
   "app/verification.js": {
-    "mtime": 1793913801.484938,
-    "seen": 1793913892.735768,
-    "ast_hash": "403618d6fa7f89c9094a345e14f23b9a",
+    "mtime": 1793967988.9278288,
+    "seen": 1793971747.5015109,
+    "ast_hash": "04d542d5ed0958551683a30259231406",
     "semantic_hash": ""
   },
   "components/FicheContrat.js": {
@@ -2166,9 +2166,9 @@
     "semantic_hash": ""
   },
   "components/equipe/Modales.js": {
-    "mtime": 1793289119.235355,
-    "seen": 1793320546.258194,
-    "ast_hash": "a72f2059357961073500e741f6b9b64c",
+    "mtime": 1793974253.8022807,
+    "seen": 1793974439.779144,
+    "ast_hash": "e81c53529b05e74c7f6c2a549c53bef1",
     "semantic_hash": ""
   },
   "components/equipe/OngletArchives.js": {
@@ -2214,15 +2214,15 @@
     "semantic_hash": ""
   },
   "lib/equipe.test.mjs": {
-    "mtime": 1792065901.6392307,
-    "seen": 1792065932.016663,
-    "ast_hash": "a4fdef5a7da03488d233a738e2789c03",
+    "mtime": 1793974204.7291214,
+    "seen": 1793974439.779338,
+    "ast_hash": "852fe407e11fd3d97998c4f0b7b930a2",
     "semantic_hash": ""
   },
   "lib/equipeDb.js": {
-    "mtime": 1793289111.550065,
-    "seen": 1793320546.258382,
-    "ast_hash": "423fe2ee22a6fa4b8319fae78ea0df58",
+    "mtime": 1793974253.8014865,
+    "seen": 1793974439.779339,
+    "ast_hash": "63e2021951805ca946cdb196f6140ee5",
     "semantic_hash": ""
   },
   "lib/joursRepos.js": {
@@ -3090,9 +3090,9 @@
     "semantic_hash": ""
   },
   "components/contrats/FeuilleDemandeRH.js": {
-    "mtime": 1793320400.473233,
-    "seen": 1793320546.2581692,
-    "ast_hash": "7485d3c1aa3fe76deb1da936aa37e880",
+    "mtime": 1793974332.210188,
+    "seen": 1793974439.7791219,
+    "ast_hash": "1bac4f4a064c48f62511d35ccea4d2fb",
     "semantic_hash": ""
   },
   "components/contrats/FeuilleSignature.js": {
@@ -3144,9 +3144,9 @@
     "semantic_hash": ""
   },
   "lib/contratsSignesDb.js": {
-    "mtime": 1793320400.4717684,
-    "seen": 1793320546.258343,
-    "ast_hash": "3873b60fcb6819335ceeb6e4de3f0ff0",
+    "mtime": 1793974286.141369,
+    "seen": 1793974439.779297,
+    "ast_hash": "163a076c831c251f2867c55b7fbf5cdb",
     "semantic_hash": ""
   },
   "lib/modelesContrat.js": {
@@ -3270,9 +3270,9 @@
     "semantic_hash": ""
   },
   "app/embauches.js": {
-    "mtime": 1793320412.8174324,
-    "seen": 1793320546.258077,
-    "ast_hash": "d5b8f418f6378ded60effba1cb8ef8a6",
+    "mtime": 1793974373.9828677,
+    "seen": 1793974439.779045,
+    "ast_hash": "bacfd634de79f635a63b1b065c53dd63",
     "semantic_hash": ""
   },
   "app/superviseur.js": {
@@ -3726,9 +3726,9 @@
     "semantic_hash": ""
   },
   "components/contrats/FeuilleMiseAJourRH.js": {
-    "mtime": 1793320400.4726648,
-    "seen": 1793320546.2581708,
-    "ast_hash": "05bc372accae6a9811d7496adeaecfac",
+    "mtime": 1793974332.209424,
+    "seen": 1793974439.779124,
+    "ast_hash": "f1abc86f25f4d3cb64af44ffac1c431b",
     "semantic_hash": ""
   },
   "components/contrats/OngletMiseAJour.js": {
@@ -3762,21 +3762,21 @@
     "semantic_hash": ""
   },
   "lib/miseAJourFiches.js": {
-    "mtime": 1793320400.469414,
-    "seen": 1793320546.258442,
-    "ast_hash": "dcc2bc2db4ef64decb14d2e863c504ae",
+    "mtime": 1793974224.9491935,
+    "seen": 1793974439.779403,
+    "ast_hash": "ecfb4bb78b7b99cf9bb4618e327de56c",
     "semantic_hash": ""
   },
   "lib/miseAJourFiches.test.mjs": {
-    "mtime": 1793320383.641899,
-    "seen": 1793320546.258443,
-    "ast_hash": "c6f1fadb2764e5df0c5afe6a4d0b2cb8",
+    "mtime": 1793974204.7285032,
+    "seen": 1793974439.779404,
+    "ast_hash": "1e8feb98d21693871e5e38251ab597c3",
     "semantic_hash": ""
   },
   "lib/miseAJourFichesDb.js": {
-    "mtime": 1793320400.470201,
-    "seen": 1793320546.258444,
-    "ast_hash": "a775a1e4a4f1e63fe9a6f53ab685cd91",
+    "mtime": 1793974286.1405692,
+    "seen": 1793974439.779405,
+    "ast_hash": "72f6e0aba33a90fb2dd074dbb7149041",
     "semantic_hash": ""
   },
   "supabase_cartes_travailleurs.sql": {
@@ -4083,6 +4083,66 @@
     "mtime": 1793914572.6042964,
     "seen": 1793914667.385273,
     "ast_hash": "6f83f06c6697a10573d47c933376ba63",
+    "semantic_hash": ""
+  },
+  "components/LitigesStockInitial.js": {
+    "mtime": 1793967988.9281678,
+    "seen": 1793971747.501523,
+    "ast_hash": "627580f6e774c6a415e710392c262445",
+    "semantic_hash": ""
+  },
+  "lib/correctionStockInitial.js": {
+    "mtime": 1793967988.9284122,
+    "seen": 1793971747.501728,
+    "ast_hash": "29aa3bb891cb9d35a78f803970867b0d",
+    "semantic_hash": ""
+  },
+  "lib/correctionStockInitial.messages.js": {
+    "mtime": 1793967988.9286163,
+    "seen": 1793971747.501735,
+    "ast_hash": "8649cb35ba6eb46a245edd0ae6316edc",
+    "semantic_hash": ""
+  },
+  "lib/correctionStockInitial.test.mjs": {
+    "mtime": 1793967988.9288297,
+    "seen": 1793971747.501736,
+    "ast_hash": "c8b6e407b67fa68ca6c510fd71a58653",
+    "semantic_hash": ""
+  },
+  "scripts/test_correction_stock_initial.sql": {
+    "mtime": 1793967988.92911,
+    "seen": 1793971747.501965,
+    "ast_hash": "1f06cd396c915740851e29950b22ccfc",
+    "semantic_hash": ""
+  },
+  "supabase_correction_stock_initial.sql": {
+    "mtime": 1793967988.9294474,
+    "seen": 1793971747.501996,
+    "ast_hash": "5ff0f7d046dac6c7467b8854c5b034f5",
+    "semantic_hash": ""
+  },
+  "components/contrats/ChampsCorrectionFiche.js": {
+    "mtime": 1793974332.168096,
+    "seen": 1793974439.7791202,
+    "ast_hash": "1701e060cb36029395b2440ec007b9c6",
+    "semantic_hash": ""
+  },
+  "components/contrats/OngletACompleter.js": {
+    "mtime": 1793974373.9431348,
+    "seen": 1793974439.7791302,
+    "ast_hash": "7a77629a75cbda2c18c8d8f99f6006de",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-11-06-correction-fiches-rh.md": {
+    "mtime": 1793974121.8916142,
+    "seen": 1793974439.779694,
+    "ast_hash": "fa6f292083762b3050fb0a5010b3e93b",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-11-06-correction-fiches-rh-design.md": {
+    "mtime": 1793974074.3708923,
+    "seen": 1793974439.7797298,
+    "ast_hash": "ad952907fc40afbd7b25e140957fd55e",
     "semantic_hash": ""
   }
 }
