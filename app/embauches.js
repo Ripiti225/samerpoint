@@ -18,13 +18,16 @@ import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Text, TouchableOpac
 
 import FeuilleDemandeRH from '../components/contrats/FeuilleDemandeRH'
 import FeuilleMiseAJourRH from '../components/contrats/FeuilleMiseAJourRH'
+import OngletACompleter from '../components/contrats/OngletACompleter'
 import OngletSuiviCampagne from '../components/contrats/OngletSuiviCampagne'
 import Avatar from '../components/equipe/Avatar'
+import { ModalFormTravailleur } from '../components/equipe/Modales'
+import { makeStyles } from '../components/equipe/styles'
 import { EnTete, Pastille, Puces, Vide, useEcranModerne } from '../components/ui/EcranModerne'
 import { useApp } from '../context/AppContext'
 import { aujourdhuiISO, formatFR } from '../lib/contrats'
 import { chargerDemandes, chargerTousTravailleurs } from '../lib/contratsSignesDb'
-import { resumeCampagne } from '../lib/miseAJourFiches'
+import { comptesManquants, fichesACompleter, resumeCampagne } from '../lib/miseAJourFiches'
 import { chargerCampagne, relancerGerants } from '../lib/miseAJourFichesDb'
 import { STATUTS_DEMANDE_TRAV, nomComplet } from '../lib/recrutement'
 import { supabase } from '../lib/supabase'
@@ -34,7 +37,8 @@ const ONGLETS = { valider: 'envoyee', refusees: 'refusee', acceptees: 'acceptee'
 export default function EmbauchesScreen() {
   const { userId, userNom } = useApp() ?? {}
   const ctx = { userId: userId || null, userNom: userNom || null }
-  const { styles, accent } = useEcranModerne('orange')
+  const { styles, colors, accent } = useEcranModerne('orange')
+  const stylesEquipe = useMemo(() => makeStyles(colors), [colors])
   const params = useLocalSearchParams()
 
   const [restaurants, setRestaurants] = useState([])
@@ -46,6 +50,8 @@ export default function EmbauchesScreen() {
   const [demandeOuverte, setDemandeOuverte] = useState(null)
   const [majOuverte, setMajOuverte] = useState(null)
   const [campagne, setCampagne] = useState({ travailleurs: [], contrats: [] })
+  const [filtreManque, setFiltreManque] = useState(null)
+  const [ficheEdition, setFicheEdition] = useState(null)
 
   useEffect(() => { charger() }, [])
 
@@ -72,7 +78,7 @@ export default function EmbauchesScreen() {
   const restoNom = id => restaurants.find(r => r.id === id)?.nom || ''
   const dansResto = d => filtreResto === 'tous' || d.restaurant_id === filtreResto
   const nb = statut => demandes.filter(d => d.statut === statut && dansResto(d)).length
-  const affichees = onglet === 'suivi' ? [] : demandes.filter(d => d.statut === ONGLETS[onglet] && dansResto(d))
+  const affichees = ONGLETS[onglet] ? demandes.filter(d => d.statut === ONGLETS[onglet] && dansResto(d)) : []
 
   const resumeTous = useMemo(() => resumeCampagne({
     travailleurs: campagne.travailleurs, demandes, contrats: campagne.contrats,
@@ -82,6 +88,23 @@ export default function EmbauchesScreen() {
     ...resumeTous, lignes: resumeTous.lignes.filter(l => filtreResto === 'tous' || l.restaurant_id === filtreResto),
   }), [resumeTous, filtreResto])
   const [envoiEnCours, setEnvoiEnCours] = useState(false)
+
+  const restaurantIdFiltre = filtreResto === 'tous' ? null : filtreResto
+  const comptes = useMemo(
+    () => comptesManquants(campagne.travailleurs, demandes, { restaurantId: restaurantIdFiltre }),
+    [campagne, demandes, restaurantIdFiltre],
+  )
+  // Une donnée qui n'est plus manquante (fiche complétée, autre restaurant) ne garde pas le filtre.
+  const manqueActif = comptes.some(c => c.libelle === filtreManque) ? filtreManque : null
+  const aCompleter = useMemo(
+    () => fichesACompleter(campagne.travailleurs, demandes, { restaurantId: restaurantIdFiltre, manque: manqueActif }),
+    [campagne, demandes, restaurantIdFiltre, manqueActif],
+  )
+
+  function ouvrirACompleter(trav, demande) {
+    if (demande) setMajOuverte(demande)
+    else setFicheEdition(trav)
+  }
 
   async function relancer(l) {
     try { await relancerGerants({ restaurantId: l.restaurant_id, nombre: l.aCompleter }); Alert.alert('Relance envoyée', `Les gérants de ${l.nom} ont reçu un rappel.`) }
@@ -166,6 +189,7 @@ export default function EmbauchesScreen() {
         { cle: 'valider', label: `🟡 À valider${nbValider ? ` (${nbValider})` : ''}` },
         { cle: 'refusees', label: `❌ Refusées${nbRefusees ? ` (${nbRefusees})` : ''}` },
         { cle: 'acceptees', label: '✅ Acceptées' },
+        { cle: 'completer', label: `✏️ À compléter${aCompleter.length && !manqueActif ? ` (${aCompleter.length})` : ''}` },
         { cle: 'suivi', label: '📊 Suivi' },
       ]} />
 
@@ -175,9 +199,11 @@ export default function EmbauchesScreen() {
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
           {onglet === 'suivi'
             ? <OngletSuiviCampagne styles={styles} accent={accent} resume={resume} onRelancer={relancer} onPrevenirTous={prevenirTous} total={resumeTous.total} envoiEnCours={envoiEnCours} />
-            : affichees.length
-              ? affichees.map(renderDemande)
-              : <Vide icone={vides.icone} styles={styles} texte={vides.texte} sous={vides.sous} />}
+            : onglet === 'completer'
+              ? <OngletACompleter styles={styles} lignes={aCompleter} comptes={comptes} filtre={manqueActif} onFiltre={setFiltreManque} restoNom={restoNom} onOuvrir={ouvrirACompleter} />
+              : affichees.length
+                ? affichees.map(renderDemande)
+                : <Vide icone={vides.icone} styles={styles} texte={vides.texte} sous={vides.sous} />}
           <View style={{ height: 60 }} />
         </ScrollView>
       )}
@@ -211,6 +237,13 @@ export default function EmbauchesScreen() {
             router.push({ pathname: '/contrats', params: { travailleur_id: travailleur.id, generer: '1' } })
           }
         }}
+      />
+
+      <ModalFormTravailleur
+        visible={!!ficheEdition} edition={ficheEdition} restaurants={restaurants} restoParDefaut={null}
+        styles={stylesEquipe} colors={colors} ctx={ctx}
+        onFermer={() => setFicheEdition(null)}
+        onEnregistre={async () => { setFicheEdition(null); await charger() }}
       />
     </SafeAreaView>
   )
