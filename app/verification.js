@@ -7,7 +7,8 @@ import {
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { router, useLocalSearchParams } from 'expo-router'
 import { supabase } from '../lib/supabase'
-import { annulerDeductionInventaire, corrigerEntreeInventaire, deciderEcartInventaire } from '../lib/api'
+import { annulerDeductionInventaire, corrigerEntreeInventaire, deciderEcartInventaire, fixerLitigeSurplus } from '../lib/api'
+import { SEUIL_ALERTE_LITIGE, actionSurplus, estSurplus, lireMontantLitige, messageLitige, suggestionLitige } from '../lib/litigeSurplus'
 import { useApp } from '../context/AppContext'
 import { genererPdfPoint, genererPdfEcarts } from '../lib/generatePdf'
 import { CATEGORIES_INVENTAIRE } from '../lib/constants'
@@ -121,6 +122,9 @@ export default function VerificationScreen() {
   const [qteAcceptee, setQteAcceptee] = useState('')
   const [decisionSaving, setDecisionSaving] = useState(false)
   const [commentaireInv, setCommentaireInv] = useState('')  // commentaire facultatif pour le gérant
+  const [litigeInv, setLitigeInv] = useState(null)  // surplus en cours de litige
+  const [montantLitige, setMontantLitige] = useState('')
+  const [commentaireLitige, setCommentaireLitige] = useState('')
   // Fenêtre « commentaire facultatif » (refus d'explication, Marquer vérifié) :
   // { titre, texte, label, bouton, couleur, onValider(commentaire) } ou null
   const [feuilleCommentaire, setFeuilleCommentaire] = useState(null)
@@ -922,6 +926,48 @@ export default function VerificationScreen() {
 
   function enregistrerDecisionInv(statut) {
     return deciderEcartInv(decisionInv, statut, parseFloat(qteAcceptee) || 0, commentaireInv)
+  }
+
+  // ── Litige manuel sur un surplus ─────────────────────────────────────
+  function ouvrirLitige(e) {
+    setDecisionInv(null)
+    setLitigeInv(e)
+    setCommentaireLitige('')
+    setMontantLitige(e.explication_statut === 'refusee' && e.montantDeduit > 0 ? String(e.montantDeduit) : '')
+  }
+
+  async function enregistrerLitige(montant) {
+    const e = litigeInv
+    if (!e || decisionSaving || montant == null) return
+    setDecisionSaving(true)
+    setDecisionEnCours(e.id)
+    try {
+      await fixerLitigeSurplus({
+        ligneId: e.id,
+        statutActuel: e.explication_statut,
+        montant,
+        par: userNom || roleActif || 'Manager',
+        commentaire: commentaireLitige,
+      })
+      creerNotification({
+        type: 'litige_surplus_inventaire',
+        titre: montant > 0 ? '⚖️ Litige sur un surplus de stock' : '↩️ Litige de stock retiré',
+        message: messageDecision(messageLitige({
+          produit: e.produit_nom, montant, caissier: e.caissierNom, date: pointSelectionne?.date,
+        }), { ecart: `+${nb(e.ecart)}`, explication: e.explication, commentaire: commentaireLitige }),
+        restaurant_id: pointSelectionne?.restaurant_id,
+        cible_role: ciblesVerification(commentaireLitige),
+        created_by: userId || null,
+        screen: null,
+      }).catch(() => {})
+      setLitigeInv(null)
+      await chargerInventaire(pointSelectionne)
+    } catch (err) {
+      Alert.alert('Litige non enregistré', err?.message || 'Réessayez.')
+    } finally {
+      setDecisionSaving(false)
+      setDecisionEnCours(null)
+    }
   }
 
   // Décision en un appui depuis la liste Stock : « Valider » accepte la
@@ -3367,7 +3413,7 @@ export default function VerificationScreen() {
             // Manquants et surplus comptés SÉPARÉMENT (2026-08-24). Les mélanger
             // sous « avec écart » faisait lire « 7 non expliqués » comme
             // « 7 produits manquants » alors que les 7 étaient des surplus —
-            // lesquels ne donnent jamais lieu à retenue.
+            // lesquels ne donnent de retenue que sur litige du manager.
             const lignesManque = toutesLignesEcart.filter(l => l.ecart < 0)
             const lignesSurplus = toutesLignesEcart.filter(l => l.ecart > 0)
             const nbExpliques = lignesManque.filter(l => l.diffInexpliquee <= 0.01).length
@@ -3395,7 +3441,7 @@ export default function VerificationScreen() {
                     <View style={[styles.invResumeRow, { marginTop: 8 }]}>
                       <View style={[styles.invResumeBadge, { backgroundColor: '#EDEDF2' }]}>
                         <Text style={[styles.invResumeBadgeNum, { color: '#5B5B6B' }]}>{lignesSurplus.length}</Text>
-                        <Text style={[styles.invResumeBadgeLbl, { color: '#5B5B6B' }]}>📦 Surplus — aucune retenue</Text>
+                        <Text style={[styles.invResumeBadgeLbl, { color: '#5B5B6B' }]}>📦 Surplus</Text>
                       </View>
                     </View>
                   )}
@@ -3680,6 +3726,9 @@ export default function VerificationScreen() {
                         const enAttente = e.explication_statut === 'en_attente'
                         const peutDecider = enAttente && !!e.id
                         const enCours = decisionEnCours === e.id
+                        const surplus = estSurplus(e)
+                        const actionS = actionSurplus(e)
+                        const estLitige = surplus && e.explication_statut === 'refusee'
                         return (
                           <View key={cle} style={[styles.ecLigne, i === toutesLignesEcart.length - 1 && { borderBottomWidth: 0 }]}>
                             <View style={styles.ecLigneHaut}>
@@ -3704,7 +3753,7 @@ export default function VerificationScreen() {
                                   ) : (
                                     <>
                                       <TouchableOpacity style={[styles.ecBtn, styles.ecBtnRefuser, decisionSaving && { opacity: 0.4 }]}
-                                        onPress={() => ouvrirDecisionInv(e)} disabled={decisionSaving}>
+                                        onPress={() => (surplus ? ouvrirLitige(e) : ouvrirDecisionInv(e))} disabled={decisionSaving}>
                                         <Text style={styles.ecBtnTxt}>❌</Text>
                                       </TouchableOpacity>
                                       <TouchableOpacity style={[styles.ecBtn, styles.ecBtnValider, decisionSaving && { opacity: 0.4 }]}
@@ -3716,6 +3765,17 @@ export default function VerificationScreen() {
                                         <Text style={styles.ecBtnTxt}>✅</Text>
                                       </TouchableOpacity>
                                     </>
+                                  )
+                                ) : surplus && e.deduction_annulee ? (
+                                  <Text style={[styles.ecStatut, { color: colors.textMuted }]}>Annulé</Text>
+                                ) : actionS === 'litige' || (actionS === 'modifier' && estLitige) ? (
+                                  enCours ? (
+                                    <ActivityIndicator color={colors.primary} />
+                                  ) : (
+                                    <TouchableOpacity style={[styles.ecBtnLitige, decisionSaving && { opacity: 0.4 }]}
+                                      onPress={() => ouvrirLitige(e)} disabled={decisionSaving}>
+                                      <Text style={styles.ecBtnLitigeTxt}>{estLitige ? '✏️ Litige' : '⚖️ Litige'}</Text>
+                                    </TouchableOpacity>
                                   )
                                 ) : e.explication_statut === 'validee' ? (
                                   <Text style={[styles.ecStatut, { color: '#3B6D11' }]}>Validé</Text>
@@ -3753,11 +3813,13 @@ export default function VerificationScreen() {
                                 )}
                                 {e.explication_statut === 'refusee' && (
                                   <Text style={[styles.ecDetailTxt, { color: '#A32D2D', fontWeight: '700' }]}>
-                                    ❌ Explication refusée · déduction pleine {fmt(e.montantDeduit)}
+                                    {estLitige
+                                      ? `⚖️ Litige ${fmt(e.montantDeduit)}${e.explication_decidee_par ? ` · par ${e.explication_decidee_par}` : ''}`
+                                      : `❌ Explication refusée · déduction pleine ${fmt(e.montantDeduit)}`}
                                   </Text>
                                 )}
-                                {e.explication_statut && e.id && (
-                                  <TouchableOpacity onPress={() => ouvrirDecisionInv(e)}>
+                                {e.explication_statut && e.id && !(surplus && e.deduction_annulee) && (
+                                  <TouchableOpacity onPress={() => (actionS === 'modifier' ? ouvrirLitige(e) : ouvrirDecisionInv(e))}>
                                     <Text style={styles.decisionInvModifier}>
                                       {enAttente ? '✏️ Valider une autre quantité' : '✏️ Modifier la décision'}
                                     </Text>
@@ -4394,18 +4456,95 @@ export default function VerificationScreen() {
 
                   <View style={styles.decisionPreviewRow}>
                     <Text style={styles.decisionPreviewTxt}>→ Si validé : déduction <Text style={{ fontWeight: '800', color: '#3B6D11' }}>{fmt(montantValide)}</Text></Text>
-                    <Text style={styles.decisionPreviewTxt}>→ Si refusé : déduction <Text style={{ fontWeight: '800', color: '#A32D2D' }}>{fmt(montantRefuse)}</Text></Text>
+                    {!estSurplus(decisionInv) && (
+                      <Text style={styles.decisionPreviewTxt}>→ Si refusé : déduction <Text style={{ fontWeight: '800', color: '#A32D2D' }}>{fmt(montantRefuse)}</Text></Text>
+                    )}
                   </View>
 
                   <View style={styles.annulerBtnRow}>
                     <TouchableOpacity style={[styles.annulerBtn, styles.annulerBtnCancel]} onPress={() => setDecisionInv(null)} disabled={decisionSaving}>
                       <Text style={styles.annulerBtnCancelTxt}>Retour</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.annulerBtn, { backgroundColor: '#C62828' }, decisionSaving && { opacity: 0.5 }]} onPress={() => enregistrerDecisionInv('refusee')} disabled={decisionSaving}>
-                      <Text style={styles.annulerBtnConfirmTxt}>❌ Refuser</Text>
+                    <TouchableOpacity style={[styles.annulerBtn, { backgroundColor: '#C62828' }, decisionSaving && { opacity: 0.5 }]}
+                      onPress={() => (estSurplus(decisionInv) ? ouvrirLitige(decisionInv) : enregistrerDecisionInv('refusee'))} disabled={decisionSaving}>
+                      <Text style={styles.annulerBtnConfirmTxt}>{estSurplus(decisionInv) ? '⚖️ Litige' : '❌ Refuser'}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.annulerBtn, { backgroundColor: '#2E7D32' }, decisionSaving && { opacity: 0.5 }]} onPress={() => enregistrerDecisionInv('validee')} disabled={decisionSaving}>
                       <Text style={styles.annulerBtnConfirmTxt}>{decisionSaving ? '...' : '✅ Valider'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )
+            })()}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ══════════════════════════════════════════
+          MODAL LITIGE SUR UN SURPLUS
+      ══════════════════════════════════════════ */}
+      <Modal visible={litigeInv != null} animationType="fade" transparent onRequestClose={() => setLitigeInv(null)}>
+        <View style={styles.annulerOverlay}>
+          <View style={styles.annulerCard}>
+            <Text style={styles.annulerTitre}>⚖️ Litige sur un surplus</Text>
+            {litigeInv && (() => {
+              const montant = lireMontantLitige(montantLitige)
+              const suggestion = suggestionLitige(litigeInv)
+              const litigeExistant = litigeInv.explication_statut === 'refusee' && litigeInv.montantDeduit > 0
+              const theorique = (litigeInv.stock_initial || 0) + (litigeInv.entrees || 0) - (litigeInv.sorties || 0)
+              return (
+                <>
+                  <Text style={styles.decisionModalNom}>{litigeInv.produit_nom}</Text>
+                  <View style={styles.decisionModalInfo}>
+                    <Text style={styles.decisionModalInfoTxt}>
+                      {`Théorique ${nb(theorique)} · Réel ${litigeInv.stock_reel != null ? nb(litigeInv.stock_reel) : '—'} · Surplus +${nb(litigeInv.ecart)}`}
+                    </Text>
+                    <Text style={styles.decisionModalInfoTxt}>{`Prix ${litigeInv.prix > 0 ? fmt(litigeInv.prix) : '—'} · Imputé à ${litigeInv.caissierNom || 'le caissier du shift'}`}</Text>
+                    {!!litigeInv.explication && (
+                      <Text style={styles.decisionModalExpl}>💬 "{litigeInv.explication}"</Text>
+                    )}
+                  </View>
+
+                  <Text style={styles.annulerLabel}>Montant du litige (F)</Text>
+                  <TextInput
+                    style={styles.annulerInput}
+                    keyboardType="number-pad"
+                    value={montantLitige}
+                    onChangeText={v => setMontantLitige(v.replace(/[^0-9]/g, ''))}
+                    placeholder="Saisir le montant"
+                    placeholderTextColor="#bbb"
+                  />
+                  {suggestion > 0 && (
+                    <TouchableOpacity onPress={() => setMontantLitige(String(suggestion))}>
+                      <Text style={styles.decisionInvModifier}>{`Surplus × prix = ${fmt(suggestion)} — reprendre ce montant`}</Text>
+                    </TouchableOpacity>
+                  )}
+                  {montant != null && montant > SEUIL_ALERTE_LITIGE && (
+                    <Text style={styles.litigeAlerte}>⚠️ Montant élevé : vérifiez d'abord que le comptage n'est pas une erreur de frappe.</Text>
+                  )}
+
+                  <Text style={[styles.annulerLabel, { marginTop: 12 }]}>Commentaire pour le gérant (facultatif)</Text>
+                  <TextInput
+                    style={styles.commentaireInput}
+                    value={commentaireLitige}
+                    onChangeText={setCommentaireLitige}
+                    placeholder="Ex. : produit reçu le matin, jamais rentré"
+                    placeholderTextColor="#bbb"
+                    multiline
+                    maxLength={COMMENTAIRE_MAX}
+                  />
+
+                  <View style={styles.annulerBtnRow}>
+                    <TouchableOpacity style={[styles.annulerBtn, styles.annulerBtnCancel]} onPress={() => setLitigeInv(null)} disabled={decisionSaving}>
+                      <Text style={styles.annulerBtnCancelTxt}>Retour</Text>
+                    </TouchableOpacity>
+                    {litigeExistant && (
+                      <TouchableOpacity style={[styles.annulerBtn, { backgroundColor: '#5B5B6B' }, decisionSaving && { opacity: 0.5 }]} onPress={() => enregistrerLitige(0)} disabled={decisionSaving}>
+                        <Text style={styles.annulerBtnConfirmTxt}>Retirer</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity style={[styles.annulerBtn, { backgroundColor: '#C62828' }, (decisionSaving || !montant) && { opacity: 0.5 }]} onPress={() => enregistrerLitige(montant)} disabled={decisionSaving || !montant}>
+                      <Text style={styles.annulerBtnConfirmTxt}>{decisionSaving ? '...' : 'Enregistrer'}</Text>
                     </TouchableOpacity>
                   </View>
                 </>
@@ -5074,6 +5213,9 @@ function makeStyles(colors) { return StyleSheet.create({
   ecBtnRefuser: { backgroundColor: '#FCEBEB', borderWidth: 1, borderColor: '#F09595' },
   ecBtnValider: { backgroundColor: '#E8F5E9', borderWidth: 1, borderColor: '#9CCC9F' },
   ecBtnTxt: { fontSize: 18 },
+  ecBtnLitige: { minHeight: 44, paddingHorizontal: 8, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FCEBEB', borderWidth: 1, borderColor: '#E7B5B5' },
+  ecBtnLitigeTxt: { fontSize: 12, fontWeight: '800', color: '#A32D2D' },
+  litigeAlerte: { fontSize: 12, fontWeight: '700', color: '#A32D2D', marginTop: 8, textAlign: 'center' },
   ecStatut: { fontSize: 11, fontWeight: '700', textAlign: 'right' },
   ecDetail: { paddingHorizontal: 12, paddingBottom: 12, gap: 6 },
   ecDetailTxt: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
