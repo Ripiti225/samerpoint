@@ -286,11 +286,13 @@ export function ModalArchive({ trav, styles, peutSupprimer, onFermer, onArchiver
   const [autre, setAutre] = useState('')
   const [saving, setSaving] = useState(false)
   const [badge, setBadge] = useState(null)   // true = rendu, false = gardé ; obligatoire
-  useEffect(() => { if (trav) { setMotif('Démission'); setAutre(''); setBadge(null) } }, [trav])
+  const [badgeManquant, setBadgeManquant] = useState(false)
+  useEffect(() => { if (trav) { setMotif('Démission'); setAutre(''); setBadge(null); setBadgeManquant(false) } }, [trav])
   if (!trav) return null
 
   async function archiver() {
-    if (badge === null) return
+    // Le bouton reste touchable sans réponse : il dit ce qui manque au lieu de ne rien faire.
+    if (badge === null) { setBadgeManquant(true); return }
     setSaving(true)
     await onArchiver(trav, motif === 'Autre' ? (autre.trim() || 'Autre') : motif, badge)
     setSaving(false)
@@ -318,7 +320,7 @@ export function ModalArchive({ trav, styles, peutSupprimer, onFermer, onArchiver
           <Text style={styles.modalLabel}>Badge (carte du travailleur) récupéré ?</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 6 }}>
             {[[true, '✅ Oui, rendu'], [false, '⚠️ Non, gardé']].map(([v, l]) => (
-              <TouchableOpacity key={l} style={[styles.motifBtn, { flex: 1, alignItems: 'center' }, badge === v && styles.motifBtnActive]} onPress={() => setBadge(v)}>
+              <TouchableOpacity key={l} style={[styles.motifBtn, { flex: 1, alignItems: 'center' }, badge === v && styles.motifBtnActive]} onPress={() => { setBadge(v); setBadgeManquant(false) }}>
                 <Text style={[styles.motifTxt, badge === v && styles.motifTxtActive]}>{l}</Text>
               </TouchableOpacity>
             ))}
@@ -328,8 +330,13 @@ export function ModalArchive({ trav, styles, peutSupprimer, onFermer, onArchiver
               ? 'Sa carte affichera « Ne fait plus partie du personnel » au scan. La fiche gardera « Badge non rendu ».'
               : 'Une fois archivé, sa carte affiche « Ne fait plus partie du personnel » au scan.'}
           </Text>
+          {badgeManquant && (
+            <Text style={{ fontSize: 13, fontWeight: '700', color: '#C2462B', marginBottom: 8 }}>
+              ⚠️ Répondez d'abord à la question du badge : rendu ou gardé ?
+            </Text>
+          )}
           <View style={{ gap: 8, marginTop: 6 }}>
-            <TouchableOpacity style={[styles.modalConfirm, { flex: 0 }, (saving || badge === null) && { opacity: 0.5 }]} onPress={archiver} disabled={saving || badge === null}>
+            <TouchableOpacity style={[styles.modalConfirm, { flex: 0 }, (saving || badge === null) && { opacity: 0.5 }]} onPress={archiver} disabled={saving}>
               <Text style={styles.modalConfirmTxt}>{saving ? 'Archivage…' : '📦 Archiver ce travailleur'}</Text>
             </TouchableOpacity>
             {peutSupprimer && (
