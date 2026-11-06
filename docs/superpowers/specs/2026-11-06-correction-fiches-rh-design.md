@@ -33,7 +33,7 @@ Le manager, le directeur et la RH reçoivent des gérants les données des trava
 **Effet d'Accepter :**
 - Les corrections remplacent les champs de la demande, en base et en mémoire, puis le circuit d'acceptation existant s'applique.
 - Mise à jour : un champ vide n'efface jamais une valeur de la fiche. Vider un champ revient à écarter la valeur du gérant.
-- Embauche : nom de famille et prénoms sont obligatoires pour accepter, car ils forment le nom de la fiche. Un champ vide doit être enregistré `NULL`, jamais `''` (une date vide ferait échouer l'écriture).
+- Nom de famille et prénoms restent obligatoires quand les corrections sont ouvertes, dans les deux cas : la table `demandes_travailleurs` les exige (`NOT NULL`). Les autres champs vides sont enregistrés `NULL`, jamais `''` (une date vide ferait échouer l'écriture).
 
 **Fiches refusées (mises à jour seulement) :**
 - L'onglet Refusées ouvre `FeuilleMiseAJourRH`, sans le bouton Refuser.
@@ -99,7 +99,7 @@ Saisie en masse, import de fichier, modification de la date de début d'un contr
 - `fusionFiche` : corrections, champ vidé, renommage.
 - `fichesACompleter` : filtres, tri, refusées, archivés exclus.
 
-**Rattachement des paies :** extraire le choix en fonction pure et tester ses cas, dont l'homonyme et l'archivé.
+**Rattachement des paies :** `rattacherPaiesGerant` est déjà pure et testée pour l'homonyme ; ajouter le cas de l'homonyme archivé dans `lib/equipe.test.mjs`.
 
 **Avant publication :** `npm run lint` (0 erreur), tests `lib/*.test.mjs` (0 échec), export web.
 
