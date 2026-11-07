@@ -152,7 +152,7 @@ test('calendrier : date unique passée masquée, « chaque année » à sa proch
     ],
     aujourdhui: AUJ,
   })
-  assert.deepEqual(lignes.map(l => [l.evenement.id, l.date]), [['noel', '2026-12-25'], ['tab', '2026-11-10']])
+  assert.deepEqual(lignes.map(l => [l.evenement.id, l.date]), [['tab', '2026-11-10'], ['noel', '2026-12-25']])
 })
 
 test('fil : sections vides retirées, tri par date, filtre par type', () => {
@@ -727,7 +727,7 @@ export default function FeuilleMessage({ ligne, styles, colors, onFermer }) {
         <Text style={{ fontSize: 14, fontWeight: '700', color: colors.error }}>Pas de numéro valide sur la fiche</Text>
       ) : (
         <>
-          {vide ? <Text style={{ fontSize: 13, color: colors.error, marginBottom: 8 }}>Écrivez un message pour pouvoir l'envoyer.</Text> : null}
+          {vide ? <Text style={{ fontSize: 13, color: colors.error, marginBottom: 8 }}>{"Écrivez un message pour pouvoir l'envoyer."}</Text> : null}
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Bouton label="📲 WhatsApp" variante="plein" couleur="#25D366" flex grand styles={styles} disabled={vide}
               onPress={() => ouvrir(lienWhatsApp(numero, texte.trim()), 'WhatsApp')} />
