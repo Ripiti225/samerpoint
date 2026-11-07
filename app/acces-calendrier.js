@@ -3,10 +3,10 @@
 // Trésorerie. Garde-fous dans lib/accesCalendrier.js.
 // ──────────────────────────────────────────────────────────────────────────────
 import { router } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Switch, Text, View } from 'react-native'
 
-import { EnTete, Libelle, Puces, Vide, useEcranModerne } from '../components/ui/EcranModerne'
+import { Bouton, EnTete, Libelle, Puces, Vide, useEcranModerne } from '../components/ui/EcranModerne'
 import { useApp } from '../context/AppContext'
 import { ROLES_CALENDRIER, TYPES_CALENDRIER, basculerType, estVerrouille, typesAutorises } from '../lib/accesCalendrier'
 import { chargerAccesCalendrier, chargerDroitsCalendrier, enregistrerAccesCalendrier } from '../lib/evenementsDb'
@@ -15,18 +15,27 @@ const FAMILLES = ['Personnel', 'Calendrier', 'Trésorerie']
 
 export default function AccesCalendrierScreen() {
   const { roleActif, userId, userNom } = useApp()
-  const { styles, colors, principale } = useEcranModerne('sarcelle')
-  const [autorise, setAutorise] = useState(null)
+  const { styles, colors, principale, accent } = useEcranModerne('sarcelle')
+  // Quatre états : 'chargement', 'erreur' (lecture impossible), 'refuse', 'pret'.
+  const [etat, setEtat] = useState('chargement')
   const [config, setConfig] = useState({})
   const [role, setRole] = useState('rh')
 
-  useEffect(() => {
+  const charger = useCallback(() => {
     let vivant = true
+    setEtat('chargement')
     Promise.all([chargerDroitsCalendrier({ role: roleActif, userId }), chargerAccesCalendrier()])
-      .then(([{ droits }, c]) => { if (vivant) { setAutorise(droits.proprietaire); setConfig(c) } })
-      .catch(() => { if (vivant) setAutorise(false) })
+      .then(([{ droits, manque }, c]) => {
+        if (!vivant) return
+        if (manque || c.erreur) { setEtat('erreur'); return }
+        setConfig(c.config)
+        setEtat(droits.proprietaire ? 'pret' : 'refuse')
+      })
+      .catch(() => { if (vivant) setEtat('erreur') })
     return () => { vivant = false }
   }, [roleActif, userId])
+
+  useEffect(() => charger(), [charger])
 
   const types = typesAutorises(role, { config })
 
@@ -42,7 +51,7 @@ export default function AccesCalendrierScreen() {
     }
   }
 
-  if (autorise === null) {
+  if (etat === 'chargement') {
     return (
       <SafeAreaView style={styles.container}>
         <EnTete titre="Accès au calendrier" onRetour={() => router.back()} styles={styles} />
@@ -51,7 +60,19 @@ export default function AccesCalendrierScreen() {
     )
   }
 
-  if (!autorise) {
+  if (etat === 'erreur') {
+    return (
+      <SafeAreaView style={styles.container}>
+        <EnTete titre="Accès au calendrier" onRetour={() => router.back()} styles={styles} />
+        <View style={styles.body}>
+          <Vide icone="⚠️" texte="Les réglages n'ont pas pu être chargés. Vérifiez la connexion." styles={styles} />
+          <Bouton label="Réessayer" couleur={accent} styles={styles} onPress={charger} />
+        </View>
+      </SafeAreaView>
+    )
+  }
+
+  if (etat === 'refuse') {
     return (
       <SafeAreaView style={styles.container}>
         <EnTete titre="Accès au calendrier" onRetour={() => router.back()} styles={styles} />
@@ -77,7 +98,7 @@ export default function AccesCalendrierScreen() {
                 <View key={t.cle} style={[styles.carte, { flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }}>{t.label}</Text>
-                    {verrou ? <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>🔒 Rattaché à aucun restaurant : jamais pour le gérant</Text> : null}
+                    {verrou ? <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>🔒 Jamais pour le gérant</Text> : null}
                   </View>
                   <Switch value={types.includes(t.cle)} disabled={verrou} onValueChange={() => basculer(t.cle)} />
                 </View>

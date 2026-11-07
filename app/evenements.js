@@ -15,19 +15,19 @@ import LigneEvenement from '../components/evenements/LigneEvenement'
 import { Bouton, EnTete, Puces, Vide, useEcranModerne } from '../components/ui/EcranModerne'
 import { useApp } from '../context/AppContext'
 import { aujourdhuiISO } from '../lib/contrats'
-import { droitsDates, filtrerParDroits, lignesDates } from '../lib/calendrierDates'
+import { droitsDates, filtreVisible, filtrerParDroits, lignesDates } from '../lib/calendrierDates'
 import { chargerRestaurants } from '../lib/equipeDb'
 import { construireFil, construireLignes, dansRestaurant, fusionnerLignes, nbSansNaissance, peutVoirEvenements, voitToutLeGroupe } from '../lib/evenements'
-import { chargerDatesCalendrier, chargerDonneesEvenements } from '../lib/evenementsDb'
+import { chargerDatesCalendrier, chargerDonneesEvenements, chargerDroitsCalendrier } from '../lib/evenementsDb'
 
 const FILTRES = [
   { cle: 'tout', label: 'Tout' },
-  { cle: 'anniversaire', label: '🎂 Anniversaires', visible: d => d?.anniversaires },
-  { cle: 'anciennete', label: '🏅 Ancienneté', visible: d => d?.anciennete },
-  { cle: 'calendrier', label: '📅 Calendrier', visible: d => d?.evenements },
-  { cle: 'tresorerie', label: '🏦 Trésorerie', visible: d => d?.cheques || d?.charges },
-  { cle: 'personnel', label: '👥 Personnel', visible: d => d?.contrats || d?.conges },
-  { cle: 'taches', label: '🧭 Tâches', visible: d => d?.taches },
+  { cle: 'anniversaire', label: '🎂 Anniversaires' },
+  { cle: 'anciennete', label: '🏅 Ancienneté' },
+  { cle: 'calendrier', label: '📅 Calendrier' },
+  { cle: 'tresorerie', label: '🏦 Trésorerie' },
+  { cle: 'personnel', label: '👥 Personnel' },
+  { cle: 'taches', label: '🧭 Tâches' },
 ]
 
 export default function EvenementsScreen() {
@@ -46,7 +46,10 @@ export default function EvenementsScreen() {
   const [ligneMessage, setLigneMessage] = useState(null)
   const [formulaire, setFormulaire] = useState({ visible: false, evenement: null })
   const [joursFeries, setJoursFeries] = useState(false)
-  const [dates, setDates] = useState({ donnees: null, droits: null, manque: false })
+  const [acces, setAcces] = useState({ droits: null, manque: false })
+  const [dates, setDates] = useState({ donnees: null, manque: false })
+  const [datesEnCours, setDatesEnCours] = useState(true)
+  const [essai, setEssai] = useState(0)
 
   const charger = useCallback(async () => {
     if (!autorise) { setLoading(false); return }
@@ -62,27 +65,40 @@ export default function EvenementsScreen() {
 
   useEffect(() => { charger() }, [charger])
   // Rechargé à chaque retour sur l'écran : un chèque encaissé disparaît du fil.
+  // Les droits d'abord (le reste s'affiche dès qu'ils sont connus), puis les dates.
   useFocusEffect(useCallback(() => {
     if (!autorise) return undefined
     let vivant = true
-    chargerDatesCalendrier({ role: roleActif, userId, restaurantId })
-      .then(r => { if (vivant) setDates(r) })
+    setDatesEnCours(true)
+    chargerDroitsCalendrier({ role: roleActif, userId })
+      .then(async lus => {
+        if (!vivant) return
+        setAcces(lus)
+        const r = await chargerDatesCalendrier({ role: roleActif, restaurantId, droits: lus.droits })
+        if (vivant) setDates(r)
+      })
       .catch(() => {
         // Droits inconnus : on ne montre que ce qu'un gérant sans aucun type verrait, jamais plus.
-        if (vivant) setDates(d => ({ ...d, manque: true, droits: d.droits || droitsDates('gerant', userId, [], { gerant: [] }) }))
+        if (!vivant) return
+        setAcces(a => ({ manque: true, droits: a.droits || droitsDates('gerant', userId, [], { gerant: [] }) }))
+        setDates(d => ({ ...d, manque: true }))
       })
+      .finally(() => { if (vivant) setDatesEnCours(false) })
     return () => { vivant = false }
-  }, [autorise, roleActif, userId, restaurantId]))
+  }, [autorise, roleActif, userId, restaurantId, essai]))
   useEffect(() => { if (groupe) chargerRestaurants().then(setRestaurants).catch(() => {}) }, [groupe])
 
   const visibles = useMemo(() => dansRestaurant(donnees, groupe ? restoFiltre : null), [donnees, groupe, restoFiltre])
   const lignes = useMemo(() => {
-    if (!dates.donnees || !dates.droits) return []
-    const base = filtrerParDroits(construireLignes({ ...visibles, aujourdhui }), dates.droits)
-    const autres = lignesDates(dates.donnees, { aujourdhui, droits: dates.droits, restaurantId: groupe ? restoFiltre : restaurantId, groupe })
+    if (!acces.droits) return []
+    const base = filtrerParDroits(construireLignes({ ...visibles, aujourdhui }), acces.droits)
+    if (!dates.donnees) return base
+    const autres = lignesDates(dates.donnees, { aujourdhui, droits: acces.droits, restaurantId: groupe ? restoFiltre : restaurantId, groupe })
     return fusionnerLignes(base, autres)
-  }, [visibles, aujourdhui, dates, groupe, restoFiltre, restaurantId])
-  const filtres = useMemo(() => FILTRES.filter(f => !f.visible || f.visible(dates.droits)), [dates.droits])
+  }, [visibles, aujourdhui, acces.droits, dates.donnees, groupe, restoFiltre, restaurantId])
+  const filtres = useMemo(() => FILTRES.filter(f => filtreVisible(f.cle, acces.droits)), [acces.droits])
+  // Un filtre qui n'est plus proposé ne doit pas laisser un fil vide.
+  useEffect(() => { if (!filtres.some(f => f.cle === filtre)) setFiltre('tout') }, [filtres, filtre])
   const fil = useMemo(() => construireFil(lignes, aujourdhui, filtre, { plusTard: groupe }), [lignes, aujourdhui, filtre, groupe])
   const sansNaissance = useMemo(() => nbSansNaissance(visibles.travailleurs), [visibles])
 
@@ -106,7 +122,7 @@ export default function EvenementsScreen() {
       {groupe ? <Puces ligne styles={styles} actif={restoFiltre} onChoisir={setRestoFiltre} elements={puccesRestos} /> : null}
       <Puces ligne styles={styles} actif={filtre} onChoisir={setFiltre} elements={filtres} />
 
-      {loading || !dates.droits ? (
+      {loading || !acces.droits ? (
         <ActivityIndicator color={principale} style={{ marginTop: 40 }} />
       ) : erreur ? (
         <View style={styles.body}>
@@ -116,23 +132,28 @@ export default function EvenementsScreen() {
       ) : (
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
           <View style={{ marginBottom: 12, gap: 8 }}>
-            {dates.droits?.evenements && groupe ? (
+            {acces.droits?.evenements && groupe ? (
               <Bouton label="➕ Ajouter un événement" variante="plein" couleur={principale} styles={styles}
                 onPress={() => setFormulaire({ visible: true, evenement: null })} />
             ) : null}
-            {dates.droits?.evenements ? (
+            {acces.droits?.evenements ? (
               <Bouton label="🇨🇮 Jours fériés ivoiriens" couleur={principale} styles={styles} onPress={() => setJoursFeries(true)} />
             ) : null}
-            {dates.droits?.proprietaire ? (
+            {acces.droits?.proprietaire ? (
               <Bouton label="🔐 Accès au calendrier : qui voit quoi" couleur={principale} styles={styles} onPress={() => router.push('/acces-calendrier')} />
             ) : null}
-            {groupe && dates.droits?.anniversaires && sansNaissance > 0 ? (
+            {groupe && acces.droits?.anniversaires && sansNaissance > 0 ? (
               <Text style={{ fontSize: 13, color: colors.textMuted }}>
                 {sansNaissance} fiche{sansNaissance > 1 ? 's' : ''} sans date de naissance
               </Text>
             ) : null}
-            {dates.manque ? (
-              <Text style={{ fontSize: 13, color: colors.textMuted }}>Certaines dates n'ont pas pu être chargées.</Text>
+            {datesEnCours ? (
+              <Text style={{ fontSize: 13, color: colors.textMuted }}>Chargement des dates…</Text>
+            ) : acces.manque || dates.manque ? (
+              <View style={{ gap: 6 }}>
+                <Text style={{ fontSize: 13, color: colors.textMuted }}>Certaines dates n'ont pas pu être chargées.</Text>
+                <Bouton label="Réessayer" couleur={accent} styles={styles} onPress={() => { setLoading(true); charger(); setEssai(e => e + 1) }} />
+              </View>
             ) : null}
           </View>
 
@@ -144,7 +165,7 @@ export default function EvenementsScreen() {
               {section.lignes.map(ligne => (ligne.type === 'date' ? (
                 <LigneDate key={ligne.cle} ligne={ligne} aujourdhui={aujourdhui} styles={styles} colors={colors} />
               ) : (
-                <LigneEvenement key={ligne.cle} ligne={ligne} aujourdhui={aujourdhui} voitAge={!!dates.droits?.age} peutGerer={groupe}
+                <LigneEvenement key={ligne.cle} ligne={ligne} aujourdhui={aujourdhui} voitAge={!!acces.droits?.age} peutGerer={groupe}
                   styles={styles} colors={colors} accent={accent}
                   onMessage={setLigneMessage}
                   onModifier={evenement => setFormulaire({ visible: true, evenement })} />

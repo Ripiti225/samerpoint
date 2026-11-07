@@ -12,7 +12,7 @@ Sont inclus : la Trésorerie, les fins de contrat, les congés et permissions, l
 
 ## Principe
 
-Tout est lu à l'affichage, là où c'est saisi. Rien n'est copié ni stocké, aucune migration n'est nécessaire. Toucher une ligne ouvre l'écran d'origine.
+Tout est lu à l'affichage, là où c'est saisi. Rien n'est copié ni stocké : les dates n'ont besoin d'aucune migration ; seuls les réglages d'accès utilisent `supabase_calendrier_acces.sql`. Toucher une ligne ouvre l'écran d'origine.
 
 ## Ce qui s'affiche
 
@@ -34,7 +34,7 @@ Une échéance et sa prévision restent deux lignes, car ce sont deux dates diff
 ## Le fil
 
 - Section **En retard** en tête : chèques, prévisions, remboursements et tâches dont la date est passée.
-- Échéances en retard : une seule ligne, « N échéances en retard », avec le total, qui ouvre À payer. Elle est réservée à ceux qui ont le droit `voir_dettes`.
+- Échéances en retard : une seule ligne, « N échéances en retard », avec le total, qui ouvre À payer. Elle est réservée à ceux pour qui le réglage « Échéances en retard » est activé.
 - Filtres ajoutés selon les droits : Trésorerie, Personnel, Tâches.
 - Section **Plus tard** pour la direction et la RH, sous les filtres Calendrier, Trésorerie, Personnel et Tâches.
 - Le filtre par restaurant s'applique. Les lignes sans restaurant (chèques, coffre) restent visibles quel que soit le restaurant choisi.
@@ -42,12 +42,15 @@ Une échéance et sa prévision restent deux lignes, car ce sont deux dates diff
 
 ## Droits
 
-| Compte | Niveau Trésorerie | Chèques | Échéances, prévisions, charges | Coffre | Échéances en retard | Contrats | Congés, tâches |
-|---|---|---|---|---|---|---|---|
-| Propriétaire | `proprietaire` | Oui | Oui | Oui | Oui | Oui | Groupe |
-| Autre manager | `lecture` | Oui | Oui | Non | Non | Oui | Groupe |
-| RH | `saisie_rh` | Non | Ses catégories | Non | Non | Oui | Groupe |
-| Gérant | Aucun, même avec une ligne de droits | Non | Non | Non | Non | Non | Son restaurant |
+Ce tableau donne le réglage par défaut de chaque rôle ; le niveau Trésorerie ne décide plus.
+
+| Compte | Chèques | Échéances, prévisions, charges | Coffre | Échéances en retard | Contrats | Congés, tâches |
+|---|---|---|---|---|---|---|
+| Propriétaire | Oui | Oui | Oui | Oui | Oui | Groupe |
+| Manager non propriétaire | Oui | Oui | Non | Non | Oui | Groupe |
+| Directeur (égal au Manager) | Oui | Oui | Non | Non | Oui | Groupe |
+| RH | Non | Ses catégories | Non | Non | Oui | Groupe |
+| Gérant | Non | Non | Non | Non | Non | Son restaurant |
 
 Les données qu'un compte ne peut pas voir ne sont pas lues du tout. Si les droits ne peuvent pas être lus, aucune donnée de Trésorerie n'est chargée.
 
@@ -80,7 +83,12 @@ L'utilisateur veut changer qui voit quoi sans modifier le code. Les colonnes « 
 - **Seul le propriétaire de la Trésorerie modifie ces réglages**, et il voit toujours tout.
 - **Garde-fous non réglables :**
   - Le gérant reste limité à son restaurant, quoi qu'on coche. Toute donnée liée à un autre restaurant ou à aucun restaurant est écartée, à la lecture comme à l'affichage. Les événements de tout le groupe restent visibles.
-  - Chèques, coffre et échéances en retard ne peuvent pas être activés pour le gérant : ils ne sont rattachés à aucun restaurant.
+  - Chèques, coffre, échéances en retard et fins de contrat ne peuvent pas être activés pour le gérant : les trois premiers ne sont rattachés à aucun restaurant, et l'écran des contrats montre tout le groupe.
 - **Stockage :** table `calendrier_acces` (`role`, `types`, `updated_at`, `modifie_par_nom`), migration `supabase_calendrier_acces.sql`. Sans ligne ou sans table, les réglages par défaut s'appliquent. Chaque modification est notée au journal.
 - Le rappel de l'accueil suit ces réglages. L'ajout et la modification d'événements restent à la direction et à la RH. Les alertes de stock restent réglées événement par événement.
 - **Limite connue :** comme le reste de l'application, ce contrôle se fait dans l'application tant que le chantier de sécurité n'est pas fait.
+- **Limites connues des dates :**
+  - Les prévisions portées par des droits d'anciens travailleurs (`fournisseur_id`) et les dus de catégorie `autre` sans date d'échéance ne sont pas affichés (aucun n'a de date aujourd'hui).
+  - Les alertes de stock ne suivent pas le réglage « Événements ».
+  - L'écran d'un gérant ne montre les échéances que si le propriétaire les active ; `/tresorerie-a-payer` le refuse ensuite, car les droits de la Trésorerie restent séparés.
+  - Les deux managers actuels sont tous deux propriétaires : la colonne Manager n'a aucun effet aujourd'hui.

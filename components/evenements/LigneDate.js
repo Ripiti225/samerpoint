@@ -20,7 +20,7 @@ export default function LigneDate({ ligne, aujourdhui, styles, colors }) {
         <Text style={{ fontSize: 15, fontWeight: '800', color: colors.text }} numberOfLines={2}>{ligne.titre}</Text>
         {ligne.detail ? <Text style={{ fontSize: 13, color: colors.textMuted, marginTop: 2 }} numberOfLines={2}>{ligne.detail}</Text> : null}
         <Text style={{ fontSize: 13, fontWeight: '700', color: ligne.retard ? colors.error : colors.textMuted, marginTop: 2 }}>
-          {libelleJour(ligne.date, aujourdhui)}{ligne.montant !== null ? ` · ${fmt(ligne.montant)} F` : ''}
+          {libelleJour(ligne.date, aujourdhui)}{ligne.date.slice(0, 4) !== String(aujourdhui.slice(0, 4)) ? ` ${ligne.date.slice(0, 4)}` : ''}{ligne.montant !== null ? ` · ${fmt(ligne.montant)} F` : ''}
         </Text>
       </View>
       <MaterialCommunityIcons name="chevron-right" size={20} color={colors.textMuted} />
