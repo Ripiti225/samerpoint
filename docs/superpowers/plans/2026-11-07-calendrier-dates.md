@@ -682,3 +682,519 @@ git commit -m "feat(evenements): chèques, échéances, contrats, congés et tâ
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 git push
 ```
+
+---
+
+### Task 3 : accès réglables, logique pure
+
+**Files :**
+- Create : `lib/accesCalendrier.js`, `lib/accesCalendrier.test.mjs`
+- Modify : `lib/calendrierDates.js`, `lib/calendrierDates.test.mjs`
+
+**Interfaces :**
+- Produces (depuis `lib/accesCalendrier.js`) : `TYPES_CALENDRIER`, `ROLES_CALENDRIER`, `INTERDITS_GERANT`, `ACCES_CALENDRIER_DEFAUT`, `typesAutorises(role, { proprietaire, config }) → string[]`, `estVerrouille(role, cle) → boolean`, `basculerType(types, cle) → string[]`.
+- Produces (depuis `lib/calendrierDates.js`) : `droitsDates(role, userId, droits, config = {})` renvoie aussi `proprietaire`, `echeances`, `previsions`, `anniversaires`, `age`, `anciennete`, `evenements` ; `filtrerParDroits(lignes, droits) → lignes`.
+
+- [ ] **Step 1 : écrire les tests qui échouent**
+
+Créer `lib/accesCalendrier.test.mjs` :
+
+```js
+// Tests de lib/accesCalendrier.js — qui voit quoi dans le calendrier.
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+
+import { ACCES_CALENDRIER_DEFAUT, TYPES_CALENDRIER, basculerType, estVerrouille, typesAutorises } from './accesCalendrier.js'
+
+const TOUS = TYPES_CALENDRIER.map(t => t.cle)
+
+test('par défaut : le RH sans chèques, coffre ni dettes ; le gérant sans Trésorerie ni contrats', () => {
+  const rh = typesAutorises('rh')
+  for (const k of ['cheques', 'coffre', 'echeances_retard']) assert.equal(rh.includes(k), false, k)
+  for (const k of ['echeances', 'previsions', 'charges', 'contrats', 'conges', 'taches']) assert.equal(rh.includes(k), true, k)
+  const g = typesAutorises('gerant')
+  for (const k of ['cheques', 'coffre', 'echeances_retard', 'echeances', 'previsions', 'charges', 'contrats', 'age']) assert.equal(g.includes(k), false, k)
+  for (const k of ['anniversaires', 'anciennete', 'evenements', 'conges', 'taches']) assert.equal(g.includes(k), true, k)
+})
+
+test('le réglage remplace le défaut du rôle, les types inconnus sont ignorés', () => {
+  assert.deepEqual(typesAutorises('rh', { config: { rh: ['cheques', 'inconnu'] } }), ['cheques'])
+  assert.deepEqual(typesAutorises('rh', { config: { rh: [] } }), [])
+  assert.deepEqual(typesAutorises('rh', { config: { gerant: [] } }), ACCES_CALENDRIER_DEFAUT.rh)
+})
+
+test('garde-fou : jamais de chèques, coffre ni dettes pour le gérant, même cochés', () => {
+  const g = typesAutorises('gerant', { config: { gerant: ['cheques', 'coffre', 'echeances_retard', 'echeances'] } })
+  assert.deepEqual(g, ['echeances'])
+  for (const k of ['cheques', 'coffre', 'echeances_retard']) assert.equal(estVerrouille('gerant', k), true, k)
+  assert.equal(estVerrouille('gerant', 'echeances'), false)
+  assert.equal(estVerrouille('rh', 'cheques'), false)
+})
+
+test('le propriétaire voit toujours tout, quels que soient les réglages', () => {
+  assert.deepEqual(typesAutorises('manager', { proprietaire: true, config: { manager: [] } }), TOUS)
+})
+
+test('un rôle hors liste ne voit rien', () => {
+  assert.deepEqual(typesAutorises('caissier'), [])
+  assert.deepEqual(typesAutorises('caissier', { config: { caissier: ['cheques'] } }), [])
+})
+
+test('basculerType : ajoute ou retire', () => {
+  assert.deepEqual(basculerType(['a'], 'b'), ['a', 'b'])
+  assert.deepEqual(basculerType(['a', 'b'], 'a'), ['b'])
+})
+```
+
+Dans `lib/calendrierDates.test.mjs`, ajouter `filtrerParDroits` à l'import, puis à la fin du fichier :
+
+```js
+test('le réglage décide : chèques cochés pour le RH, coffre coupé pour le propriétaire impossible', () => {
+  const rh = droitsDates('rh', 'r', [], { rh: ['cheques'] })
+  assert.equal(rh.cheques, true)
+  assert.equal(rh.echeances, false)
+  assert.deepEqual(rh.categories, [])
+  const p = droitsDates('manager', 'p', [{ user_id: 'p', niveau: 'proprietaire' }], { manager: [] })
+  assert.deepEqual([p.proprietaire, p.coffre, p.cheques, p.dettes], [true, true, true, true])
+})
+
+test('échéances et prévisions se règlent séparément', () => {
+  const dus = [du()]
+  const previsions = [{ id: 'p1', du_id: 'd1', montant: 100, date_prevue: '2026-11-12' }]
+  const sansEcheances = droitsDates('rh', 'r', [], { rh: ['previsions'] })
+  assert.deepEqual(lignes({ dus, previsions }, { droits: sansEcheances }).map(x => x.sousType), ['prevision'])
+  const sansPrevisions = droitsDates('rh', 'r', [], { rh: ['echeances'] })
+  assert.deepEqual(lignes({ dus, previsions }, { droits: sansPrevisions }).map(x => x.sousType), ['echeance'])
+})
+
+test('garde-fou gérant : seulement son restaurant, même avec tout coché', () => {
+  const g = droitsDates('gerant', 'g', [], { gerant: ['echeances', 'charges', 'contrats', 'taches'] })
+  const d = {
+    dus: [du({ id: 'a' }), du({ id: 'b', restaurant_id: 'r2' }), du({ id: 'c', restaurant_id: null })],
+    taches: [{ id: 't', titre: 'T', statut: 'a_faire', echeance: '2026-11-10', restaurant_id: 'r2' }],
+    contrats: [{ id: 'k', statut: 'signe', type: 'CDD', date_fin: '2027-01-31', restaurant_id: 'r2' }],
+    fournisseurs: [{ id: 'f', type: 'administratif', actif: true, restaurant_id: 'r2', facture_mensuelle: 10 }],
+  }
+  const l = lignes(d, { droits: g, groupe: false, restaurantId: 'r1' })
+  assert.deepEqual(l.map(x => x.cle), ['du-a'])
+})
+
+test('filtrerParDroits : les anniversaires, l\'ancienneté et les événements suivent le réglage', () => {
+  const l = [{ type: 'anniversaire' }, { type: 'anciennete' }, { type: 'calendrier' }, { type: 'date' }]
+  const g = droitsDates('rh', 'r', [], { rh: ['anniversaires'] })
+  assert.deepEqual(filtrerParDroits(l, g).map(x => x.type), ['anniversaire', 'date'])
+})
+```
+
+- [ ] **Step 2 : vérifier l'échec**
+
+Run : `node lib/accesCalendrier.test.mjs; node lib/calendrierDates.test.mjs`
+Expected : échec `Cannot find module` pour le premier ; export `filtrerParDroits` absent pour le second.
+
+- [ ] **Step 3 : écrire `lib/accesCalendrier.js`**
+
+```js
+// ──────────────────────────────────────────────────────────────────────────────
+// Qui voit quoi dans le calendrier. Réglable dans l'écran Accès au calendrier
+// (table calendrier_acces), réservé au propriétaire de la Trésorerie.
+// Garde-fous NON réglables : le propriétaire voit tout ; le gérant n'a jamais ce
+// qui n'est rattaché à aucun restaurant (voir aussi lignesDates pour sa portée).
+// Tests : lib/accesCalendrier.test.mjs
+// ──────────────────────────────────────────────────────────────────────────────
+
+export const TYPES_CALENDRIER = [
+  { cle: 'anniversaires', label: '🎂 Anniversaires', famille: 'Personnel' },
+  { cle: 'age', label: "🔢 Âge dans les anniversaires", famille: 'Personnel' },
+  { cle: 'anciennete', label: '🏅 Ancienneté', famille: 'Personnel' },
+  { cle: 'conges', label: '🌴 Congés et permissions', famille: 'Personnel' },
+  { cle: 'contrats', label: '📝 Fins de contrat', famille: 'Personnel' },
+  { cle: 'evenements', label: '📅 Événements et jours fériés', famille: 'Calendrier' },
+  { cle: 'taches', label: '🧭 Tâches de supervision', famille: 'Calendrier' },
+  { cle: 'cheques', label: '🧾 Chèques à encaisser', famille: 'Trésorerie' },
+  { cle: 'echeances', label: '🏠 Échéances À payer', famille: 'Trésorerie' },
+  { cle: 'previsions', label: '🗓️ Prévisions de paiement', famille: 'Trésorerie' },
+  { cle: 'charges', label: '🏛️ Charges administratives', famille: 'Trésorerie' },
+  { cle: 'echeances_retard', label: '⚠️ Échéances en retard', famille: 'Trésorerie' },
+  { cle: 'coffre', label: '🔐 Remboursements du coffre', famille: 'Trésorerie' },
+]
+
+export const ROLES_CALENDRIER = [
+  { cle: 'manager', label: 'Manager' },
+  { cle: 'directeur', label: 'Directeur' },
+  { cle: 'rh', label: 'RH' },
+  { cle: 'gerant', label: 'Gérant' },
+]
+
+export const INTERDITS_GERANT = ['cheques', 'coffre', 'echeances_retard']
+
+const COMMUN = ['anniversaires', 'anciennete', 'evenements', 'conges', 'taches']
+const DIRECTION = [...COMMUN, 'age', 'contrats', 'cheques', 'echeances', 'previsions', 'charges']
+
+export const ACCES_CALENDRIER_DEFAUT = {
+  manager: DIRECTION,
+  directeur: DIRECTION,
+  rh: [...COMMUN, 'age', 'contrats', 'echeances', 'previsions', 'charges'],
+  gerant: COMMUN,
+}
+
+const CONNUS = TYPES_CALENDRIER.map(t => t.cle)
+
+export const estVerrouille = (role, cle) => role === 'gerant' && INTERDITS_GERANT.includes(cle)
+
+export function typesAutorises(role, { proprietaire = false, config = {} } = {}) {
+  if (!ROLES_CALENDRIER.some(r => r.cle === role)) return []
+  if (proprietaire) return CONNUS
+  const types = Array.isArray(config[role]) ? config[role] : ACCES_CALENDRIER_DEFAUT[role]
+  return types.filter(k => CONNUS.includes(k) && !estVerrouille(role, k))
+}
+
+export const basculerType = (types, cle) => (types.includes(cle) ? types.filter(k => k !== cle) : [...types, cle])
+```
+
+- [ ] **Step 4 : adapter `lib/calendrierDates.js`**
+
+Ajouter l'import `import { typesAutorises } from './accesCalendrier.js'`.
+
+Remplacer `SANS_TRESORERIE` et `droitsDates` par :
+
+```js
+export const SANS_TRESORERIE = { cheques: false, coffre: false, charges: false, echeances: false, previsions: false, categories: [], dettes: false }
+
+/** Le réglage décide ; un gérant n'est jamais propriétaire ici, même avec une ligne de droits. */
+export function droitsDates(role, userId, droits = [], config = {}) {
+  const groupe = voitToutLeGroupe(role)
+  const proprietaire = groupe && niveauTresorerie(role, userId, droits) === 'proprietaire'
+  const types = typesAutorises(role, { proprietaire, config })
+  const a = k => types.includes(k)
+  const lireDus = a('echeances') || a('previsions') || a('echeances_retard')
+  return {
+    proprietaire,
+    cheques: a('cheques'),
+    coffre: a('coffre'),
+    charges: a('charges'),
+    echeances: a('echeances'),
+    previsions: a('previsions'),
+    dettes: a('echeances_retard'),
+    categories: lireDus ? categoriesVisibles('proprietaire').filter(c => c !== 'dette' || a('echeances_retard')) : [],
+    contrats: a('contrats'),
+    conges: a('conges'),
+    taches: a('taches'),
+    anniversaires: a('anniversaires'),
+    age: a('age'),
+    anciennete: a('anciennete'),
+    evenements: a('evenements'),
+  }
+}
+
+/** Les lignes qui ne viennent pas de lignesDates suivent aussi le réglage. */
+export function filtrerParDroits(lignes, droits) {
+  const permis = { anniversaire: droits.anniversaires, anciennete: droits.anciennete, calendrier: droits.evenements }
+  return lignes.filter(l => !(l.type in permis) || permis[l.type])
+}
+```
+
+Retirer `peut` de l'import de `./tresorerie.js` s'il n'est plus utilisé.
+
+Dans `lignesDates` :
+
+Remplacer `const dansLeResto = …` par :
+
+```js
+  // Garde-fou : un gérant n'a que son restaurant, jamais ce qui n'en a aucun.
+  const dansLeResto = id => (groupe ? (!restaurantId || !id || id === restaurantId) : !!id && id === restaurantId)
+```
+
+Dans la boucle des échéances, entourer le `sortie.push(…)` de l'échéance à venir par `if (droits.echeances)` : l'échéance en retard continue d'alimenter `enRetard`.
+
+Remplacer `if (droits.categories.length) {` du bloc des prévisions par `if (droits.previsions) {`.
+
+- [ ] **Step 5 : vérifier**
+
+Run : `node lib/accesCalendrier.test.mjs; node lib/calendrierDates.test.mjs; for f in lib/*.test.mjs; do node "$f" >/dev/null 2>&1 || echo "ECHEC $f"; done`
+Expected : tous les tests passent, y compris ceux de la Task 1, aucun `ECHEC`.
+
+- [ ] **Step 6 : commit**
+
+```bash
+export DEVELOPER_DIR=/Library/Developer/CommandLineTools
+git add lib/accesCalendrier.js lib/accesCalendrier.test.mjs lib/calendrierDates.js lib/calendrierDates.test.mjs
+git commit -m "feat(evenements): accès au calendrier réglables par rôle, avec garde-fous
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+git push
+```
+
+---
+
+### Task 4 : écran de réglage et application des accès
+
+**Files :**
+- Create : `supabase_calendrier_acces.sql`, `app/acces-calendrier.js`
+- Modify : `lib/evenementsDb.js`, `lib/journal.js`, `app/evenements.js`, `app/parametres.js`, `app/_layout.tsx`, `components/evenements/RappelEvenements.js`
+
+**Interfaces :**
+- Consumes : `droitsDates`, `filtrerParDroits`, `SANS_TRESORERIE` de `lib/calendrierDates.js` ; tout `lib/accesCalendrier.js`.
+- Produces (dans `lib/evenementsDb.js`) : `chargerAccesCalendrier() → Promise<config>`, sans erreur levée ; `chargerDroitsCalendrier({ role, userId }) → Promise<{ droits, manque }>` ; `enregistrerAccesCalendrier(role, types, ctx) → Promise<void>`.
+
+- [ ] **Step 1 : écrire la migration**
+
+Créer `supabase_calendrier_acces.sql` :
+
+```sql
+-- Qui voit quoi dans le calendrier. Sans ligne pour un rôle, les réglages par
+-- défaut de lib/accesCalendrier.js s'appliquent.
+-- Conception : docs/superpowers/specs/2026-11-07-calendrier-dates-design.md
+
+create table if not exists public.calendrier_acces (
+  role text primary key check (role in ('manager', 'directeur', 'rh', 'gerant')),
+  types jsonb not null default '[]'::jsonb,
+  modifie_par_nom text,
+  updated_at timestamptz not null default now()
+);
+
+-- Mêmes règles d'accès que roles_acces.
+alter table public.calendrier_acces enable row level security;
+drop policy if exists allow_all on public.calendrier_acces;
+create policy allow_all on public.calendrier_acces for all to public using (true) with check (true);
+grant select, insert, update on public.calendrier_acces to anon, authenticated;
+
+-- Contrôle : 1 table.
+select count(*) as table_ok from information_schema.tables where table_schema = 'public' and table_name = 'calendrier_acces';
+```
+
+Elle est seulement écrite : ne pas l'exécuter.
+
+- [ ] **Step 2 : ajouter la lecture et l'écriture**
+
+Dans `lib/journal.js`, ajouter `CALENDRIER_ACCES_MODIFIE: 'calendrier_acces_modifie',` à `ACTIONS`, et dans `ACTION_LABELS` : `calendrier_acces_modifie: { icon: '🔐', label: 'Accès au calendrier modifié' },`.
+
+Dans `lib/evenementsDb.js`, remplacer l'import de `./calendrierDates` par `import { SANS_TRESORERIE, droitsDates, filtrerParDroits } from './calendrierDates'` si `filtrerParDroits` y est utilisé, sinon sans lui, puis ajouter :
+
+```js
+/** Réglages par rôle ; sans table ou sans ligne, les réglages par défaut s'appliquent. */
+export async function chargerAccesCalendrier() {
+  const { data, error } = await supabase.from('calendrier_acces').select('role, types')
+  if (error) return {}
+  return Object.fromEntries((data || []).filter(l => Array.isArray(l.types)).map(l => [l.role, l.types]))
+}
+
+export async function chargerDroitsCalendrier({ role, userId }) {
+  const config = await chargerAccesCalendrier()
+  if (!['manager', 'directeur', 'rh'].includes(role)) return { droits: droitsDates(role, userId, [], config), manque: false }
+  const r = await supabase.from('tresorerie_droits').select('user_id, niveau')
+  const droits = droitsDates(role, userId, r.data || [], config)
+  // Droits illisibles : personne n'est considéré propriétaire et rien de la Trésorerie n'est lu.
+  return r.error ? { droits: { ...droits, ...SANS_TRESORERIE, proprietaire: false }, manque: true } : { droits, manque: false }
+}
+
+export async function enregistrerAccesCalendrier(role, types, ctx) {
+  const { error } = await supabase.from('calendrier_acces')
+    .upsert({ role, types, modifie_par_nom: ctx.userNom || null, updated_at: new Date().toISOString() }, { onConflict: 'role' })
+  if (error) throw error
+  journaliser(ACTIONS.CALENDRIER_ACCES_MODIFIE, { role, types }, { userId: ctx.userId, userNom: ctx.userNom }).catch(() => {})
+}
+```
+
+Dans `chargerDatesCalendrier` :
+
+Remplacer le bloc qui lit `tresorerie_droits` (de `let manque = false` jusqu'à la fin du `else`) par :
+
+```js
+  const lus = await chargerDroitsCalendrier({ role, userId })
+  const droits = lus.droits
+  let manque = lus.manque
+```
+
+et le premier `return` (compte sans restaurant) par `return { donnees: DONNEES_VIDES, droits: (await chargerDroitsCalendrier({ role, userId })).droits, manque: false }`.
+
+Garde-fou de lecture pour le gérant : dans `sources`,
+- `dus` : `toutesLesPages(() => parResto(supabase.from('tresorerie_dus').select('*')).order('id'))` ;
+- `paiements` : pour un gérant, sélectionner `'id, du_id, montant, prevision_id, date, tresorerie_dus!inner(restaurant_id)'` et filtrer `.eq('tresorerie_dus.restaurant_id', restaurantId)` ; pour le groupe, garder la lecture actuelle ;
+- `previsions` : pour un gérant, sélectionner `'*, tresorerie_dus!inner(restaurant_id)'` et filtrer `.eq('tresorerie_dus.restaurant_id', restaurantId)` ; pour le groupe, garder la lecture actuelle ;
+- `fournisseurs` et `contrats` : passer la requête dans `parResto(…)`.
+
+- [ ] **Step 3 : appliquer les accès sur l'écran Événements**
+
+Dans `app/evenements.js` :
+
+Ajouter `filtrerParDroits` à l'import de `../lib/calendrierDates`.
+
+Dans `FILTRES`, donner à `anniversaire`, `anciennete` et `calendrier` : `visible: d => d?.anniversaires`, `visible: d => d?.anciennete`, `visible: d => d?.evenements`.
+
+Dans le `.catch` du `useFocusEffect`, ne rien changer à la logique, mais `chargerDatesCalendrier` ayant déjà échoué, utiliser :
+
+```js
+      .catch(() => { if (vivant) setDates(d => ({ ...d, manque: true, droits: d.droits || droitsDates('gerant', userId, []) })) })
+```
+
+et ajouter `droitsDates` à l'import. Tant qu'on ne connaît pas les droits, l'écran ne montre rien : `loading` à l'affichage devient `loading || !dates.droits`.
+
+Remplacer le corps du `useMemo` de `lignes` par :
+
+```js
+    if (!dates.donnees || !dates.droits) return []
+    const base = filtrerParDroits(construireLignes({ ...visibles, aujourdhui }), dates.droits)
+    const autres = lignesDates(dates.donnees, { aujourdhui, droits: dates.droits, restaurantId: groupe ? restoFiltre : restaurantId, groupe })
+    return fusionnerLignes(base, autres)
+```
+
+Remplacer `voitAge={groupe}` par `voitAge={!!dates.droits?.age}`.
+
+Le bouton « Ajouter un événement » et le bouton « Jours fériés ivoiriens » ne s'affichent que si `dates.droits?.evenements`. Le compteur « fiches sans date de naissance » ne s'affiche que si `dates.droits?.anniversaires`.
+
+Pour le propriétaire seulement, ajouter sous ces boutons :
+
+```jsx
+            {dates.droits?.proprietaire ? (
+              <Bouton label="🔐 Accès au calendrier : qui voit quoi" couleur={principale} styles={styles} onPress={() => router.push('/acces-calendrier')} />
+            ) : null}
+```
+
+- [ ] **Step 4 : appliquer les accès au rappel de l'accueil**
+
+Dans `components/evenements/RappelEvenements.js`, ajouter `import { filtrerParDroits } from '../../lib/calendrierDates'`, ajouter `chargerDroitsCalendrier` à l'import de `../../lib/evenementsDb`, ajouter `userId` aux props et aux dépendances. Remplacer le chargement par :
+
+```js
+    Promise.all([
+      chargerDonneesEvenements({ groupe: voitToutLeGroupe(role), restaurantId }),
+      chargerDroitsCalendrier({ role, userId }),
+    ])
+      .then(([d, { droits }]) => {
+        if (!vivant) return
+        const lignes = filtrerParDroits(construireLignes({ ...d, aujourdhui }), droits)
+        setTexte(texteRappel(compterAujourdhui(lignes, aujourdhui)))
+      })
+      .catch(() => { if (vivant) setTexte(null) })
+```
+
+Dans `components/accueil/AccueilManager.js`, passer `userId={userId}` à `<RappelEvenements … />`.
+
+- [ ] **Step 5 : écrire l'écran de réglage**
+
+Créer `app/acces-calendrier.js` :
+
+```js
+// ──────────────────────────────────────────────────────────────────────────────
+// Accès au calendrier : qui voit quoi, par rôle. Réservé au propriétaire de la
+// Trésorerie. Garde-fous dans lib/accesCalendrier.js.
+// ──────────────────────────────────────────────────────────────────────────────
+import { router } from 'expo-router'
+import { useEffect, useState } from 'react'
+import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Switch, Text, View } from 'react-native'
+
+import { EnTete, Libelle, Puces, Vide, useEcranModerne } from '../components/ui/EcranModerne'
+import { useApp } from '../context/AppContext'
+import { ROLES_CALENDRIER, TYPES_CALENDRIER, basculerType, estVerrouille, typesAutorises } from '../lib/accesCalendrier'
+import { chargerAccesCalendrier, chargerDroitsCalendrier, enregistrerAccesCalendrier } from '../lib/evenementsDb'
+
+const FAMILLES = ['Personnel', 'Calendrier', 'Trésorerie']
+
+export default function AccesCalendrierScreen() {
+  const { roleActif, userId, userNom } = useApp()
+  const { styles, colors, principale } = useEcranModerne('sarcelle')
+  const [autorise, setAutorise] = useState(null)
+  const [config, setConfig] = useState({})
+  const [role, setRole] = useState('rh')
+
+  useEffect(() => {
+    let vivant = true
+    Promise.all([chargerDroitsCalendrier({ role: roleActif, userId }), chargerAccesCalendrier()])
+      .then(([{ droits }, c]) => { if (vivant) { setAutorise(droits.proprietaire); setConfig(c) } })
+      .catch(() => { if (vivant) setAutorise(false) })
+    return () => { vivant = false }
+  }, [roleActif, userId])
+
+  const types = typesAutorises(role, { config })
+
+  async function basculer(cle) {
+    const avant = config
+    const suivants = basculerType(types, cle)
+    setConfig({ ...config, [role]: suivants })
+    try {
+      await enregistrerAccesCalendrier(role, suivants, { userId: userId || null, userNom: userNom || null })
+    } catch {
+      setConfig(avant)
+      Alert.alert('Accès au calendrier', "Le réglage n'a pas pu être enregistré. Réessayez.")
+    }
+  }
+
+  if (autorise === null) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <EnTete titre="Accès au calendrier" onRetour={() => router.back()} styles={styles} />
+        <ActivityIndicator color={principale} style={{ marginTop: 40 }} />
+      </SafeAreaView>
+    )
+  }
+
+  if (!autorise) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <EnTete titre="Accès au calendrier" onRetour={() => router.back()} styles={styles} />
+        <Vide icone="🔒" texte="Seul le propriétaire peut modifier ces réglages." styles={styles} />
+      </SafeAreaView>
+    )
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <EnTete titre="Accès au calendrier" sous="Qui voit quoi, par rôle" onRetour={() => router.back()} styles={styles} />
+      <Puces ligne styles={styles} actif={role} onChoisir={setRole} elements={ROLES_CALENDRIER.map(r => ({ cle: r.cle, label: r.label }))} />
+      <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
+        <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 12 }}>
+          Le propriétaire voit toujours tout. {role === 'gerant' ? 'Le gérant reste limité à son restaurant, quoi que vous cochiez.' : 'Ouvrir un écran de la Trésorerie reste soumis aux droits de la Trésorerie.'}
+        </Text>
+        {FAMILLES.map(famille => (
+          <View key={famille}>
+            <Libelle styles={styles}>{famille}</Libelle>
+            {TYPES_CALENDRIER.filter(t => t.famille === famille).map(t => {
+              const verrou = estVerrouille(role, t.cle)
+              return (
+                <View key={t.cle} style={[styles.carte, { flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }}>{t.label}</Text>
+                    {verrou ? <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>🔒 Rattaché à aucun restaurant : jamais pour le gérant</Text> : null}
+                  </View>
+                  <Switch value={types.includes(t.cle)} disabled={verrou} onValueChange={() => basculer(t.cle)} />
+                </View>
+              )
+            })}
+          </View>
+        ))}
+        <View style={{ height: 30 }} />
+      </ScrollView>
+    </SafeAreaView>
+  )
+}
+```
+
+- [ ] **Step 6 : relier l'écran**
+
+Dans `app/_layout.tsx`, après `<Stack.Screen name="evenements" />` : `<Stack.Screen name="acces-calendrier" />`.
+
+Dans `app/parametres.js`, juste après le bloc `<View style={styles.infoBox}>` de la section des accès par rôle (autour de la ligne 1698), ajouter le bouton suivant, et importer `router` depuis `expo-router` s'il ne l'est pas déjà :
+
+```jsx
+        <TouchableOpacity style={styles.infoBox} onPress={() => router.push('/acces-calendrier')} accessibilityRole="button">
+          <Text style={styles.infoTxt}>🔐 Accès au calendrier : qui voit quoi dans Événements ›</Text>
+        </TouchableOpacity>
+```
+
+- [ ] **Step 7 : tout vérifier**
+
+Run : `for f in lib/*.test.mjs; do node "$f" >/dev/null 2>&1 || echo "ECHEC $f"; done; npm run lint 2>&1 | tail -4; npx expo export -p web 2>&1 | tail -3; grep -l "qui voit quoi" dist/_expo/static/js/web/*.js | head -2`
+Expected : aucun `ECHEC`, `0 errors`, export réussi, au moins un fichier trouvé.
+
+- [ ] **Step 8 : mettre le graphe à jour puis committer**
+
+```bash
+graphify update .
+export DEVELOPER_DIR=/Library/Developer/CommandLineTools
+git add supabase_calendrier_acces.sql app/acces-calendrier.js lib/evenementsDb.js lib/journal.js app/evenements.js app/parametres.js app/_layout.tsx components/evenements/RappelEvenements.js components/accueil/AccueilManager.js
+git commit -m "feat(evenements): écran Accès au calendrier et application des réglages
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+git push
+```
+
+Ne pas exécuter `supabase_calendrier_acces.sql`.

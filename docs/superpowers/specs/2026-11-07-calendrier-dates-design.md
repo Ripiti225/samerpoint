@@ -69,3 +69,18 @@ Le filtre des droits se fait dans l'application : la base reste lisible avec la 
 - `lib/evenements.js` : section En retard, filtres par famille, fusion des lignes.
 - `lib/evenementsDb.js` : `chargerDatesCalendrier`.
 - `components/evenements/LigneDate.js` et `app/evenements.js` : affichage.
+
+## Accès réglables (décision de l'utilisateur, 07/11/2026)
+
+L'utilisateur veut changer qui voit quoi sans modifier le code. Les colonnes « Droits » ci-dessus deviennent les **réglages par défaut**.
+
+- **Écran « Accès au calendrier »**, ouvert depuis Paramètres et depuis Événements : un choix de rôle (Manager, Directeur, RH, Gérant) et une ligne par type à activer ou couper.
+- **Types réglables :** anniversaires, âge, ancienneté, événements, congés, fins de contrat, tâches, chèques, échéances, prévisions, charges administratives, échéances en retard, coffre.
+- **Le réglage décide, pas la Trésorerie :** cocher « Chèques » pour le RH les lui montre dans le calendrier. Ouvrir l'écran Chèques reste soumis aux droits de la Trésorerie.
+- **Seul le propriétaire de la Trésorerie modifie ces réglages**, et il voit toujours tout.
+- **Garde-fous non réglables :**
+  - Le gérant reste limité à son restaurant, quoi qu'on coche. Toute donnée liée à un autre restaurant ou à aucun restaurant est écartée, à la lecture comme à l'affichage. Les événements de tout le groupe restent visibles.
+  - Chèques, coffre et échéances en retard ne peuvent pas être activés pour le gérant : ils ne sont rattachés à aucun restaurant.
+- **Stockage :** table `calendrier_acces` (`role`, `types`, `updated_at`, `modifie_par_nom`), migration `supabase_calendrier_acces.sql`. Sans ligne ou sans table, les réglages par défaut s'appliquent. Chaque modification est notée au journal.
+- Le rappel de l'accueil suit ces réglages. L'ajout et la modification d'événements restent à la direction et à la RH. Les alertes de stock restent réglées événement par événement.
+- **Limite connue :** comme le reste de l'application, ce contrôle se fait dans l'application tant que le chantier de sécurité n'est pas fait.
