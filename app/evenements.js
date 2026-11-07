@@ -3,26 +3,31 @@
 // Direction et RH : tout le groupe. Gérant : son restaurant, sans l'âge.
 // Logique : lib/evenements.js — Base : lib/evenementsDb.js
 // ──────────────────────────────────────────────────────────────────────────────
-import { router } from 'expo-router'
+import { router, useFocusEffect } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, SafeAreaView, ScrollView, Text, View } from 'react-native'
 
 import FeuilleEvenement from '../components/evenements/FeuilleEvenement'
 import FeuilleJoursFeries from '../components/evenements/FeuilleJoursFeries'
 import FeuilleMessage from '../components/evenements/FeuilleMessage'
+import LigneDate from '../components/evenements/LigneDate'
 import LigneEvenement from '../components/evenements/LigneEvenement'
 import { Bouton, EnTete, Puces, Vide, useEcranModerne } from '../components/ui/EcranModerne'
 import { useApp } from '../context/AppContext'
 import { aujourdhuiISO } from '../lib/contrats'
+import { lignesDates } from '../lib/calendrierDates'
 import { chargerRestaurants } from '../lib/equipeDb'
-import { construireFil, construireLignes, dansRestaurant, nbSansNaissance, peutVoirEvenements, voitToutLeGroupe } from '../lib/evenements'
-import { chargerDonneesEvenements } from '../lib/evenementsDb'
+import { construireFil, construireLignes, dansRestaurant, fusionnerLignes, nbSansNaissance, peutVoirEvenements, voitToutLeGroupe } from '../lib/evenements'
+import { chargerDatesCalendrier, chargerDonneesEvenements } from '../lib/evenementsDb'
 
 const FILTRES = [
   { cle: 'tout', label: 'Tout' },
   { cle: 'anniversaire', label: '🎂 Anniversaires' },
   { cle: 'anciennete', label: '🏅 Ancienneté' },
   { cle: 'calendrier', label: '📅 Calendrier' },
+  { cle: 'tresorerie', label: '🏦 Trésorerie', visible: d => d?.cheques || d?.charges },
+  { cle: 'personnel', label: '👥 Personnel', visible: d => d?.contrats || d?.conges },
+  { cle: 'taches', label: '🧭 Tâches', visible: d => d?.taches },
 ]
 
 export default function EvenementsScreen() {
@@ -41,6 +46,7 @@ export default function EvenementsScreen() {
   const [ligneMessage, setLigneMessage] = useState(null)
   const [formulaire, setFormulaire] = useState({ visible: false, evenement: null })
   const [joursFeries, setJoursFeries] = useState(false)
+  const [dates, setDates] = useState({ donnees: null, droits: null, manque: false })
 
   const charger = useCallback(async () => {
     if (!autorise) { setLoading(false); return }
@@ -55,10 +61,25 @@ export default function EvenementsScreen() {
   }, [autorise, groupe, restaurantId])
 
   useEffect(() => { charger() }, [charger])
+  // Rechargé à chaque retour sur l'écran : un chèque encaissé disparaît du fil.
+  useFocusEffect(useCallback(() => {
+    if (!autorise) return undefined
+    let vivant = true
+    chargerDatesCalendrier({ role: roleActif, userId, restaurantId })
+      .then(r => { if (vivant) setDates(r) })
+      .catch(() => { if (vivant) setDates(d => ({ ...d, manque: true })) })
+    return () => { vivant = false }
+  }, [autorise, roleActif, userId, restaurantId]))
   useEffect(() => { if (groupe) chargerRestaurants().then(setRestaurants).catch(() => {}) }, [groupe])
 
   const visibles = useMemo(() => dansRestaurant(donnees, groupe ? restoFiltre : null), [donnees, groupe, restoFiltre])
-  const lignes = useMemo(() => construireLignes({ ...visibles, aujourdhui }), [visibles, aujourdhui])
+  const lignes = useMemo(() => {
+    const base = construireLignes({ ...visibles, aujourdhui })
+    if (!dates.donnees) return base
+    const autres = lignesDates(dates.donnees, { aujourdhui, droits: dates.droits, restaurantId: groupe ? restoFiltre : restaurantId, groupe })
+    return fusionnerLignes(base, autres)
+  }, [visibles, aujourdhui, dates, groupe, restoFiltre, restaurantId])
+  const filtres = useMemo(() => FILTRES.filter(f => !f.visible || f.visible(dates.droits)), [dates.droits])
   const fil = useMemo(() => construireFil(lignes, aujourdhui, filtre, { plusTard: groupe }), [lignes, aujourdhui, filtre, groupe])
   const sansNaissance = useMemo(() => nbSansNaissance(visibles.travailleurs), [visibles])
 
@@ -80,7 +101,7 @@ export default function EvenementsScreen() {
     <SafeAreaView style={styles.container}>
       <EnTete titre="Événements" sous="Anniversaires, ancienneté et calendrier" onRetour={() => router.back()} styles={styles} />
       {groupe ? <Puces ligne styles={styles} actif={restoFiltre} onChoisir={setRestoFiltre} elements={puccesRestos} /> : null}
-      <Puces ligne styles={styles} actif={filtre} onChoisir={setFiltre} elements={FILTRES} />
+      <Puces ligne styles={styles} actif={filtre} onChoisir={setFiltre} elements={filtres} />
 
       {loading ? (
         <ActivityIndicator color={principale} style={{ marginTop: 40 }} />
@@ -102,6 +123,9 @@ export default function EvenementsScreen() {
                 {sansNaissance} fiche{sansNaissance > 1 ? 's' : ''} sans date de naissance
               </Text>
             ) : null}
+            {dates.manque ? (
+              <Text style={{ fontSize: 13, color: colors.textMuted }}>Certaines dates n'ont pas pu être chargées.</Text>
+            ) : null}
           </View>
 
           {fil.length === 0 ? (
@@ -109,12 +133,14 @@ export default function EvenementsScreen() {
           ) : fil.map(section => (
             <View key={section.cle}>
               <Text style={[styles.label, { marginTop: 8 }]}>{section.titre}</Text>
-              {section.lignes.map(ligne => (
+              {section.lignes.map(ligne => (ligne.type === 'date' ? (
+                <LigneDate key={ligne.cle} ligne={ligne} aujourdhui={aujourdhui} styles={styles} colors={colors} />
+              ) : (
                 <LigneEvenement key={ligne.cle} ligne={ligne} aujourdhui={aujourdhui} voitAge={groupe} peutGerer={groupe}
                   styles={styles} colors={colors} accent={accent}
                   onMessage={setLigneMessage}
                   onModifier={evenement => setFormulaire({ visible: true, evenement })} />
-              ))}
+              )))}
             </View>
           ))}
           <View style={{ height: 30 }} />
