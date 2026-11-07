@@ -1,8 +1,8 @@
 {
   ".claude/settings.json": {
-    "mtime": 1793971580.4930491,
-    "seen": 1793971747.501417,
-    "ast_hash": "03d0fd1a7ac0e53d5a91c72f8095733d",
+    "mtime": 1793979094.5985065,
+    "seen": 1794056132.548147,
+    "ast_hash": "06649beaa1a01b9d41c4d691fdb26998",
     "semantic_hash": ""
   },
   ".vscode/extensions.json": {
@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "app/_layout.tsx": {
-    "mtime": 1793914579.9299579,
-    "seen": 1793914667.384683,
-    "ast_hash": "574fcba5937e96ed820eb827a3a863eb",
+    "mtime": 1794055898.3636675,
+    "seen": 1794056132.548158,
+    "ast_hash": "1db047a2ee5ae256210f166e0c0a7044",
     "semantic_hash": ""
   },
   "app/accueil.js": {
@@ -300,9 +300,9 @@
     "semantic_hash": ""
   },
   "app/verification.js": {
-    "mtime": 1793967988.9278288,
-    "seen": 1793971747.5015109,
-    "ast_hash": "04d542d5ed0958551683a30259231406",
+    "mtime": 1793985810.7743635,
+    "seen": 1794056132.548199,
+    "ast_hash": "46dc855e88b003438d0c05ffe112fc54",
     "semantic_hash": ""
   },
   "components/FicheContrat.js": {
@@ -480,9 +480,9 @@
     "semantic_hash": ""
   },
   "lib/api.js": {
-    "mtime": 1793596057.580674,
-    "seen": 1793624278.566837,
-    "ast_hash": "734f7301e18fb3165ccaafa27d654459",
+    "mtime": 1793985810.7699463,
+    "seen": 1794056132.5482712,
+    "ast_hash": "9fa7db0bcafacc75c6dece70e11081fe",
     "semantic_hash": ""
   },
   "lib/basculePOS.js": {
@@ -582,9 +582,9 @@
     "semantic_hash": ""
   },
   "lib/journal.js": {
-    "mtime": 1788454332.9704022,
-    "seen": 1788454354.111354,
-    "ast_hash": "444325bfbb165cd2e0f1bf4a93e9f74b",
+    "mtime": 1794057556.6007695,
+    "seen": 1794060343.406189,
+    "ast_hash": "18e4001986080a15ac89ced7bd085bd1",
     "semantic_hash": ""
   },
   "lib/litigeContacts.js": {
@@ -606,9 +606,9 @@
     "semantic_hash": ""
   },
   "lib/menus.js": {
-    "mtime": 1793376189.55882,
-    "seen": 1793376300.2900212,
-    "ast_hash": "5c793f46553d13dc9f8ac6fb12c8cf0e",
+    "mtime": 1794055894.2527251,
+    "seen": 1794056132.5483599,
+    "ast_hash": "c933b40438d7a796126237b53e1ca9fe",
     "semantic_hash": ""
   },
   "lib/networkStatus.js": {
@@ -1230,21 +1230,21 @@
     "semantic_hash": ""
   },
   "app/avis-plateformes.js": {
-    "mtime": 1792598826.3319151,
-    "seen": 1792711762.673491,
-    "ast_hash": "4b406cce81490f20c1f2a476a152d9ff",
+    "mtime": 1793978920.4769506,
+    "seen": 1794056132.548159,
+    "ast_hash": "9e333f05af9616917f1de3e336fcb9fb",
     "semantic_hash": ""
   },
   "lib/avisPlateformes.js": {
-    "mtime": 1791101047.956898,
-    "seen": 1791101364.578269,
-    "ast_hash": "a5c6111501fa6e5bd1608b7c448b6a16",
+    "mtime": 1793978770.6801178,
+    "seen": 1794056132.5482721,
+    "ast_hash": "3c9d715fee1c6cb8a5fcdfe4d46bda7e",
     "semantic_hash": ""
   },
   "lib/avisPlateformes.test.mjs": {
-    "mtime": 1791101041.6454887,
-    "seen": 1791101364.57827,
-    "ast_hash": "a39ad18e327e3ad6d15a44e2f4304917",
+    "mtime": 1793978770.5888398,
+    "seen": 1794056132.5482728,
+    "ast_hash": "77af1be0d17d2738f9867d7733c3fba9",
     "semantic_hash": ""
   },
   "lib/avisPlateformesDb.js": {
@@ -1944,21 +1944,21 @@
     "semantic_hash": ""
   },
   "lib/groupesAccueil.js": {
-    "mtime": 1793376191.612619,
-    "seen": 1793376300.289987,
-    "ast_hash": "1896bb48537a9e88b1dbad576ee9caca",
+    "mtime": 1794055896.7160065,
+    "seen": 1794056132.548343,
+    "ast_hash": "7fa7035b3b70e3164d7a82e38517a79d",
     "semantic_hash": ""
   },
   "lib/groupesAccueil.test.mjs": {
-    "mtime": 1792065901.6396842,
-    "seen": 1792065932.016672,
-    "ast_hash": "a3b1f7e7b2ed559be8e6a5f24ea8aaec",
+    "mtime": 1794055879.0745678,
+    "seen": 1794056132.548343,
+    "ast_hash": "37c272ee3a34cc8fe6f16c4391f57001",
     "semantic_hash": ""
   },
   "components/accueil/AccueilManager.js": {
-    "mtime": 1793913794.0311294,
-    "seen": 1793913892.735786,
-    "ast_hash": "7c7f9d071df34370d8732f8311acb3b8",
+    "mtime": 1794060163.7971148,
+    "seen": 1794060343.406058,
+    "ast_hash": "8633057476c26eebad42f3d4cd3a8b56",
     "semantic_hash": ""
   },
   "components/ui/Survol.js": {
@@ -4143,6 +4143,162 @@
     "mtime": 1793974074.3708923,
     "seen": 1793974439.7797298,
     "ast_hash": "ad952907fc40afbd7b25e140957fd55e",
+    "semantic_hash": ""
+  },
+  "app/evenements.js": {
+    "mtime": 1794060015.5264506,
+    "seen": 1794060343.406028,
+    "ast_hash": "bbe2041f881a0252bf2355ffc094113b",
+    "semantic_hash": ""
+  },
+  "components/evenements/FeuilleEvenement.js": {
+    "mtime": 1794061757.601883,
+    "seen": 1794061888.861701,
+    "ast_hash": "d8d2d5fef91fe24364718edeb3678706",
+    "semantic_hash": ""
+  },
+  "components/evenements/FeuilleMessage.js": {
+    "mtime": 1794057556.6019142,
+    "seen": 1794060343.406079,
+    "ast_hash": "9a449afce633cd8c7860f81ebbeb8043",
+    "semantic_hash": ""
+  },
+  "components/evenements/LigneEvenement.js": {
+    "mtime": 1794060001.1272218,
+    "seen": 1794060343.40608,
+    "ast_hash": "0d0252f3078213f0042b3a1ec284e7de",
+    "semantic_hash": ""
+  },
+  "lib/evenements.js": {
+    "mtime": 1794060001.1261146,
+    "seen": 1794060343.4061708,
+    "ast_hash": "eafa45b3f23fd6bc23465e59d611892e",
+    "semantic_hash": ""
+  },
+  "lib/evenements.test.mjs": {
+    "mtime": 1794059985.8108778,
+    "seen": 1794060343.4061718,
+    "ast_hash": "2d0c5e41678dac4c4ef39b0c466879c9",
+    "semantic_hash": ""
+  },
+  "lib/evenementsDb.js": {
+    "mtime": 1794061738.5109031,
+    "seen": 1794061888.8617952,
+    "ast_hash": "b2fb230986f5d61b09ff215a077b97f6",
+    "semantic_hash": ""
+  },
+  "lib/litigeSurplus.js": {
+    "mtime": 1793985810.6346486,
+    "seen": 1794056132.5483541,
+    "ast_hash": "c1e72f62ef48beb721de9f443ba0c613",
+    "semantic_hash": ""
+  },
+  "lib/litigeSurplus.test.mjs": {
+    "mtime": 1793985744.5476987,
+    "seen": 1794056132.548355,
+    "ast_hash": "3310e19f7aad37fa89104e993655fe98",
+    "semantic_hash": ""
+  },
+  "supabase_evenements.sql": {
+    "mtime": 1794055905.1733367,
+    "seen": 1794056132.5484538,
+    "ast_hash": "6ee6dd7e1d6518a82b115c15148b808c",
+    "semantic_hash": ""
+  },
+  "supabase_litige_surplus.sql": {
+    "mtime": 1793985743.7635765,
+    "seen": 1794056132.548463,
+    "ast_hash": "f9c92994545840dfe77ecf1074e91caa",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-11-07-evenements.md": {
+    "mtime": 1794055230.5901775,
+    "seen": 1794056132.548518,
+    "ast_hash": "a358c106af26166af1460efbbb799e29",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-11-06-litige-surplus-verification-design.md": {
+    "mtime": 1793985742.981953,
+    "seen": 1794056132.548536,
+    "ast_hash": "8a74c57c2efd1b68e510a314def4570a",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-11-07-evenements-design.md": {
+    "mtime": 1794061757.6024106,
+    "seen": 1794061888.861983,
+    "ast_hash": "90a4b6e3ad06246b81f8f7856b360a73",
+    "semantic_hash": ""
+  },
+  "components/evenements/RappelEvenements.js": {
+    "mtime": 1794056221.9586883,
+    "seen": 1794056270.079092,
+    "ast_hash": "a448dc53395f03d18fd987df400a3345",
+    "semantic_hash": ""
+  },
+  "components/evenements/AlertesStockAccueil.js": {
+    "mtime": 1794060162.170684,
+    "seen": 1794060343.4060779,
+    "ast_hash": "a3f84f85b43346f8362cba6c801a2cb5",
+    "semantic_hash": ""
+  },
+  "components/evenements/FeuilleJoursFeries.js": {
+    "mtime": 1794061746.9296393,
+    "seen": 1794061888.861702,
+    "ast_hash": "f1bd99d510ffd50c760060052d4d3dbf",
+    "semantic_hash": ""
+  },
+  "lib/alertesStock.js": {
+    "mtime": 1794061738.5107107,
+    "seen": 1794061888.8617349,
+    "ast_hash": "51b76f1109c675df0f0d7cdb3903cfec",
+    "semantic_hash": ""
+  },
+  "lib/alertesStock.test.mjs": {
+    "mtime": 1794061716.0060825,
+    "seen": 1794061888.8617349,
+    "ast_hash": "e208354d512982b981c5d9a126c42849",
+    "semantic_hash": ""
+  },
+  "lib/joursFeries.js": {
+    "mtime": 1794061738.5104504,
+    "seen": 1794061888.8618119,
+    "ast_hash": "5f529d3e04e8dd296ce8b4a8140ac8d1",
+    "semantic_hash": ""
+  },
+  "lib/joursFeries.test.mjs": {
+    "mtime": 1794061716.0058463,
+    "seen": 1794061888.8618119,
+    "ast_hash": "98f4569e5266d70887f99bc77ed17ea0",
+    "semantic_hash": ""
+  },
+  "supabase/functions/alertes-stock/index.ts": {
+    "mtime": 1794061738.5111835,
+    "seen": 1794061888.861886,
+    "ast_hash": "79f3fc4ca3a24de031c157a2d97ca204",
+    "semantic_hash": ""
+  },
+  "supabase_alertes_stock_cron.sql": {
+    "mtime": 1794061746.9292016,
+    "seen": 1794061888.861891,
+    "ast_hash": "0aa8dd9e37edbe7fb18f2cad738db18c",
+    "semantic_hash": ""
+  },
+  "supabase_jours_feries.sql": {
+    "mtime": 1794060015.492959,
+    "seen": 1794060343.406292,
+    "ast_hash": "f589aa06a1313f420ba8c711e803e653",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-11-07-jours-feries-alertes-stock.md": {
+    "mtime": 1794059622.9340336,
+    "seen": 1794060343.406343,
+    "ast_hash": "67cca3fc0754419ae1aedac805f812f1",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-11-07-jours-feries-alertes-stock-design.md": {
+    "mtime": 1794061757.6021078,
+    "seen": 1794061888.861983,
+    "ast_hash": "abefb7d670c069c0288731b56036fbf6",
     "semantic_hash": ""
   }
 }
