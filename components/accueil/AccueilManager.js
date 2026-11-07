@@ -24,6 +24,7 @@ import Jauge from '../ui/Jauge'
 import Indicateur from './Indicateur'
 import Survol from '../ui/Survol'
 import { SqueletteBandeau } from '../ui/Squelette'
+import RappelEvenements from '../evenements/RappelEvenements'
 import { chargerContactsPeriode } from '../../lib/contactsPeriodeDb'
 import { evolutionsHierDetail, texteHier, totalParJour } from '../../lib/hierAccueil'
 import { etatPointHier, lignesCaissiersHier, texteDemandes } from '../../lib/accueilGerant'
@@ -303,6 +304,7 @@ export default function AccueilManager({ items, role, userId, restaurantId }) {
         : role === 'rh'
           ? <BandeauRH etat={etat} styles={styles} colors={colors} />
           : <BandeauPoints etat={etat} styles={styles} colors={colors} />)}
+      <RappelEvenements role={role} restaurantId={restaurantId} styles={styles} colors={colors} />
 
       {favoris.length > 0 && (
         <View style={styles.section}>
