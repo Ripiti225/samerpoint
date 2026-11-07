@@ -1700,6 +1700,9 @@ export default function ParametresScreen() {
             👑 Manager & 🏢 Directeur ont accès à tout (non modifiable). 🔍 Vérificateur a son écran dédié. Coche/décoche ce que « {roleConfigActif} » voit sur son accueil.
           </Text>
         </View>
+        <TouchableOpacity style={styles.infoBox} onPress={() => router.push('/acces-calendrier')} accessibilityRole="button">
+          <Text style={styles.infoTxt}>🔐 Accès au calendrier : qui voit quoi dans Événements ›</Text>
+        </TouchableOpacity>
 
         <View style={styles.roleHeaderRow}>
           <Text style={styles.roleCountTxt}>{ids.length} tuile{ids.length > 1 ? 's' : ''} activée{ids.length > 1 ? 's' : ''}</Text>

@@ -305,7 +305,7 @@ export default function AccueilManager({ items, role, userId, restaurantId }) {
         : role === 'rh'
           ? <BandeauRH etat={etat} styles={styles} colors={colors} />
           : <BandeauPoints etat={etat} styles={styles} colors={colors} />)}
-      <RappelEvenements role={role} restaurantId={restaurantId} styles={styles} colors={colors} />
+      <RappelEvenements role={role} restaurantId={restaurantId} userId={userId} styles={styles} colors={colors} />
       <AlertesStockAccueil role={role} restaurantId={restaurantId} styles={styles} colors={colors} />
 
       {favoris.length > 0 && (

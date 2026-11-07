@@ -233,6 +233,7 @@ export default function RootLayout() {
         <Stack.Screen name="equipe" />
         <Stack.Screen name="salaires" />
         <Stack.Screen name="evenements" />
+        <Stack.Screen name="acces-calendrier" />
         <Stack.Screen name="modifier-point" />
         <Stack.Screen name="modifier-inventaire" />
         <Stack.Screen name="recap-point" />

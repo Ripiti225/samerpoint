@@ -5,23 +5,31 @@ import { router, useFocusEffect } from 'expo-router'
 import { useCallback, useState } from 'react'
 import { Text } from 'react-native'
 
+import { filtrerParDroits } from '../../lib/calendrierDates'
 import { aujourdhuiISO } from '../../lib/contrats'
 import { compterAujourdhui, construireLignes, peutVoirEvenements, texteRappel, voitToutLeGroupe } from '../../lib/evenements'
-import { chargerDonneesEvenements } from '../../lib/evenementsDb'
+import { chargerDonneesEvenements, chargerDroitsCalendrier } from '../../lib/evenementsDb'
 import Survol from '../ui/Survol'
 
-export default function RappelEvenements({ role, restaurantId, styles, colors }) {
+export default function RappelEvenements({ role, restaurantId, userId, styles, colors }) {
   const [texte, setTexte] = useState(null)
 
   useFocusEffect(useCallback(() => {
     if (!peutVoirEvenements(role)) { setTexte(null); return undefined }
     let vivant = true
     const aujourdhui = aujourdhuiISO()
-    chargerDonneesEvenements({ groupe: voitToutLeGroupe(role), restaurantId })
-      .then(d => { if (vivant) setTexte(texteRappel(compterAujourdhui(construireLignes({ ...d, aujourdhui }), aujourdhui))) })
+    Promise.all([
+      chargerDonneesEvenements({ groupe: voitToutLeGroupe(role), restaurantId }),
+      chargerDroitsCalendrier({ role, userId }),
+    ])
+      .then(([d, { droits }]) => {
+        if (!vivant) return
+        const lignes = filtrerParDroits(construireLignes({ ...d, aujourdhui }), droits)
+        setTexte(texteRappel(compterAujourdhui(lignes, aujourdhui)))
+      })
       .catch(() => { if (vivant) setTexte(null) })
     return () => { vivant = false }
-  }, [role, restaurantId]))
+  }, [role, restaurantId, userId]))
 
   if (!texte) return null
   return (

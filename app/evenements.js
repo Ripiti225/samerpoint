@@ -15,16 +15,16 @@ import LigneEvenement from '../components/evenements/LigneEvenement'
 import { Bouton, EnTete, Puces, Vide, useEcranModerne } from '../components/ui/EcranModerne'
 import { useApp } from '../context/AppContext'
 import { aujourdhuiISO } from '../lib/contrats'
-import { lignesDates } from '../lib/calendrierDates'
+import { droitsDates, filtrerParDroits, lignesDates } from '../lib/calendrierDates'
 import { chargerRestaurants } from '../lib/equipeDb'
 import { construireFil, construireLignes, dansRestaurant, fusionnerLignes, nbSansNaissance, peutVoirEvenements, voitToutLeGroupe } from '../lib/evenements'
 import { chargerDatesCalendrier, chargerDonneesEvenements } from '../lib/evenementsDb'
 
 const FILTRES = [
   { cle: 'tout', label: 'Tout' },
-  { cle: 'anniversaire', label: '🎂 Anniversaires' },
-  { cle: 'anciennete', label: '🏅 Ancienneté' },
-  { cle: 'calendrier', label: '📅 Calendrier' },
+  { cle: 'anniversaire', label: '🎂 Anniversaires', visible: d => d?.anniversaires },
+  { cle: 'anciennete', label: '🏅 Ancienneté', visible: d => d?.anciennete },
+  { cle: 'calendrier', label: '📅 Calendrier', visible: d => d?.evenements },
   { cle: 'tresorerie', label: '🏦 Trésorerie', visible: d => d?.cheques || d?.charges },
   { cle: 'personnel', label: '👥 Personnel', visible: d => d?.contrats || d?.conges },
   { cle: 'taches', label: '🧭 Tâches', visible: d => d?.taches },
@@ -67,15 +67,18 @@ export default function EvenementsScreen() {
     let vivant = true
     chargerDatesCalendrier({ role: roleActif, userId, restaurantId })
       .then(r => { if (vivant) setDates(r) })
-      .catch(() => { if (vivant) setDates(d => ({ ...d, manque: true })) })
+      .catch(() => {
+        // Droits inconnus : on ne montre que ce qu'un gérant sans aucun type verrait, jamais plus.
+        if (vivant) setDates(d => ({ ...d, manque: true, droits: d.droits || droitsDates('gerant', userId, [], { gerant: [] }) }))
+      })
     return () => { vivant = false }
   }, [autorise, roleActif, userId, restaurantId]))
   useEffect(() => { if (groupe) chargerRestaurants().then(setRestaurants).catch(() => {}) }, [groupe])
 
   const visibles = useMemo(() => dansRestaurant(donnees, groupe ? restoFiltre : null), [donnees, groupe, restoFiltre])
   const lignes = useMemo(() => {
-    const base = construireLignes({ ...visibles, aujourdhui })
-    if (!dates.donnees) return base
+    if (!dates.donnees || !dates.droits) return []
+    const base = filtrerParDroits(construireLignes({ ...visibles, aujourdhui }), dates.droits)
     const autres = lignesDates(dates.donnees, { aujourdhui, droits: dates.droits, restaurantId: groupe ? restoFiltre : restaurantId, groupe })
     return fusionnerLignes(base, autres)
   }, [visibles, aujourdhui, dates, groupe, restoFiltre, restaurantId])
@@ -103,7 +106,7 @@ export default function EvenementsScreen() {
       {groupe ? <Puces ligne styles={styles} actif={restoFiltre} onChoisir={setRestoFiltre} elements={puccesRestos} /> : null}
       <Puces ligne styles={styles} actif={filtre} onChoisir={setFiltre} elements={filtres} />
 
-      {loading ? (
+      {loading || !dates.droits ? (
         <ActivityIndicator color={principale} style={{ marginTop: 40 }} />
       ) : erreur ? (
         <View style={styles.body}>
@@ -113,12 +116,17 @@ export default function EvenementsScreen() {
       ) : (
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
           <View style={{ marginBottom: 12, gap: 8 }}>
-            {groupe ? (
+            {dates.droits?.evenements && groupe ? (
               <Bouton label="➕ Ajouter un événement" variante="plein" couleur={principale} styles={styles}
                 onPress={() => setFormulaire({ visible: true, evenement: null })} />
             ) : null}
-            <Bouton label="🇨🇮 Jours fériés ivoiriens" couleur={principale} styles={styles} onPress={() => setJoursFeries(true)} />
-            {groupe && sansNaissance > 0 ? (
+            {dates.droits?.evenements ? (
+              <Bouton label="🇨🇮 Jours fériés ivoiriens" couleur={principale} styles={styles} onPress={() => setJoursFeries(true)} />
+            ) : null}
+            {dates.droits?.proprietaire ? (
+              <Bouton label="🔐 Accès au calendrier : qui voit quoi" couleur={principale} styles={styles} onPress={() => router.push('/acces-calendrier')} />
+            ) : null}
+            {groupe && dates.droits?.anniversaires && sansNaissance > 0 ? (
               <Text style={{ fontSize: 13, color: colors.textMuted }}>
                 {sansNaissance} fiche{sansNaissance > 1 ? 's' : ''} sans date de naissance
               </Text>
@@ -136,7 +144,7 @@ export default function EvenementsScreen() {
               {section.lignes.map(ligne => (ligne.type === 'date' ? (
                 <LigneDate key={ligne.cle} ligne={ligne} aujourdhui={aujourdhui} styles={styles} colors={colors} />
               ) : (
-                <LigneEvenement key={ligne.cle} ligne={ligne} aujourdhui={aujourdhui} voitAge={groupe} peutGerer={groupe}
+                <LigneEvenement key={ligne.cle} ligne={ligne} aujourdhui={aujourdhui} voitAge={!!dates.droits?.age} peutGerer={groupe}
                   styles={styles} colors={colors} accent={accent}
                   onMessage={setLigneMessage}
                   onModifier={evenement => setFormulaire({ visible: true, evenement })} />
