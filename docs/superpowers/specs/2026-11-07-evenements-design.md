@@ -63,7 +63,9 @@ Source : `travailleurs` actifs et non archivés. Rien n'est stocké : tout se ca
 
 ## Message au travailleur
 
-Les lignes d'anniversaire et d'ancienneté ont un bouton **Envoyer un message**. Il ouvre une fenêtre avec le texte déjà rédigé, modifiable, et deux boutons : **WhatsApp** et **SMS**.
+Les lignes d'anniversaire et d'ancienneté ont un bouton **Envoyer un message**. Il ouvre une fenêtre avec le texte déjà rédigé dans un champ modifiable, et deux boutons : **WhatsApp** et **SMS**.
+
+**Modification :** l'utilisateur peut changer librement le texte avant chaque envoi. C'est le texte modifié qui part vers WhatsApp ou le SMS. La modification ne vaut que pour cet envoi : le texte de départ revient à l'ouverture suivante. Si le champ est vide, les deux boutons sont désactivés et un message demande d'écrire un texte.
 
 Textes de départ (`{prénom}` vient de `prenoms`, sinon de `nom`) :
 
@@ -72,7 +74,7 @@ Textes de départ (`{prénom}` vient de `prenoms`, sinon de `nom`) :
 
 **L'envoi reste manuel :** le bouton ouvre WhatsApp ou l'application SMS de l'appareil, message prêt, et l'utilisateur appuie sur Envoyer. Aucun service d'envoi automatique, et donc aucun coût par message. L'application ne peut pas savoir si le message est vraiment parti : elle n'affiche pas « envoyé ».
 
-**Numéros :** WhatsApp exige l'indicatif du pays. Une fonction pure convertit le numéro de la fiche :
+**Numéros :** WhatsApp exige l'indicatif du pays, et tous les numéros du groupe sont en +225 (confirmé par l'utilisateur). Une fonction pure ajoute l'indicatif au moment de l'envoi ; les numéros enregistrés sur les fiches ne sont pas modifiés :
 
 | Numéro de la fiche | Résultat |
 |---|---|
