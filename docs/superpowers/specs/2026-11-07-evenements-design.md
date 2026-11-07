@@ -134,6 +134,8 @@ Les tuiles du RH et du gérant sont lues dans la table `roles_acces`, qui prime 
 
 Nouveaux arrivants, notifications automatiques, envoi automatique des messages, suivi « message envoyé », cadeaux ou primes, grille de calendrier.
 
+Les notifications et les jours fériés à date passée sont traités dans la spec jours-feries-alertes-stock-design.md.
+
 ## Livraison
 
 - Migration à passer avant la publication.

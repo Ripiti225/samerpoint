@@ -73,9 +73,13 @@ export default function FeuilleEvenement({ visible, evenement, restaurants, ctx,
       <ChampDate label="Date" valeur={form.date_evenement} onChange={maj('date_evenement')} couleur={principale} styleLabel={styles.label} />
       <View style={{ height: 16 }} />
 
-      <Libelle styles={styles}>Fréquence</Libelle>
-      <Puces styles={styles} actif={form.chaque_annee} onChoisir={maj('chaque_annee')}
-        elements={[{ cle: false, label: 'Une seule fois' }, { cle: true, label: 'Chaque année' }]} />
+      {!form.ferie_cle ? (
+        <>
+          <Libelle styles={styles}>Fréquence</Libelle>
+          <Puces styles={styles} actif={form.chaque_annee} onChoisir={maj('chaque_annee')}
+            elements={[{ cle: false, label: 'Une seule fois' }, { cle: true, label: 'Chaque année' }]} />
+        </>
+      ) : null}
 
       {form.ferie_cle ? (
         <>

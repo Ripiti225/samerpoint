@@ -131,7 +131,7 @@ Le téléphone web d'un restaurant est partagé entre ses gérants : pour un mê
 
 ## Accueil
 
-Sous le rappel du jour, une ligne par fête à moins de 7 jours et ayant une alerte active, avec le même texte. Elle s'affiche du J-7 au jour de la fête, s'ouvre sur Événements, et se masque en cas d'échec de chargement, sans bloquer l'accueil. Elle ne lit que les points des dates nécessaires.
+Sous le rappel du jour, une ligne par fête dont la date tombe entre J-7 et le jour même, et ayant une alerte active, avec le même texte. Elle s'affiche du J-7 au jour de la fête, s'ouvre sur Événements, et se masque en cas d'échec de chargement, sans bloquer l'accueil. Elle ne lit que les points des dates nécessaires.
 
 ## Découpage
 
@@ -147,6 +147,7 @@ Sous le rappel du jour, une ligne par fête à moins de 7 jours et ayant une ale
 
 - Les dates lunaires restent des estimations jusqu'à leur correction, souvent quelques jours avant la fête. Une alerte à J-7 peut donc partir sur une date légèrement fausse.
 - Un fichier `.ics` déjà importé ne suit pas les corrections.
+- Google Agenda ignore en général les rappels d'un fichier importé : seuls les calendriers de l'iPhone et d'Android les respectent de façon fiable.
 - L'historique commence en novembre 2025 : la plupart des fêtes n'ont qu'une édition de référence, et certains chiffres resteront absents.
 - Sur le web et l'iPhone, une notification n'arrive que si l'utilisateur a activé les alertes.
 
@@ -158,8 +159,10 @@ Quantités à commander par produit, liaison plats-stock, mise à jour automatiq
 
 Dans cet ordre, chaque étape avec l'accord de l'utilisateur :
 
-1. Migrations `supabase_evenements.sql` puis `supabase_jours_feries.sql`.
-2. Déploiement de la fonction, avec `--project-ref wlwotzxnzowbkbfcpnyi`, puis essai sans envoi.
-3. Test de l'utilisateur sur son localhost.
-4. Tâche programmée `supabase_alertes_stock_cron.sql`.
-5. Publication Vercel + EAS, sans nouvelle installation.
+1. Migrations `supabase_evenements.sql` puis `supabase_jours_feries.sql`, ensemble, avant toute publication.
+2. Déploiement de la fonction avec `--project-ref wlwotzxnzowbkbfcpnyi`.
+3. Ajout des fériés 2026 et 2027 dans l'application, confirmation des dates lunaires de 2026.
+4. Essai sans envoi avec des lignes réelles, à une date simulée, par exemple `{"essai":true,"date":"2027-05-09"}`, et contrôle des chiffres.
+5. Test de l'utilisateur sur son localhost et sur l'application iPhone installée : ouverture du formulaire depuis la feuille et retour, téléchargement du fichier.
+6. Publication Vercel + EAS, sans nouvelle installation.
+7. Tâche programmée `supabase_alertes_stock_cron.sql`, en dernier, puis contrôle des journaux à la première exécution.

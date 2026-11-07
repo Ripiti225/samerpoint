@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
     const dates = datesUtiles(elements, evenements)
     const [points, utilisateurs, tokens] = await Promise.all([
       dates.length
-        ? toutes('points', 'id, restaurant_id, date, vente_machine, vente_total', q => q.in('date', dates))
+        ? toutes('points', 'id, restaurant_id, date, vente_machine, vente_total', q => q.eq('valide', true).in('date', dates))
         : Promise.resolve([]),
       toutes('utilisateurs', 'id, nom, role, actif, restaurant_id', q => q.in('role', ['manager', 'directeur', 'rh', 'gerant']).eq('actif', true)),
       toutes('admin_push_tokens', 'id, user_id, token'),
@@ -95,29 +95,37 @@ Deno.serve(async (req) => {
         continue
       }
 
-      // Réserver chaque clé d'abord : un second appel n'envoie rien de plus.
-      const gardes: any[] = []
-      for (const item of items) {
-        const { error } = await admin.from('alertes_stock_envoyees').insert({ cle: item.cle, message: `${item.titre} — ${item.corps}` })
-        if (!error) gardes.push(item)
-      }
-      const msg = regrouper(gardes)
-      if (!msg) { rapport.push({ compte: u.nom, statut: 'déjà envoyé' }); continue }
+      try {
+        // Réserver chaque clé d'abord : un second appel n'envoie rien de plus.
+        const gardes: any[] = []
+        let echecReservation: string | null = null
+        for (const item of items) {
+          const { error } = await admin.from('alertes_stock_envoyees').insert({ cle: item.cle, message: `${item.titre} — ${item.corps}` })
+          if (!error) gardes.push(item)
+          else if (error.code !== '23505') echecReservation = error.message
+        }
+        if (echecReservation) rapport.push({ compte: u.nom, statut: 'erreur', erreur: echecReservation })
+        const msg = regrouper(gardes)
+        if (!msg) { if (!echecReservation) rapport.push({ compte: u.nom, statut: 'déjà envoyé' }); continue }
 
-      const sesTokens = tokens.filter((t: any) => t.user_id === u.id).map((t: any) => t.token)
-      const android = await envoyerExpo(sesTokens, msg.titre, msg.corps)
-      const partage = u.role === 'gerant' ? u.restaurant_id : null
-      if (!partage || !restaurantsDejaServis.has(partage)) {
-        if (partage) restaurantsDejaServis.add(partage)
-        await envoyerWeb(u.id, msg.titre, msg.corps)
+        const sesTokens = tokens.filter((t: any) => t.user_id === u.id).map((t: any) => t.token)
+        const android = await envoyerExpo(sesTokens, msg.titre, msg.corps)
+        const partage = u.role === 'gerant' ? u.restaurant_id : null
+        if (!partage || !restaurantsDejaServis.has(partage)) {
+          if (partage) restaurantsDejaServis.add(partage)
+          await envoyerWeb(u.id, msg.titre, msg.corps)
+        }
+        const { error: errNotif } = await admin.from('notifications').insert({
+          type: 'alerte_stock', titre: msg.titre, message: msg.corps, cible_user_id: u.id,
+          cible_role: [], lu_par: [], screen: ECRAN,
+        })
+        if (errNotif) rapport.push({ compte: u.nom, role: u.role, titre: msg.titre, android, statut: 'erreur', erreur: errNotif.message })
+        else rapport.push({ compte: u.nom, role: u.role, titre: msg.titre, android, statut: 'envoyé' })
+      } catch (e) {
+        rapport.push({ compte: u.nom, statut: 'erreur', erreur: String((e as Error)?.message || e) })
       }
-      await admin.from('notifications').insert({
-        type: 'alerte_stock', titre: msg.titre, message: msg.corps, cible_user_id: u.id,
-        cible_role: [], lu_par: [], screen: ECRAN,
-      })
-      rapport.push({ compte: u.nom, role: u.role, titre: msg.titre, android, statut: 'envoyé' })
     }
-    return json({ ok: true, aujourdhui, essai, elements: elements.length, envois: rapport })
+    return json({ ok: true, aujourdhui, essai, elements: elements.length, envois: rapport, erreurs: rapport.filter(r => r.statut === 'erreur').length })
   } catch (e) {
     return json({ ok: false, error: String((e as Error)?.message || e) }, 500)
   }

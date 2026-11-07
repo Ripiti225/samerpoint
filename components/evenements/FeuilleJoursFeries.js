@@ -7,13 +7,12 @@ import { aujourdhuiISO } from '../../lib/contrats'
 import { libelleJour } from '../../lib/evenements'
 import { ajouterJoursFeries } from '../../lib/evenementsDb'
 import { enregistrer } from '../../lib/exportRapportMensuel'
-import { ANNEES_FERIES, fichierIcs, listeDeLAnnee, nomFichierIcs, texteVersBase64 } from '../../lib/joursFeries'
+import { ANNEES_FERIES, anneeParDefaut, fichierIcs, listeDeLAnnee, nomFichierIcs, texteVersBase64 } from '../../lib/joursFeries'
 import { Bouton, Feuille, Libelle, Puces } from '../ui/EcranModerne'
 
 export default function FeuilleJoursFeries({ visible, evenements, peutGerer, ctx, styles, colors, principale, onFermer, onAjoute, onModifier }) {
   const aujourdhui = aujourdhuiISO()
-  const premiere = ANNEES_FERIES.find(a => a >= Number(aujourdhui.slice(0, 4)) + 1) || ANNEES_FERIES[0]
-  const [annee, setAnnee] = useState(premiere)
+  const [annee, setAnnee] = useState(() => anneeParDefaut(aujourdhui))
   const [occupe, setOccupe] = useState(false)
 
   const liste = useMemo(() => listeDeLAnnee(annee, evenements), [annee, evenements])
@@ -23,7 +22,7 @@ export default function FeuilleJoursFeries({ visible, evenements, peutGerer, ctx
     setOccupe(true)
     try {
       const nombre = await ajouterJoursFeries(annee, ctx)
-      Alert.alert('Jours fériés', nombre ? `${nombre} jours fériés ajoutés pour ${annee}.` : `Les jours fériés de ${annee} sont déjà ajoutés.`)
+      Alert.alert('Jours fériés', nombre ? `${nombre} jour${nombre > 1 ? 's' : ''} férié${nombre > 1 ? 's' : ''} ajouté${nombre > 1 ? 's' : ''} pour ${annee}.` : `Les jours fériés de ${annee} sont déjà ajoutés.`)
       onAjoute()
     } catch {
       Alert.alert('Jours fériés', "Les jours fériés n'ont pas pu être ajoutés. Réessayez.")
@@ -47,7 +46,10 @@ export default function FeuilleJoursFeries({ visible, evenements, peutGerer, ctx
       <Puces styles={styles} actif={annee} onChoisir={setAnnee} elements={ANNEES_FERIES.map(a => ({ cle: a, label: String(a) }))} />
 
       <View style={{ gap: 8, marginBottom: 12 }}>
-        {peutGerer ? (
+        {peutGerer && dejaAjoutee ? (
+          <Text style={{ fontSize: 13, color: colors.textMuted }}>Les jours fériés de {annee} sont déjà ajoutés.</Text>
+        ) : null}
+        {peutGerer && !dejaAjoutee ? (
           <Bouton label={occupe ? 'Ajout…' : `➕ Ajouter les jours fériés de ${annee}`} variante="plein" couleur={principale} styles={styles} disabled={occupe} onPress={ajouter} />
         ) : null}
         <Bouton label="📥 Télécharger le calendrier" couleur={principale} styles={styles} onPress={telecharger} />
