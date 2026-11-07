@@ -7,7 +7,9 @@ import { Bouton } from '../ui/EcranModerne'
 function libelle(ligne, voitAge) {
   if (ligne.type === 'anniversaire') return `🎂 Anniversaire${voitAge ? ` · ${texteAnnees(ligne.age)}` : ''}`
   if (ligne.type === 'anciennete') return `🏅 ${texteAnnees(ligne.annees)} chez nous`
-  return ligne.evenement.chaque_annee ? '📅 Chaque année' : '📅 Événement'
+  const e = ligne.evenement
+  const base = e.ferie_cle ? '🇨🇮 Jour férié' : e.chaque_annee ? '📅 Chaque année' : '📅 Événement'
+  return e.date_estimee ? `${base} · date estimée` : base
 }
 
 export default function LigneEvenement({ ligne, aujourdhui, voitAge, peutGerer, styles, colors, accent, onMessage, onModifier }) {

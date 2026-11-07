@@ -7,7 +7,7 @@ import { enregistrerEvenement, supprimerEvenement } from '../../lib/evenementsDb
 import ChampDate from '../ChampDate'
 import { Bouton, Champ, Feuille, Libelle, Puces } from '../ui/EcranModerne'
 
-const VIDE = { titre: '', date_evenement: '', note: '', restaurant_id: '', chaque_annee: false }
+const VIDE = { titre: '', date_evenement: '', note: '', restaurant_id: '', chaque_annee: false, alerte_stock: false, date_estimee: false, ferie_cle: null }
 
 export default function FeuilleEvenement({ visible, evenement, restaurants, ctx, styles, colors, principale, onFermer, onEnregistre }) {
   const [form, setForm] = useState(VIDE)
@@ -23,6 +23,9 @@ export default function FeuilleEvenement({ visible, evenement, restaurants, ctx,
       note: evenement.note || '',
       restaurant_id: evenement.restaurant_id || '',
       chaque_annee: !!evenement.chaque_annee,
+      alerte_stock: !!evenement.alerte_stock,
+      date_estimee: !!evenement.date_estimee,
+      ferie_cle: evenement.ferie_cle || null,
     } : VIDE)
   }, [visible, evenement])
 
@@ -73,6 +76,18 @@ export default function FeuilleEvenement({ visible, evenement, restaurants, ctx,
       <Libelle styles={styles}>Fréquence</Libelle>
       <Puces styles={styles} actif={form.chaque_annee} onChoisir={maj('chaque_annee')}
         elements={[{ cle: false, label: 'Une seule fois' }, { cle: true, label: 'Chaque année' }]} />
+
+      {form.ferie_cle ? (
+        <>
+          <Libelle styles={styles}>Date officielle</Libelle>
+          <Puces styles={styles} actif={form.date_estimee} onChoisir={maj('date_estimee')}
+            elements={[{ cle: true, label: 'Estimée' }, { cle: false, label: 'Confirmée' }]} />
+        </>
+      ) : null}
+
+      <Libelle styles={styles}>Alerte stock (7 et 2 jours avant)</Libelle>
+      <Puces styles={styles} actif={form.alerte_stock} onChoisir={maj('alerte_stock')}
+        elements={[{ cle: true, label: 'Oui' }, { cle: false, label: 'Non' }]} />
 
       <Libelle styles={styles}>Restaurant concerné</Libelle>
       <Puces styles={styles} actif={form.restaurant_id} onChoisir={maj('restaurant_id')} elements={puccesRestaurants} />

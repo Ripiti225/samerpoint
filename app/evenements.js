@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, SafeAreaView, ScrollView, Text, View } from 'react-native'
 
 import FeuilleEvenement from '../components/evenements/FeuilleEvenement'
+import FeuilleJoursFeries from '../components/evenements/FeuilleJoursFeries'
 import FeuilleMessage from '../components/evenements/FeuilleMessage'
 import LigneEvenement from '../components/evenements/LigneEvenement'
 import { Bouton, EnTete, Puces, Vide, useEcranModerne } from '../components/ui/EcranModerne'
@@ -39,6 +40,7 @@ export default function EvenementsScreen() {
   const [erreur, setErreur] = useState(false)
   const [ligneMessage, setLigneMessage] = useState(null)
   const [formulaire, setFormulaire] = useState({ visible: false, evenement: null })
+  const [joursFeries, setJoursFeries] = useState(false)
 
   const charger = useCallback(async () => {
     if (!autorise) { setLoading(false); return }
@@ -89,17 +91,18 @@ export default function EvenementsScreen() {
         </View>
       ) : (
         <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-          {groupe ? (
-            <View style={{ marginBottom: 12, gap: 8 }}>
+          <View style={{ marginBottom: 12, gap: 8 }}>
+            {groupe ? (
               <Bouton label="➕ Ajouter un événement" variante="plein" couleur={principale} styles={styles}
                 onPress={() => setFormulaire({ visible: true, evenement: null })} />
-              {sansNaissance > 0 ? (
-                <Text style={{ fontSize: 13, color: colors.textMuted }}>
-                  {sansNaissance} fiche{sansNaissance > 1 ? 's' : ''} sans date de naissance
-                </Text>
-              ) : null}
-            </View>
-          ) : null}
+            ) : null}
+            <Bouton label="🇨🇮 Jours fériés ivoiriens" couleur={principale} styles={styles} onPress={() => setJoursFeries(true)} />
+            {groupe && sansNaissance > 0 ? (
+              <Text style={{ fontSize: 13, color: colors.textMuted }}>
+                {sansNaissance} fiche{sansNaissance > 1 ? 's' : ''} sans date de naissance
+              </Text>
+            ) : null}
+          </View>
 
           {fil.length === 0 ? (
             <Vide icone="🎉" texte="Rien de prévu pour le moment." styles={styles} />
@@ -125,6 +128,10 @@ export default function EvenementsScreen() {
           onFermer={() => setFormulaire({ visible: false, evenement: null })}
           onEnregistre={() => { setFormulaire({ visible: false, evenement: null }); charger() }} />
       ) : null}
+      <FeuilleJoursFeries visible={joursFeries && !formulaire.visible} evenements={donnees.evenements} peutGerer={groupe}
+        ctx={{ userId: userId || null, userNom: userNom || null }} styles={styles} colors={colors} principale={principale}
+        onFermer={() => setJoursFeries(false)} onAjoute={charger}
+        onModifier={evenement => setFormulaire({ visible: true, evenement })} />
     </SafeAreaView>
   )
 }
