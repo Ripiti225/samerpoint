@@ -62,7 +62,7 @@ La table `evenements_groupe` reçoit quatre colonnes :
 | `date_estimee` | boolean, faux par défaut | Affiche « date estimée » |
 | `alerte_stock` | boolean, faux par défaut | Déclenche les alertes de stock |
 
-Un index unique sur `(ferie_cle, ferie_annee)`, limité aux lignes où `ferie_cle` n'est pas vide, empêche les doublons.
+Un index unique sur `(ferie_cle, ferie_annee)` empêche les doublons. Les événements saisis à la main ont ces deux colonnes vides et n'entrent donc jamais en conflit.
 
 Nouvelle table `alertes_stock_envoyees` : `cle` (text, clé primaire), `message`, `created_at`. Une alerte ne part que si sa clé peut être insérée.
 
@@ -74,12 +74,16 @@ Nouvelle table `alertes_stock_envoyees` : `cle` (text, clé primaire), `message`
 - Le résultat s'affiche : « 14 jours fériés ajoutés pour 2027 » ou « Déjà ajoutés ».
 - Le journal enregistre l'ajout.
 
+La même feuille liste les fériés de l'année choisie, passés compris : c'est le seul endroit où confirmer les dates de 2026, que le fil n'affiche plus. La direction et la RH y touchent une fête pour la corriger ou la supprimer ; le gérant la consulte seulement.
+
 ## Formulaire d'un événement
 
 Deux réglages s'ajoutent :
 
 - **Alerte stock :** oui ou non, pour tout événement, y compris ceux saisis à la main.
 - **Date :** estimée ou confirmée, visible seulement pour un jour férié.
+
+Un jour férié peut garder une date passée, pour pouvoir confirmer une édition précédente. Le refus des dates passées reste valable pour les autres événements.
 
 Le fil affiche « date estimée » sur la ligne concernée.
 
@@ -123,7 +127,7 @@ Nouvelle Edge Function `alertes-stock`, sur le modèle de `rappels-tresorerie`, 
 - Le mode `essai` calcule et renvoie les messages sans rien envoyer ni noter.
 - Plusieurs fêtes le même jour se regroupent en un seul message par personne.
 
-Le gérant sans compte actif ne reçoit rien ; aucune erreur n'est levée pour autant.
+Le téléphone web d'un restaurant est partagé entre ses gérants : pour un même restaurant, la notification web ne part qu'une fois par exécution.
 
 ## Accueil
 
