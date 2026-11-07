@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Alert, Text, View } from 'react-native'
 
-import { erreurEvenement } from '../../lib/evenements'
+import { aujourdhuiISO } from '../../lib/contrats'
+import { erreurEvenement, texteConfirmation } from '../../lib/evenements'
 import { enregistrerEvenement, supprimerEvenement } from '../../lib/evenementsDb'
 import ChampDate from '../ChampDate'
 import { Bouton, Champ, Feuille, Libelle, Puces } from '../ui/EcranModerne'
@@ -28,11 +29,12 @@ export default function FeuilleEvenement({ visible, evenement, restaurants, ctx,
   const maj = champ => valeur => setForm(f => ({ ...f, [champ]: valeur }))
 
   async function enregistrer() {
-    const probleme = erreurEvenement(form)
+    const probleme = erreurEvenement(form, aujourdhuiISO())
     if (probleme) { setErreur(probleme); return }
     setOccupe(true)
     try {
       await enregistrerEvenement(form, evenement?.id || null, ctx)
+      Alert.alert('Événement enregistré', texteConfirmation(form.date_evenement))
       onEnregistre()
     } catch {
       setErreur("L'événement n'a pas pu être enregistré. Réessayez.")
@@ -65,7 +67,7 @@ export default function FeuilleEvenement({ visible, evenement, restaurants, ctx,
       <Libelle styles={styles}>Titre</Libelle>
       <Champ styles={styles} colors={colors} value={form.titre} onChangeText={maj('titre')} placeholder="Ex : Noël, réunion des gérants" maxLength={120} />
 
-      <ChampDate label="Date" valeur={form.date_evenement} onChange={maj('date_evenement')} couleur={principale} />
+      <ChampDate label="Date" valeur={form.date_evenement} onChange={maj('date_evenement')} couleur={principale} styleLabel={styles.label} />
       <View style={{ height: 16 }} />
 
       <Libelle styles={styles}>Fréquence</Libelle>

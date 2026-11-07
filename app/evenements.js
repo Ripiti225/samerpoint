@@ -57,7 +57,7 @@ export default function EvenementsScreen() {
 
   const visibles = useMemo(() => dansRestaurant(donnees, groupe ? restoFiltre : null), [donnees, groupe, restoFiltre])
   const lignes = useMemo(() => construireLignes({ ...visibles, aujourdhui }), [visibles, aujourdhui])
-  const fil = useMemo(() => construireFil(lignes, aujourdhui, filtre), [lignes, aujourdhui, filtre])
+  const fil = useMemo(() => construireFil(lignes, aujourdhui, filtre, { plusTard: groupe }), [lignes, aujourdhui, filtre, groupe])
   const sansNaissance = useMemo(() => nbSansNaissance(visibles.travailleurs), [visibles])
 
   const puccesRestos = useMemo(

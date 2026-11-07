@@ -44,7 +44,7 @@ Le rôle superviseur et le caissier n'y ont pas accès.
 3. Reste du mois ;
 4. Mois suivant.
 
-Rien n'est affiché au-delà de la fin du mois suivant. Les dates passées n'apparaissent pas. Les filtres sont : Tout, Anniversaires, Ancienneté, Calendrier. Un fil vide affiche un message simple.
+Sous le filtre **Calendrier**, la direction et la RH voient une cinquième section, **Plus tard**, qui regroupe les événements du calendrier datés après la fin du mois suivant (jamais d'anniversaire ni d'ancienneté). Dans tous les autres cas, y compris le filtre « Tout » et pour le gérant, rien n'est affiché au-delà de la fin du mois suivant. Les dates passées n'apparaissent pas. Les filtres sont : Tout, Anniversaires, Ancienneté, Calendrier. Un fil vide affiche un message simple.
 
 ## Anniversaires et ancienneté
 
@@ -82,7 +82,7 @@ Textes de départ (`{prénom}` vient de `prenoms`, sinon de `nom`) :
 | Commence par `225` ou `+225`, suivi de 10 chiffres | `225` + les 10 chiffres |
 | Vide ou autre format | Aucun numéro : boutons remplacés par « Pas de numéro valide sur la fiche » |
 
-Le SMS utilise le même numéro. Sur ordinateur, si aucune application SMS ne s'ouvre, un message d'erreur en français le dit.
+Le SMS utilise le même numéro. Sur iPhone ou iPad, y compris dans l'application web ajoutée à l'écran d'accueil, le lien SMS utilise la forme propre à iOS. Sur le web, l'ouverture d'une application SMS ne peut pas être détectée : la fenêtre reste ouverte avec le texte modifié, et la ligne « Si l'application SMS ne s'ouvre pas, envoyez le message depuis un téléphone. » s'affiche. Sur l'application installée, un échec d'ouverture affiche un message d'erreur en français.
 
 ## Calendrier du groupe
 
@@ -101,7 +101,10 @@ Nouvelle table `evenements_groupe` (migration `supabase_evenements.sql`) :
 
 - Ajouter, modifier et supprimer passent par `journaliser`, qui ne bloque jamais l'action.
 - La suppression demande une confirmation à deux boutons.
-- Un événement `chaque_annee` s'affiche à sa prochaine date dans l'année en cours ou la suivante.
+- Un événement `chaque_annee` s'affiche à sa prochaine date dans l'année en cours ou la suivante, mais jamais avant sa propre date de départ : s'il commence dans plus d'un an, il s'affiche à cette date.
+- Un événement unique daté avant aujourd'hui est refusé : « Choisissez une date à venir. » Un événement `chaque_annee` peut garder une date passée.
+- Après l'enregistrement, une confirmation donne la date : « Enregistré pour le JJ/MM/AAAA. »
+- La ligne d'un événement indique le restaurant concerné, ou « Tout le groupe ».
 - La table suit les mêmes règles d'accès que le reste de la base.
 
 ## Rappel sur l'accueil

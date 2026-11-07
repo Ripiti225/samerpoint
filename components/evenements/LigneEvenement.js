@@ -18,7 +18,7 @@ export default function LigneEvenement({ ligne, aujourdhui, voitAge, peutGerer, 
     const contenu = (
       <>
         <Text style={{ fontSize: 15, fontWeight: '800', color: colors.text }}>{e.titre}</Text>
-        <Text style={{ fontSize: 13, color: colors.textMuted, marginTop: 2 }}>{libelle(ligne)} · {jour}</Text>
+        <Text style={{ fontSize: 13, color: colors.textMuted, marginTop: 2 }}>{libelle(ligne)} · {e.restaurants?.nom || 'Tout le groupe'} · {jour}</Text>
         {e.note ? <Text style={{ fontSize: 13, color: colors.text, marginTop: 6 }}>{e.note}</Text> : null}
       </>
     )
