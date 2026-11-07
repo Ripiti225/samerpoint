@@ -39,10 +39,11 @@ Base : décret n° 96-205 du 7 mars 1996, modifié par le décret n° 2011-371 d
 
 **Années disponibles :** 2026 à 2030.
 
-**Dates lunaires estimées**, calculées avec le calendrier islamique Umm al-Qura, à compléter pour 2026 avant la mise en service :
+**Dates lunaires estimées**, calculées avec le calendrier islamique Umm al-Qura. Celles de 2026 sont passées : elles servent au chiffre de hausse une fois confirmées par l'utilisateur.
 
 | Année | Lendemain Nuit du Destin | Korité | Tabaski | Lendemain Maouloud |
 |---|---|---|---|---|
+| 2026 | 17 mars | 20 mars | 27 mai | 26 août |
 | 2027 | 7 mars | 9 mars | 16 mai | 15 août |
 | 2028 | 24 février | 26 février | 5 mai | 4 août |
 | 2029 | 12 février | 14 février | 24 avril | 25 juillet |
