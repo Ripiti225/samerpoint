@@ -5,10 +5,14 @@
 // puis ce qui manque sur la fiche. Le bouton reste grisé tant que le modèle ne
 // peut pas être rempli entièrement : un contrat avec des trous ne part pas.
 //
-// Dates : un stage commence TOUJOURS à la date d'embauche (règle de
-// l'utilisateur, 14/10/2026) ; un CDD/CDI commence le lendemain du contrat
-// précédent, sinon à l'embauche. La fin découle toujours de la durée : le texte
-// du contrat cite les deux, ils ne peuvent pas se contredire.
+// Dates : un premier stage commence TOUJOURS à la date d'embauche (règle de
+// l'utilisateur, 14/10/2026), un stage suivant le lendemain du contrat signé
+// précédent ; un CDD/CDI commence le lendemain du contrat précédent, sinon à
+// l'embauche. La fin découle toujours de la durée (veille du même jour, n mois
+// plus tard) : le texte du contrat cite les deux, ils ne peuvent pas se contredire.
+// Un stage dont les premières périodes sont déjà passées est découpé en
+// plusieurs contrats (anciens + celui en cours), envoyés ensemble au gérant
+// (règle de l'utilisateur, 12/11/2026).
 // Type proposé à l'ouverture : Journalier → Stage, CDI → CDI, sinon CDD
 // (lib/miseAJourFiches.js, 29/10/2026).
 // ──────────────────────────────────────────────────────────────────────────────
@@ -20,9 +24,12 @@ import ChampDate from '../ChampDate'
 import { debutParDefaut } from '../FormulaireContrat'
 import { Bouton, Champ, Feuille, Info, Libelle, Puces, teinte, useEcranModerne } from '../ui/EcranModerne'
 import { baremePour, differeDuBareme, montantsDepuisBareme } from '../../lib/baremes'
-import { DUREES_MOIS, TYPES_CONTRAT, aujourdhuiISO, calculerDateFin, formatFR, validerDureeLibre } from '../../lib/contrats'
 import {
-  completerFiche, corrigerContratRefuse, enregistrerBareme, genererContrat, marqueDuResto,
+  DUREES_MOIS, TYPES_CONTRAT, aujourdhuiISO, calculerDateFin, decouperEnPeriodes, finEffective, formatFR,
+  stageDepasseDouzeMois, validerDureeLibre,
+} from '../../lib/contrats'
+import {
+  completerFiche, corrigerContratRefuse, enregistrerBareme, genererContrats, marqueDuResto,
 } from '../../lib/contratsSignesDb'
 import { contratDejaTermine, typeContratPropose } from '../../lib/miseAJourFiches'
 import { champsManquantsContrat, donneesDepuisFiche, marqueContrat } from '../../lib/modelesContrat'
@@ -108,11 +115,30 @@ export default function FormulaireGeneration({
 
   const estStage = type === 'Stage'
   const estCDI = type === 'CDI'
-  const debut = estStage ? (trav.date_embauche || '') : dateDebut
+  const aujourdhui = aujourdhuiISO()
+  const suitUnContrat = (contratsExistants || []).some(c => finEffective(c))
+  const debutStage = contratRefuse?.donnees?.date_debut
+    || (suitUnContrat ? debutParDefaut(trav, contratsExistants) : (trav.date_embauche || ''))
+  const debut = estStage ? debutStage : dateDebut
   const mois = estCDI ? null : (duree === 'autre' ? validerDureeLibre(dureeLibre).mois : duree)
-  const fin = !estCDI && mois && debut ? calculerDateFin(debut, mois) : null
+  // Stage : découpé en contrats successifs jusqu'à celui en cours. Une
+  // correction après refus ne touche qu'un contrat, jamais découpé.
+  const periodes = useMemo(() => {
+    if (estCDI || !mois || !debut) return []
+    if (estStage && !contratRefuse) return decouperEnPeriodes(debut, mois, aujourdhui)
+    return [{ date_debut: debut, date_fin: calculerDateFin(debut, mois), passe: false }]
+  }, [estCDI, estStage, mois, debut, aujourdhui, contratRefuse])
+  const plusieurs = periodes.length > 1
+  const fin = periodes.length ? periodes[periodes.length - 1].date_fin : null
+  const debutDuStage = estStage
+    ? [...(contratsExistants || []).filter(c => c.type === 'Stage').map(c => c.date_debut), periodes[0]?.date_debut]
+      .filter(Boolean).sort()[0]
+    : null
+  const stageTropLong = estStage && stageDepasseDouzeMois(debutDuStage, fin)
 
-  const choix = { type, duree_mois: mois, date_debut: debut, date_fin: fin, montants }
+  // Le dernier contrat (celui en cours) sert à l'aperçu et aux vérifications.
+  const choix = { type, duree_mois: mois, date_debut: plusieurs ? periodes[periodes.length - 1].date_debut : debut, date_fin: fin, montants }
+  const choixListe = estCDI ? [choix] : periodes.map(p => ({ ...choix, date_debut: p.date_debut, date_fin: p.date_fin }))
   const donnees = useMemo(() => donneesDepuisFiche(trav, marque, choix),
     [JSON.stringify(trav), marque, JSON.stringify(choix)]) // eslint-disable-line react-hooks/exhaustive-deps
   const manquants = travailleur ? champsManquantsContrat(type, donnees) : []
@@ -132,8 +158,14 @@ export default function FormulaireGeneration({
         if (retenir) await enregistrerBareme(trav.poste, type, montants).catch(() => {})
       }
       if (contratRefuse) await corrigerContratRefuse(contratRefuse, { travailleur: trav, choix }, ctx)
-      else await genererContrat({ travailleur: trav, choix, demandeId }, ctx)
-      Alert.alert('Contrat envoyé', `Le gérant de ${travailleur.restaurants?.nom || 'son restaurant'} va le faire signer à ${travailleur.nom}.`)
+      else await genererContrats({ travailleur: trav, choixListe, demandeId }, ctx)
+      const resto = travailleur.restaurants?.nom || 'son restaurant'
+      Alert.alert(
+        plusieurs ? `${choixListe.length} contrats envoyés` : 'Contrat envoyé',
+        plusieurs
+          ? `Le gérant de ${resto} va les faire signer à ${travailleur.nom}, l'un après l'autre.`
+          : `Le gérant de ${resto} va le faire signer à ${travailleur.nom}.`,
+      )
       onGenere?.()
     } catch (e) {
       Alert.alert('Contrat non envoyé', e.message)
@@ -190,17 +222,38 @@ export default function FormulaireGeneration({
 
       {estStage ? (
         <Info icone="📅" styles={styles}>
-          {trav.date_embauche
-            ? `Un stage commence toujours à la date d'embauche : le ${formatFR(trav.date_embauche)}.`
-            : "Un stage commence toujours à la date d'embauche : renseigne-la ci-dessous."}
+          {contratRefuse || suitUnContrat
+            ? `Ce stage commence le ${formatFR(debut)}${contratRefuse ? '' : ', le lendemain du contrat précédent'}.`
+            : trav.date_embauche
+              ? `Un stage commence toujours à la date d'embauche : le ${formatFR(trav.date_embauche)}.`
+              : "Un stage commence toujours à la date d'embauche : renseigne-la ci-dessous."}
         </Info>
       ) : (
         <ChampDate label="Date de début" valeur={dateDebut} onChange={setDateDebut} couleur={principale} />
       )}
-      {fin ? <Info icone="🏁" styles={styles}>Fin du contrat : le {formatFR(fin)}</Info> : null}
-      {contratDejaTermine(fin, aujourdhuiISO()) ? (
+      {plusieurs ? (
+        <View style={{ padding: 12, borderRadius: 12, backgroundColor: teinte(accent, '14'), marginTop: 10, gap: 4 }}>
+          <Text style={{ color: colors.text, fontWeight: '800' }}>
+            Les premières périodes sont déjà passées : {periodes.length} contrats seront créés
+          </Text>
+          {periodes.map((p, i) => (
+            <Text key={p.date_debut} style={{ color: colors.text }}>
+              {i + 1}. Du {formatFR(p.date_debut)} au {formatFR(p.date_fin)}{p.passe ? ' — déjà passé' : ' — en cours'}
+            </Text>
+          ))}
+          <Text style={{ color: colors.textMuted, marginTop: 4 }}>
+            Ils partent tous au gérant, le travailleur les signe l&apos;un après l&apos;autre.
+          </Text>
+        </View>
+      ) : fin ? <Info icone="🏁" styles={styles}>Fin du contrat : le {formatFR(fin)}</Info> : null}
+      {stageTropLong ? (
+        <Info icone="⚠️" styles={styles} couleur="#C2462B" gras>
+          Le stage dépasse 12 mois au total (depuis le {formatFR(debutDuStage)}) : le contrat de stage limite les renouvellements à 12 mois. Il faudrait passer en CDD.
+        </Info>
+      ) : null}
+      {!estStage && contratDejaTermine(fin, aujourdhui) ? (
         <Info icone="⚠️" styles={styles} couleur="#C2462B">
-          Avec cette durée, le contrat serait déjà terminé le {formatFR(fin)} : il commence à la date d&apos;embauche. Choisis une durée plus longue.
+          Avec cette durée, le contrat serait déjà terminé le {formatFR(fin)}. Choisis une date de début plus récente ou une durée plus longue.
         </Info>
       ) : null}
 
@@ -265,7 +318,7 @@ export default function FormulaireGeneration({
       {envoi
         ? <ActivityIndicator size="large" color={accent} />
         : <Bouton grand styles={styles} couleur={principale} variante="plein"
-          label={contratRefuse ? 'Renvoyer au gérant' : 'Générer et envoyer au gérant'}
+          label={contratRefuse ? 'Renvoyer au gérant' : plusieurs ? `Générer les ${periodes.length} contrats et envoyer au gérant` : 'Générer et envoyer au gérant'}
           disabled={manquants.length > 0 || !modele} onPress={generer} />}
     </Feuille>
   )

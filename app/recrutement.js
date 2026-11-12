@@ -60,6 +60,7 @@ export default function RecrutementScreen() {
         .select('*, travailleurs(nom, photo_url, poste)')
         .in('statut', ['a_signer', 'signe_a_verifier', 'refuse'])
         .order('envoye_le', { ascending: false })
+        .order('date_debut', { ascending: true })  // contrats d'un même lot : le plus ancien d'abord
         .range(0, 999)
       if (restaurantId) q = q.eq('restaurant_id', restaurantId)
       const [d, c, t, e] = await Promise.all([
