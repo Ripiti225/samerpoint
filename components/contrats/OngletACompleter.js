@@ -1,12 +1,26 @@
 // Fiches incomplètes ou refusées : ce qu'il manque à chacun, un toucher pour le saisir.
+// Filtre par état : pas encore envoyée par le gérant, envoyée (à valider), refusée.
 import { Text, TouchableOpacity, View } from 'react-native'
 
 import Avatar from '../equipe/Avatar'
 import { Puces, Vide } from '../ui/EcranModerne'
 
-export default function OngletACompleter({ styles, lignes, comptes, filtre, onFiltre, restoNom, onOuvrir }) {
+const VIDES = {
+  incomplete: 'Aucune fiche en attente du gérant : tout a été envoyé.',
+  envoyee: 'Aucune fiche envoyée en attente de validation.',
+  refusee: 'Aucune fiche refusée.',
+}
+
+export default function OngletACompleter({ styles, lignes, comptes, filtre, onFiltre, etats, filtreEtat, onFiltreEtat, restoNom, onOuvrir }) {
+  const n = k => (etats?.[k] ? ` (${etats[k]})` : '')
   return (
     <>
+      <Puces ligne styles={styles} actif={filtreEtat} onChoisir={onFiltreEtat} elements={[
+        { cle: null, label: 'Toutes' },
+        { cle: 'incomplete', label: `⏳ Pas envoyée${n('incomplete')}` },
+        { cle: 'envoyee', label: `📋 Envoyée, à valider${n('envoyee')}` },
+        { cle: 'refusee', label: `❌ Refusée${n('refusee')}` },
+      ]} />
       {comptes.length > 0 && (
         <Puces ligne petit styles={styles} actif={filtre} onChoisir={onFiltre} elements={[
           { cle: null, label: 'Toutes' },
@@ -14,7 +28,7 @@ export default function OngletACompleter({ styles, lignes, comptes, filtre, onFi
         ]} />
       )}
       {lignes.length === 0
-        ? <Vide icone="✅" styles={styles} texte="Toutes ces fiches sont complètes." sous={null} />
+        ? <Vide icone="✅" styles={styles} texte={VIDES[filtreEtat] || 'Toutes ces fiches sont complètes.'} sous={null} />
         : lignes.map(({ trav, demande, manquants }) => (
           <TouchableOpacity key={trav.id} style={styles.carte} activeOpacity={0.8} onPress={() => onOuvrir(trav, demande)}>
             <View style={styles.carteTop}>

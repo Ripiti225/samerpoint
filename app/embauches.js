@@ -27,7 +27,7 @@ import { EnTete, Pastille, Puces, Vide, useEcranModerne } from '../components/ui
 import { useApp } from '../context/AppContext'
 import { aujourdhuiISO, formatFR } from '../lib/contrats'
 import { chargerDemandes, chargerTousTravailleurs } from '../lib/contratsSignesDb'
-import { comptesManquants, fichesACompleter, resumeCampagne } from '../lib/miseAJourFiches'
+import { comptesEtats, comptesManquants, fichesACompleter, resumeCampagne } from '../lib/miseAJourFiches'
 import { chargerCampagne, relancerGerants } from '../lib/miseAJourFichesDb'
 import { STATUTS_DEMANDE_TRAV, nomComplet } from '../lib/recrutement'
 import { supabase } from '../lib/supabase'
@@ -51,6 +51,7 @@ export default function EmbauchesScreen() {
   const [majOuverte, setMajOuverte] = useState(null)
   const [campagne, setCampagne] = useState({ travailleurs: [], contrats: [] })
   const [filtreManque, setFiltreManque] = useState(null)
+  const [filtreEtat, setFiltreEtat] = useState(null) // null = toutes, sinon incomplete | envoyee | refusee
   const [ficheEdition, setFicheEdition] = useState(null)
 
   useEffect(() => { charger() }, [])
@@ -90,15 +91,20 @@ export default function EmbauchesScreen() {
   const [envoiEnCours, setEnvoiEnCours] = useState(false)
 
   const restaurantIdFiltre = filtreResto === 'tous' ? null : filtreResto
-  const comptes = useMemo(
-    () => comptesManquants(campagne.travailleurs, demandes, { restaurantId: restaurantIdFiltre }),
+  const etats = useMemo(
+    () => comptesEtats(campagne.travailleurs, demandes, { restaurantId: restaurantIdFiltre }),
     [campagne, demandes, restaurantIdFiltre],
+  )
+  const nbACompleterTotal = etats.incomplete + etats.envoyee + etats.refusee
+  const comptes = useMemo(
+    () => comptesManquants(campagne.travailleurs, demandes, { restaurantId: restaurantIdFiltre, etat: filtreEtat }),
+    [campagne, demandes, restaurantIdFiltre, filtreEtat],
   )
   // Une donnée qui n'est plus manquante (fiche complétée, autre restaurant) ne garde pas le filtre.
   const manqueActif = comptes.some(c => c.libelle === filtreManque) ? filtreManque : null
   const aCompleter = useMemo(
-    () => fichesACompleter(campagne.travailleurs, demandes, { restaurantId: restaurantIdFiltre, manque: manqueActif }),
-    [campagne, demandes, restaurantIdFiltre, manqueActif],
+    () => fichesACompleter(campagne.travailleurs, demandes, { restaurantId: restaurantIdFiltre, manque: manqueActif, etat: filtreEtat }),
+    [campagne, demandes, restaurantIdFiltre, manqueActif, filtreEtat],
   )
 
   function ouvrirACompleter(trav, demande) {
@@ -189,7 +195,7 @@ export default function EmbauchesScreen() {
         { cle: 'valider', label: `🟡 À valider${nbValider ? ` (${nbValider})` : ''}` },
         { cle: 'refusees', label: `❌ Refusées${nbRefusees ? ` (${nbRefusees})` : ''}` },
         { cle: 'acceptees', label: '✅ Acceptées' },
-        { cle: 'completer', label: `✏️ À compléter${aCompleter.length && !manqueActif ? ` (${aCompleter.length})` : ''}` },
+        { cle: 'completer', label: `✏️ À compléter${nbACompleterTotal ? ` (${nbACompleterTotal})` : ''}` },
         { cle: 'suivi', label: '📊 Suivi' },
       ]} />
 
@@ -200,7 +206,8 @@ export default function EmbauchesScreen() {
           {onglet === 'suivi'
             ? <OngletSuiviCampagne styles={styles} accent={accent} resume={resume} onRelancer={relancer} onPrevenirTous={prevenirTous} total={resumeTous.total} envoiEnCours={envoiEnCours} />
             : onglet === 'completer'
-              ? <OngletACompleter styles={styles} lignes={aCompleter} comptes={comptes} filtre={manqueActif} onFiltre={setFiltreManque} restoNom={restoNom} onOuvrir={ouvrirACompleter} />
+              ? <OngletACompleter styles={styles} lignes={aCompleter} comptes={comptes} filtre={manqueActif} onFiltre={setFiltreManque}
+                  etats={etats} filtreEtat={filtreEtat} onFiltreEtat={setFiltreEtat} restoNom={restoNom} onOuvrir={ouvrirACompleter} />
               : affichees.length
                 ? affichees.map(renderDemande)
                 : <Vide icone={vides.icone} styles={styles} texte={vides.texte} sous={vides.sous} />}
