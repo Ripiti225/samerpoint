@@ -3270,9 +3270,9 @@
     "semantic_hash": ""
   },
   "app/embauches.js": {
-    "mtime": 1793974373.9828677,
-    "seen": 1793974439.779045,
-    "ast_hash": "bacfd634de79f635a63b1b065c53dd63",
+    "mtime": 1794477119.3587255,
+    "seen": 1794477205.163174,
+    "ast_hash": "ad4e4d434311fa5012f848efcef50874",
     "semantic_hash": ""
   },
   "app/superviseur.js": {
@@ -3762,15 +3762,15 @@
     "semantic_hash": ""
   },
   "lib/miseAJourFiches.js": {
-    "mtime": 1793974224.9491935,
-    "seen": 1793974439.779403,
-    "ast_hash": "ecfb4bb78b7b99cf9bb4618e327de56c",
+    "mtime": 1794477089.1459076,
+    "seen": 1794477205.163572,
+    "ast_hash": "8f98d57368a10448afe1d3336b8609dc",
     "semantic_hash": ""
   },
   "lib/miseAJourFiches.test.mjs": {
-    "mtime": 1793974204.7285032,
-    "seen": 1793974439.779404,
-    "ast_hash": "1e8feb98d21693871e5e38251ab597c3",
+    "mtime": 1794477075.4550745,
+    "seen": 1794477205.163574,
+    "ast_hash": "17184c9ce28d2d7a1cac57fa1cafcae8",
     "semantic_hash": ""
   },
   "lib/miseAJourFichesDb.js": {
@@ -4128,9 +4128,9 @@
     "semantic_hash": ""
   },
   "components/contrats/OngletACompleter.js": {
-    "mtime": 1793974373.9431348,
-    "seen": 1793974439.7791302,
-    "ast_hash": "7a77629a75cbda2c18c8d8f99f6006de",
+    "mtime": 1794477121.0285227,
+    "seen": 1794477205.163268,
+    "ast_hash": "65f5714f4404f6e508034d518f7b9c8e",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-11-06-correction-fiches-rh.md": {
@@ -4146,9 +4146,9 @@
     "semantic_hash": ""
   },
   "app/evenements.js": {
-    "mtime": 1794064209.2583447,
-    "seen": 1794064276.778408,
-    "ast_hash": "a4f7a13e051f11b8376b3abd66b3f4a4",
+    "mtime": 1794073302.400655,
+    "seen": 1794477205.163177,
+    "ast_hash": "2055c08bf62a3a2fbf39d1a57cbfa744",
     "semantic_hash": ""
   },
   "components/evenements/FeuilleEvenement.js": {
@@ -4182,9 +4182,9 @@
     "semantic_hash": ""
   },
   "lib/evenementsDb.js": {
-    "mtime": 1794064209.2569754,
-    "seen": 1794064276.77873,
-    "ast_hash": "91a416d0baf5471fe1c46d8783e95943",
+    "mtime": 1794073276.2540023,
+    "seen": 1794477205.163506,
+    "ast_hash": "cd6361c42fb8d2ceade5d1a4f3c21792",
     "semantic_hash": ""
   },
   "lib/litigeSurplus.js": {
@@ -4302,21 +4302,21 @@
     "semantic_hash": ""
   },
   "components/evenements/LigneDate.js": {
-    "mtime": 1794063771.5484848,
-    "seen": 1794063824.000959,
-    "ast_hash": "b2044859bca71a328615249073537952",
+    "mtime": 1794073302.4009821,
+    "seen": 1794477205.163295,
+    "ast_hash": "24a73a9cb70bce1efd39c07072003a4e",
     "semantic_hash": ""
   },
   "lib/calendrierDates.js": {
-    "mtime": 1794064047.4167957,
-    "seen": 1794064276.7786398,
-    "ast_hash": "cf9fa981c8f1950462e1757da10a1b87",
+    "mtime": 1794073261.2879465,
+    "seen": 1794477205.163409,
+    "ast_hash": "cec89ecc011cd21f29c76e6a6c1eed47",
     "semantic_hash": ""
   },
   "lib/calendrierDates.test.mjs": {
-    "mtime": 1794064020.3507662,
-    "seen": 1794064276.778641,
-    "ast_hash": "86ed6341dd86729051100b4ebd1c4249",
+    "mtime": 1794073247.0827641,
+    "seen": 1794477205.163411,
+    "ast_hash": "23d318c7c871a0101bf5461f013e88a2",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-11-07-calendrier-dates.md": {
@@ -4326,33 +4326,39 @@
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-11-07-calendrier-dates-design.md": {
-    "mtime": 1794063728.9774992,
-    "seen": 1794063824.0015638,
-    "ast_hash": "c3311dd6ce60a37cd195312d3c30fc3a",
+    "mtime": 1794073314.9741683,
+    "seen": 1794477205.163927,
+    "ast_hash": "309c691af60ead405ad0d5e7ea450489",
     "semantic_hash": ""
   },
   "app/acces-calendrier.js": {
-    "mtime": 1794064229.8514931,
-    "seen": 1794064276.778377,
-    "ast_hash": "f02f4683a5c3da55b64a9a34cd7fd51f",
+    "mtime": 1794073287.4346397,
+    "seen": 1794477205.163145,
+    "ast_hash": "7341c4e3784fe47ec5573c6833f44b88",
     "semantic_hash": ""
   },
   "lib/accesCalendrier.js": {
-    "mtime": 1794064027.7966099,
-    "seen": 1794064276.7785878,
-    "ast_hash": "83c12f5dc03c4498b7c7e86ca4d55deb",
+    "mtime": 1794073261.2876365,
+    "seen": 1794477205.163361,
+    "ast_hash": "25298a01b3bc6f1da6af46d6b482670b",
     "semantic_hash": ""
   },
   "lib/accesCalendrier.test.mjs": {
-    "mtime": 1794064054.790245,
-    "seen": 1794064276.778589,
-    "ast_hash": "e564796024f6613d7eb480bf02deec94",
+    "mtime": 1794073247.0831027,
+    "seen": 1794477205.163362,
+    "ast_hash": "7202807f2b8fd65fbb9e3862947c8560",
     "semantic_hash": ""
   },
   "supabase_calendrier_acces.sql": {
     "mtime": 1794064229.8473287,
     "seen": 1794064276.77894,
     "ast_hash": "0b89320f21b9d08a9799db23fc909eb0",
+    "semantic_hash": ""
+  },
+  "supabase_securite_lot0.sql": {
+    "mtime": 1794074263.073093,
+    "seen": 1794477205.163813,
+    "ast_hash": "ccdeddc52b0e059804fec1b3825234f2",
     "semantic_hash": ""
   }
 }
