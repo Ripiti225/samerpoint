@@ -35,6 +35,10 @@ import { preparerEntreesVerification } from '../lib/entreesVerification'
 import { venteRetenue, venteTheorique } from '../lib/venteMachine'
 import { beneficeSC, correctionAnnulations } from '../lib/beneficeCorrige'
 import { SqueletteFichePoint, SqueletteListePoints } from '../components/ui/Squelette'
+import InventaireGlobal from '../components/verification/InventaireGlobal'
+import PlatsDuProduit, { SANS_POS } from '../components/verification/PlatsDuProduit'
+import { cumulerVentes } from '../lib/inventaireGlobal'
+import { chargerPlatsServices } from '../lib/statsPOSDb'
 import VenteDouble from '../components/ui/VenteDouble'
 import FeuilleTransfertFond from '../components/tresorerie/FeuilleTransfertFond'
 import { photosCanalDisponibles } from '../lib/photosVerification'
@@ -116,6 +120,9 @@ export default function VerificationScreen() {
   // Inventaire du point, affiché dans l'onglet Stock de la fiche
   const [detailInventaire, setDetailInventaire] = useState(null)
   const inventaireDemande = useRef(null)  // point dont l'inventaire est attendu
+  // Plats vendus par service de caisse (POS), pour « quels plats ont fait sortir ce produit »
+  const [ventesInventaire, setVentesInventaire] = useState({ parService: null, erreur: null })
+  const [ligneInvOuverte, setLigneInvOuverte] = useState(null)  // `${shift}|${produit}` déplié
   const [annulDeducSaving, setAnnulDeducSaving] = useState(null)  // id de la ligne en cours d'annulation
   // Décision manager sur un écart inventaire expliqué (validee / refusee)
   const [decisionInv, setDecisionInv] = useState(null)  // { ...ligneEcart } ou null
@@ -663,7 +670,7 @@ export default function VerificationScreen() {
       supabase
         .from('inventaires_shifts')
         .select(`
-          id, caissier_id, type_shift, heure_debut, heure_fin, montant_a_deduire, valide, created_at,
+          id, caissier_id, type_shift, heure_debut, heure_fin, montant_a_deduire, valide, created_at, pos_service_id,
           inventaire_lignes(
             id, produit_id, produit_nom, stock_initial, entrees, sorties,
             stock_reel, ecart, nombre_explique, explication, montant_deduit,
@@ -799,6 +806,16 @@ export default function VerificationScreen() {
       nbEntrees: entreesRaw.length,
     })
     setLoadingInventaire(false)
+    chargerVentesInventaire(point.id, shiftsNouveauFormat)
+  }
+
+  // Plats vendus des shifts (POS) : chargés après l'inventaire, sans le retarder.
+  async function chargerVentesInventaire(pointId, shifts) {
+    setLigneInvOuverte(null)
+    setVentesInventaire({ parService: null, erreur: null })
+    const r = await chargerPlatsServices(shifts.map(s => s.pos_service_id))
+    if (inventaireDemande.current !== pointId) return
+    setVentesInventaire({ parService: r.parService, erreur: r.erreur || null })
   }
 
   // ── Répartition d'un comptage ──────────────────────────────────────────
@@ -3893,6 +3910,20 @@ export default function VerificationScreen() {
                   </>
                 )}
 
+                {/* ══ Inventaire global du jour (somme des shifts) ══════ */}
+                {useNouveauFormat && (
+                  <InventaireGlobal
+                    shifts={shiftsNouveauFormat}
+                    ventesJour={ventesInventaire.parService
+                      ? cumulerVentes(ventesInventaire.parService, shiftsNouveauFormat.map(s => s.pos_service_id))
+                      : null}
+                    erreurVentes={ventesInventaire.erreur}
+                    peutVoirEcarts={peutVoirEcarts}
+                    styles={styles}
+                    colors={colors}
+                  />
+                )}
+
                 {/* ══ Détail par shift ══════════════════════════════════ */}
                 <Text style={[styles.sectionTitre, { marginTop: 8 }]}>📦 Détail par shift</Text>
                 {useNouveauFormat ? (
@@ -3912,25 +3943,41 @@ export default function VerificationScreen() {
                       {shift.lignes.filter(l => l.stock_reel != null).map((ligne, li) => {
                         const ecart = ligne.ecart ?? 0
                         const hasEcart = Math.abs(ecart) > 0.01
+                        const cleLigne = `${shift.id}|${ligne.produit_id || ligne.produit_nom}`
+                        const estOuverte = ligneInvOuverte === cleLigne
                         return (
-                          <View key={li} style={[styles.invLigneRow, hasEcart && styles.invLigneRowAlert]}>
-                            <View style={{ flex: 1 }}>
-                              <Text style={[styles.invLigneNom, hasEcart && { color: '#A32D2D' }]}>{ligne.produit_nom}</Text>
-                              <Text style={styles.invLigneSub}>
-                                Init: {ligne.stock_initial ?? 0} | +{ligne.entrees ?? 0} | -{ligne.sorties ?? 0} | Réel: {ligne.stock_reel}
-                              </Text>
-                              {hasEcart && ligne.explication && (
-                                <Text style={[styles.invLigneSub, { color: '#185FA5' }]}>"{ligne.explication}"</Text>
-                              )}
-                            </View>
-                            <View style={[styles.invEcartBadge, { backgroundColor: hasEcart ? '#FCEBEB' : '#EAF3DE' }]}>
-                              <Text style={[styles.invEcartTxt, { color: hasEcart ? '#A32D2D' : '#3B6D11' }]}>
-                                {hasEcart
-                                  ? (peutVoirEcarts ? (ecart >= 0 ? '+' : '') + ecart.toFixed(1) : '⚠️')
-                                  : '✅'
-                                }
-                              </Text>
-                            </View>
+                          <View key={li}>
+                            <TouchableOpacity activeOpacity={0.7} onPress={() => setLigneInvOuverte(estOuverte ? null : cleLigne)}
+                              style={[styles.invLigneRow, hasEcart && styles.invLigneRowAlert]}>
+                              <View style={{ flex: 1 }}>
+                                <Text style={[styles.invLigneNom, hasEcart && { color: '#A32D2D' }]}>{estOuverte ? '▾ ' : '▸ '}{ligne.produit_nom}</Text>
+                                <Text style={styles.invLigneSub}>
+                                  Init: {ligne.stock_initial ?? 0} | +{ligne.entrees ?? 0} | -{ligne.sorties ?? 0} | Réel: {ligne.stock_reel}
+                                </Text>
+                                {hasEcart && ligne.explication && (
+                                  <Text style={[styles.invLigneSub, { color: '#185FA5' }]}>"{ligne.explication}"</Text>
+                                )}
+                              </View>
+                              <View style={[styles.invEcartBadge, { backgroundColor: hasEcart ? '#FCEBEB' : '#EAF3DE' }]}>
+                                <Text style={[styles.invEcartTxt, { color: hasEcart ? '#A32D2D' : '#3B6D11' }]}>
+                                  {hasEcart
+                                    ? (peutVoirEcarts ? (ecart >= 0 ? '+' : '') + ecart.toFixed(1) : '⚠️')
+                                    : '✅'
+                                  }
+                                </Text>
+                              </View>
+                            </TouchableOpacity>
+                            {estOuverte && (
+                              <PlatsDuProduit
+                                produitId={ligne.produit_id}
+                                sortiePOS={Number(ligne.sorties) || 0}
+                                ventes={ventesInventaire.parService
+                                  ? cumulerVentes(ventesInventaire.parService, [shift.pos_service_id])
+                                  : null}
+                                erreur={shift.pos_service_id ? ventesInventaire.erreur : SANS_POS}
+                                colors={colors}
+                              />
+                            )}
                           </View>
                         )
                       })}
