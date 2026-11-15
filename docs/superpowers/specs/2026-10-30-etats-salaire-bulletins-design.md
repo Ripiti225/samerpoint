@@ -44,7 +44,7 @@ D serveur 3 ans, E caissière 0 an avec avance). Ces 5 cas deviennent les tests 
 |---|---|---|
 | 10 Salaire de base | salaire catégoriel × jours payés / 30 | 30 j × 88 007 = 88 007 |
 | 20 Sursalaire | sursalaire × jours payés / 30 | 15 000 |
-| 100 Prime d'ancienneté | base × taux ; taux = **1 % par année complète dès 2 ans**, plafond 25 % | 8 % × 88 007 = 7 041 |
+| 100 Prime d'ancienneté | base × taux ; taux selon les **mois complets** : 0 % jusqu’à 24 mois, 2 % de 25 à 36, 3 % de 37 à 48… plafond 25 % (règle du 15/11/2026) | 8 % × 88 007 = 7 041 |
 | **Total brut** (= brut imposable) | somme des gains imposables | 110 048 |
 | 415 CMU | 500 F × personnes couvertes (part salariale), même montant en part patronale | 3 personnes → 1 500 |
 | 452 CNPS | 6,3 % × brut | 6 933 |
@@ -110,7 +110,7 @@ modification des mois passés.
 Valeurs initiales : SMIG 75 000 · barème ITS mensuel (tranches § 5.3) · RICF 5 500 par demi-part, plafond
 5 parts · CNPS salarié 6,3 % · retraite patronale 7,7 % · PF 5 % · AM 0,75 % · AT 2 % · plafond PF/AM/AT
 75 000 · part patronale CN 1,2 % · apprentissage 0,4 % · FPC 0,6 % · TFC 0,6 % · CMU 500 par personne et par
-part · ancienneté (1 % par an dès 2 ans, plafond 25 %) · arrondi 100 · congés 2,2 j/mois · gratification 75 % ·
+part · ancienneté (0 % jusqu’à 24 mois, 2 % de 25 à 36, +1 % par tranche de 12 mois, plafond 25 %) · arrondi 100 · congés 2,2 j/mois · gratification 75 % ·
 **taux indemnité de fin de CDD** et **méthode des congés payés** (§ 5.4, à valider par le comptable).
 
 Employeurs (même table, clé `employeurs`) : par marque — raison sociale, adresse (BP, ville, commune),
@@ -215,7 +215,7 @@ jsonb figé, donc toujours identique. Bulletin : une page A4 au format Sage (§ 
 
 - `lib/paie.test.mjs` : les 5 bulletins de juillet (A–E) recalculés **au franc près** (brut, CMU, CNPS, ITS,
   RICF, part patronale ligne par ligne, arrondi, net) ; absences (28 jours payés) ; ITS en 2ᵉ et 3ᵉ tranche ;
-  RICF > impôt ; avance > net ; ancienneté (1 an 11 mois = 0 %, 2 ans = 2 %, 30 ans = 25 %) ; fin de CDD ;
+  RICF > impôt ; avance > net ; ancienneté (24 mois = 0 %, 25 mois = 2 %, 37 mois = 3 %, 30 ans = 25 %) ; fin de CDD ;
   gratification au prorata ; jours fériés ; choix des paramètres par date d'effet.
 - `lib/etatSalaire.test.mjs` : jours attendus (embauche, départ, jour de repos en cours de mois) ; inclusion des
   stagiaires (reste > 0 seulement) ; dû / déjà versé / reste ; conservation des corrections au recalcul ;

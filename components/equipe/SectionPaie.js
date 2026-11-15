@@ -7,6 +7,7 @@ import { ActivityIndicator, Alert, Text, TextInput, TouchableOpacity, View } fro
 
 import { aujourdhuiISO } from '../../lib/contrats'
 import { manquesFichePaie } from '../../lib/etatSalaire'
+import { anciennete, tauxAnciennete } from '../../lib/paie'
 import { chargerBulletinsTravailleur, chargerFichesPaie, enregistrerFichePaie, libelleMois, montantsDuContrat } from '../../lib/paieDb'
 import { telechargerBulletins } from '../../lib/pdfBulletin'
 
@@ -31,7 +32,19 @@ const versValeur = (cle, v) => {
   return t === '' ? null : Number(t)
 }
 
+/** « 3 ans et 2 mois · prime 3 % = 2 451 F » au jour d'aujourd'hui. */
+function texteAnciennete(dateEmbauche, salaireCategoriel, aujourdhui) {
+  if (!dateEmbauche) return "Date d'embauche manquante : pas de prime d'ancienneté calculée."
+  const anc = anciennete(dateEmbauche, aujourdhui)
+  const t = tauxAnciennete(anc.ans * 12 + anc.mois)
+  const duree = `${anc.ans} an(s) et ${anc.mois} mois`
+  if (!t) return `${duree} · pas encore de prime (dès le 25e mois)`
+  const prime = Math.round((Number(salaireCategoriel) || 0) * t / 10000)
+  return `${duree} · prime ${t / 100} %${prime ? ` = ${prime.toLocaleString('fr-FR')} F` : ''}`
+}
+
 export default function SectionPaie({ trav, contrats, ctx, colors, accent }) {
+  const identifiant = String(trav.identifiant || '').trim()
   const [form, setForm] = useState(null)
   const [bulletins, setBulletins] = useState([])
   const [occupe, setOccupe] = useState(false)
@@ -46,13 +59,14 @@ export default function SectionPaie({ trav, contrats, ctx, colors, accent }) {
         const contrat = montantsDuContrat(contrats || [], aujourdhuiISO())
         const f = {}
         for (const [cle] of CHAMPS) f[cle] = versTexte(fiche[cle] ?? contrat[cle] ?? null)
+        if (identifiant) f.matricule = identifiant
         f.mode_paiement = fiche.mode_paiement || ''
         setForm(f)
         setBulletins(b)
       })
       .catch(e => vivant && Alert.alert('Paie', e.message))
     return () => { vivant = false }
-  }, [trav.id, contrats])
+  }, [trav.id, identifiant, contrats])
 
   if (!form) return <ActivityIndicator color={accent} style={{ marginVertical: 16 }} />
 
@@ -78,13 +92,24 @@ export default function SectionPaie({ trav, contrats, ctx, colors, accent }) {
       <Text style={{ color: manques.length ? '#C2410C' : '#047857', marginBottom: 10 }}>
         {manques.length ? `À compléter : ${manques.join(', ')}` : 'Fiche paie complète'}
       </Text>
-      {CHAMPS.map(([cle, label, clavier]) => (
-        <View key={cle} style={{ marginBottom: 8 }}>
-          <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 3 }}>{label}</Text>
-          <TextInput value={form[cle]} keyboardType={clavier} style={input}
-            onChangeText={v => setForm(f => ({ ...f, [cle]: v }))} />
-        </View>
-      ))}
+      {CHAMPS.map(([cle, label, clavier]) => {
+        const verrouille = cle === 'matricule' && !!identifiant
+        return (
+          <View key={cle} style={{ marginBottom: 8 }}>
+            <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 3 }}>
+              {verrouille ? `${label} (identifiant du travailleur)` : label}
+            </Text>
+            <TextInput value={form[cle]} keyboardType={clavier} editable={!verrouille}
+              style={verrouille ? [input, { opacity: 0.7 }] : input}
+              onChangeText={v => setForm(f => ({ ...f, [cle]: v }))} />
+            {cle === 'salaire_categoriel' ? (
+              <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 4 }}>
+                🏅 Ancienneté : {texteAnciennete(trav.date_embauche, versValeur(cle, form[cle]), aujourdhuiISO())}
+              </Text>
+            ) : null}
+          </View>
+        )
+      })}
       <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 3 }}>Mode de paiement</Text>
       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
         {[['especes', 'Espèces'], ['virement', 'Virement']].map(([cle, label]) => (
