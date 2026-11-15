@@ -13,6 +13,8 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8081)",
       "Bash(lsof -nP -iTCP:8081 -sTCP:LISTEN)",
       "Bash(command -v vercel)",
+      "Bash(npx vercel deploy --prod --yes*)",
+      "Bash(npx eas-cli update --branch production *)",
       "Bash(sysctl -n hw.memsize)",
       "Bash(vm_stat)",
       "Bash(sysctl vm.swapusage)",
