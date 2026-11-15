@@ -300,9 +300,9 @@
     "semantic_hash": ""
   },
   "app/verification.js": {
-    "mtime": 1793985810.7743635,
-    "seen": 1794056132.548199,
-    "ast_hash": "46dc855e88b003438d0c05ffe112fc54",
+    "mtime": 1794724454.3172338,
+    "seen": 1794724486.99148,
+    "ast_hash": "be30a009c1ce3cc66df8f081be78b693",
     "semantic_hash": ""
   },
   "components/FicheContrat.js": {
@@ -2022,9 +2022,9 @@
     "semantic_hash": ""
   },
   "lib/statsPOSDb.js": {
-    "mtime": 1793592073.0915408,
-    "seen": 1793624278.567104,
-    "ast_hash": "391b67d6fa272bc5ff8c2f7cbf4ae1de",
+    "mtime": 1794724454.3179896,
+    "seen": 1794724486.991893,
+    "ast_hash": "3c23948988da2555e28f70805c8d1d38",
     "semantic_hash": ""
   },
   "pos_cloud_stats_dashboard.sql": {
@@ -4365,6 +4365,42 @@
     "mtime": 1794491633.3093219,
     "seen": 1794491670.450738,
     "ast_hash": "eaaa533db5eed180e83d610b15d4ee22",
+    "semantic_hash": ""
+  },
+  "components/verification/InventaireGlobal.js": {
+    "mtime": 1794724375.1516056,
+    "seen": 1794724486.991595,
+    "ast_hash": "2e76b871de58ce4d0b607a4f17158d3a",
+    "semantic_hash": ""
+  },
+  "components/verification/PlatsDuProduit.js": {
+    "mtime": 1794724424.924352,
+    "seen": 1794724486.991597,
+    "ast_hash": "78529284b90c8bbcf82e924f17e6c56a",
+    "semantic_hash": ""
+  },
+  "lib/inventaireGlobal.js": {
+    "mtime": 1794724337.405389,
+    "seen": 1794724486.991783,
+    "ast_hash": "c74d8cb87a06cefd560155bb85c5ae52",
+    "semantic_hash": ""
+  },
+  "lib/inventaireGlobal.test.mjs": {
+    "mtime": 1794724321.3204827,
+    "seen": 1794724486.9917839,
+    "ast_hash": "3710d475ec6301777d8cbd974888c0a3",
+    "semantic_hash": ""
+  },
+  "lib/recettesInventaire.js": {
+    "mtime": 1794724298.443337,
+    "seen": 1794724486.9918668,
+    "ast_hash": "7b03cc5510263c93ad073e577b3d7015",
+    "semantic_hash": ""
+  },
+  "pos_cloud_plats_services.sql": {
+    "mtime": 1794723838.581775,
+    "seen": 1794724486.991926,
+    "ast_hash": "3b0509d4e18a4a72935a2ab44659168d",
     "semantic_hash": ""
   }
 }
