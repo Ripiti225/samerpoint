@@ -296,13 +296,15 @@ function FeuilleCheque({ cheque, banques, donnees, nomResto, nomGroupe, user, on
   const visibles = payables.filter(x => (cherche ? titre(x).toLowerCase().includes(cherche) : x.filtre === filtre))
 
   function basculer(x) {
+    const decoche = choix[x.cle] !== undefined
     setChoix(c => {
       if (c[x.cle] !== undefined) { const { [x.cle]: _, ...reste } = c; return reste }
       return { ...c, [x.cle]: String(x.reste) }
     })
-    if (!ordre.trim()) {
-      setOrdre(x.fournisseur ? x.fournisseur.nom : x.du.categorie === 'dette' ? x.du.creancier || '' : titre(x))
-    }
+    const ordreAuto = x.fournisseur ? x.fournisseur.nom : x.du.categorie === 'dette' ? x.du.creancier || '' : titre(x)
+    // Cocher remplit « À l'ordre de » s'il est vide ; décocher retire ce nom s'il venait de cette ligne.
+    if (!decoche && !ordre.trim()) setOrdre(ordreAuto)
+    if (decoche && ordre.trim() === ordreAuto.trim()) setOrdre('')
   }
 
   function choisirCompte(id) {
@@ -373,23 +375,6 @@ function FeuilleCheque({ cheque, banques, donnees, nomResto, nomGroupe, user, on
         options={[{ valeur: 'libre', label: 'Sans lien' }, { valeur: 'lignes', label: 'Des lignes à payer' }]} />
       {lien === 'lignes' && (
         <View style={{ marginBottom: 12 }}>
-          {cochees.length > 0 && (
-            <View style={[styles.carte, { marginBottom: 12 }]}>
-              <Text style={[styles.itemTitre, { marginBottom: 6 }]}>{cochees.length} ligne{cochees.length > 1 ? 's' : ''} payée{cochees.length > 1 ? 's' : ''} · {fmt(total)} F</Text>
-              {cochees.map(k => (
-                <View key={k} style={{ paddingVertical: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={[styles.petit, { flex: 1, color: colors.text, fontWeight: '700' }]}>{titre(parCle[k])}</Text>
-                    <TouchableOpacity onPress={() => basculer(parCle[k])} hitSlop={10}>
-                      <Text style={{ color: colors.error, fontWeight: '700', fontSize: 13 }}>Retirer</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <ChampMontant label={`Montant payé (reste ${fmt(parCle[k].reste)} F)`} valeur={choix[k]}
-                    onChange={t => setChoix(c => ({ ...c, [k]: t }))} />
-                </View>
-              ))}
-            </View>
-          )}
           <Champ label="Chercher" value={recherche} onChangeText={setRecherche} placeholder="ex. Palmeraie, février, CNPS…" />
           {!cherche && (
             <Puces valeur={filtre} onChange={setFiltre}
@@ -406,6 +391,28 @@ function FeuilleCheque({ cheque, banques, donnees, nomResto, nomGroupe, user, on
                 titre={titre(x)} droite={`${fmt(x.reste)} F`} />
             )
           })}
+          {visibles.length > 0 && (
+            <Text style={[styles.petit, { marginTop: 4 }]}>Touchez une ligne cochée pour la décocher.</Text>
+          )}
+          {/* Sous la liste : cocher n'y fait plus glisser les lignes (on retouchait
+              une autre ligne au lieu de décocher celle choisie par erreur). */}
+          {cochees.length > 0 && (
+            <View style={[styles.carte, { marginTop: 12 }]}>
+              <Text style={[styles.itemTitre, { marginBottom: 6 }]}>{cochees.length} ligne{cochees.length > 1 ? 's' : ''} payée{cochees.length > 1 ? 's' : ''} · {fmt(total)} F</Text>
+              {cochees.map(k => (
+                <View key={k} style={{ paddingVertical: 6, borderTopWidth: 1, borderTopColor: colors.border }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={[styles.petit, { flex: 1, color: colors.text, fontWeight: '700' }]}>{titre(parCle[k])}</Text>
+                    <TouchableOpacity onPress={() => basculer(parCle[k])} hitSlop={10}>
+                      <Text style={{ color: colors.error, fontWeight: '700', fontSize: 13 }}>Retirer</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <ChampMontant label={`Montant payé (reste ${fmt(parCle[k].reste)} F)`} valeur={choix[k]}
+                    onChange={t => setChoix(c => ({ ...c, [k]: t }))} />
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       )}
 

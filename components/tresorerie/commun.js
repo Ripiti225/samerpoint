@@ -161,7 +161,44 @@ export function ChampCalendrier({ label, valeur, onChange, ...props }) {
   return <ChampDate label={label} styleLabel={styles.label} valeur={valeur} onChange={onChange} {...props} />
 }
 
-export function ChampMontant({ label, valeur, onChange, placeholder = '0' }) {
+// Montant qui peut être négatif (ex. une réception partenaire débitrice). Le
+// clavier chiffres de l'iPhone n'a pas de « − » : le bouton à gauche bascule le
+// signe. Valeur : texte « 12000 » ou « -12000 » (« - » seul = négatif, vide).
+export function SaisieMontantSigne({ valeur, onChange, placeholder = '0', style, styleInput }) {
+  const { styles, colors } = useStylesTreso()
+  const texte = String(valeur ?? '')
+  const negatif = texte.startsWith('-')
+  const chiffres = texte.replace(/[^\d]/g, '')
+  return (
+    <View style={[{ flexDirection: 'row', gap: 6 }, style]}>
+      <TouchableOpacity
+        onPress={() => onChange(negatif ? chiffres : `-${chiffres}`)}
+        accessibilityRole="button" accessibilityLabel={negatif ? 'Montant négatif : toucher pour le rendre positif' : 'Toucher pour un montant négatif'}
+        style={[styles.input, { minWidth: 44, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
+          negatif && { backgroundColor: colors.errorLight, borderColor: colors.error }]}
+      >
+        <Text style={{ fontSize: 18, fontWeight: '800', color: negatif ? colors.error : colors.textMuted }}>{negatif ? '−' : '+'}</Text>
+      </TouchableOpacity>
+      <TextInput
+        style={[styles.input, { flex: 1 }, styleInput, negatif && { color: colors.error }]}
+        value={chiffres} placeholder={placeholder} placeholderTextColor={colors.textPlaceholder} keyboardType="number-pad"
+        // Un « − » tapé (clavier web / Android) rend aussi le montant négatif.
+        onChangeText={t => onChange(`${negatif || /[-−]/.test(t) ? '-' : ''}${t.replace(/[^\d]/g, '')}`)}
+      />
+    </View>
+  )
+}
+
+export function ChampMontant({ label, valeur, onChange, placeholder = '0', signe = false }) {
+  const { styles } = useStylesTreso()
+  if (signe) {
+    return (
+      <View style={{ marginBottom: 12 }}>
+        <Text style={styles.label}>{label}</Text>
+        <SaisieMontantSigne valeur={valeur} onChange={onChange} placeholder={placeholder} />
+      </View>
+    )
+  }
   return (
     <Champ
       label={label}

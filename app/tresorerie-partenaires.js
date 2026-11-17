@@ -19,7 +19,7 @@ import { Alert, Platform, SafeAreaView, ScrollView, Text, TextInput, TouchableOp
 
 import {
   Bouton, Champ, ChampCalendrier, ChampMontant, Entete, EtatEcran, Feuille, Hero, HeroCase, Ligne, Pastille, Puces, STYLE_PARTENAIRE,
-  useStylesTreso, useTresorerie,
+  SaisieMontantSigne, useStylesTreso, useTresorerie,
 } from '../components/tresorerie/commun'
 import { choisirEtLireExcel } from '../lib/lireExcel'
 import {
@@ -27,7 +27,7 @@ import {
   periodeSoldee, vuesPartenaires,
 } from '../lib/partenaires'
 import { CODES, analyserGlovo, analyserYango } from '../lib/partenairesImport'
-import { aujourdhuiISO, fmt, formatDateFR, peut } from '../lib/tresorerie'
+import { aujourdhuiISO, fmt, formatDateFR, lireMontant, peut } from '../lib/tresorerie'
 import {
   ajouterPubs, annulerReception, enregistrerAlias, enregistrerReglagePartenaire, importerExport,
   recevoir, recevoirDetaille, supprimerImport, supprimerLignePub,
@@ -482,7 +482,8 @@ function FeuilleReception({ demande, partenaire, periode, donnees, nomResto, use
 
   if (!demande) return null
   const info = INFOS_PARTENAIRE[partenaire]
-  const valeur = montant === '' ? 0 : parseInt(montant, 10)
+  // Peut être négatif : période débitrice (pub ou commissions plus fortes que les ventes).
+  const valeur = lireMontant(montant) || 0
   const ecart = valeur - demande.attendu
 
   async function enregistrer() {
@@ -516,18 +517,22 @@ function FeuilleReception({ demande, partenaire, periode, donnees, nomResto, use
           </Text>
         )}
       </View>
-      <ChampMontant label="Montant réellement reçu (celui du relevé)" valeur={montant} onChange={setMontant} />
+      <ChampMontant signe label="Montant réellement reçu (celui du relevé)" valeur={montant} onChange={setMontant} />
       <Text style={styles.label}>Arrivé sur</Text>
       <Puces options={donnees.comptes.map(c => ({ valeur: c.id, label: c.nom }))} valeur={compte} onChange={setCompte} />
       <ChampCalendrier label="Date de réception" valeur={date} onChange={setDate} />
       <Champ label="Note (facultatif)" value={note} onChangeText={setNote} />
-      {valeur > 0 && ecart !== 0 && (
+      {valeur !== 0 && ecart !== 0 && (
         <View style={styles.avert}>
           <Text style={styles.avertTxt}>Écart de {ecart > 0 ? '+' : '−'} {fmt(Math.abs(ecart))} F avec l'attendu. Il sera noté sur la période.</Text>
         </View>
       )}
       <Bouton titre="Enregistrer la réception" onPress={enregistrer} occupe={occupe} />
-      <Text style={[styles.petit, { marginTop: 10 }]}>Le montant entre dans le solde du compte choisi.</Text>
+      <Text style={[styles.petit, { marginTop: 10 }]}>
+        {valeur < 0
+          ? 'Montant négatif : il sort du solde du compte choisi.'
+          : 'Le montant entre dans le solde du compte choisi. Montant négatif (période débitrice) : touchez le « + » à gauche du montant.'}
+      </Text>
     </Feuille>
   )
 }
@@ -568,13 +573,13 @@ function FeuilleReceptionTete({ visible, partenaire, periode, situation, donnees
 
   if (!visible || !situation) return null
   const info = INFOS_PARTENAIRE[partenaire]
-  const lire = t => (t === '' || t == null ? 0 : parseInt(t, 10) || 0)
+  const lire = t => lireMontant(t) || 0
   const total = restos.reduce((t, r) => t + lire(valeurs[r.id]), 0)
   const attenduRestant = restos.reduce((t, r) => t + (attendus[r.id] || 0), 0)
   const ecart = total - attenduRestant
 
   async function enregistrer() {
-    const parts = restos.map(r => ({ restaurant_id: r.id, montant: lire(valeurs[r.id]) })).filter(x => x.montant > 0)
+    const parts = restos.map(r => ({ restaurant_id: r.id, montant: lire(valeurs[r.id]) })).filter(x => x.montant !== 0)
     if (!parts.length) { Alert.alert('Montant manquant', 'Saisissez ce que chaque restaurant a versé.'); return }
     if (!compte) { Alert.alert('Compte manquant', 'Choisissez le compte où l\'argent est arrivé (la tête de fond).'); return }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Date invalide', 'Choisissez la date dans le calendrier.'); return }
@@ -605,20 +610,17 @@ function FeuilleReceptionTete({ visible, partenaire, periode, situation, donnees
           <View key={r.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <View style={{ flex: 1 }}>
               <Text style={styles.itemTitre}>{nomResto(r.id)}</Text>
-              <Text style={styles.petit}>attendu {fmt(a)}{valeurs[r.id] !== '' && e !== 0 ? ` · écart ${e > 0 ? '+' : '−'} ${fmt(Math.abs(e))}` : ''}</Text>
+              <Text style={styles.petit}>attendu {fmt(a)}{lire(valeurs[r.id]) !== 0 && e !== 0 ? ` · écart ${e > 0 ? '+' : '−'} ${fmt(Math.abs(e))}` : ''}</Text>
             </View>
-            <TextInput
-              style={[styles.input, { width: 140, textAlign: 'right', paddingVertical: 9 }]}
-              value={valeurs[r.id] ?? ''} placeholder="0" placeholderTextColor={colors.textMuted} keyboardType="number-pad"
-              onChangeText={t => setValeurs(x => ({ ...x, [r.id]: t.replace(/[^\d]/g, '') }))}
-            />
+            <SaisieMontantSigne style={{ width: 170 }} styleInput={{ textAlign: 'right', paddingVertical: 9 }}
+              valeur={valeurs[r.id] ?? ''} onChange={t => setValeurs(x => ({ ...x, [r.id]: t }))} />
           </View>
         )
       })}
       <View style={styles.carte}>
         <Ligne label="Attendu (restaurants restants)" valeur={attenduRestant} />
         <Ligne label="Total reçu" valeur={total} fort />
-        {total > 0 && ecart !== 0 && (
+        {total !== 0 && ecart !== 0 && (
           <Text style={[styles.petit, { color: ecart > 0 ? colors.success : colors.error }]}>
             Écart de {ecart > 0 ? '+' : '−'} {fmt(Math.abs(ecart))} F avec l'attendu.
           </Text>
@@ -630,7 +632,7 @@ function FeuilleReceptionTete({ visible, partenaire, periode, situation, donnees
       <Champ label="Note (facultatif)" value={note} onChangeText={setNote} />
       <Bouton titre={`Enregistrer · ${fmt(total)} F`} onPress={enregistrer} occupe={occupe} />
       <Text style={[styles.petit, { marginTop: 10 }]}>
-        Le total entre sur le compte choisi. Pour l'envoyer en banque : Banque et espèces → Virement entre comptes.
+        Le total entre sur le compte choisi (s'il est négatif, il en sort). Un restaurant débiteur : touchez le « + » à gauche de son montant. Pour l'envoyer en banque : Banque et espèces → Virement entre comptes.
       </Text>
     </Feuille>
   )
