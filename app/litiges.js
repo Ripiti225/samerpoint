@@ -28,7 +28,7 @@ import {
 } from '../lib/ecartPOS'
 import { caissierAuMoment, normaliserHeure, phraseAttribution } from '../lib/attributionAvis'
 import { chargerLitigesRestaurant, chargerShiftsEcart } from '../lib/litigesGlobal'
-import { restoSansLitige } from '../lib/litigesResume'
+import { restoSansLitige, totauxParCaissier } from '../lib/litigesResume'
 import { exporterPdf } from '../lib/pdfDocuments'
 import { usePhoto } from '../lib/usePhoto'
 import { detailApresChoix, estChoisi, personnesParGroupe } from '../lib/responsablesLitige'
@@ -59,6 +59,8 @@ const ONGLETS = [
   { key: 'glovo', label: 'Glovo' },
   { key: 'contact', label: 'Contacts' },
   { key: 'point_pas_fait', label: 'Point pas fait' },
+  // Tous les litiges du restaurant sur la période, comme la vue « Tous les restaurants ».
+  { key: 'tout', label: 'Tout' },
 ]
 
 const TYPES_AVIS = [
@@ -167,6 +169,8 @@ export default function LitigesScreen() {
   // ── Mode global (tous restaurants) ──────────────────────────
   const [modeGlobal, setModeGlobal] = useState(false)
   const [donneesGlobales, setDonneesGlobales] = useState([])
+  // Onglet « Tout » : la même carte que la vue globale, pour le restaurant choisi.
+  const [donneesResto, setDonneesResto] = useState(null)
   // Comptages du vérificateur pour le restaurant sélectionné (vue mono-resto)
   const [deducVerifResto, setDeducVerifResto] = useState([])
   const [generatingPdf, setGeneratingPdf] = useState(false)
@@ -305,8 +309,15 @@ export default function LitigesScreen() {
     if (!restoSelectionne) return
     setLoading(true)
     compterLitigesStockEnAttente(restoSelectionne.id).then(setLitigesStock)
-    await Promise.all([chargerEcarts(), chargerResponsables(), chargerInventaire(), chargerAvis(), chargerYango(), chargerGlovo(), chargerEcartContacts(), chargerPointPasFait(), chargerDeducVerifResto(), chargerARelier(), chargerErreursSaisie()])
+    await Promise.all([chargerDonneesResto(), chargerEcarts(), chargerResponsables(), chargerInventaire(), chargerAvis(), chargerYango(), chargerGlovo(), chargerEcartContacts(), chargerPointPasFait(), chargerDeducVerifResto(), chargerARelier(), chargerErreursSaisie()])
     setLoading(false)
+  }
+
+  async function chargerDonneesResto() {
+    const resto = restoSelectionne
+    const d = await chargerLitigesRestaurant(resto, plage.debut, plage.fin).catch(() => null)
+    // Le restaurant a pu changer pendant le chargement : on garde la bonne carte.
+    setDonneesResto(d && d.restaurant.id === resto.id ? d : null)
   }
 
   async function chargerEcarts() {
@@ -857,10 +868,13 @@ export default function LitigesScreen() {
   }
 
   // ── Génération PDF + partage natif ───────────────────────────
-  async function genererEtPartagePDF() {
+  // `donnees` : un élément par restaurant (vue globale) ou le seul restaurant
+  // choisi (onglet « Tout »), qui ajoute en bas le résumé par caissier.
+  async function genererEtPartagePDF(donnees, { parCaissier = false } = {}) {
     setGeneratingPdf(true)
     try {
       const periode = plageLabel()
+      const unResto = donnees.length === 1
       let html = `<html><head><meta charset="utf-8"><style>
         body{font-family:Arial,sans-serif;font-size:12px;color:#333;padding:20px;margin:0}
         h1{font-size:18px;color:#534AB7;margin:0 0 4px}
@@ -880,7 +894,7 @@ export default function LitigesScreen() {
         .gt{border-top:1px solid #ccc;margin-top:8px;padding-top:8px;font-size:15px;font-weight:bold}
         .ok{color:#2E7D32;font-style:italic;font-size:11px}
       </style></head><body>
-      <h1>⚖️ Rapport Litiges</h1>
+      <h1>⚖️ Rapport Litiges${unResto ? ` — ${donnees[0].restaurant.nom}` : ''}</h1>
       <p class="sub">Période : ${periode} — Généré le ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>`
 
       let grandTotal = 0
@@ -894,7 +908,7 @@ export default function LitigesScreen() {
       // Noms de caissiers venus du POS : jamais injectés tels quels dans le HTML.
       const esc = t => String(t || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
 
-      for (const d of donneesGlobales) {
+      for (const d of donnees) {
         grandTotal += d.total
         const tc = d.total > 0 ? 'r' : d.total < 0 ? 'g' : ''
         html += `<div class="resto"><div class="resto-h">
@@ -1017,14 +1031,35 @@ export default function LitigesScreen() {
 
       // Récap global
       const gtc = grandTotal > 0 ? '#C62828' : grandTotal < 0 ? '#2E7D32' : '#333'
-      html += `<div class="recap"><div class="recap-h">📋 Récapitulatif global</div>`
-      donneesGlobales.forEach(d => {
+      html += `<div class="recap"><div class="recap-h">📋 Récapitulatif${unResto ? '' : ' global'}</div>`
+      donnees.forEach(d => {
         const c = d.total > 0 ? '#C62828' : d.total < 0 ? '#2E7D32' : '#888'
         html += `<div class="recap-l"><span>${d.restaurant.nom}</span><span style="color:${c};font-weight:bold">${d.total > 0 ? '+' : ''}${Math.round(d.total).toLocaleString('fr-FR')} FCFA</span></div>`
       })
-      html += `<div class="recap-l gt"><span>TOTAL GLOBAL</span><span style="color:${gtc}">${grandTotal > 0 ? '+' : ''}${Math.round(grandTotal).toLocaleString('fr-FR')} FCFA</span></div></div></body></html>`
+      html += `<div class="recap-l gt"><span>TOTAL GLOBAL</span><span style="color:${gtc}">${grandTotal > 0 ? '+' : ''}${Math.round(grandTotal).toLocaleString('fr-FR')} FCFA</span></div></div>`
 
-      await exporterPdf(html, `rapport_litiges_${periode.replace(/\s+/g, '_')}.pdf`, 'Partager le rapport litiges')
+      // Résumé par caissier : chaque nom, son total et le détail par catégorie.
+      if (parCaissier) {
+        const f = m => `${m > 0 ? '+' : ''}${Math.round(m).toLocaleString('fr-FR')} FCFA`
+        const coul = m => (m > 0 ? '#C62828' : m < 0 ? '#2E7D32' : '#888')
+        for (const d of donnees) {
+          const r = totauxParCaissier(d)
+          html += `<div class="recap" style="page-break-inside:avoid"><div class="recap-h">👤 Résumé par caissier${unResto ? '' : ` — ${esc(d.restaurant.nom)}`}</div>`
+          if (!r.personnes.length) html += `<div class="ok">Aucun litige attribué à un caissier sur la période.</div>`
+          r.personnes.forEach(p => {
+            html += `<div class="recap-l" style="margin-top:8px"><span><strong>${esc(p.nom)}</strong> <span style="color:#888">(${p.nb} ligne${p.nb > 1 ? 's' : ''})</span></span><span style="color:${coul(p.montant)};font-weight:bold">${f(p.montant)}</span></div>`
+            html += `<div style="font-size:11px;color:#666;margin:0 0 6px 12px">${p.categories.map(c => `${c.nom} : ${f(c.montant)}`).join(' · ')}</div>`
+          })
+          if (Math.round(r.nonAttribue) !== 0) {
+            html += `<div class="recap-l" style="margin-top:8px"><span><em>Non attribué</em></span><span style="color:${coul(r.nonAttribue)};font-weight:bold">${f(r.nonAttribue)}</span></div>`
+          }
+          html += `<div class="recap-l gt"><span>TOTAL</span><span style="color:${coul(r.total)}">${f(r.total)}</span></div></div>`
+        }
+      }
+      html += `</body></html>`
+
+      const nomFichier = unResto ? `${donnees[0].restaurant.nom}_${periode}` : periode
+      await exporterPdf(html, `rapport_litiges_${nomFichier.replace(/[^\w\-→]+/g, '_')}.pdf`, 'Partager le rapport litiges')
     } catch (e) {
       Alert.alert('Erreur PDF', e.message || 'Impossible de générer le PDF')
     } finally {
@@ -1103,7 +1138,7 @@ export default function LitigesScreen() {
 
         <TouchableOpacity
           style={[styles.btnPdf, generatingPdf && { opacity: 0.6 }]}
-          onPress={genererEtPartagePDF}
+          onPress={() => genererEtPartagePDF(donneesGlobales)}
           disabled={generatingPdf}
         >
           {generatingPdf
@@ -1113,237 +1148,240 @@ export default function LitigesScreen() {
         </TouchableOpacity>
 
         {/* Un card par restaurant */}
-        {donneesGlobales.map(d => {
-          const tc = d.total > 0 ? colors.error : d.total < 0 ? colors.successDark : colors.textMuted
-          const vide = restoSansLitige(d)
-          return (
-            <View key={d.restaurant.id} style={styles.restoGlobalCard}>
-              {/* Header restaurant */}
-              <View style={styles.restoGlobalHeader}>
-                <View style={styles.restoGlobalIcone}>
-                  <MaterialCommunityIcons name="storefront-outline" size={17} color={colors.primary} />
-                </View>
-                <Text style={styles.restoGlobalNom} numberOfLines={1}>{d.restaurant.nom}</Text>
-                <View style={[styles.restoGlobalTotalPill, { backgroundColor: tc + '1A' }]}>
-                  <Text style={[styles.restoGlobalTotal, { color: tc }]}>
-                    {d.total > 0 ? '+' : ''}{fmt(d.total)}
+        {donneesGlobales.map(d => renderCarteResto(d))}
+      </View>
+    )
+  }
+
+  // Carte des litiges d'un restaurant : vue « Tous les restaurants » et onglet « Tout ».
+  function renderCarteResto(d) {
+    const tc = d.total > 0 ? colors.error : d.total < 0 ? colors.successDark : colors.textMuted
+    const vide = restoSansLitige(d)
+    return (
+      <View key={d.restaurant.id} style={styles.restoGlobalCard}>
+        {/* Header restaurant */}
+        <View style={styles.restoGlobalHeader}>
+          <View style={styles.restoGlobalIcone}>
+            <MaterialCommunityIcons name="storefront-outline" size={17} color={colors.primary} />
+          </View>
+          <Text style={styles.restoGlobalNom} numberOfLines={1}>{d.restaurant.nom}</Text>
+          <View style={[styles.restoGlobalTotalPill, { backgroundColor: tc + '1A' }]}>
+            <Text style={[styles.restoGlobalTotal, { color: tc }]}>
+              {d.total > 0 ? '+' : ''}{fmt(d.total)}
+            </Text>
+          </View>
+        </View>
+
+        {vide ? (
+          <View style={styles.aucunLitige}>
+            <MaterialCommunityIcons name="check-circle-outline" size={16} color={colors.successDark} />
+            <Text style={[styles.ligneSous, { color: colors.successDark, fontWeight: '700' }]}>Aucun litige</Text>
+          </View>
+        ) : (
+          <View style={styles.restoGlobalBody}>
+            {/* Écart */}
+            {(d.ecartTotal !== 0 || d.responsables.length > 0) && (
+              <>
+                <View style={styles.globalVoletRow}>
+                  {volet('chart-bar', 'Écart point')}
+                  <Text style={[styles.globalVoletVal, { color: d.ecartTotal > 0 ? colors.error : colors.successDark }]}>
+                    {d.ecartTotal > 0 ? '+' : ''}{fmtShort(d.ecartTotal)}
                   </Text>
                 </View>
+                {d.responsables.map((r, ri) => (
+                  <View key={'resp' + ri} style={styles.globalItem}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.globalItemTxt} numberOfLines={2}>
+                        {r.date}{r.type ? ` — ${r.type}` : ''}
+                      </Text>
+                      <Text style={styles.globalItemResp}>
+                        {r.responsable_nom || 'Non attribué'}{r.role ? ` · ${r.role}` : ''}
+                      </Text>
+                    </View>
+                    <Text style={[styles.globalItemMontant, { color: r.montant > 0 ? colors.error : colors.successDark }]}>
+                      {r.montant > 0 ? '+' : ''}{fmtShort(r.montant)}
+                    </Text>
+                  </View>
+                ))}
+              </>
+            )}
+            {/* Inventaire + explication des manquants */}
+            {d.invTotal > 0 && (
+              <>
+                <View style={styles.globalVoletRow}>
+                  {volet('package-variant-closed', 'Inventaire')}
+                  <Text style={[styles.globalVoletVal, { color: colors.error }]}>−{fmtShort(d.invTotal)}</Text>
+                </View>
+                {/* On rattache chaque ligne à son shift : un flatMap nu
+                    perdait le caissier, donc le responsable de la déduction. */}
+                {d.invEnriched.flatMap(inv =>
+                  inv.lignes.map(l => ({ ...l, caissier_nom: inv.caissier_nom, type_shift: inv.type_shift }))
+                ).map((l, li) => (
+                  <View key={'inv' + li} style={styles.globalItem}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.globalItemTxt} numberOfLines={2}>
+                        {l.produit_nom}
+                        {l.explication ? <Text style={styles.globalItemCmd}> — {l.explication}</Text> : null}
+                      </Text>
+                      {l.caissier_nom ? (
+                        <Text style={styles.globalItemResp}>
+                          {l.caissier_nom}{l.type_shift ? ` · ${l.type_shift}` : ''}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Text style={[styles.globalItemMontant, { color: colors.error }]}>−{fmtShort(l.montant_deduit)}</Text>
+                  </View>
+                ))}
+              </>
+            )}
+            {/* Avis */}
+            {d.avis.map(a => {
+              const type = typeAvis(a.type)
+              return (
+                <View key={a.id} style={styles.globalItem}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.globalItemTxt} numberOfLines={2}>
+                      {type?.label || a.type}
+                      {a.canal ? <Text style={{ color: canalAvis(a.canal)?.couleur }}> · {canalAvis(a.canal)?.court || a.canal}</Text> : null}
+                      {a.numero_commande ? <Text style={styles.globalItemCmd}> #{a.numero_commande}</Text> : null}
+                      {a.notes ? ` — ${a.notes}` : ''}
+                    </Text>
+                    {a.responsable_nom ? (
+                      <Text style={styles.globalItemResp}>{a.responsable_nom}</Text>
+                    ) : null}
+                  </View>
+                  <Text style={[styles.globalItemMontant, { color: couleurMontant(a.montant, colors) }]}>
+                    {a.montant > 0 ? '+' : ''}{fmtShort(a.montant)}
+                  </Text>
+                </View>
+              )
+            })}
+            {/* Yango */}
+            {d.yango.map(y => {
+              const type = TYPES_YANGO.find(t => t.key === y.type)
+              return (
+                <View key={y.id} style={styles.globalItem}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.globalItemTxt} numberOfLines={2}>
+                      {type?.label || y.type}
+                      {y.numero_commande ? <Text style={styles.globalItemCmd}> #{y.numero_commande}</Text> : null}
+                      {y.notes ? ` — ${y.notes}` : ''}
+                    </Text>
+                    {y.responsable_nom ? (
+                      <Text style={styles.globalItemResp}>{y.responsable_nom}</Text>
+                    ) : null}
+                  </View>
+                  <Text style={[styles.globalItemMontant, { color: y.montant > 0 ? colors.error : colors.successDark }]}>
+                    {y.montant > 0 ? '+' : ''}{fmtShort(y.montant)}
+                  </Text>
+                </View>
+              )
+            })}
+            {/* Glovo */}
+            {d.glovo.map(g => {
+              const type = TYPES_GLOVO.find(t => t.key === g.type)
+              return (
+                <View key={g.id} style={styles.globalItem}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.globalItemTxt} numberOfLines={2}>
+                      {type?.label || g.type}
+                      {g.numero_commande ? <Text style={styles.globalItemCmd}> #{g.numero_commande}</Text> : null}
+                      {g.notes ? ` — ${g.notes}` : ''}
+                    </Text>
+                    {g.responsable_nom ? (
+                      <Text style={styles.globalItemResp}>{g.responsable_nom}</Text>
+                    ) : null}
+                  </View>
+                  <Text style={[styles.globalItemMontant, { color: g.montant > 0 ? colors.error : colors.successDark }]}>
+                    {g.montant > 0 ? '+' : ''}{fmtShort(g.montant)}
+                  </Text>
+                </View>
+              )
+            })}
+            {/* Comptage vérificateur — montants plafonnés */}
+            {d.verifRetenu > 0 && (
+              <>
+                <View style={styles.globalVoletRow}>
+                  {volet('magnify', 'Comptage vérificateur')}
+                  <Text style={[styles.globalVoletVal, { color: colors.error }]}>+{fmtShort(d.verifRetenu)}</Text>
+                </View>
+                {d.verifReel > d.verifRetenu && (
+                  <View style={styles.plafondBox}>
+                    <Text style={styles.plafondTxt}>
+                      Écart réel {fmt(d.verifReel)} — plafond de {fmt(PLAFOND_COMPTAGE)} par
+                      comptage appliqué, {fmt(d.verifRetenu)} retenus.
+                    </Text>
+                  </View>
+                )}
+                {d.verifLignes.map(l => (
+                  <View key={l.id} style={styles.globalItem}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.globalItemTxt} numberOfLines={2}>
+                        {l.date} — {l.produit_nom}
+                        <Text style={styles.globalItemCmd}> (déclaré {l.stock_declare} · compté {l.stock_compte})</Text>
+                      </Text>
+                      <Text style={styles.globalItemResp}>
+                        {l.caissier_nom}{l.shift_libelle ? ` · ${l.shift_libelle}` : ''}
+                      </Text>
+                    </View>
+                    <Text style={[styles.globalItemMontant, { color: colors.error }]}>{fmtShort(l.montant)}</Text>
+                  </View>
+                ))}
+              </>
+            )}
+
+            {/* Contacts manquants */}
+            {d.contactTotal > 0 && (
+              <>
+                <View style={styles.globalVoletRow}>
+                  {volet('phone-outline', 'Contacts manquants')}
+                  <Text style={[styles.globalVoletVal, { color: colors.error }]}>−{fmtShort(d.contactTotal)}</Text>
+                </View>
+                {d.contactsTotaux?.parCaissier.length > 0 && (
+                  <View style={styles.globalItem}>
+                    <Text style={[styles.globalItemResp, { flex: 1 }]}>
+                      {`Par caissier : ${d.contactsTotaux.parCaissier.map(x => `${x.nom} ${fmtShort(x.montant)} F`).join(' · ')}`}
+                      {d.contactsTotaux.nonAttribue > 0 ? ` · non attribué ${fmtShort(d.contactsTotaux.nonAttribue)} F` : ''}
+                    </Text>
+                  </View>
+                )}
+                {d.contacts.map((c, ci) => (
+                  <View key={'ct' + ci} style={styles.globalItem}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.globalItemTxt} numberOfLines={2}>
+                        {c.date} — {c.ecart} manquant{c.ecart > 1 ? 's' : ''}
+                        <Text style={styles.globalItemCmd}> ({c.nbContacts}/{c.nbCommandes} · {c.taux}%)</Text>
+                      </Text>
+                      {c.repartition && (c.repartition.parts.length > 0 || c.repartition.nonAttribue > 0) ? (
+                        <Text style={styles.globalItemResp}>
+                          {[
+                            ...c.repartition.parts.map(x => `${x.nom} ${fmtShort(x.montant)} F (${x.oublies} oublié${x.oublies > 1 ? 's' : ''})`),
+                            ...(c.repartition.nonAttribue > 0 ? [`non attribué ${fmtShort(c.repartition.nonAttribue)} F`] : []),
+                          ].join(' · ')}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Text style={[styles.globalItemMontant, { color: colors.error }]}>−{fmtShort(c.litige)}</Text>
+                  </View>
+                ))}
+              </>
+            )}
+            {/* Comptage POS pas encore arrivé : signalé, jamais facturé */}
+            {d.contactsEnAttente > 0 && (
+              <View style={styles.globalVoletRow}>
+                {volet('timer-sand', `Contacts POS en attente (${d.contactsEnAttente} j)`, colors.warningDark)}
+                <Text style={[styles.globalVoletVal, { color: colors.warningDark }]}>calcul suspendu</Text>
               </View>
-
-              {vide ? (
-                <View style={styles.aucunLitige}>
-                  <MaterialCommunityIcons name="check-circle-outline" size={16} color={colors.successDark} />
-                  <Text style={[styles.ligneSous, { color: colors.successDark, fontWeight: '700' }]}>Aucun litige</Text>
-                </View>
-              ) : (
-                <View style={styles.restoGlobalBody}>
-                  {/* Écart */}
-                  {(d.ecartTotal !== 0 || d.responsables.length > 0) && (
-                    <>
-                      <View style={styles.globalVoletRow}>
-                        {volet('chart-bar', 'Écart point')}
-                        <Text style={[styles.globalVoletVal, { color: d.ecartTotal > 0 ? colors.error : colors.successDark }]}>
-                          {d.ecartTotal > 0 ? '+' : ''}{fmtShort(d.ecartTotal)}
-                        </Text>
-                      </View>
-                      {d.responsables.map((r, ri) => (
-                        <View key={'resp' + ri} style={styles.globalItem}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.globalItemTxt} numberOfLines={2}>
-                              {r.date}{r.type ? ` — ${r.type}` : ''}
-                            </Text>
-                            <Text style={styles.globalItemResp}>
-                              {r.responsable_nom || 'Non attribué'}{r.role ? ` · ${r.role}` : ''}
-                            </Text>
-                          </View>
-                          <Text style={[styles.globalItemMontant, { color: r.montant > 0 ? colors.error : colors.successDark }]}>
-                            {r.montant > 0 ? '+' : ''}{fmtShort(r.montant)}
-                          </Text>
-                        </View>
-                      ))}
-                    </>
-                  )}
-                  {/* Inventaire + explication des manquants */}
-                  {d.invTotal > 0 && (
-                    <>
-                      <View style={styles.globalVoletRow}>
-                        {volet('package-variant-closed', 'Inventaire')}
-                        <Text style={[styles.globalVoletVal, { color: colors.error }]}>−{fmtShort(d.invTotal)}</Text>
-                      </View>
-                      {/* On rattache chaque ligne à son shift : un flatMap nu
-                          perdait le caissier, donc le responsable de la déduction. */}
-                      {d.invEnriched.flatMap(inv =>
-                        inv.lignes.map(l => ({ ...l, caissier_nom: inv.caissier_nom, type_shift: inv.type_shift }))
-                      ).map((l, li) => (
-                        <View key={'inv' + li} style={styles.globalItem}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.globalItemTxt} numberOfLines={2}>
-                              {l.produit_nom}
-                              {l.explication ? <Text style={styles.globalItemCmd}> — {l.explication}</Text> : null}
-                            </Text>
-                            {l.caissier_nom ? (
-                              <Text style={styles.globalItemResp}>
-                                {l.caissier_nom}{l.type_shift ? ` · ${l.type_shift}` : ''}
-                              </Text>
-                            ) : null}
-                          </View>
-                          <Text style={[styles.globalItemMontant, { color: colors.error }]}>−{fmtShort(l.montant_deduit)}</Text>
-                        </View>
-                      ))}
-                    </>
-                  )}
-                  {/* Avis */}
-                  {d.avis.map(a => {
-                    const type = typeAvis(a.type)
-                    return (
-                      <View key={a.id} style={styles.globalItem}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.globalItemTxt} numberOfLines={2}>
-                            {type?.label || a.type}
-                            {a.canal ? <Text style={{ color: canalAvis(a.canal)?.couleur }}> · {canalAvis(a.canal)?.court || a.canal}</Text> : null}
-                            {a.numero_commande ? <Text style={styles.globalItemCmd}> #{a.numero_commande}</Text> : null}
-                            {a.notes ? ` — ${a.notes}` : ''}
-                          </Text>
-                          {a.responsable_nom ? (
-                            <Text style={styles.globalItemResp}>{a.responsable_nom}</Text>
-                          ) : null}
-                        </View>
-                        <Text style={[styles.globalItemMontant, { color: couleurMontant(a.montant, colors) }]}>
-                          {a.montant > 0 ? '+' : ''}{fmtShort(a.montant)}
-                        </Text>
-                      </View>
-                    )
-                  })}
-                  {/* Yango */}
-                  {d.yango.map(y => {
-                    const type = TYPES_YANGO.find(t => t.key === y.type)
-                    return (
-                      <View key={y.id} style={styles.globalItem}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.globalItemTxt} numberOfLines={2}>
-                            {type?.label || y.type}
-                            {y.numero_commande ? <Text style={styles.globalItemCmd}> #{y.numero_commande}</Text> : null}
-                            {y.notes ? ` — ${y.notes}` : ''}
-                          </Text>
-                          {y.responsable_nom ? (
-                            <Text style={styles.globalItemResp}>{y.responsable_nom}</Text>
-                          ) : null}
-                        </View>
-                        <Text style={[styles.globalItemMontant, { color: y.montant > 0 ? colors.error : colors.successDark }]}>
-                          {y.montant > 0 ? '+' : ''}{fmtShort(y.montant)}
-                        </Text>
-                      </View>
-                    )
-                  })}
-                  {/* Glovo */}
-                  {d.glovo.map(g => {
-                    const type = TYPES_GLOVO.find(t => t.key === g.type)
-                    return (
-                      <View key={g.id} style={styles.globalItem}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.globalItemTxt} numberOfLines={2}>
-                            {type?.label || g.type}
-                            {g.numero_commande ? <Text style={styles.globalItemCmd}> #{g.numero_commande}</Text> : null}
-                            {g.notes ? ` — ${g.notes}` : ''}
-                          </Text>
-                          {g.responsable_nom ? (
-                            <Text style={styles.globalItemResp}>{g.responsable_nom}</Text>
-                          ) : null}
-                        </View>
-                        <Text style={[styles.globalItemMontant, { color: g.montant > 0 ? colors.error : colors.successDark }]}>
-                          {g.montant > 0 ? '+' : ''}{fmtShort(g.montant)}
-                        </Text>
-                      </View>
-                    )
-                  })}
-                  {/* Comptage vérificateur — montants plafonnés */}
-                  {d.verifRetenu > 0 && (
-                    <>
-                      <View style={styles.globalVoletRow}>
-                        {volet('magnify', 'Comptage vérificateur')}
-                        <Text style={[styles.globalVoletVal, { color: colors.error }]}>+{fmtShort(d.verifRetenu)}</Text>
-                      </View>
-                      {d.verifReel > d.verifRetenu && (
-                        <View style={styles.plafondBox}>
-                          <Text style={styles.plafondTxt}>
-                            Écart réel {fmt(d.verifReel)} — plafond de {fmt(PLAFOND_COMPTAGE)} par
-                            comptage appliqué, {fmt(d.verifRetenu)} retenus.
-                          </Text>
-                        </View>
-                      )}
-                      {d.verifLignes.map(l => (
-                        <View key={l.id} style={styles.globalItem}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.globalItemTxt} numberOfLines={2}>
-                              {l.date} — {l.produit_nom}
-                              <Text style={styles.globalItemCmd}> (déclaré {l.stock_declare} · compté {l.stock_compte})</Text>
-                            </Text>
-                            <Text style={styles.globalItemResp}>
-                              {l.caissier_nom}{l.shift_libelle ? ` · ${l.shift_libelle}` : ''}
-                            </Text>
-                          </View>
-                          <Text style={[styles.globalItemMontant, { color: colors.error }]}>{fmtShort(l.montant)}</Text>
-                        </View>
-                      ))}
-                    </>
-                  )}
-
-                  {/* Contacts manquants */}
-                  {d.contactTotal > 0 && (
-                    <>
-                      <View style={styles.globalVoletRow}>
-                        {volet('phone-outline', 'Contacts manquants')}
-                        <Text style={[styles.globalVoletVal, { color: colors.error }]}>−{fmtShort(d.contactTotal)}</Text>
-                      </View>
-                      {d.contactsTotaux?.parCaissier.length > 0 && (
-                        <View style={styles.globalItem}>
-                          <Text style={[styles.globalItemResp, { flex: 1 }]}>
-                            {`Par caissier : ${d.contactsTotaux.parCaissier.map(x => `${x.nom} ${fmtShort(x.montant)} F`).join(' · ')}`}
-                            {d.contactsTotaux.nonAttribue > 0 ? ` · non attribué ${fmtShort(d.contactsTotaux.nonAttribue)} F` : ''}
-                          </Text>
-                        </View>
-                      )}
-                      {d.contacts.map((c, ci) => (
-                        <View key={'ct' + ci} style={styles.globalItem}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.globalItemTxt} numberOfLines={2}>
-                              {c.date} — {c.ecart} manquant{c.ecart > 1 ? 's' : ''}
-                              <Text style={styles.globalItemCmd}> ({c.nbContacts}/{c.nbCommandes} · {c.taux}%)</Text>
-                            </Text>
-                            {c.repartition && (c.repartition.parts.length > 0 || c.repartition.nonAttribue > 0) ? (
-                              <Text style={styles.globalItemResp}>
-                                {[
-                                  ...c.repartition.parts.map(x => `${x.nom} ${fmtShort(x.montant)} F (${x.oublies} oublié${x.oublies > 1 ? 's' : ''})`),
-                                  ...(c.repartition.nonAttribue > 0 ? [`non attribué ${fmtShort(c.repartition.nonAttribue)} F`] : []),
-                                ].join(' · ')}
-                              </Text>
-                            ) : null}
-                          </View>
-                          <Text style={[styles.globalItemMontant, { color: colors.error }]}>−{fmtShort(c.litige)}</Text>
-                        </View>
-                      ))}
-                    </>
-                  )}
-                  {/* Comptage POS pas encore arrivé : signalé, jamais facturé */}
-                  {d.contactsEnAttente > 0 && (
-                    <View style={styles.globalVoletRow}>
-                      {volet('timer-sand', `Contacts POS en attente (${d.contactsEnAttente} j)`, colors.warningDark)}
-                      <Text style={[styles.globalVoletVal, { color: colors.warningDark }]}>calcul suspendu</Text>
-                    </View>
-                  )}
-                  {/* Point pas fait */}
-                  {d.pasFaitTotal > 0 && (
-                    <View style={styles.globalVoletRow}>
-                      {volet('cancel', 'Point pas fait')}
-                      <Text style={[styles.globalVoletVal, { color: colors.error }]}>−{fmtShort(d.pasFaitTotal)}</Text>
-                    </View>
-                  )}
-                </View>
-              )}
-            </View>
-          )
-        })}
+            )}
+            {/* Point pas fait */}
+            {d.pasFaitTotal > 0 && (
+              <View style={styles.globalVoletRow}>
+                {volet('cancel', 'Point pas fait')}
+                <Text style={[styles.globalVoletVal, { color: colors.error }]}>−{fmtShort(d.pasFaitTotal)}</Text>
+              </View>
+            )}
+          </View>
+        )}
       </View>
     )
   }
@@ -2517,6 +2555,7 @@ export default function LitigesScreen() {
   const montantsOnglets = {
     ecarts: totalEcart, inventaire: totalInventaire + totalVerif, avis: totalAvis,
     yango: totalYango, glovo: totalGlovo, contact: totalContact, point_pas_fait: totalPointPasFait,
+    tout: donneesResto?.total ?? 0,
   }
   const avecOnglets = !modeGlobal && !!restoSelectionne
   const tonGlobal = totalGlobal > 0 ? 'rouge' : totalGlobal < 0 ? 'vert' : 'gris'
@@ -2668,6 +2707,23 @@ export default function LitigesScreen() {
               {onglet === 'glovo' && renderGlovo()}
               {onglet === 'contact' && renderEcartContacts()}
               {onglet === 'point_pas_fait' && renderPointPasFait()}
+              {onglet === 'tout' && (donneesResto && donneesResto.restaurant.id === restoSelectionne.id ? (
+                <View style={styles.section}>
+                  <TouchableOpacity
+                    style={[styles.btnPdf, generatingPdf && { opacity: 0.6 }]}
+                    onPress={() => genererEtPartagePDF([donneesResto], { parCaissier: true })}
+                    disabled={generatingPdf}
+                  >
+                    {generatingPdf
+                      ? <ActivityIndicator color="#FFFFFF" size="small" />
+                      : <MaterialCommunityIcons name="file-pdf-box" size={20} color="#FFFFFF" />}
+                    <Text style={styles.btnPdfTxt}>{generatingPdf ? 'Génération du PDF…' : 'Télécharger le PDF (avec résumé caissiers)'}</Text>
+                  </TouchableOpacity>
+                  {renderCarteResto(donneesResto)}
+                </View>
+              ) : (
+                <View style={styles.emptyBox}><Text style={styles.emptyTxt}>Aucune donnée pour cette période</Text></View>
+              ))}
             </>
           )}
         </View>

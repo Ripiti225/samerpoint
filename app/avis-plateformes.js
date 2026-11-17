@@ -207,7 +207,13 @@ export default function AvisPlateformes() {
         ) : null}
         <View style={styles.ligneOutils}>
           <TouchableOpacity style={[styles.selecteur, { flex: 1, marginBottom: 0 }]} onPress={() => setShowRestoPicker(true)}>
-            <Text style={styles.selecteurTxt}>🏪 {restoNom}</Text>
+            <Text style={[styles.selecteurTxt, { flex: 1 }]} numberOfLines={1}>🏪 {restoNom}</Text>
+            {/* Nombre d'avis reçus sur la période, pour le restaurant choisi */}
+            {!loading && plage ? (
+              <View style={styles.compteurAvis} accessibilityLabel={`${avis.length} avis sur la période`}>
+                <Text style={styles.compteurAvisTxt}>{avis.length}</Text>
+              </View>
+            ) : null}
             <Text style={styles.selecteurChevron}>▾</Text>
           </TouchableOpacity>
           {roleActif === 'manager' ? (
@@ -464,6 +470,8 @@ function makeStyles(colors) { return StyleSheet.create({
   selecteur: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, minHeight: 48, marginBottom: 10 },
   selecteurTxt: { fontSize: 14, color: colors.text, fontWeight: '600' },
   selecteurChevron: { fontSize: 14, color: colors.textMuted },
+  compteurAvis: { backgroundColor: ROUGE_AVIS, borderRadius: 12, minWidth: 26, paddingHorizontal: 8, paddingVertical: 3, alignItems: 'center', marginRight: 8 },
+  compteurAvisTxt: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
 
   erreurBox: { backgroundColor: colors.errorLight, borderRadius: 10, padding: 12, marginBottom: 12 },
   erreurTxt: { fontSize: 13, color: colors.errorDark, lineHeight: 19 },
