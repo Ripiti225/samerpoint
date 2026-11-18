@@ -1,6 +1,6 @@
 import { retour } from '../lib/navigation'
 import { router, useLocalSearchParams } from 'expo-router'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator, Alert, Modal, Platform, SafeAreaView,
   ScrollView, StyleSheet, Text, TextInput,
@@ -309,16 +309,29 @@ export default function LitigesScreen() {
     if (!restoSelectionne) return
     setLoading(true)
     compterLitigesStockEnAttente(restoSelectionne.id).then(setLitigesStock)
-    await Promise.all([chargerDonneesResto(), chargerEcarts(), chargerResponsables(), chargerInventaire(), chargerAvis(), chargerYango(), chargerGlovo(), chargerEcartContacts(), chargerPointPasFait(), chargerDeducVerifResto(), chargerARelier(), chargerErreursSaisie()])
+    await Promise.all([chargerEcarts(), chargerResponsables(), chargerInventaire(), chargerAvis(), chargerYango(), chargerGlovo(), chargerEcartContacts(), chargerPointPasFait(), chargerDeducVerifResto(), chargerARelier(), chargerErreursSaisie()])
     setLoading(false)
   }
 
-  async function chargerDonneesResto() {
+  // L'onglet « Tout » relit tout le restaurant dès qu'une liste change
+  // (ajout, modification, annulation, suppression, régularisation…) : chaque
+  // action ne recharge que sa propre liste, et « Tout » restait figé sur
+  // l'état d'ouverture. Regroupé sur 400 ms pour ne relire qu'une fois quand
+  // plusieurs listes arrivent ensemble (ouverture, changement de période).
+  const demandeResto = useRef(0)
+  useEffect(() => {
+    if (modeGlobal || !restoSelectionne) return
     const resto = restoSelectionne
-    const d = await chargerLitigesRestaurant(resto, plage.debut, plage.fin).catch(() => null)
-    // Le restaurant a pu changer pendant le chargement : on garde la bonne carte.
-    setDonneesResto(d && d.restaurant.id === resto.id ? d : null)
-  }
+    const { debut, fin } = plage
+    const n = ++demandeResto.current
+    const t = setTimeout(async () => {
+      const d = await chargerLitigesRestaurant(resto, debut, fin).catch(() => null)
+      // Une demande plus récente a pu partir entre-temps : seule la dernière compte.
+      if (n === demandeResto.current) setDonneesResto(d)
+    }, 400)
+    return () => clearTimeout(t)
+  }, [modeGlobal, restoSelectionne, plage, ecartsListe, responsablesListe, inventaireShifts, deducVerifResto,
+    avisClients, litigesYango, litigesGlovo, ecartContacts, litigesPointPasFait])
 
   async function chargerEcarts() {
     const { debut, fin } = plage
@@ -2555,7 +2568,7 @@ export default function LitigesScreen() {
   const montantsOnglets = {
     ecarts: totalEcart, inventaire: totalInventaire + totalVerif, avis: totalAvis,
     yango: totalYango, glovo: totalGlovo, contact: totalContact, point_pas_fait: totalPointPasFait,
-    tout: donneesResto?.total ?? 0,
+    tout: donneesResto && donneesResto.restaurant.id === restoSelectionne?.id ? donneesResto.total : 0,
   }
   const avecOnglets = !modeGlobal && !!restoSelectionne
   const tonGlobal = totalGlobal > 0 ? 'rouge' : totalGlobal < 0 ? 'vert' : 'gris'
@@ -2722,7 +2735,7 @@ export default function LitigesScreen() {
                   {renderCarteResto(donneesResto)}
                 </View>
               ) : (
-                <View style={styles.emptyBox}><Text style={styles.emptyTxt}>Aucune donnée pour cette période</Text></View>
+                <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />
               ))}
             </>
           )}
