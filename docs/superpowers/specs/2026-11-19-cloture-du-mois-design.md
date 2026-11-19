@@ -65,7 +65,7 @@ RLS activé : lecture pour tous, **aucune écriture directe** ; on n'écrit que 
 - `moisTermine(mois, aujourdhui)` → booléen.
 - `etatMois({ mois, points, restaurants, aujourdhui })` →
   `{ bloquants: [{ restaurantId, nom, date, raison: 'non_valide' | 'non_verifie', pointId }],
-     joursVides: [{ restaurantId, nom, date }], peutCloturer }`
+     joursVides: [{ restaurantId, nom, dates: [] }], peutCloturer }` (jours vides regroupés par restaurant)
   (`peutCloturer` = mois terminé et aucun bloquant ; jours vides ignorés).
 - `libelleMois('2026-10-01')` → « Octobre 2026 ».
 - `listeMois(aujourdhui, n = 12)` → les n derniers mois terminés, du plus récent au plus ancien.
