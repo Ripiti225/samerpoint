@@ -198,9 +198,9 @@
     "semantic_hash": ""
   },
   "app/litiges.js": {
-    "mtime": 1793967988.926332,
-    "seen": 1793971747.501473,
-    "ast_hash": "37edc50f502a7a793e5b2a3521369f4e",
+    "mtime": 1795093998.7731683,
+    "seen": 1795094038.262848,
+    "ast_hash": "6f1eba46b86ec474c22ce9b9fa0ed019",
     "semantic_hash": ""
   },
   "app/livraisons.js": {
@@ -1230,9 +1230,9 @@
     "semantic_hash": ""
   },
   "app/avis-plateformes.js": {
-    "mtime": 1793978920.4769506,
-    "seen": 1794056132.548159,
-    "ast_hash": "9e333f05af9616917f1de3e336fcb9fb",
+    "mtime": 1795093998.7721167,
+    "seen": 1795094038.262814,
+    "ast_hash": "221c148173ad20f9c6daed7df44f0d7a",
     "semantic_hash": ""
   },
   "lib/avisPlateformes.js": {
@@ -1518,9 +1518,9 @@
     "semantic_hash": ""
   },
   "components/tresorerie/commun.js": {
-    "mtime": 1792519025.1493857,
-    "seen": 1792587182.1355891,
-    "ast_hash": "1963c2872f329b7b3b3dbe7c779b3b4e",
+    "mtime": 1795093998.775215,
+    "seen": 1795094038.2629719,
+    "ast_hash": "d354296a8c7000ad294ac3ab5a5d2a5d",
     "semantic_hash": ""
   },
   "lib/comparaisonDashboard.js": {
@@ -1608,9 +1608,9 @@
     "semantic_hash": ""
   },
   "app/tresorerie-partenaires.js": {
-    "mtime": 1793149248.18654,
-    "seen": 1793273817.5160692,
-    "ast_hash": "ed5c8da033474d71526cacf7bb36ac5b",
+    "mtime": 1795093998.774669,
+    "seen": 1795094038.2628748,
+    "ast_hash": "0f136ad58dd93d99d3322bc3ffb2f4ad",
     "semantic_hash": ""
   },
   "lib/lireExcel.js": {
@@ -1626,9 +1626,9 @@
     "semantic_hash": ""
   },
   "lib/partenaires.test.mjs": {
-    "mtime": 1793149248.1886022,
-    "seen": 1793273817.516382,
-    "ast_hash": "e3718a7612f36229c009e2a8d1eded21",
+    "mtime": 1795093998.8068078,
+    "seen": 1795094038.263236,
+    "ast_hash": "9f101abd7f1b078cda88a7a13fb433a5",
     "semantic_hash": ""
   },
   "lib/partenairesImport.js": {
@@ -1944,14 +1944,14 @@
     "semantic_hash": ""
   },
   "lib/groupesAccueil.js": {
-    "mtime": 1795093922.2468371,
-    "seen": 1795093987.1707258,
+    "mtime": 1795093998.9638722,
+    "seen": 1795094038.2631638,
     "ast_hash": "06591f6b8febfd89a805899ca7900455",
     "semantic_hash": ""
   },
   "lib/groupesAccueil.test.mjs": {
-    "mtime": 1795093890.3874617,
-    "seen": 1795093987.170728,
+    "mtime": 1795093998.9650552,
+    "seen": 1795094038.263165,
     "ast_hash": "93cc54f105b3aa96b8c1352657d6e0c7",
     "semantic_hash": ""
   },
@@ -2040,15 +2040,15 @@
     "semantic_hash": ""
   },
   "lib/litigesResume.js": {
-    "mtime": 1791046907.4051862,
-    "seen": 1791047045.862889,
-    "ast_hash": "c8024bdc29b863ad60ddc3eb4fe81ca2",
+    "mtime": 1795093998.8050594,
+    "seen": 1795094038.263199,
+    "ast_hash": "edbef8a6b5d0aa7a84cfda3a325f7de2",
     "semantic_hash": ""
   },
   "lib/litigesResume.test.mjs": {
-    "mtime": 1791046908.438937,
-    "seen": 1791047045.862891,
-    "ast_hash": "99915b154a3e2ee6ca2b63e6e62c505e",
+    "mtime": 1795093998.80638,
+    "seen": 1795094038.2632,
+    "ast_hash": "defe20956207ec97b199f4b561bdcc8a",
     "semantic_hash": ""
   },
   "lib/noteCaissier.js": {
@@ -3456,9 +3456,9 @@
     "semantic_hash": ""
   },
   "app/tresorerie-cheques.js": {
-    "mtime": 1793588185.4360766,
-    "seen": 1793588253.251679,
-    "ast_hash": "2e22cd4ba84c3ade05a756de068c59dd",
+    "mtime": 1795093998.7742121,
+    "seen": 1795094038.262872,
+    "ast_hash": "c03f5be546f3e169a5047fb08b38f3e9",
     "semantic_hash": ""
   },
   "lib/cheques.js": {
@@ -4404,15 +4404,21 @@
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-11-17-groupe-comptabilite.md": {
-    "mtime": 1794918357.6659489,
-    "seen": 1795093987.171084,
+    "mtime": 1795093998.8902025,
+    "seen": 1795094038.263506,
     "ast_hash": "2be17aa9561393357f33210611d0b759",
     "semantic_hash": ""
   },
   "docs/superpowers/specs/2026-11-17-groupe-comptabilite-design.md": {
-    "mtime": 1794917997.5244343,
-    "seen": 1795093987.1711261,
+    "mtime": 1795093998.8236775,
+    "seen": 1795094038.263544,
     "ast_hash": "223945fd98374bc495ea78e30623973c",
+    "semantic_hash": ""
+  },
+  "supabase_tresorerie_reception_negative.sql": {
+    "mtime": 1795093998.8071272,
+    "seen": 1795094038.263453,
+    "ast_hash": "26690e63e77bda9bc70da49a528ef3fa",
     "semantic_hash": ""
   }
 }
