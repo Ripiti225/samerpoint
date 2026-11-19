@@ -174,7 +174,7 @@ export default function ParametresScreen() {
     if (sectionActive === 'utilisateurs') {
       // Sans la colonne pin : les codes ne quittent plus le serveur.
       const { data } = await supabase.from('utilisateurs')
-        .select('id, nom, role, restaurant_id, photo_url, type_contrat, poste, date_embauche, actif, created_at, travailleur_id, code_a_changer, code_change_le, pin_longueur, sans_connexion, restaurants(nom)')
+        .select('id, nom, role, restaurant_id, photo_url, type_contrat, poste, date_embauche, actif, created_at, travailleur_id, code_a_changer, code_change_le, pin_longueur, sans_connexion, peut_superviser, restaurants(nom)')
         .order('nom')
       setUtilisateurs(data || [])
     }
@@ -425,6 +425,7 @@ export default function ParametresScreen() {
         const r = await enregistrerUtilisateur(userId, admin, {
           id: data?.id || null, nom: form.nom, role: form.role || 'caissier',
           restaurantId: estGlobal ? null : form.restaurant_id, code,
+          peutSuperviser: form.role === 'superviseur' ? false : !!form.peut_superviser,
         })
         if (r.statut !== 'ok') {
           if (['faux', 'bloque', 'refuse'].includes(r.statut)) { setCodeAdmin(''); setSaisieAdmin('') }
@@ -1038,7 +1039,7 @@ export default function ParametresScreen() {
               <View>
                 <Text style={styles.itemNom}>{u.nom}</Text>
                 <Text style={styles.itemSub}>{u.role} — Code : {codesVus?.[u.id] ?? '••••••'}{u.code_a_changer ? ' · à changer' : ''}</Text>
-                <Text style={styles.itemSub2}>Accès global — tous les restaurants</Text>
+                <Text style={styles.itemSub2}>Accès global — tous les restaurants{u.peut_superviser ? ' · 🧭 Visites' : ''}</Text>
               </View>
             </View>
             <View style={styles.itemActions}>
@@ -1068,7 +1069,7 @@ export default function ParametresScreen() {
                     </Text>
                   </View>
                   <View>
-                    <Text style={[styles.itemNom, !u.actif && { color: '#aaa' }]}>{u.nom}</Text>
+                    <Text style={[styles.itemNom, !u.actif && { color: '#aaa' }]}>{u.nom}{u.peut_superviser ? '  🧭' : ''}</Text>
                     <Text style={styles.itemSub}>
                       {estCompteTechnique(u) ? `${u.role} — sans connexion (compte du POS)` : `${u.role} — Code : ${codesVus?.[u.id] ?? '••••••'}${u.code_a_changer ? ' · à changer' : ''}`}
                     </Text>
@@ -1450,6 +1451,28 @@ export default function ParametresScreen() {
           </View>
         ) : (
           <SelectRestaurant />
+        )}
+
+        {form.role === 'superviseur' ? (
+          <View style={styles.infoBox}>
+            <Text style={styles.infoTxt}>
+              🧭 Ce compte est la porte d'entrée des visites : on y choisit son nom puis on tape son propre code.
+            </Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={[styles.infoBox, { flexDirection: 'row', alignItems: 'center', gap: 10 }]}
+            onPress={() => setForm(p => ({ ...p, peut_superviser: !p.peut_superviser }))}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.infoTxt, { flex: 1 }]}>
+              🧭 Peut faire des visites de supervision{form.role === 'gerant' ? ' (jamais dans son propre restaurant)' : ''}
+            </Text>
+            {/* Switch purement visuel : c'est la ligne qui bascule. */}
+            <View pointerEvents="none">
+              <Switch value={!!form.peut_superviser} trackColor={{ false: colors.border, true: colors.primary }} thumbColor={colors.surface} />
+            </View>
+          </TouchableOpacity>
         )}
       </>
     )
