@@ -1010,7 +1010,9 @@ export default function ParametresScreen() {
 
   // ─── RENDU UTILISATEURS ────────────────────────────────────
   function renderUtilisateurs() {
-    const isManagerOuAdmin = (u) => u.nom === 'Manager General' || u.nom === 'Administrateur'
+    // Comptes de tous les restaurants (manager, RH, superviseur, vérificateur…) :
+    // reconnus à leur rôle ou à l'absence de restaurant, jamais à leur nom.
+    const isManagerOuAdmin = (u) => ROLES_GLOBAUX.includes(u.role) || !u.restaurant_id
     const globaux = utilisateurs.filter(u => isManagerOuAdmin(u))
     const filtres = utilisateurs.filter(u => !isManagerOuAdmin(u) && (!restaurantFiltre || u.restaurant_id === restaurantFiltre))
     const restoNom = tousRestaurants.find(r => r.id === restaurantFiltre)?.nom || ''
