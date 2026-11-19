@@ -8,6 +8,8 @@ import { couleurResto, couleurRole, initiales, libelleRole, prenom } from './the
 
 export default function QuiEtesVous({
   t, restaurant, utilisateurs, chargement, reconnu, idsFaceID, reprisParLePOS, onChoisir, onRetour,
+  titre = 'Qui êtes-vous ?', puce = { icone: '👑', texte: 'Accès global' },
+  messageVide = 'Aucun utilisateur pour ce restaurant',
 }) {
   return (
     <FondLogin t={t}>
@@ -23,13 +25,13 @@ export default function QuiEtesVous({
               </>
             ) : (
               <>
-                <Text style={{ fontSize: 16 }}>👑</Text>
-                <Text style={[styles.puceNom, { color: t.texte }]}>Accès global</Text>
+                <Text style={{ fontSize: 16 }}>{puce.icone}</Text>
+                <Text style={[styles.puceNom, { color: t.texte }]}>{puce.texte}</Text>
               </>
             )}
           </View>
 
-          <Text style={[styles.label, { color: t.texteFaible }]}>Qui êtes-vous ?</Text>
+          <Text style={[styles.label, { color: t.texteFaible }]}>{titre}</Text>
 
           {chargement ? (
             <ActivityIndicator size="large" color={t.accent} style={{ marginTop: 30 }} />
@@ -51,7 +53,7 @@ export default function QuiEtesVous({
           )}
 
           {!chargement && utilisateurs.length === 0 && reprisParLePOS.length === 0 && (
-            <Text style={[styles.vide, { color: t.texteFaible }]}>Aucun utilisateur pour ce restaurant</Text>
+            <Text style={[styles.vide, { color: t.texteFaible }]}>{messageVide}</Text>
           )}
 
           {reprisParLePOS.length > 0 && (

@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react'
 import { Alert, Platform } from 'react-native'
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
-import { getRestaurants, getUtilisateurs, getUtilisateursGlobaux } from '../lib/api'
+import { getRestaurants, getSuperviseursPossibles, getUtilisateurs, getUtilisateursGlobaux } from '../lib/api'
+import { estPorteSupervision } from '../lib/supervision'
 import { ROLES_GLOBAUX } from '../lib/constants'
 import { separerComptesPOS } from '../lib/sourcePoint'
 import { destinationApresDeverrouillage } from '../lib/inactivityLock'
@@ -68,6 +69,8 @@ export default function LoginScreen() {
   const [activationEnAttente, setActivationEnAttente] = useState(null)
   // Restaurants dont ce téléphone connaît déjà le code (lib/restosReconnus.js)
   const [reconnus, setReconnus] = useState([])
+  // Tuile « Superviseur » : qui fait la visite (comptes cochés dans Paramètres)
+  const [superviseurs, setSuperviseurs] = useState([])
 
   const {
     setRoleActif, resetJour, setLastRoute,
@@ -217,9 +220,20 @@ export default function LoginScreen() {
     setEtape(4)
   }
 
+  // Tuile « Superviseur » : plus de code partagé. On choisit qui fait la
+  // visite (étape 7), puis cette personne tape SON code (étape 4).
+  async function ouvrirPorteSupervision() {
+    setBioMessage('')
+    setLoadingUsers(true)
+    setEtape(7)
+    setSuperviseurs(await getSuperviseursPossibles())
+    setLoadingUsers(false)
+  }
+
   // Avatar 🔐 : Face ID part tout de suite (dans l'appui, exigence Safari) ;
   // en cas d'annulation on reste sur le clavier, touche 🔐 disponible.
   function toucherAvatar(user) {
+    if (estPorteSupervision(user)) { ouvrirPorteSupervision(); return }
     choisirUtilisateur(user)
     const e = enrolementsDe(user, selectedResto)[0]
     if (bioSupportee && e) entrerAvecBiometrie(e)
@@ -318,6 +332,8 @@ export default function LoginScreen() {
   }
 
   async function apresCodeJuste(user) {
+    // Visite : pas de Face ID (il ouvrirait le compte habituel de la personne).
+    if (user.modeVisite) { ouvrirSession(user, null); return }
     // Codes justes : c'est le seul moment où l'on peut proposer Face ID,
     // la personne venant de prouver qui elle est.
     const dejaActive = enrolementsDe(user, selectedResto).length > 0
@@ -416,7 +432,10 @@ export default function LoginScreen() {
   }
 
   // Ouverture commune aux deux chemins : codes PIN ou Face ID.
-  function ouvrirSession(utilisateur, resto) {
+  function ouvrirSession(compte, resto) {
+    // Visite par la tuile Superviseur : la vraie personne, avec le seul rôle
+    // superviseur (écran des visites, rien d'autre).
+    const utilisateur = compte.modeVisite ? { ...compte, role: 'superviseur' } : compte
     const memeUtilisateur = userIdEnSession === utilisateur.id
     if (!memeUtilisateur) {
       resetJour()
@@ -531,6 +550,25 @@ export default function LoginScreen() {
     )
   }
 
+  if (etape === 7) {
+    return (
+      <QuiEtesVous
+        t={t}
+        restaurant={null}
+        utilisateurs={superviseurs}
+        chargement={loadingUsers}
+        reconnu={false}
+        idsFaceID={[]}
+        reprisParLePOS={[]}
+        titre="Qui fait la visite ?"
+        puce={{ icone: '🧭', texte: 'Supervision' }}
+        messageVide="Personne n'est autorisé à faire des visites. Demandez au manager."
+        onChoisir={u => choisirUtilisateur({ ...u, modeVisite: true })}
+        onRetour={() => { setPin(''); setPinError(false); setEtape(3) }}
+      />
+    )
+  }
+
   if (etape === 5 && activationEnAttente) {
     const { utilisateur, restaurant } = activationEnAttente
     return (
@@ -568,7 +606,7 @@ export default function LoginScreen() {
         appuyerChiffre={appuyerChiffre} supprimer={supprimer}
         toucheFaceID={false}
         lienBas={changement.oblige
-          ? { texte: 'Ce n’est pas moi', onPress: () => { setChangement(null); setEtape(3); setPin(''); setPinError(false) } }
+          ? { texte: 'Ce n’est pas moi', onPress: () => { setChangement(null); setEtape(selected?.modeVisite ? 7 : 3); setPin(''); setPinError(false) } }
           : { texte: 'Annuler', onPress: () => { setChangement(null); setVeutChanger(false); apresCodeJuste(selected) } }}
       />
     )
@@ -582,7 +620,8 @@ export default function LoginScreen() {
         initialesTexte: initiales(selected?.nom),
         couleur: couleurRole(selected?.role),
         titre: selected?.nom,
-        sousTitre: ROLES_GLOBAUX.includes(selected?.role)
+        sousTitre: selected?.modeVisite ? '🧭 Visite de supervision'
+          : ROLES_GLOBAUX.includes(selected?.role)
           ? `${libelleRole(selected?.role)} · tous les restaurants`
           : `${selectedResto?.nom} · ${libelleRole(selected?.role)}`,
       }}
@@ -593,11 +632,11 @@ export default function LoginScreen() {
       bloque={!!(bloqueJusquaUser && Date.now() < bloqueJusquaUser)}
       couleur={couleurRole(selected?.role)}
       appuyerChiffre={appuyerChiffre} supprimer={supprimer}
-      toucheFaceID={bioSupportee && ici.length > 0}
+      toucheFaceID={!selected?.modeVisite && bioSupportee && ici.length > 0}
       onFaceID={() => entrerAvecBiometrie(ici[0])}
       bioEnCours={bioEnCours} bioMessage={bioMessage}
       liensBas={[
-        { texte: 'Ce n’est pas moi', onPress: () => { setEtape(3); setPin(''); setPinError(false); setBioMessage(''); setVeutChanger(false) } },
+        { texte: 'Ce n’est pas moi', onPress: () => { setEtape(selected?.modeVisite ? 7 : 3); setPin(''); setPinError(false); setBioMessage(''); setVeutChanger(false) } },
         ...(veutChanger ? [] : [{ texte: 'Changer mon code', onPress: () => { setVeutChanger(true); setPin(''); setPinError(false); setErreurCode(null) } }]),
       ]}
     />
