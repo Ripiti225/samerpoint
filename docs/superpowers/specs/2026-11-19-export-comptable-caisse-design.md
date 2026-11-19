@@ -51,7 +51,7 @@ Pièce `CA-<resto court>-<AAAAMMJJ>`. Toutes les lignes d'une pièce s'équilibr
 | Fournisseurs payés par le caissier | Fournisseurs | | `shift.fournisseurs` |
 | Dépenses du caissier par catégorie | Achats (Marché, Légumes, Fruits) / Autres achats (annexes) | | `depenses` caissier |
 | Salaires payés par le caissier | Personnel | | reste de `depensesSalairesShift` |
-| Écart de caisse (vente retenue − vente théorique) | Manque (si négatif) | Surplus (si positif) | différence |
+| Écart de caisse (vente théorique − vente retenue, sens de l'app) | Manque (si négatif) | Surplus (si positif) | différence |
 
 Équilibre garanti : vente théorique = somme des postes justifiés ; l'écart porte la différence avec la
 vente retenue. Si le détail des dépenses caissier dépasse le total du shift, le salaire déduit est
@@ -111,7 +111,7 @@ Sheets (`source = 'import_sheets_2026_10'`, sans shift) : **exclues** et signal�
 - Unitaires : équilibre de chaque pièce ; écart positif / négatif ; tablettes ; caisse gérant ;
   factures non alimentaires ; salaires caissier déduits ; journée importée exclue.
 - Contrôle réel : sur octobre 2026, pour chaque journée, débit = crédit et l'écart de caisse =
-  vente machine − vente théorique.
+  vente théorique − vente machine.
 - `npm run lint`, tous les `lib/*.test.mjs`, `npx expo export -p web`.
 
 ## Hors de cette étape
