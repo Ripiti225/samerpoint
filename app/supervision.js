@@ -20,7 +20,7 @@ import { PastilleNote, SARCELLE, TONS, dateCourte, texteJoursSansVisite } from '
 import { Bouton, Champ, EnTete, Feuille, Info, Libelle, Puces, useEcranModerne, Vide } from '../components/ui/EcranModerne'
 import { useApp } from '../context/AppContext'
 import { notesTravailleurs } from '../lib/supervision'
-import { chargerCriteres, chargerLignesTravailleurs, chargerRestaurants, chargerSynthese, enregistrerCritere } from '../lib/supervisionDb'
+import { chargerCriteres, chargerLignesTravailleurs, chargerPersonne, chargerRestaurants, chargerSynthese, enregistrerCritere } from '../lib/supervisionDb'
 
 const ADMIN = ['manager', 'directeur']
 
@@ -40,12 +40,31 @@ export default function SupervisionScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <EnTete titre="Supervision" sous={restaurantNom || undefined} onRetour={retour} styles={styles} />
+        <BoutonVisite userId={userId} styles={styles} />
         <FicheRestaurant restaurant={{ id: restaurantId, nom: restaurantNom || 'Mon restaurant' }} role="gerant"
           userId={userId} userNom={userNom} styles={styles} colors={colors} />
       </SafeAreaView>
     )
   }
   return <VueDirection role={roleActif} userId={userId} userNom={userNom} retour={retour} styles={styles} colors={colors} />
+}
+
+// « Faire une visite » depuis son propre compte, pour les comptes cochés dans
+// Paramètres (supabase_supervision_plusieurs.sql). Visite signée à son nom.
+function BoutonVisite({ userId, styles }) {
+  const [autorise, setAutorise] = useState(false)
+  useEffect(() => {
+    let actif = true
+    chargerPersonne(userId).then(p => { if (actif) setAutorise(!!p?.peut_superviser) })
+    return () => { actif = false }
+  }, [userId])
+  if (!autorise) return null
+  return (
+    <View style={{ paddingHorizontal: 16, paddingTop: 10 }}>
+      <Bouton label="🧭 Faire une visite" couleur={SARCELLE} variante="plein" grand styles={styles}
+        onPress={() => router.push({ pathname: '/superviseur', params: { depuis: 'compte' } })} />
+    </View>
+  )
 }
 
 function VueDirection({ role, userId, userNom, retour, styles, colors }) {
@@ -64,6 +83,7 @@ function VueDirection({ role, userId, userNom, retour, styles, colors }) {
   return (
     <SafeAreaView style={styles.container}>
       <EnTete titre="Supervision" sous="Visites du superviseur" onRetour={retour} styles={styles} />
+      <BoutonVisite userId={userId} styles={styles} />
       <View style={styles.ongletsWrap}>
         {onglets.map(([cle, label]) => (
           <TouchableOpacity key={cle} onPress={() => setOnglet(cle)} style={[styles.onglet, onglet === cle && styles.ongletActive]}>

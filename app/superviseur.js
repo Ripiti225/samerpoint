@@ -10,7 +10,7 @@
  *
  * Calculs : lib/supervision.js · données : lib/supervisionDb.js
  */
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Alert, RefreshControl, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 import FicheRestaurant from '../components/supervision/FicheRestaurant'
@@ -18,14 +18,19 @@ import VisiteEnCours from '../components/supervision/VisiteEnCours'
 import { SARCELLE, TONS, dateCourte, dateHeure } from '../components/supervision/Elements'
 import { Bouton, useEcranModerne, Vide } from '../components/ui/EcranModerne'
 import { useApp } from '../context/AppContext'
-import { JOURS_SANS_VISITE_ALERTE, joursEntre, tacheOuverte } from '../lib/supervision'
-import { chargerRestaurants, chargerTaches, chargerVisites, commencerVisite, visiteEnCours } from '../lib/supervisionDb'
+import { JOURS_SANS_VISITE_ALERTE, joursEntre, restaurantsVisitables, tacheOuverte } from '../lib/supervision'
+import { chargerPersonne, chargerRestaurants, chargerTaches, chargerVisites, commencerVisite, visiteEnCours } from '../lib/supervisionDb'
 
 const isoJour = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const ilYa = j => { const d = new Date(); d.setDate(d.getDate() - j); return isoJour(d) }
 
 export default function SuperviseurScreen() {
   const { userId, userNom, deconnecter } = useApp() ?? {}
+  // depuis=compte : ouvert depuis son propre compte (écran Supervision) →
+  // on revient à son compte au lieu de se déconnecter.
+  const { depuis } = useLocalSearchParams()
+  const depuisCompte = depuis === 'compte'
+  const [personne, setPersonne] = useState(null)   // { restaurant_id } : un gérant ne voit pas le sien
   const { styles, colors } = useEcranModerne('sarcelle')
   const [restaurants, setRestaurants] = useState([])
   const [visites, setVisites] = useState([])
@@ -40,11 +45,11 @@ export default function SuperviseurScreen() {
   const charger = useCallback(async () => {
     try {
       setErreur(false)
-      const [r, v, t, ec] = await Promise.all([
+      const [r, v, t, ec, p] = await Promise.all([
         chargerRestaurants(), chargerVisites({ depuis: ilYa(120) }), chargerTaches({ ouvertesSeulement: true }),
-        userId ? visiteEnCours(userId) : null,
+        userId ? visiteEnCours(userId) : null, chargerPersonne(userId),
       ])
-      setRestaurants(r); setVisites(v); setTaches(t); setEnCours(ec?.visite || null)
+      setRestaurants(r); setVisites(v); setTaches(t); setEnCours(ec?.visite || null); setPersonne(p)
       if (ec?.abandonnee) {
         const nom = r.find(x => x.id === ec.abandonnee.restaurant_id)?.nom || 'un restaurant'
         Alert.alert('Visite abandonnée', `Votre visite de ${nom}, commencée le ${dateHeure(ec.abandonnee.debut_at)}, n'a pas été terminée le jour même : elle a été abandonnée.`)
@@ -61,7 +66,7 @@ export default function SuperviseurScreen() {
   }, [userId])
 
   const aujourdhui = isoJour()
-  const lignes = useMemo(() => restaurants.map(r => {
+  const lignes = useMemo(() => restaurantsVisitables(restaurants, personne).map(r => {
     const derniere = visites.find(v => v.restaurant_id === r.id)
     const jours = derniere ? joursEntre(derniere.fin_at || derniere.debut_at, aujourdhui) : null
     const siennes = taches.filter(t => t.restaurant_id === r.id && tacheOuverte(t))
@@ -72,7 +77,12 @@ export default function SuperviseurScreen() {
       aConfirmer: siennes.filter(t => t.statut === 'signalee').length,
       enRetard: siennes.filter(t => t.statut === 'a_faire' && t.echeance && t.echeance < aujourdhui).length,
     }
-  }).sort((a, b) => (b.jours ?? 9999) - (a.jours ?? 9999)), [restaurants, visites, taches, aujourdhui])
+  }).sort((a, b) => (b.jours ?? 9999) - (a.jours ?? 9999)), [restaurants, personne, visites, taches, aujourdhui])
+
+  function sortir() {
+    if (depuisCompte) { if (router.canGoBack()) router.back(); else router.replace('/supervision'); return }
+    deconnecter?.(); router.replace('/login')
+  }
 
   async function commencer(r) {
     if (enCours) { Alert.alert('Visite en cours', `Terminez d'abord la visite de ${restaurants.find(x => x.id === enCours.restaurant_id)?.nom || 'l\'autre restaurant'}.`); return }
@@ -80,7 +90,11 @@ export default function SuperviseurScreen() {
     try {
       const v = await commencerVisite({ restaurant: r, userId, userNom })
       setEnCours(v); setResto(null)
-    } catch { Alert.alert('Pas de réseau', 'La visite n\'a pas pu commencer. Vérifiez la connexion et réessayez.') }
+    } catch (e) {
+      // Refus du serveur (supabase_supervision_plusieurs.sql) : son propre restaurant.
+      if (/propre restaurant/.test(e?.message || '')) Alert.alert('Visite impossible', 'Un gérant ne peut pas noter son propre restaurant.')
+      else Alert.alert('Pas de réseau', 'La visite n\'a pas pu commencer. Vérifiez la connexion et réessayez.')
+    }
     finally { setDemarrage(false) }
   }
 
@@ -100,7 +114,8 @@ export default function SuperviseurScreen() {
         </View>
         <VisiteEnCours visite={enCours} restaurant={restoEnCours} userId={userId} userNom={userNom}
           onFinie={() => { setEnCours(null); charger() }}
-          onDeconnecter={() => { deconnecter?.(); router.replace('/login') }} styles={styles} colors={colors} />
+          onDeconnecter={sortir} libelleSortie={depuisCompte ? '⏸ Revenir à mon compte (la visite reste ouverte)' : undefined}
+          styles={styles} colors={colors} />
       </SafeAreaView>
     )
   }
@@ -130,8 +145,8 @@ export default function SuperviseurScreen() {
           <Text style={styles.headerTitre}>Supervision</Text>
           <Text style={styles.headerSub}>{userNom || 'Superviseur'}</Text>
         </View>
-        <TouchableOpacity onPress={() => { deconnecter?.(); router.replace('/login') }} hitSlop={10} style={{ width: 60, alignItems: 'flex-end' }}>
-          <Text style={[styles.back, { width: 'auto', fontSize: 13 }]}>Quitter</Text>
+        <TouchableOpacity onPress={sortir} hitSlop={10} style={{ width: 60, alignItems: 'flex-end' }}>
+          <Text style={[styles.back, { width: 'auto', fontSize: 13 }]}>{depuisCompte ? '‹ Retour' : 'Quitter'}</Text>
         </TouchableOpacity>
       </View>
       <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 40 }}

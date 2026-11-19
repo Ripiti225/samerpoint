@@ -49,7 +49,7 @@ function Bascule({ actif, label, couleur, onPress, colors }) {
   )
 }
 
-export default function VisiteEnCours({ visite, restaurant, userId, userNom, onFinie, onDeconnecter, styles, colors }) {
+export default function VisiteEnCours({ visite, restaurant, userId, userNom, onFinie, onDeconnecter, libelleSortie = '⏸ Se déconnecter (la visite reste ouverte)', styles, colors }) {
   const [charge, setCharge] = useState(false)
   const [erreur, setErreur] = useState(false)
   const [criteres, setCriteres] = useState([])
@@ -186,7 +186,7 @@ export default function VisiteEnCours({ visite, restaurant, userId, userNom, onF
         <Info icone="🕘" styles={styles}>Arrivée {dateHeure(visite.debut_at)} · {textePosition(visite.position_debut)}</Info>
         {onDeconnecter ? (
           <View style={{ marginTop: 10 }}>
-            <Bouton label="⏸ Se déconnecter (la visite reste ouverte)" onPress={seDeconnecter} couleur={colors.textSecondary}
+            <Bouton label={libelleSortie} onPress={seDeconnecter} couleur={colors.textSecondary}
               variante="contour" disabled={envoi} styles={styles} />
             <Text style={styles.hint}>À terminer aujourd'hui : une visite pas terminée est abandonnée le lendemain.</Text>
           </View>
