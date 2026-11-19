@@ -9,8 +9,10 @@
 // Base : supabase_tresorerie_cheques.sql · logique : lib/cheques.js
 // ──────────────────────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Image, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
+import { Alert, Image, Modal, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native'
 
+import PhotoJustificatif from '../components/PhotoJustificatif'
 import {
   Bouton, Champ, ChampCalendrier, ChampMontant, Entete, EtatEcran, Feuille, Hero, HeroCase, ItemIcone, Ligne, Puces,
   TitreSection, styleCategorie, useStylesTreso, useTresorerie,
@@ -144,7 +146,7 @@ export default function TresorerieChequesScreen() {
                     surligne={se.surligne || null} estompe={etat.cle === 'annule'}
                     titre={`N° ${c.numero} · ${c.ordre}`}
                     sous={<Text style={[styles.petit, se.surligne && { color: se.couleur, fontWeight: '700' }]}>
-                      {[etat.message, `émis le ${formatDateFR(c.date_emission)}`, resumeLignes(c)].filter(Boolean).join(' · ')}
+                      {[etat.message, `émis le ${formatDateFR(c.date_emission)}`, resumeLignes(c), c.photo_url ? 'photo' : ''].filter(Boolean).join(' · ')}
                     </Text>}
                     droite={`${fmt(c.montant)} F`} couleurDroite={etat.cle === 'encaisse' ? colors.successDark : colors.text}
                     sousDroite={c.statut === 'emis' && peutSaisir ? (
@@ -183,6 +185,7 @@ export default function TresorerieChequesScreen() {
 
 function FeuilleDetailCheque({ cheque: c, lignes, aujourdhui, peutSaisir, onFermer, onEncaisser, onModifier, onAnnuler, onAnnulerEncaissement }) {
   const { styles, colors } = useStylesTreso()
+  const [pleinEcran, setPleinEcran] = useState(false)
   if (!c) return null
   const etat = statutCheque(c, aujourdhui)
   const se = styleEtat(etat.cle, colors)
@@ -208,9 +211,26 @@ function FeuilleDetailCheque({ cheque: c, lignes, aujourdhui, peutSaisir, onFerm
         {!!c.note && <Text style={[styles.petit, { marginTop: 6 }]}>{c.note}</Text>}
         {!!c.cree_par_nom && <Text style={styles.petit}>Saisi par {c.cree_par_nom}</Text>}
         {!!c.photo_url && (
-          <Image source={{ uri: c.photo_url }} style={{ width: '100%', height: 180, borderRadius: 10, marginTop: 10 }} resizeMode="cover" />
+          <TouchableOpacity onPress={() => setPleinEcran(true)} activeOpacity={0.85} style={{ marginTop: 10 }}
+            accessibilityRole="imagebutton" accessibilityLabel="Agrandir la photo du chèque">
+            <PhotoJustificatif uri={c.photo_url} style={{ width: '100%', height: 220, borderRadius: 10 }} resizeMode="cover" />
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 4 }}>
+              <MaterialCommunityIcons name="magnify-plus-outline" size={14} color={colors.textMuted} />
+              <Text style={styles.petit}>Toucher la photo pour l'agrandir</Text>
+            </View>
+          </TouchableOpacity>
         )}
+        {!c.photo_url && <Text style={[styles.petit, { marginTop: 6 }]}>Pas de photo pour ce chèque.</Text>}
       </View>
+      <Modal visible={pleinEcran} transparent animationType="fade" onRequestClose={() => setPleinEcran(false)}>
+        <TouchableOpacity activeOpacity={1} onPress={() => setPleinEcran(false)}
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center', padding: 12 }}>
+          {pleinEcran && <PhotoJustificatif uri={c.photo_url} style={{ width: '100%', height: '85%' }} resizeMode="contain" />}
+          <View style={{ position: 'absolute', top: 50, right: 20, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, padding: 8 }}>
+            <MaterialCommunityIcons name="close" size={24} color="#FFFFFF" />
+          </View>
+        </TouchableOpacity>
+      </Modal>
       {peutSaisir && c.statut === 'emis' && (
         <View style={{ gap: 8 }}>
           <Bouton icone="check" titre="Encaissé" onPress={() => onEncaisser(c)} />

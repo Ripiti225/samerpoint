@@ -23,6 +23,8 @@ import {
   repartissable, variationsFond,
 } from '../lib/direction'
 import { envoyerNotifFondCorrige } from '../lib/notifications'
+import { exporterPdf } from '../lib/pdfDocuments'
+import { htmlRapportDirection, rapportDepensesDirection } from '../lib/rapportDirection'
 import { usePhoto } from '../lib/usePhoto'
 import {
   aujourdhuiISO, classerTous, fmt, formatDateFR, libelleMois, paiementsParDu, peut, resteDu, totalPaye,
@@ -44,6 +46,7 @@ export default function TresorerieDirectionScreen() {
   const [detail, setDetail] = useState(null)      // autre charge ouverte
   const [paiement, setPaiement] = useState(null)  // { du, prevision? }
   const [prevoir, setPrevoir] = useState(null)    // autre charge dont on prévoit le paiement
+  const [rapport, setRapport] = useState(false)
 
   const aujourdhui = aujourdhuiISO()
   const parDu = useMemo(() => paiementsParDu(donnees?.paiements), [donnees])
@@ -134,6 +137,8 @@ export default function TresorerieDirectionScreen() {
           <Bouton style={{ flex: 1 }} secondaire icone="clock-plus-outline" titre="Charge à payer" onPress={() => setCharge({})} />
           <Bouton style={{ flex: 1 }} icone="plus" titre="Dépense payée" onPress={() => setSaisie(true)} />
         </View>
+        <Bouton secondaire icone="file-chart-outline" titre="Rapport sur une période" style={{ marginBottom: 6 }}
+          onPress={() => setRapport(true)} />
 
         {parMois.length === 0 && <Text style={styles.vide}>Aucune dépense direction.</Text>}
         {parMois.map(([m, deps]) => (
@@ -183,6 +188,10 @@ export default function TresorerieDirectionScreen() {
           donnees={donnees} user={user}
           onFermer={() => { setSaisie(false); setEdition(null) }} apres={recharger} />
       )}
+      {donnees && d && (
+        <FeuilleRapport visible={rapport} depenses={d.depenses || []} nomResto={nomResto} user={user}
+          onFermer={() => setRapport(false)} />
+      )}
       {donnees && (
         <>
           <FeuilleChargeAPayer du={charge} donnees={donnees} user={user} onFermer={() => setCharge(null)} apres={recharger} />
@@ -202,6 +211,68 @@ export default function TresorerieDirectionScreen() {
         </>
       )}
     </SafeAreaView>
+  )
+}
+
+// Rapport sur une période : dépenses identiques (catégorie · restaurant)
+// regroupées, total par groupe, puis les jours et les sommes ; PDF avec le nom
+// de celui qui le tire en bas. Logique : lib/rapportDirection.js
+function FeuilleRapport({ visible, depenses, nomResto, user, onFermer }) {
+  const { styles, colors } = useStylesTreso()
+  const aujourdhui = aujourdhuiISO()
+  const [debut, setDebut] = useState(`${aujourdhui.slice(0, 7)}-01`)
+  const [fin, setFin] = useState(aujourdhui)
+  const [occupe, setOccupe] = useState(false)
+  const valide = /^\d{4}-\d{2}-\d{2}$/.test(debut) && /^\d{4}-\d{2}-\d{2}$/.test(fin) && debut <= fin
+  const r = useMemo(
+    () => (valide ? rapportDepensesDirection(depenses, { debut, fin }, nomResto) : { groupes: [], total: 0, nb: 0 }),
+    [depenses, debut, fin, valide, nomResto],
+  )
+
+  async function telecharger() {
+    setOccupe(true)
+    try {
+      const html = htmlRapportDirection(r, { debut, fin, auteur: user?.userNom || '' })
+      await exporterPdf(html, `depenses_direction_${debut}_${fin}.pdf`, 'Partager le rapport des dépenses')
+    } catch (e) {
+      Alert.alert('Erreur PDF', e?.message || 'Impossible de générer le PDF')
+    } finally {
+      setOccupe(false)
+    }
+  }
+
+  if (!visible) return null
+  return (
+    <Feuille visible onFermer={onFermer} titre="Rapport des dépenses">
+      <View style={styles.rangee}>
+        <View style={{ flex: 1 }}><ChampCalendrier label="Du" valeur={debut} onChange={setDebut} /></View>
+        <View style={{ flex: 1 }}><ChampCalendrier label="Au" valeur={fin} onChange={setFin} /></View>
+      </View>
+      {!valide && <Text style={[styles.petit, { color: colors.error }]}>La date de début doit être avant la date de fin.</Text>}
+      {valide && r.groupes.length === 0 && <Text style={styles.vide}>Aucune dépense sur cette période.</Text>}
+      {r.groupes.map(g => (
+        <View key={g.cle} style={[styles.carte, { marginBottom: 8 }]}>
+          <View style={styles.ligne}>
+            <Text style={[styles.itemTitre, { flex: 1 }]}>{g.titre}</Text>
+            <Text style={styles.itemTitre}>{fmt(g.total)} F</Text>
+          </View>
+          <Text style={styles.petit}>{g.nb} dépense{g.nb > 1 ? 's' : ''}</Text>
+          {g.jours.map(j => (
+            <View key={j.date} style={styles.ligne}>
+              <Text style={styles.ligneLabel}>{formatDateFR(j.date)}</Text>
+              <Text style={styles.ligneValeur}>{j.montant < 0 ? '− ' : ''}{fmt(Math.abs(j.montant))} F</Text>
+            </View>
+          ))}
+        </View>
+      ))}
+      {r.groupes.length > 0 && (
+        <View style={[styles.ligne, { marginBottom: 10 }]}>
+          <Text style={[styles.itemTitre, { flex: 1 }]}>Total ({r.nb} dépense{r.nb > 1 ? 's' : ''})</Text>
+          <Text style={[styles.itemTitre, { color: colors.error }]}>{fmt(r.total)} F</Text>
+        </View>
+      )}
+      <Bouton icone="file-pdf-box" titre="Télécharger le PDF" onPress={telecharger} occupe={occupe} desactive={!valide || r.groupes.length === 0} />
+    </Feuille>
   )
 }
 
