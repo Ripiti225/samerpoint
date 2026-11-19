@@ -606,9 +606,9 @@
     "semantic_hash": ""
   },
   "lib/menus.js": {
-    "mtime": 1794055894.2527251,
-    "seen": 1794056132.5483599,
-    "ast_hash": "c933b40438d7a796126237b53e1ca9fe",
+    "mtime": 1795112796.168739,
+    "seen": 1795112906.7379131,
+    "ast_hash": "526ebafc1ef776b89d5b8da53813ba8f",
     "semantic_hash": ""
   },
   "lib/networkStatus.js": {
@@ -1944,15 +1944,15 @@
     "semantic_hash": ""
   },
   "lib/groupesAccueil.js": {
-    "mtime": 1795093998.9638722,
-    "seen": 1795094038.2631638,
-    "ast_hash": "06591f6b8febfd89a805899ca7900455",
+    "mtime": 1795112796.1688914,
+    "seen": 1795112906.737893,
+    "ast_hash": "8a6157c1b3d6d410c7ed50fe2846043e",
     "semantic_hash": ""
   },
   "lib/groupesAccueil.test.mjs": {
-    "mtime": 1795093998.9650552,
-    "seen": 1795094038.263165,
-    "ast_hash": "93cc54f105b3aa96b8c1352657d6e0c7",
+    "mtime": 1795112795.858595,
+    "seen": 1795112906.7378938,
+    "ast_hash": "1af9aa4c6a9e21e7e7b6fe8ee759be20",
     "semantic_hash": ""
   },
   "components/accueil/AccueilManager.js": {
@@ -4437,6 +4437,42 @@
     "mtime": 1795099001.790148,
     "seen": 1795099502.496265,
     "ast_hash": "7117ffe3a6400168d130cf21066ebb3b",
+    "semantic_hash": ""
+  },
+  "app/cloture-mois.js": {
+    "mtime": 1795112849.882165,
+    "seen": 1795112906.737705,
+    "ast_hash": "105e7bef9b0dacb70c454fa5dfba079f",
+    "semantic_hash": ""
+  },
+  "lib/clotureMois.js": {
+    "mtime": 1795112807.7619543,
+    "seen": 1795112906.7378402,
+    "ast_hash": "c94f187b7944f81ff07b7cf3060f065b",
+    "semantic_hash": ""
+  },
+  "lib/clotureMois.test.mjs": {
+    "mtime": 1795112807.5855725,
+    "seen": 1795112906.7378402,
+    "ast_hash": "24e5a139aaa4909913628dcbe8440c00",
+    "semantic_hash": ""
+  },
+  "supabase_cloture_mois.sql": {
+    "mtime": 1795112741.5015783,
+    "seen": 1795112906.737996,
+    "ast_hash": "310ab08972e81d68449bc63a5d0bc86d",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-11-19-cloture-du-mois.md": {
+    "mtime": 1795112674.4256854,
+    "seen": 1795112906.738077,
+    "ast_hash": "9d8325955ddf269ba88e45c8489ffd5d",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-11-19-cloture-du-mois-design.md": {
+    "mtime": 1795112679.7740822,
+    "seen": 1795112906.7380989,
+    "ast_hash": "5a54b0450d3c97ee0fb907e2bd22b7bf",
     "semantic_hash": ""
   }
 }
