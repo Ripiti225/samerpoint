@@ -210,9 +210,9 @@
     "semantic_hash": ""
   },
   "app/login.js": {
-    "mtime": 1793596133.50709,
-    "seen": 1793624278.566665,
-    "ast_hash": "40bd0ce0a6b646eba4467ca2bf81c8bd",
+    "mtime": 1795099367.264795,
+    "seen": 1795099502.4955451,
+    "ast_hash": "9850b849a20c8c0821eca14ba51f8b74",
     "semantic_hash": ""
   },
   "app/modal.tsx": {
@@ -234,9 +234,9 @@
     "semantic_hash": ""
   },
   "app/parametres.js": {
-    "mtime": 1795098074.04013,
-    "seen": 1795098100.882242,
-    "ast_hash": "66625c8bab1d6be8968814d87a899572",
+    "mtime": 1795099319.9921982,
+    "seen": 1795099502.49555,
+    "ast_hash": "f2de55f1ad868d6fa20080e3f5230ffd",
     "semantic_hash": ""
   },
   "app/point-shift.js": {
@@ -480,9 +480,9 @@
     "semantic_hash": ""
   },
   "lib/api.js": {
-    "mtime": 1793985810.7699463,
-    "seen": 1794056132.5482712,
-    "ast_hash": "9fa7db0bcafacc75c6dece70e11081fe",
+    "mtime": 1795099301.4780028,
+    "seen": 1795099502.495726,
+    "ast_hash": "ffdf452deca6d73db9f1339004dc310d",
     "semantic_hash": ""
   },
   "lib/basculePOS.js": {
@@ -2514,9 +2514,9 @@
     "semantic_hash": ""
   },
   "components/login/QuiEtesVous.js": {
-    "mtime": 1791131800.4089472,
-    "seen": 1791131860.1047392,
-    "ast_hash": "5416a9eb4ab23bceb6861721794d20cb",
+    "mtime": 1795099367.2636294,
+    "seen": 1795099502.495658,
+    "ast_hash": "1b125dd0b73ec8a684f8bc18eb976f88",
     "semantic_hash": ""
   },
   "components/login/themeLogin.js": {
@@ -3276,15 +3276,15 @@
     "semantic_hash": ""
   },
   "app/superviseur.js": {
-    "mtime": 1792071157.4927926,
-    "seen": 1792249596.22895,
-    "ast_hash": "9184ca7b309c8b24b652ac2c2eb321e9",
+    "mtime": 1795099410.9277768,
+    "seen": 1795099502.495564,
+    "ast_hash": "43c2a65e53aa333610450f46d9a7ae61",
     "semantic_hash": ""
   },
   "app/supervision.js": {
-    "mtime": 1792071550.2136326,
-    "seen": 1792249596.2289522,
-    "ast_hash": "113760cd0b92b6bd88933206ffecd614",
+    "mtime": 1795099429.666198,
+    "seen": 1795099502.495565,
+    "ast_hash": "0bd363d2a79e4caf688ab0978e79f5cb",
     "semantic_hash": ""
   },
   "components/supervision/DetailVisite.js": {
@@ -3306,27 +3306,27 @@
     "semantic_hash": ""
   },
   "components/supervision/VisiteEnCours.js": {
-    "mtime": 1792071488.3924983,
-    "seen": 1792249596.229027,
-    "ast_hash": "9f7775d07003b87b9b04469c06e91252",
+    "mtime": 1795099410.9264724,
+    "seen": 1795099502.495669,
+    "ast_hash": "fdb37cf6da555f5f94000e3aa3981e7d",
     "semantic_hash": ""
   },
   "lib/supervision.js": {
-    "mtime": 1792071379.9816425,
-    "seen": 1792249596.2292721,
-    "ast_hash": "9ed95200abc04a32fb69555a8a88cb06",
+    "mtime": 1795099243.8941514,
+    "seen": 1795099502.495996,
+    "ast_hash": "b376c3c305dc56cdda8cc34d6b4754f6",
     "semantic_hash": ""
   },
   "lib/supervision.test.mjs": {
-    "mtime": 1792071379.982015,
-    "seen": 1792249596.229273,
-    "ast_hash": "ef0e19f3ef3c9c6b709e5b8b011bd893",
+    "mtime": 1795099235.805891,
+    "seen": 1795099502.495996,
+    "ast_hash": "ebec15d7f3d97773d3b3b0d50a163e04",
     "semantic_hash": ""
   },
   "lib/supervisionDb.js": {
-    "mtime": 1792071442.0727212,
-    "seen": 1792249596.229274,
-    "ast_hash": "5012139ef30fdfa0c1ae7989a0c9a30a",
+    "mtime": 1795099410.9271145,
+    "seen": 1795099502.495997,
+    "ast_hash": "08423987789c2fca89a2c8db1df4b3bd",
     "semantic_hash": ""
   },
   "supabase_supervision.sql": {
@@ -3960,9 +3960,9 @@
     "semantic_hash": ""
   },
   "lib/codesDb.js": {
-    "mtime": 1793596057.5437098,
-    "seen": 1793624278.5668921,
-    "ast_hash": "30499b0ded4c6e8acf3254290043839c",
+    "mtime": 1795099296.864463,
+    "seen": 1795099502.495774,
+    "ast_hash": "312e0c21d2c6e72d4c42d0944859d4c6",
     "semantic_hash": ""
   },
   "lib/conseilsMois.js": {
@@ -4419,6 +4419,24 @@
     "mtime": 1795093998.8071272,
     "seen": 1795094038.263453,
     "ast_hash": "26690e63e77bda9bc70da49a528ef3fa",
+    "semantic_hash": ""
+  },
+  "supabase_supervision_plusieurs.sql": {
+    "mtime": 1795099153.7200756,
+    "seen": 1795099502.49615,
+    "ast_hash": "f1d37e09238e509099bc0a8562bd48f0",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-11-19-supervision-plusieurs-personnes.md": {
+    "mtime": 1795099126.6607182,
+    "seen": 1795099502.496225,
+    "ast_hash": "1586c961166c7d3b50588a40f79bb423",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-11-19-supervision-plusieurs-personnes-design.md": {
+    "mtime": 1795099001.790148,
+    "seen": 1795099502.496265,
+    "ast_hash": "7117ffe3a6400168d130cf21066ebb3b",
     "semantic_hash": ""
   }
 }

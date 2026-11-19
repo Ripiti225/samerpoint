@@ -3169,48 +3169,12 @@
       "source_location": "L109"
     },
     {
-      "id": "app_credits_fournisseurs_creditsfournisseursscreen_modifiercredit",
-      "label": "modifierCredit()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "modifiercredit()",
-      "source_file": "app/credits-fournisseurs.js",
-      "source_location": "L271"
-    },
-    {
-      "id": "app_tresorerie_coffre_feuilleemprunt",
-      "label": "FeuilleEmprunt()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "feuilleemprunt()",
-      "source_file": "app/tresorerie-coffre.js",
-      "source_location": "L253"
-    },
-    {
-      "id": "app_tresorerie_coffre_feuilleemprunt_enregistrer",
-      "label": "enregistrer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "enregistrer()",
-      "source_file": "app/tresorerie-coffre.js",
-      "source_location": "L268"
-    },
-    {
       "id": "app_tresorerie_coffre_nompartenaire",
       "label": "nomPartenaire()",
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "nompartenaire()",
       "source_file": "app/tresorerie-coffre.js",
@@ -3222,83 +3186,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "tresoreriecoffrescreen()",
       "source_file": "app/tresorerie-coffre.js",
       "source_location": "L35"
-    },
-    {
-      "id": "app_tresorerie_direction_feuilledepense",
-      "label": "FeuilleDepense()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "feuilledepense()",
-      "source_file": "app/tresorerie-direction.js",
-      "source_location": "L212"
-    },
-    {
-      "id": "app_tresorerie_direction_feuilledepense_choisircategorie",
-      "label": "choisirCategorie()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "choisircategorie()",
-      "source_file": "app/tresorerie-direction.js",
-      "source_location": "L254"
-    },
-    {
-      "id": "app_tresorerie_direction_feuilledepense_enregistrer",
-      "label": "enregistrer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "enregistrer()",
-      "source_file": "app/tresorerie-direction.js",
-      "source_location": "L279"
-    },
-    {
-      "id": "app_tresorerie_direction_feuilledepense_fermer",
-      "label": "fermer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "fermer()",
-      "source_file": "app/tresorerie-direction.js",
-      "source_location": "L260"
-    },
-    {
-      "id": "app_tresorerie_direction_feuilledepense_prevenirgerants",
-      "label": "prevenirGerants()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "prevenirgerants()",
-      "source_file": "app/tresorerie-direction.js",
-      "source_location": "L273"
-    },
-    {
-      "id": "app_tresorerie_direction_feuilledepense_validerrepartition",
-      "label": "validerRepartition()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "validerrepartition()",
-      "source_file": "app/tresorerie-direction.js",
-      "source_location": "L313"
     },
     {
       "id": "app_tresorerie_resultats_tresorerieresultatsscreen",
@@ -3306,7 +3198,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "tresorerieresultatsscreen()",
       "source_file": "app/tresorerie-resultats.js",
@@ -3318,7 +3210,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "bornesmois()",
       "source_file": "lib/direction.js",
@@ -3330,7 +3222,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "categoriedirection()",
       "source_file": "lib/direction.js",
@@ -3342,7 +3234,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "comptedansresultat()",
       "source_file": "lib/direction.js",
@@ -3354,7 +3246,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "depensesgroupeparmois()",
       "source_file": "lib/direction.js",
@@ -3366,7 +3258,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "derniersmois()",
       "source_file": "lib/direction.js",
@@ -3378,7 +3270,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "detaildepensesgroupe()",
       "source_file": "lib/direction.js",
@@ -3390,7 +3282,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "encaissenetpoint()",
       "source_file": "lib/direction.js",
@@ -3402,7 +3294,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "especesdonnees()",
       "source_file": "lib/direction.js",
@@ -3414,7 +3306,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "estchargegroupe()",
       "source_file": "lib/direction.js",
@@ -3426,7 +3318,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "estdepensegroupe()",
       "source_file": "lib/direction.js",
@@ -3438,7 +3330,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "moisde()",
       "source_file": "lib/direction.js",
@@ -3450,7 +3342,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "n()",
       "source_file": "lib/direction.js",
@@ -3462,7 +3354,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "objectifdumois()",
       "source_file": "lib/direction.js",
@@ -3474,7 +3366,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "planrepartition()",
       "source_file": "lib/direction.js",
@@ -3486,23 +3378,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "progression()",
       "source_file": "lib/direction.js",
       "source_location": "L122"
-    },
-    {
-      "id": "lib_direction_repartissable",
-      "label": "repartissable()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "repartissable()",
-      "source_file": "lib/direction.js",
-      "source_location": "L78"
     },
     {
       "id": "lib_direction_restearembourser",
@@ -3510,7 +3390,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "restearembourser()",
       "source_file": "lib/direction.js",
@@ -3522,7 +3402,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "resultatsparrestomois()",
       "source_file": "lib/direction.js",
@@ -3534,7 +3414,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "retraitspatron()",
       "source_file": "lib/direction.js",
@@ -3546,7 +3426,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "soldecoffre()",
       "source_file": "lib/direction.js",
@@ -3558,35 +3438,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "statutemprunt()",
       "source_file": "lib/direction.js",
       "source_location": "L104"
-    },
-    {
-      "id": "lib_direction_variationsfond",
-      "label": "variationsFond()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "variationsfond()",
-      "source_file": "lib/direction.js",
-      "source_location": "L69"
-    },
-    {
-      "id": "lib_tresorerie_aujourdhuiiso",
-      "label": "aujourdhuiISO()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 104,
-      "community_name": "aujourdhuiISO",
-      "file_type": "code",
-      "norm_label": "aujourdhuiiso()",
-      "source_file": "lib/tresorerie.js",
-      "source_location": "L167"
     },
     {
       "id": "components_salaires_feuilleligne_proposer",
@@ -6385,6 +6241,18 @@
       "source_location": "L445"
     },
     {
+      "id": "app_tresorerie_a_payer_tresorerieapayerscreen",
+      "label": "TresorerieAPayerScreen()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 12,
+      "community_name": "lib/tresorerie.js",
+      "file_type": "code",
+      "norm_label": "tresorerieapayerscreen()",
+      "source_file": "app/tresorerie-a-payer.js",
+      "source_location": "L44"
+    },
+    {
       "id": "app_tresorerie_cheques_estbanque",
       "label": "estBanque()",
       "_callable": true,
@@ -6553,18 +6421,6 @@
       "source_location": "L27"
     },
     {
-      "id": "components_tresorerie_reglagescharges_pucesmois",
-      "label": "PucesMois()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "pucesmois()",
-      "source_file": "components/tresorerie/reglagesCharges.js",
-      "source_location": "L48"
-    },
-    {
       "id": "components_tresorerie_saisiegroupee_deux",
       "label": "deux()",
       "_callable": true,
@@ -6719,6 +6575,18 @@
       "norm_label": "bailsacreer()",
       "source_file": "lib/tresorerie.js",
       "source_location": "L334"
+    },
+    {
+      "id": "lib_tresorerie_categoriesvisibles",
+      "label": "categoriesVisibles()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 12,
+      "community_name": "lib/tresorerie.js",
+      "file_type": "code",
+      "norm_label": "categoriesvisibles()",
+      "source_file": "lib/tresorerie.js",
+      "source_location": "L583"
     },
     {
       "id": "lib_tresorerie_chargesfixesacreer",
@@ -6913,18 +6781,6 @@
       "source_location": "L195"
     },
     {
-      "id": "lib_tresorerie_joursentre",
-      "label": "joursEntre()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 12,
-      "community_name": "lib/tresorerie.js",
-      "file_type": "code",
-      "norm_label": "joursentre()",
-      "source_file": "lib/tresorerie.js",
-      "source_location": "L237"
-    },
-    {
       "id": "lib_tresorerie_moisentre",
       "label": "moisEntre()",
       "_callable": true,
@@ -7069,6 +6925,18 @@
       "source_location": "L521"
     },
     {
+      "id": "lib_tresorerie_restedu",
+      "label": "resteDu()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 12,
+      "community_name": "lib/tresorerie.js",
+      "file_type": "code",
+      "norm_label": "restedu()",
+      "source_file": "lib/tresorerie.js",
+      "source_location": "L72"
+    },
+    {
       "id": "lib_tresorerie_resumeloyersparrestaurant",
       "label": "resumeLoyersParRestaurant()",
       "_callable": true,
@@ -7091,6 +6959,42 @@
       "norm_label": "synthesetresorerie()",
       "source_file": "lib/tresorerie.js",
       "source_location": "L121"
+    },
+    {
+      "id": "lib_tresoreriedb_appliquerplandus",
+      "label": "appliquerPlanDus()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 12,
+      "community_name": "lib/tresorerie.js",
+      "file_type": "code",
+      "norm_label": "appliquerplandus()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L562"
+    },
+    {
+      "id": "lib_tresoreriedb_enregistrerloyer",
+      "label": "enregistrerLoyer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 12,
+      "community_name": "lib/tresorerie.js",
+      "file_type": "code",
+      "norm_label": "enregistrerloyer()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L455"
+    },
+    {
+      "id": "lib_tresoreriedb_enregistrermoischarge",
+      "label": "enregistrerMoisCharge()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 12,
+      "community_name": "lib/tresorerie.js",
+      "file_type": "code",
+      "norm_label": "enregistrermoischarge()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L476"
     },
     {
       "id": "lib_conseilsmois_analysergroupe",
@@ -11209,18 +11113,6 @@
       "source_location": "L310"
     },
     {
-      "id": "app_tresorerie_cheques_feuillecheque_enregistrer",
-      "label": "enregistrer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "enregistrer()",
-      "source_file": "app/tresorerie-cheques.js",
-      "source_location": "L324"
-    },
-    {
       "id": "app_tresorerie_cheques_feuilledetailcheque",
       "label": "FeuilleDetailCheque()",
       "_callable": true,
@@ -11231,30 +11123,6 @@
       "norm_label": "feuilledetailcheque()",
       "source_file": "app/tresorerie-cheques.js",
       "source_location": "L184"
-    },
-    {
-      "id": "app_tresorerie_cheques_feuilleencaissement",
-      "label": "FeuilleEncaissement()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "feuilleencaissement()",
-      "source_file": "app/tresorerie-cheques.js",
-      "source_location": "L445"
-    },
-    {
-      "id": "app_tresorerie_cheques_feuilleencaissement_confirmer",
-      "label": "confirmer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "confirmer()",
-      "source_file": "app/tresorerie-cheques.js",
-      "source_location": "L453"
     },
     {
       "id": "app_tresorerie_cheques_styleetat",
@@ -11293,6 +11161,18 @@
       "source_location": "L91"
     },
     {
+      "id": "app_tresorerie_tresoreriescreen",
+      "label": "TresorerieScreen()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 17,
+      "community_name": "cheques.js",
+      "file_type": "code",
+      "norm_label": "tresoreriescreen()",
+      "source_file": "app/tresorerie.js",
+      "source_location": "L37"
+    },
+    {
       "id": "lib_calendrierdates_lignesdates",
       "label": "lignesDates()",
       "_callable": true,
@@ -11327,18 +11207,6 @@
       "norm_label": "pluriel()",
       "source_file": "lib/calendrierDates.js",
       "source_location": "L65"
-    },
-    {
-      "id": "lib_cheques_attacherlignes",
-      "label": "attacherLignes()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "attacherlignes()",
-      "source_file": "lib/cheques.js",
-      "source_location": "L49"
     },
     {
       "id": "lib_cheques_chequedeprevision",
@@ -11399,18 +11267,6 @@
       "norm_label": "clenom()",
       "source_file": "lib/cheques.js",
       "source_location": "L191"
-    },
-    {
-      "id": "lib_cheques_elementscheques",
-      "label": "elementsCheques()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "elementscheques()",
-      "source_file": "lib/cheques.js",
-      "source_location": "L173"
     },
     {
       "id": "lib_cheques_encirculation",
@@ -11687,174 +11543,6 @@
       "norm_label": "trierprevisions()",
       "source_file": "lib/previsions.js",
       "source_location": "L79"
-    },
-    {
-      "id": "lib_rappelstresorerie_destinatairesrappels",
-      "label": "destinatairesRappels()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "destinatairesrappels()",
-      "source_file": "lib/rappelsTresorerie.js",
-      "source_location": "L81"
-    },
-    {
-      "id": "lib_rappelstresorerie_elementsdujour",
-      "label": "elementsDuJour()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "elementsdujour()",
-      "source_file": "lib/rappelsTresorerie.js",
-      "source_location": "L40"
-    },
-    {
-      "id": "lib_rappelstresorerie_messagepour",
-      "label": "messagePour()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "messagepour()",
-      "source_file": "lib/rappelsTresorerie.js",
-      "source_location": "L96"
-    },
-    {
-      "id": "lib_rappelstresorerie_nomligne",
-      "label": "nomLigne()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "nomligne()",
-      "source_file": "lib/rappelsTresorerie.js",
-      "source_location": "L31"
-    },
-    {
-      "id": "lib_rappelstresorerie_test_nomresto",
-      "label": "nomResto()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "nomresto()",
-      "source_file": "lib/rappelsTresorerie.test.mjs",
-      "source_location": "L12"
-    },
-    {
-      "id": "lib_tresorerie_sanschargesadministratives",
-      "label": "sansChargesAdministratives()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "sanschargesadministratives()",
-      "source_file": "lib/tresorerie.js",
-      "source_location": "L22"
-    },
-    {
-      "id": "lib_tresoreriedb_chargertresorerie",
-      "label": "chargerTresorerie()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "chargertresorerie()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L85"
-    },
-    {
-      "id": "lib_tresoreriedb_lirereglage",
-      "label": "lireReglage()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "lirereglage()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L72"
-    },
-    {
-      "id": "lib_tresoreriedb_notifierprevisionsdeclenchees",
-      "label": "notifierPrevisionsDeclenchees()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "notifierprevisionsdeclenchees()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L850"
-    },
-    {
-      "id": "supabase_functions_rappels_tresorerie_index_envoyerexpo",
-      "label": "envoyerExpo()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "envoyerexpo()",
-      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
-      "source_location": "L47"
-    },
-    {
-      "id": "supabase_functions_rappels_tresorerie_index_envoyerweb",
-      "label": "envoyerWeb()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "envoyerweb()",
-      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
-      "source_location": "L60"
-    },
-    {
-      "id": "supabase_functions_rappels_tresorerie_index_facultatif",
-      "label": "facultatif()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "facultatif()",
-      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
-      "source_location": "L45"
-    },
-    {
-      "id": "supabase_functions_rappels_tresorerie_index_json",
-      "label": "json()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "json()",
-      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
-      "source_location": "L27"
-    },
-    {
-      "id": "supabase_functions_rappels_tresorerie_index_toutes",
-      "label": "toutes()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "toutes()",
-      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
-      "source_location": "L31"
     },
     {
       "id": "lib_erreurslisibles_expliquererreur",
@@ -15865,18 +15553,6 @@
       "source_location": "L880"
     },
     {
-      "id": "app_dashboard_global_dashboardglobalscreen_renderactivite",
-      "label": "renderActivite()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "DashboardGlobalScreen",
-      "file_type": "code",
-      "norm_label": "renderactivite()",
-      "source_file": "app/dashboard-global.js",
-      "source_location": "L1186"
-    },
-    {
       "id": "app_dashboard_global_dashboardglobalscreen_renderapercu",
       "label": "renderApercu()",
       "_callable": true,
@@ -16045,30 +15721,6 @@
       "source_location": "L6"
     },
     {
-      "id": "lib_graphiques_fmtcourt",
-      "label": "fmtCourt()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "DashboardGlobalScreen",
-      "file_type": "code",
-      "norm_label": "fmtcourt()",
-      "source_file": "lib/graphiques.js",
-      "source_location": "L89"
-    },
-    {
-      "id": "lib_statspos_libellecreneau",
-      "label": "libelleCreneau()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 20,
-      "community_name": "DashboardGlobalScreen",
-      "file_type": "code",
-      "norm_label": "libellecreneau()",
-      "source_file": "lib/statsPOS.js",
-      "source_location": "L22"
-    },
-    {
       "id": "app_verification_esttransactiongerant",
       "label": "estTransactionGerant()",
       "_callable": true,
@@ -16091,30 +15743,6 @@
       "norm_label": "makestyles()",
       "source_file": "app/verification.js",
       "source_location": "L4825"
-    },
-    {
-      "id": "lib_entreesverification_nettoyer",
-      "label": "nettoyer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 201,
-      "community_name": "verification.js",
-      "file_type": "code",
-      "norm_label": "nettoyer()",
-      "source_file": "lib/entreesVerification.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "lib_entreesverification_preparerentreesverification",
-      "label": "preparerEntreesVerification()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 201,
-      "community_name": "verification.js",
-      "file_type": "code",
-      "norm_label": "preparerentreesverification()",
-      "source_file": "lib/entreesVerification.js",
-      "source_location": "L15"
     },
     {
       "id": "lib_litigesurplus_actionsurplus",
@@ -16187,6 +15815,90 @@
       "norm_label": "photoscanaldisponibles()",
       "source_file": "lib/photosVerification.js",
       "source_location": "L6"
+    },
+    {
+      "id": "lib_verificationliste_alertespoint",
+      "label": "alertesPoint()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 201,
+      "community_name": "verification.js",
+      "file_type": "code",
+      "norm_label": "alertespoint()",
+      "source_file": "lib/verificationListe.js",
+      "source_location": "L53"
+    },
+    {
+      "id": "lib_verificationliste_bornesdumois",
+      "label": "bornesDuMois()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 201,
+      "community_name": "verification.js",
+      "file_type": "code",
+      "norm_label": "bornesdumois()",
+      "source_file": "lib/verificationListe.js",
+      "source_location": "L15"
+    },
+    {
+      "id": "lib_verificationliste_libellemoislong",
+      "label": "libelleMoisLong()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 201,
+      "community_name": "verification.js",
+      "file_type": "code",
+      "norm_label": "libellemoislong()",
+      "source_file": "lib/verificationListe.js",
+      "source_location": "L27"
+    },
+    {
+      "id": "lib_verificationliste_moisvoisin",
+      "label": "moisVoisin()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 201,
+      "community_name": "verification.js",
+      "file_type": "code",
+      "norm_label": "moisvoisin()",
+      "source_file": "lib/verificationListe.js",
+      "source_location": "L21"
+    },
+    {
+      "id": "lib_verificationliste_n",
+      "label": "n()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 201,
+      "community_name": "verification.js",
+      "file_type": "code",
+      "norm_label": "n()",
+      "source_file": "lib/verificationListe.js",
+      "source_location": "L11"
+    },
+    {
+      "id": "lib_verificationliste_organiserpoints",
+      "label": "organiserPoints()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 201,
+      "community_name": "verification.js",
+      "file_type": "code",
+      "norm_label": "organiserpoints()",
+      "source_file": "lib/verificationListe.js",
+      "source_location": "L35"
+    },
+    {
+      "id": "lib_verificationliste_ventesparcanal",
+      "label": "ventesParCanal()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 201,
+      "community_name": "verification.js",
+      "file_type": "code",
+      "norm_label": "ventesparcanal()",
+      "source_file": "lib/verificationListe.js",
+      "source_location": "L68"
     },
     {
       "id": "components_equipe_modales_entete",
@@ -17629,124 +17341,16 @@
       "source_location": "L130"
     },
     {
-      "id": "components_rapports_ongletanalyse_fmt",
-      "label": "fmt()",
+      "id": "app_dashboard_global_dashboardglobalscreen_renderactivite",
+      "label": "renderActivite()",
       "_callable": true,
       "_origin": "ast",
       "community": 23,
       "community_name": "dashboard-global.js",
       "file_type": "code",
-      "norm_label": "fmt()",
-      "source_file": "components/rapports/OngletAnalyse.js",
-      "source_location": "L20"
-    },
-    {
-      "id": "components_rapports_ongletanalyse_makestyles",
-      "label": "makeStyles()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 23,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "makestyles()",
-      "source_file": "components/rapports/OngletAnalyse.js",
-      "source_location": "L346"
-    },
-    {
-      "id": "components_rapports_ongletanalyse_note",
-      "label": "note()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 23,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "note()",
-      "source_file": "components/rapports/OngletAnalyse.js",
-      "source_location": "L22"
-    },
-    {
-      "id": "components_rapports_ongletanalyse_ongletanalyse",
-      "label": "OngletAnalyse()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 23,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "ongletanalyse()",
-      "source_file": "components/rapports/OngletAnalyse.js",
-      "source_location": "L24"
-    },
-    {
-      "id": "components_rapports_ongletanalyse_pct",
-      "label": "pct()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 23,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "pct()",
-      "source_file": "components/rapports/OngletAnalyse.js",
-      "source_location": "L21"
-    },
-    {
-      "id": "components_ui_texteajuste_texteajuste",
-      "label": "TexteAjuste()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 23,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "texteajuste()",
-      "source_file": "components/ui/TexteAjuste.js",
-      "source_location": "L19"
-    },
-    {
-      "id": "components_ui_ventedouble_fcfa",
-      "label": "fcfa()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 23,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "fcfa()",
-      "source_file": "components/ui/VenteDouble.js",
-      "source_location": "L12"
-    },
-    {
-      "id": "components_ui_ventedouble_signe",
-      "label": "signe()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 23,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "signe()",
-      "source_file": "components/ui/VenteDouble.js",
-      "source_location": "L13"
-    },
-    {
-      "id": "components_ui_ventedouble_textetheorique",
-      "label": "TexteTheorique()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 23,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "textetheorique()",
-      "source_file": "components/ui/VenteDouble.js",
-      "source_location": "L17"
-    },
-    {
-      "id": "components_ui_ventedouble_ventedouble",
-      "label": "VenteDouble()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 23,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "ventedouble()",
-      "source_file": "components/ui/VenteDouble.js",
-      "source_location": "L27"
+      "norm_label": "renderactivite()",
+      "source_file": "app/dashboard-global.js",
+      "source_location": "L1186"
     },
     {
       "id": "lib_exportrapportmensuel_feuillesanalyse",
@@ -17869,6 +17473,18 @@
       "source_location": "L70"
     },
     {
+      "id": "lib_statspos_libellecreneau",
+      "label": "libelleCreneau()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 23,
+      "community_name": "dashboard-global.js",
+      "file_type": "code",
+      "norm_label": "libellecreneau()",
+      "source_file": "lib/statsPOS.js",
+      "source_location": "L22"
+    },
+    {
       "id": "lib_statspos_libelleheure",
       "label": "libelleHeure()",
       "_callable": true,
@@ -17953,16 +17569,64 @@
       "source_location": "L53"
     },
     {
+      "id": "app_verification_verificationscreen_confirmerannulationmachine",
+      "label": "confirmerAnnulationMachine()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 235,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "confirmerannulationmachine()",
+      "source_file": "app/verification.js",
+      "source_location": "L1464"
+    },
+    {
+      "id": "app_verification_verificationscreen_confirmerretourdecisionmachine",
+      "label": "confirmerRetourDecisionMachine()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 235,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "confirmerretourdecisionmachine()",
+      "source_file": "app/verification.js",
+      "source_location": "L1660"
+    },
+    {
       "id": "app_verification_verificationscreen_deciderecartinv",
       "label": "deciderEcartInv()",
       "_callable": true,
       "_origin": "ast",
       "community": 235,
-      "community_name": "ciblesVerification",
+      "community_name": "fmt",
       "file_type": "code",
       "norm_label": "deciderecartinv()",
       "source_file": "app/verification.js",
       "source_location": "L993"
+    },
+    {
+      "id": "app_verification_verificationscreen_demandercorrection",
+      "label": "demanderCorrection()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 235,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "demandercorrection()",
+      "source_file": "app/verification.js",
+      "source_location": "L1204"
+    },
+    {
+      "id": "app_verification_verificationscreen_ecartmachinetexte",
+      "label": "ecartMachineTexte()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 235,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "ecartmachinetexte()",
+      "source_file": "app/verification.js",
+      "source_location": "L1332"
     },
     {
       "id": "app_verification_verificationscreen_enregistrerdecisioninv",
@@ -17970,23 +17634,47 @@
       "_callable": true,
       "_origin": "ast",
       "community": 235,
-      "community_name": "ciblesVerification",
+      "community_name": "fmt",
       "file_type": "code",
       "norm_label": "enregistrerdecisioninv()",
       "source_file": "app/verification.js",
       "source_location": "L944"
     },
     {
-      "id": "app_verification_verificationscreen_enregistrerlitige",
-      "label": "enregistrerLitige()",
+      "id": "app_verification_verificationscreen_fermercorrectionfacture",
+      "label": "fermerCorrectionFacture()",
       "_callable": true,
       "_origin": "ast",
       "community": 235,
-      "community_name": "ciblesVerification",
+      "community_name": "fmt",
       "file_type": "code",
-      "norm_label": "enregistrerlitige()",
+      "norm_label": "fermercorrectionfacture()",
       "source_file": "app/verification.js",
-      "source_location": "L956"
+      "source_location": "L1100"
+    },
+    {
+      "id": "app_verification_verificationscreen_fmt",
+      "label": "fmt()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 235,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "fmt()",
+      "source_file": "app/verification.js",
+      "source_location": "L600"
+    },
+    {
+      "id": "app_verification_verificationscreen_formatdate",
+      "label": "formatDate()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 235,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "formatdate()",
+      "source_file": "app/verification.js",
+      "source_location": "L633"
     },
     {
       "id": "app_verification_verificationscreen_marquerverifie",
@@ -17994,23 +17682,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 235,
-      "community_name": "ciblesVerification",
+      "community_name": "fmt",
       "file_type": "code",
       "norm_label": "marquerverifie()",
       "source_file": "app/verification.js",
       "source_location": "L568"
-    },
-    {
-      "id": "app_verification_verificationscreen_nb",
-      "label": "nb()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 235,
-      "community_name": "ciblesVerification",
-      "file_type": "code",
-      "norm_label": "nb()",
-      "source_file": "app/verification.js",
-      "source_location": "L611"
     },
     {
       "id": "app_verification_verificationscreen_refuserexplicationcloturepos",
@@ -18018,11 +17694,35 @@
       "_callable": true,
       "_origin": "ast",
       "community": 235,
-      "community_name": "ciblesVerification",
+      "community_name": "fmt",
       "file_type": "code",
       "norm_label": "refuserexplicationcloturepos()",
       "source_file": "app/verification.js",
       "source_location": "L1414"
+    },
+    {
+      "id": "app_verification_verificationscreen_revenirsurdecisionmachine",
+      "label": "revenirSurDecisionMachine()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 235,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "revenirsurdecisionmachine()",
+      "source_file": "app/verification.js",
+      "source_location": "L1689"
+    },
+    {
+      "id": "app_verification_verificationscreen_sauvegardercorrectionfacture",
+      "label": "sauvegarderCorrectionFacture()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 235,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "sauvegardercorrectionfacture()",
+      "source_file": "app/verification.js",
+      "source_location": "L1106"
     },
     {
       "id": "app_verification_verificationscreen_statuerexplicationmachine",
@@ -18030,11 +17730,35 @@
       "_callable": true,
       "_origin": "ast",
       "community": 235,
-      "community_name": "ciblesVerification",
+      "community_name": "fmt",
       "file_type": "code",
       "norm_label": "statuerexplicationmachine()",
       "source_file": "app/verification.js",
       "source_location": "L1276"
+    },
+    {
+      "id": "app_verification_verificationscreen_telechargerpdf",
+      "label": "telechargerPdf()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 235,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "telechargerpdf()",
+      "source_file": "app/verification.js",
+      "source_location": "L509"
+    },
+    {
+      "id": "app_verification_verificationscreen_telechargerpdfecarts",
+      "label": "telechargerPdfEcarts()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 235,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "telechargerpdfecarts()",
+      "source_file": "app/verification.js",
+      "source_location": "L1770"
     },
     {
       "id": "app_verification_verificationscreen_validercommentaire",
@@ -18042,7 +17766,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 235,
-      "community_name": "ciblesVerification",
+      "community_name": "fmt",
       "file_type": "code",
       "norm_label": "validercommentaire()",
       "source_file": "app/verification.js",
@@ -18054,23 +17778,11 @@
       "_callable": true,
       "_origin": "ast",
       "community": 235,
-      "community_name": "ciblesVerification",
+      "community_name": "fmt",
       "file_type": "code",
       "norm_label": "deciderecartinventaire()",
       "source_file": "lib/api.js",
       "source_location": "L1070"
-    },
-    {
-      "id": "lib_api_fixerlitigesurplus",
-      "label": "fixerLitigeSurplus()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 235,
-      "community_name": "ciblesVerification",
-      "file_type": "code",
-      "norm_label": "fixerlitigesurplus()",
-      "source_file": "lib/api.js",
-      "source_location": "L1046"
     },
     {
       "id": "lib_commentaireverification_ciblesverification",
@@ -18078,7 +17790,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 235,
-      "community_name": "ciblesVerification",
+      "community_name": "fmt",
       "file_type": "code",
       "norm_label": "ciblesverification()",
       "source_file": "lib/commentaireVerification.js",
@@ -18090,7 +17802,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 235,
-      "community_name": "ciblesVerification",
+      "community_name": "fmt",
       "file_type": "code",
       "norm_label": "messagedecision()",
       "source_file": "lib/commentaireVerification.js",
@@ -18102,7 +17814,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 235,
-      "community_name": "ciblesVerification",
+      "community_name": "fmt",
       "file_type": "code",
       "norm_label": "messagepointverifie()",
       "source_file": "lib/commentaireVerification.js",
@@ -18114,7 +17826,7 @@
       "_callable": true,
       "_origin": "ast",
       "community": 235,
-      "community_name": "ciblesVerification",
+      "community_name": "fmt",
       "file_type": "code",
       "norm_label": "nettoyercommentaire()",
       "source_file": "lib/commentaireVerification.js",
@@ -19594,7 +19306,7 @@
       "file_type": "code",
       "norm_label": "makestyles()",
       "source_file": "app/parametres.js",
-      "source_location": "L1974"
+      "source_location": "L1976"
     },
     {
       "id": "app_parametres_parametresscreen_sauvegarderrole",
@@ -21250,7 +20962,7 @@
       "file_type": "code",
       "norm_label": "renderfournisseurs()",
       "source_file": "app/parametres.js",
-      "source_location": "L1100"
+      "source_location": "L1102"
     },
     {
       "id": "app_parametres_parametresscreen_rendermodalcontent",
@@ -21262,7 +20974,7 @@
       "file_type": "code",
       "norm_label": "rendermodalcontent()",
       "source_file": "app/parametres.js",
-      "source_location": "L1151"
+      "source_location": "L1153"
     },
     {
       "id": "app_parametres_parametresscreen_renderrestaurants",
@@ -21286,7 +20998,7 @@
       "file_type": "code",
       "norm_label": "renderroles()",
       "source_file": "app/parametres.js",
-      "source_location": "L1649"
+      "source_location": "L1651"
     },
     {
       "id": "app_parametres_parametresscreen_rendertravailleurs",
@@ -22129,6 +21841,18 @@
       "source_location": "L43"
     },
     {
+      "id": "lib_cotisations_ecriturescotisation",
+      "label": "ecrituresCotisation()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 28,
+      "community_name": "tresorerie-banque.js",
+      "file_type": "code",
+      "norm_label": "ecriturescotisation()",
+      "source_file": "lib/cotisations.js",
+      "source_location": "L58"
+    },
+    {
       "id": "lib_cotisations_estremisebanque",
       "label": "estRemiseBanque()",
       "_callable": true,
@@ -22249,16 +21973,64 @@
       "source_location": "L98"
     },
     {
-      "id": "lib_usephoto_usephoto",
-      "label": "usePhoto()",
+      "id": "lib_tresoreriedb_ajoutermouvement",
+      "label": "ajouterMouvement()",
       "_callable": true,
       "_origin": "ast",
       "community": 28,
       "community_name": "tresorerie-banque.js",
       "file_type": "code",
-      "norm_label": "usephoto()",
-      "source_file": "lib/usePhoto.js",
-      "source_location": "L34"
+      "norm_label": "ajoutermouvement()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L189"
+    },
+    {
+      "id": "lib_tresoreriedb_annulercotisation",
+      "label": "annulerCotisation()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 28,
+      "community_name": "tresorerie-banque.js",
+      "file_type": "code",
+      "norm_label": "annulercotisation()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L267"
+    },
+    {
+      "id": "lib_tresoreriedb_recevoircotisation",
+      "label": "recevoirCotisation()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 28,
+      "community_name": "tresorerie-banque.js",
+      "file_type": "code",
+      "norm_label": "recevoircotisation()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L212"
+    },
+    {
+      "id": "lib_tresoreriedb_supprimermouvement",
+      "label": "supprimerMouvement()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 28,
+      "community_name": "tresorerie-banque.js",
+      "file_type": "code",
+      "norm_label": "supprimermouvement()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L339"
+    },
+    {
+      "id": "lib_tresoreriedb_virement",
+      "label": "virement()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 28,
+      "community_name": "tresorerie-banque.js",
+      "file_type": "code",
+      "norm_label": "virement()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L329"
     },
     {
       "id": "context_notificationscontext_notificationsprovider_charger",
@@ -26209,6 +25981,30 @@
       "source_location": "L7"
     },
     {
+      "id": "app_verification_verificationscreen_lignecorrigerfacture",
+      "label": "LigneCorrigerFacture()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 322,
+      "community_name": "PhotoJustificatif.js",
+      "file_type": "code",
+      "norm_label": "lignecorrigerfacture()",
+      "source_file": "app/verification.js",
+      "source_location": "L1821"
+    },
+    {
+      "id": "app_verification_verificationscreen_ouvrircorrectionfacture",
+      "label": "ouvrirCorrectionFacture()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 322,
+      "community_name": "PhotoJustificatif.js",
+      "file_type": "code",
+      "norm_label": "ouvrircorrectionfacture()",
+      "source_file": "app/verification.js",
+      "source_location": "L1094"
+    },
+    {
       "id": "app_verification_verificationscreen_photovignette",
       "label": "PhotoVignette()",
       "_callable": true,
@@ -27457,136 +27253,100 @@
       "source_location": "L14"
     },
     {
-      "id": "app_verification_verificationscreen_changermois",
-      "label": "changerMois()",
+      "id": "lib_rappelstresorerie_destinatairesrappels",
+      "label": "destinatairesRappels()",
       "_callable": true,
       "_origin": "ast",
       "community": 359,
-      "community_name": "verificationListe.js",
+      "community_name": "rappels-tresorerie/index.ts",
       "file_type": "code",
-      "norm_label": "changermois()",
-      "source_file": "app/verification.js",
-      "source_location": "L247"
+      "norm_label": "destinatairesrappels()",
+      "source_file": "lib/rappelsTresorerie.js",
+      "source_location": "L81"
     },
     {
-      "id": "app_verification_verificationscreen_changerresto",
-      "label": "changerResto()",
+      "id": "lib_rappelstresorerie_messagepour",
+      "label": "messagePour()",
       "_callable": true,
       "_origin": "ast",
       "community": 359,
-      "community_name": "verificationListe.js",
+      "community_name": "rappels-tresorerie/index.ts",
       "file_type": "code",
-      "norm_label": "changerresto()",
-      "source_file": "app/verification.js",
-      "source_location": "L259"
+      "norm_label": "messagepour()",
+      "source_file": "lib/rappelsTresorerie.js",
+      "source_location": "L96"
     },
     {
-      "id": "app_verification_verificationscreen_chargerpointsresto",
-      "label": "chargerPointsResto()",
+      "id": "lib_rappelstresorerie_test_nomresto",
+      "label": "nomResto()",
       "_callable": true,
       "_origin": "ast",
       "community": 359,
-      "community_name": "verificationListe.js",
+      "community_name": "rappels-tresorerie/index.ts",
       "file_type": "code",
-      "norm_label": "chargerpointsresto()",
-      "source_file": "app/verification.js",
-      "source_location": "L231"
+      "norm_label": "nomresto()",
+      "source_file": "lib/rappelsTresorerie.test.mjs",
+      "source_location": "L12"
     },
     {
-      "id": "app_verification_verificationscreen_onrefresh",
-      "label": "onRefresh()",
+      "id": "supabase_functions_rappels_tresorerie_index_envoyerexpo",
+      "label": "envoyerExpo()",
       "_callable": true,
       "_origin": "ast",
       "community": 359,
-      "community_name": "verificationListe.js",
+      "community_name": "rappels-tresorerie/index.ts",
       "file_type": "code",
-      "norm_label": "onrefresh()",
-      "source_file": "app/verification.js",
-      "source_location": "L253"
+      "norm_label": "envoyerexpo()",
+      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
+      "source_location": "L47"
     },
     {
-      "id": "lib_verificationliste_alertespoint",
-      "label": "alertesPoint()",
+      "id": "supabase_functions_rappels_tresorerie_index_envoyerweb",
+      "label": "envoyerWeb()",
       "_callable": true,
       "_origin": "ast",
       "community": 359,
-      "community_name": "verificationListe.js",
+      "community_name": "rappels-tresorerie/index.ts",
       "file_type": "code",
-      "norm_label": "alertespoint()",
-      "source_file": "lib/verificationListe.js",
-      "source_location": "L53"
+      "norm_label": "envoyerweb()",
+      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
+      "source_location": "L60"
     },
     {
-      "id": "lib_verificationliste_bornesdumois",
-      "label": "bornesDuMois()",
+      "id": "supabase_functions_rappels_tresorerie_index_facultatif",
+      "label": "facultatif()",
       "_callable": true,
       "_origin": "ast",
       "community": 359,
-      "community_name": "verificationListe.js",
+      "community_name": "rappels-tresorerie/index.ts",
       "file_type": "code",
-      "norm_label": "bornesdumois()",
-      "source_file": "lib/verificationListe.js",
-      "source_location": "L15"
+      "norm_label": "facultatif()",
+      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
+      "source_location": "L45"
     },
     {
-      "id": "lib_verificationliste_libellemoislong",
-      "label": "libelleMoisLong()",
+      "id": "supabase_functions_rappels_tresorerie_index_json",
+      "label": "json()",
       "_callable": true,
       "_origin": "ast",
       "community": 359,
-      "community_name": "verificationListe.js",
+      "community_name": "rappels-tresorerie/index.ts",
       "file_type": "code",
-      "norm_label": "libellemoislong()",
-      "source_file": "lib/verificationListe.js",
+      "norm_label": "json()",
+      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
       "source_location": "L27"
     },
     {
-      "id": "lib_verificationliste_moisvoisin",
-      "label": "moisVoisin()",
+      "id": "supabase_functions_rappels_tresorerie_index_toutes",
+      "label": "toutes()",
       "_callable": true,
       "_origin": "ast",
       "community": 359,
-      "community_name": "verificationListe.js",
+      "community_name": "rappels-tresorerie/index.ts",
       "file_type": "code",
-      "norm_label": "moisvoisin()",
-      "source_file": "lib/verificationListe.js",
-      "source_location": "L21"
-    },
-    {
-      "id": "lib_verificationliste_n",
-      "label": "n()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 359,
-      "community_name": "verificationListe.js",
-      "file_type": "code",
-      "norm_label": "n()",
-      "source_file": "lib/verificationListe.js",
-      "source_location": "L11"
-    },
-    {
-      "id": "lib_verificationliste_organiserpoints",
-      "label": "organiserPoints()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 359,
-      "community_name": "verificationListe.js",
-      "file_type": "code",
-      "norm_label": "organiserpoints()",
-      "source_file": "lib/verificationListe.js",
-      "source_location": "L35"
-    },
-    {
-      "id": "lib_verificationliste_ventesparcanal",
-      "label": "ventesParCanal()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 359,
-      "community_name": "verificationListe.js",
-      "file_type": "code",
-      "norm_label": "ventesparcanal()",
-      "source_file": "lib/verificationListe.js",
-      "source_location": "L68"
+      "norm_label": "toutes()",
+      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
+      "source_location": "L31"
     },
     {
       "id": "app_depenses_depensesscreen",
@@ -28609,124 +28369,100 @@
       "source_location": "L19"
     },
     {
-      "id": "components_tresorerie_ancienstravailleurs_anciennesfiches",
-      "label": "AnciennesFiches()",
+      "id": "components_champdate_calendrierperiode",
+      "label": "CalendrierPeriode()",
       "_callable": true,
       "_origin": "ast",
       "community": 374,
-      "community_name": "droitsAnciensTravailleursDb.js",
+      "community_name": "CalendrierPeriode",
       "file_type": "code",
-      "norm_label": "anciennesfiches()",
-      "source_file": "components/tresorerie/anciensTravailleurs.js",
-      "source_location": "L331"
+      "norm_label": "calendrierperiode()",
+      "source_file": "components/ChampDate.js",
+      "source_location": "L184"
     },
     {
-      "id": "components_tresorerie_ancienstravailleurs_anciennesfiches_remplacer",
-      "label": "remplacer()",
+      "id": "lib_calendrierperiode_dernierjourmois",
+      "label": "dernierJourMois()",
       "_callable": true,
       "_origin": "ast",
       "community": 374,
-      "community_name": "droitsAnciensTravailleursDb.js",
+      "community_name": "CalendrierPeriode",
       "file_type": "code",
-      "norm_label": "remplacer()",
-      "source_file": "components/tresorerie/anciensTravailleurs.js",
-      "source_location": "L335"
+      "norm_label": "dernierjourmois()",
+      "source_file": "lib/calendrierPeriode.js",
+      "source_location": "L14"
     },
     {
-      "id": "components_tresorerie_ancienstravailleurs_feuilledroit",
-      "label": "FeuilleDroit()",
+      "id": "lib_calendrierperiode_deux",
+      "label": "deux()",
       "_callable": true,
       "_origin": "ast",
       "community": 374,
-      "community_name": "droitsAnciensTravailleursDb.js",
+      "community_name": "CalendrierPeriode",
       "file_type": "code",
-      "norm_label": "feuilledroit()",
-      "source_file": "components/tresorerie/anciensTravailleurs.js",
-      "source_location": "L140"
+      "norm_label": "deux()",
+      "source_file": "lib/calendrierPeriode.js",
+      "source_location": "L11"
     },
     {
-      "id": "components_tresorerie_ancienstravailleurs_feuilledroit_choisirarchive",
-      "label": "choisirArchive()",
+      "id": "lib_calendrierperiode_joursentre",
+      "label": "joursEntre()",
       "_callable": true,
       "_origin": "ast",
       "community": 374,
-      "community_name": "droitsAnciensTravailleursDb.js",
+      "community_name": "CalendrierPeriode",
       "file_type": "code",
-      "norm_label": "choisirarchive()",
-      "source_file": "components/tresorerie/anciensTravailleurs.js",
-      "source_location": "L168"
+      "norm_label": "joursentre()",
+      "source_file": "lib/calendrierPeriode.js",
+      "source_location": "L55"
     },
     {
-      "id": "components_tresorerie_ancienstravailleurs_feuilledroit_enregistrer",
-      "label": "enregistrer()",
+      "id": "lib_calendrierperiode_moisdelaperiode",
+      "label": "moisDeLaPeriode()",
       "_callable": true,
       "_origin": "ast",
       "community": 374,
-      "community_name": "droitsAnciensTravailleursDb.js",
+      "community_name": "CalendrierPeriode",
       "file_type": "code",
-      "norm_label": "enregistrer()",
-      "source_file": "components/tresorerie/anciensTravailleurs.js",
-      "source_location": "L180"
+      "norm_label": "moisdelaperiode()",
+      "source_file": "lib/calendrierPeriode.js",
+      "source_location": "L48"
     },
     {
-      "id": "lib_droitsancienstravailleursdb_ajuster",
-      "label": "ajuster()",
+      "id": "lib_calendrierperiode_moishorsbornes",
+      "label": "moisHorsBornes()",
       "_callable": true,
       "_origin": "ast",
       "community": 374,
-      "community_name": "droitsAnciensTravailleursDb.js",
+      "community_name": "CalendrierPeriode",
       "file_type": "code",
-      "norm_label": "ajuster()",
-      "source_file": "lib/droitsAnciensTravailleursDb.js",
-      "source_location": "L44"
+      "norm_label": "moishorsbornes()",
+      "source_file": "lib/calendrierPeriode.js",
+      "source_location": "L33"
     },
     {
-      "id": "lib_droitsancienstravailleursdb_creerdroitancien",
-      "label": "creerDroitAncien()",
+      "id": "lib_calendrierperiode_periodemois",
+      "label": "periodeMois()",
       "_callable": true,
       "_origin": "ast",
       "community": 374,
-      "community_name": "droitsAnciensTravailleursDb.js",
+      "community_name": "CalendrierPeriode",
       "file_type": "code",
-      "norm_label": "creerdroitancien()",
-      "source_file": "lib/droitsAnciensTravailleursDb.js",
-      "source_location": "L57"
+      "norm_label": "periodemois()",
+      "source_file": "lib/calendrierPeriode.js",
+      "source_location": "L23"
     },
     {
-      "id": "lib_droitsancienstravailleursdb_modifierdroitancien",
-      "label": "modifierDroitAncien()",
+      "id": "lib_calendrierperiode_toucherjour",
+      "label": "toucherJour()",
       "_callable": true,
       "_origin": "ast",
       "community": 374,
-      "community_name": "droitsAnciensTravailleursDb.js",
+      "community_name": "CalendrierPeriode",
       "file_type": "code",
-      "norm_label": "modifierdroitancien()",
-      "source_file": "lib/droitsAnciensTravailleursDb.js",
-      "source_location": "L72"
-    },
-    {
-      "id": "lib_droitsancienstravailleursdb_remplaceranciennefiche",
-      "label": "remplacerAncienneFiche()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 374,
-      "community_name": "droitsAnciensTravailleursDb.js",
-      "file_type": "code",
-      "norm_label": "remplaceranciennefiche()",
-      "source_file": "lib/droitsAnciensTravailleursDb.js",
-      "source_location": "L85"
-    },
-    {
-      "id": "lib_droitsancienstravailleursdb_traduire",
-      "label": "traduire()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 374,
-      "community_name": "droitsAnciensTravailleursDb.js",
-      "file_type": "code",
-      "norm_label": "traduire()",
-      "source_file": "lib/droitsAnciensTravailleursDb.js",
-      "source_location": "L13"
+      "norm_label": "toucherjour()",
+      "source_file": "lib/calendrierPeriode.js",
+      "source_location": "L41"
     },
     {
       "id": "lib_bulletin_assemblerbulletin",
@@ -30505,6 +30241,102 @@
       "source_location": "L1501"
     },
     {
+      "id": "components_tresorerie_du_findumois",
+      "label": "finDuMois()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 427,
+      "community_name": "SectionRetenueLitiges",
+      "file_type": "code",
+      "norm_label": "findumois()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L326"
+    },
+    {
+      "id": "components_tresorerie_du_sectionretenuelitiges",
+      "label": "SectionRetenueLitiges()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 427,
+      "community_name": "SectionRetenueLitiges",
+      "file_type": "code",
+      "norm_label": "sectionretenuelitiges()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L331"
+    },
+    {
+      "id": "components_tresorerie_du_sectionretenuelitiges_enregistrer",
+      "label": "enregistrer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 427,
+      "community_name": "SectionRetenueLitiges",
+      "file_type": "code",
+      "norm_label": "enregistrer()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L354"
+    },
+    {
+      "id": "lib_retenuelitiges_lireregleretenue",
+      "label": "lireRegleRetenue()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 427,
+      "community_name": "SectionRetenueLitiges",
+      "file_type": "code",
+      "norm_label": "lireregleretenue()",
+      "source_file": "lib/retenueLitiges.js",
+      "source_location": "L15"
+    },
+    {
+      "id": "lib_retenuelitiges_phraseretenue",
+      "label": "phraseRetenue()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 427,
+      "community_name": "SectionRetenueLitiges",
+      "file_type": "code",
+      "norm_label": "phraseretenue()",
+      "source_file": "lib/retenueLitiges.js",
+      "source_location": "L35"
+    },
+    {
+      "id": "lib_tresoreriedb_enregistrerretenuelitiges",
+      "label": "enregistrerRetenueLitiges()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 427,
+      "community_name": "SectionRetenueLitiges",
+      "file_type": "code",
+      "norm_label": "enregistrerretenuelitiges()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L289"
+    },
+    {
+      "id": "lib_entreesverification_nettoyer",
+      "label": "nettoyer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 428,
+      "community_name": "entreesVerification.js",
+      "file_type": "code",
+      "norm_label": "nettoyer()",
+      "source_file": "lib/entreesVerification.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "lib_entreesverification_preparerentreesverification",
+      "label": "preparerEntreesVerification()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 428,
+      "community_name": "entreesVerification.js",
+      "file_type": "code",
+      "norm_label": "preparerentreesverification()",
+      "source_file": "lib/entreesVerification.js",
+      "source_location": "L15"
+    },
+    {
       "id": "components_avis_reponsesavis_makestyles",
       "label": "makeStyles()",
       "_callable": true,
@@ -32053,6 +31885,78 @@
       "source_location": "L31"
     },
     {
+      "id": "components_rapports_ongletanalyse_fmt",
+      "label": "fmt()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 53,
+      "community_name": "components/graphiques.js",
+      "file_type": "code",
+      "norm_label": "fmt()",
+      "source_file": "components/rapports/OngletAnalyse.js",
+      "source_location": "L20"
+    },
+    {
+      "id": "components_rapports_ongletanalyse_makestyles",
+      "label": "makeStyles()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 53,
+      "community_name": "components/graphiques.js",
+      "file_type": "code",
+      "norm_label": "makestyles()",
+      "source_file": "components/rapports/OngletAnalyse.js",
+      "source_location": "L346"
+    },
+    {
+      "id": "components_rapports_ongletanalyse_note",
+      "label": "note()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 53,
+      "community_name": "components/graphiques.js",
+      "file_type": "code",
+      "norm_label": "note()",
+      "source_file": "components/rapports/OngletAnalyse.js",
+      "source_location": "L22"
+    },
+    {
+      "id": "components_rapports_ongletanalyse_ongletanalyse",
+      "label": "OngletAnalyse()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 53,
+      "community_name": "components/graphiques.js",
+      "file_type": "code",
+      "norm_label": "ongletanalyse()",
+      "source_file": "components/rapports/OngletAnalyse.js",
+      "source_location": "L24"
+    },
+    {
+      "id": "components_rapports_ongletanalyse_pct",
+      "label": "pct()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 53,
+      "community_name": "components/graphiques.js",
+      "file_type": "code",
+      "norm_label": "pct()",
+      "source_file": "components/rapports/OngletAnalyse.js",
+      "source_location": "L21"
+    },
+    {
+      "id": "components_ui_texteajuste_texteajuste",
+      "label": "TexteAjuste()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 53,
+      "community_name": "components/graphiques.js",
+      "file_type": "code",
+      "norm_label": "texteajuste()",
+      "source_file": "components/ui/TexteAjuste.js",
+      "source_location": "L19"
+    },
+    {
       "id": "lib_graphiques_arcsanneau",
       "label": "arcsAnneau()",
       "_callable": true,
@@ -32123,6 +32027,18 @@
       "norm_label": "etiquettesespacees()",
       "source_file": "lib/graphiques.js",
       "source_location": "L76"
+    },
+    {
+      "id": "lib_graphiques_fmtcourt",
+      "label": "fmtCourt()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 53,
+      "community_name": "components/graphiques.js",
+      "file_type": "code",
+      "norm_label": "fmtcourt()",
+      "source_file": "lib/graphiques.js",
+      "source_location": "L89"
     },
     {
       "id": "lib_graphiques_hex",
@@ -33637,30 +33553,6 @@
       "source_location": "L144"
     },
     {
-      "id": "app_tresorerie_coffre_tresoreriecoffrescreen_annuler",
-      "label": "annuler()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 70,
-      "community_name": "fmt",
-      "file_type": "code",
-      "norm_label": "annuler()",
-      "source_file": "app/tresorerie-coffre.js",
-      "source_location": "L71"
-    },
-    {
-      "id": "app_tresorerie_coffre_tresoreriecoffrescreen_annulerunemprunt",
-      "label": "annulerUnEmprunt()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 70,
-      "community_name": "fmt",
-      "file_type": "code",
-      "norm_label": "annulerunemprunt()",
-      "source_file": "app/tresorerie-coffre.js",
-      "source_location": "L59"
-    },
-    {
       "id": "app_tresorerie_direction_tresoreriedirectionscreen",
       "label": "TresorerieDirectionScreen()",
       "_callable": true,
@@ -33757,42 +33649,6 @@
       "source_location": "L36"
     },
     {
-      "id": "app_tresorerie_tresoreriescreen",
-      "label": "TresorerieScreen()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 70,
-      "community_name": "fmt",
-      "file_type": "code",
-      "norm_label": "tresoreriescreen()",
-      "source_file": "app/tresorerie.js",
-      "source_location": "L37"
-    },
-    {
-      "id": "components_tresorerie_ancienstravailleurs_feuillepayerdroit",
-      "label": "FeuillePayerDroit()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 70,
-      "community_name": "fmt",
-      "file_type": "code",
-      "norm_label": "feuillepayerdroit()",
-      "source_file": "components/tresorerie/anciensTravailleurs.js",
-      "source_location": "L276"
-    },
-    {
-      "id": "components_tresorerie_ancienstravailleurs_feuillepayerdroit_enregistrer",
-      "label": "enregistrer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 70,
-      "community_name": "fmt",
-      "file_type": "code",
-      "norm_label": "enregistrer()",
-      "source_file": "components/tresorerie/anciensTravailleurs.js",
-      "source_location": "L295"
-    },
-    {
       "id": "components_tresorerie_commun_stylecategorie",
       "label": "styleCategorie()",
       "_callable": true,
@@ -33853,30 +33709,6 @@
       "source_location": "L89"
     },
     {
-      "id": "components_tresorerie_du_feuilledetail_basculer",
-      "label": "basculer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 70,
-      "community_name": "fmt",
-      "file_type": "code",
-      "norm_label": "basculer()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L141"
-    },
-    {
-      "id": "components_tresorerie_du_feuilledetail_basculerresultat",
-      "label": "basculerResultat()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 70,
-      "community_name": "fmt",
-      "file_type": "code",
-      "norm_label": "basculerresultat()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L150"
-    },
-    {
       "id": "components_tresorerie_du_feuilledetail_dejapaye",
       "label": "dejaPaye()",
       "_callable": true,
@@ -33913,30 +33745,6 @@
       "source_location": "L159"
     },
     {
-      "id": "components_tresorerie_du_feuilledetail_supprimer",
-      "label": "supprimer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 70,
-      "community_name": "fmt",
-      "file_type": "code",
-      "norm_label": "supprimer()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L107"
-    },
-    {
-      "id": "components_tresorerie_du_feuillepaiement",
-      "label": "FeuillePaiement()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 70,
-      "community_name": "fmt",
-      "file_type": "code",
-      "norm_label": "feuillepaiement()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L481"
-    },
-    {
       "id": "components_tresorerie_du_feuillepaiement_enregistrer",
       "label": "enregistrer()",
       "_callable": true,
@@ -33947,18 +33755,6 @@
       "norm_label": "enregistrer()",
       "source_file": "components/tresorerie/du.js",
       "source_location": "L547"
-    },
-    {
-      "id": "components_tresorerie_du_feuilleprevision_enregistrer",
-      "label": "enregistrer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 70,
-      "community_name": "fmt",
-      "file_type": "code",
-      "norm_label": "enregistrer()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L664"
     },
     {
       "id": "components_tresorerie_du_sectioncotisation",
@@ -34079,6 +33875,18 @@
       "norm_label": "periodepardefaut()",
       "source_file": "components/tresorerie/historique.js",
       "source_location": "L17"
+    },
+    {
+      "id": "components_tresorerie_reglagescharges_pucesmois",
+      "label": "PucesMois()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 70,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "pucesmois()",
+      "source_file": "components/tresorerie/reglagesCharges.js",
+      "source_location": "L48"
     },
     {
       "id": "lib_historique_anneesdisponibles",
@@ -34261,6 +34069,18 @@
       "source_location": "L242"
     },
     {
+      "id": "lib_tresorerie_joursentre",
+      "label": "joursEntre()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 70,
+      "community_name": "fmt",
+      "file_type": "code",
+      "norm_label": "joursentre()",
+      "source_file": "lib/tresorerie.js",
+      "source_location": "L237"
+    },
+    {
       "id": "lib_tresorerie_libellemois",
       "label": "libelleMois()",
       "_callable": true,
@@ -34283,18 +34103,6 @@
       "norm_label": "libellemoiscourt()",
       "source_file": "lib/tresorerie.js",
       "source_location": "L227"
-    },
-    {
-      "id": "lib_tresorerie_restedu",
-      "label": "resteDu()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 70,
-      "community_name": "fmt",
-      "file_type": "code",
-      "norm_label": "restedu()",
-      "source_file": "lib/tresorerie.js",
-      "source_location": "L72"
     },
     {
       "id": "lib_tresorerie_totalpaye",
@@ -34921,18 +34729,6 @@
       "source_location": "L35"
     },
     {
-      "id": "app_tresorerie_a_payer_tresorerieapayerscreen",
-      "label": "TresorerieAPayerScreen()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 74,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "tresorerieapayerscreen()",
-      "source_file": "app/tresorerie-a-payer.js",
-      "source_location": "L44"
-    },
-    {
       "id": "app_tresorerie_bloc",
       "label": "Bloc()",
       "_callable": true,
@@ -35063,6 +34859,18 @@
       "norm_label": "feuilledetaildroit()",
       "source_file": "components/tresorerie/anciensTravailleurs.js",
       "source_location": "L235"
+    },
+    {
+      "id": "components_tresorerie_ancienstravailleurs_feuillepayerdroit",
+      "label": "FeuillePayerDroit()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 74,
+      "community_name": "useStylesTreso",
+      "file_type": "code",
+      "norm_label": "feuillepayerdroit()",
+      "source_file": "components/tresorerie/anciensTravailleurs.js",
+      "source_location": "L276"
     },
     {
       "id": "components_tresorerie_ancienstravailleurs_ongletancienstravailleurs",
@@ -35341,16 +35149,16 @@
       "source_location": "L715"
     },
     {
-      "id": "components_tresorerie_du_feuilleajoutdette_enregistrer",
-      "label": "enregistrer()",
+      "id": "components_tresorerie_du_feuillepaiement",
+      "label": "FeuillePaiement()",
       "_callable": true,
       "_origin": "ast",
       "community": 74,
       "community_name": "useStylesTreso",
       "file_type": "code",
-      "norm_label": "enregistrer()",
+      "norm_label": "feuillepaiement()",
       "source_file": "components/tresorerie/du.js",
-      "source_location": "L730"
+      "source_location": "L481"
     },
     {
       "id": "components_tresorerie_du_feuilleprevision",
@@ -35363,18 +35171,6 @@
       "norm_label": "feuilleprevision()",
       "source_file": "components/tresorerie/du.js",
       "source_location": "L640"
-    },
-    {
-      "id": "components_tresorerie_du_findumois",
-      "label": "finDuMois()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 74,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "findumois()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L326"
     },
     {
       "id": "components_tresorerie_du_paiementsdelaligne",
@@ -35401,30 +35197,6 @@
       "source_location": "L53"
     },
     {
-      "id": "components_tresorerie_du_sectionretenuelitiges",
-      "label": "SectionRetenueLitiges()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 74,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "sectionretenuelitiges()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L331"
-    },
-    {
-      "id": "components_tresorerie_du_sectionretenuelitiges_enregistrer",
-      "label": "enregistrer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 74,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "enregistrer()",
-      "source_file": "components/tresorerie/du.js",
-      "source_location": "L354"
-    },
-    {
       "id": "lib_droitsancienstravailleursdb_chargerdroitsanciens",
       "label": "chargerDroitsAnciens()",
       "_callable": true,
@@ -35435,42 +35207,6 @@
       "norm_label": "chargerdroitsanciens()",
       "source_file": "lib/droitsAnciensTravailleursDb.js",
       "source_location": "L17"
-    },
-    {
-      "id": "lib_retenuelitiges_lireregleretenue",
-      "label": "lireRegleRetenue()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 74,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "lireregleretenue()",
-      "source_file": "lib/retenueLitiges.js",
-      "source_location": "L15"
-    },
-    {
-      "id": "lib_retenuelitiges_phraseretenue",
-      "label": "phraseRetenue()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 74,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "phraseretenue()",
-      "source_file": "lib/retenueLitiges.js",
-      "source_location": "L35"
-    },
-    {
-      "id": "lib_tresorerie_categoriesvisibles",
-      "label": "categoriesVisibles()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 74,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "categoriesvisibles()",
-      "source_file": "lib/tresorerie.js",
-      "source_location": "L583"
     },
     {
       "id": "lib_tresorerie_peut",
@@ -35495,6 +35231,18 @@
       "norm_label": "chargerdirection()",
       "source_file": "lib/tresorerieDb.js",
       "source_location": "L902"
+    },
+    {
+      "id": "lib_tresoreriedb_chargerdroits",
+      "label": "chargerDroits()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 74,
+      "community_name": "useStylesTreso",
+      "file_type": "code",
+      "norm_label": "chargerdroits()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L77"
     },
     {
       "id": "lib_tresoreriedb_chargerpartenaires",
@@ -35533,18 +35281,6 @@
       "source_location": "L357"
     },
     {
-      "id": "lib_tresoreriedb_enregistrerretenuelitiges",
-      "label": "enregistrerRetenueLitiges()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 74,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "enregistrerretenuelitiges()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L289"
-    },
-    {
       "id": "lib_tresoreriedb_toutesleslignes",
       "label": "toutesLesLignes()",
       "_callable": true,
@@ -35557,6 +35293,18 @@
       "source_location": "L22"
     },
     {
+      "id": "lib_usephoto_usephoto",
+      "label": "usePhoto()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 74,
+      "community_name": "useStylesTreso",
+      "file_type": "code",
+      "norm_label": "usephoto()",
+      "source_file": "lib/usePhoto.js",
+      "source_location": "L34"
+    },
+    {
       "id": "scripts_reset_project_movedirectories",
       "label": "moveDirectories()",
       "_callable": true,
@@ -35567,6 +35315,18 @@
       "norm_label": "movedirectories()",
       "source_file": "scripts/reset-project.js",
       "source_location": "L48"
+    },
+    {
+      "id": "app_credits_fournisseurs_creditsfournisseursscreen_modifiercredit",
+      "label": "modifierCredit()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "modifiercredit()",
+      "source_file": "app/credits-fournisseurs.js",
+      "source_location": "L271"
     },
     {
       "id": "app_tresorerie_banque_formentreeespeces",
@@ -35615,6 +35375,66 @@
       "norm_label": "confirmer()",
       "source_file": "app/tresorerie-cheques.js",
       "source_location": "L489"
+    },
+    {
+      "id": "app_tresorerie_cheques_feuillecheque_enregistrer",
+      "label": "enregistrer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "enregistrer()",
+      "source_file": "app/tresorerie-cheques.js",
+      "source_location": "L324"
+    },
+    {
+      "id": "app_tresorerie_cheques_feuilleencaissement",
+      "label": "FeuilleEncaissement()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "feuilleencaissement()",
+      "source_file": "app/tresorerie-cheques.js",
+      "source_location": "L445"
+    },
+    {
+      "id": "app_tresorerie_cheques_feuilleencaissement_confirmer",
+      "label": "confirmer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "confirmer()",
+      "source_file": "app/tresorerie-cheques.js",
+      "source_location": "L453"
+    },
+    {
+      "id": "app_tresorerie_coffre_feuilleemprunt",
+      "label": "FeuilleEmprunt()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "feuilleemprunt()",
+      "source_file": "app/tresorerie-coffre.js",
+      "source_location": "L253"
+    },
+    {
+      "id": "app_tresorerie_coffre_feuilleemprunt_enregistrer",
+      "label": "enregistrer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "enregistrer()",
+      "source_file": "app/tresorerie-coffre.js",
+      "source_location": "L268"
     },
     {
       "id": "app_tresorerie_coffre_feuilleepargne",
@@ -35689,6 +35509,102 @@
       "source_location": "L325"
     },
     {
+      "id": "app_tresorerie_coffre_tresoreriecoffrescreen_annuler",
+      "label": "annuler()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "annuler()",
+      "source_file": "app/tresorerie-coffre.js",
+      "source_location": "L71"
+    },
+    {
+      "id": "app_tresorerie_coffre_tresoreriecoffrescreen_annulerunemprunt",
+      "label": "annulerUnEmprunt()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "annulerunemprunt()",
+      "source_file": "app/tresorerie-coffre.js",
+      "source_location": "L59"
+    },
+    {
+      "id": "app_tresorerie_direction_feuilledepense",
+      "label": "FeuilleDepense()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "feuilledepense()",
+      "source_file": "app/tresorerie-direction.js",
+      "source_location": "L212"
+    },
+    {
+      "id": "app_tresorerie_direction_feuilledepense_choisircategorie",
+      "label": "choisirCategorie()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "choisircategorie()",
+      "source_file": "app/tresorerie-direction.js",
+      "source_location": "L254"
+    },
+    {
+      "id": "app_tresorerie_direction_feuilledepense_enregistrer",
+      "label": "enregistrer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "enregistrer()",
+      "source_file": "app/tresorerie-direction.js",
+      "source_location": "L279"
+    },
+    {
+      "id": "app_tresorerie_direction_feuilledepense_fermer",
+      "label": "fermer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "fermer()",
+      "source_file": "app/tresorerie-direction.js",
+      "source_location": "L260"
+    },
+    {
+      "id": "app_tresorerie_direction_feuilledepense_prevenirgerants",
+      "label": "prevenirGerants()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "prevenirgerants()",
+      "source_file": "app/tresorerie-direction.js",
+      "source_location": "L273"
+    },
+    {
+      "id": "app_tresorerie_direction_feuilledepense_validerrepartition",
+      "label": "validerRepartition()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "validerrepartition()",
+      "source_file": "app/tresorerie-direction.js",
+      "source_location": "L313"
+    },
+    {
       "id": "app_tresorerie_feuilledroits",
       "label": "FeuilleDroits()",
       "_callable": true,
@@ -35711,18 +35627,6 @@
       "norm_label": "changer()",
       "source_file": "app/tresorerie.js",
       "source_location": "L569"
-    },
-    {
-      "id": "app_tresorerie_partenaires_feuilleimport_confirmer",
-      "label": "confirmer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "confirmer()",
-      "source_file": "app/tresorerie-partenaires.js",
-      "source_location": "L895"
     },
     {
       "id": "app_tresorerie_partenaires_feuilleperiode",
@@ -35809,16 +35713,244 @@
       "source_location": "L14"
     },
     {
-      "id": "lib_cotisations_ecriturescotisation",
-      "label": "ecrituresCotisation()",
+      "id": "components_tresorerie_ancienstravailleurs_anciennesfiches",
+      "label": "AnciennesFiches()",
       "_callable": true,
       "_origin": "ast",
       "community": 78,
       "community_name": "journaliser",
       "file_type": "code",
-      "norm_label": "ecriturescotisation()",
-      "source_file": "lib/cotisations.js",
-      "source_location": "L58"
+      "norm_label": "anciennesfiches()",
+      "source_file": "components/tresorerie/anciensTravailleurs.js",
+      "source_location": "L331"
+    },
+    {
+      "id": "components_tresorerie_ancienstravailleurs_anciennesfiches_remplacer",
+      "label": "remplacer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "remplacer()",
+      "source_file": "components/tresorerie/anciensTravailleurs.js",
+      "source_location": "L335"
+    },
+    {
+      "id": "components_tresorerie_ancienstravailleurs_feuilledroit",
+      "label": "FeuilleDroit()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "feuilledroit()",
+      "source_file": "components/tresorerie/anciensTravailleurs.js",
+      "source_location": "L140"
+    },
+    {
+      "id": "components_tresorerie_ancienstravailleurs_feuilledroit_choisirarchive",
+      "label": "choisirArchive()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "choisirarchive()",
+      "source_file": "components/tresorerie/anciensTravailleurs.js",
+      "source_location": "L168"
+    },
+    {
+      "id": "components_tresorerie_ancienstravailleurs_feuilledroit_enregistrer",
+      "label": "enregistrer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "enregistrer()",
+      "source_file": "components/tresorerie/anciensTravailleurs.js",
+      "source_location": "L180"
+    },
+    {
+      "id": "components_tresorerie_ancienstravailleurs_feuillepayerdroit_enregistrer",
+      "label": "enregistrer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "enregistrer()",
+      "source_file": "components/tresorerie/anciensTravailleurs.js",
+      "source_location": "L295"
+    },
+    {
+      "id": "components_tresorerie_du_feuilleajoutdette_enregistrer",
+      "label": "enregistrer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "enregistrer()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L730"
+    },
+    {
+      "id": "components_tresorerie_du_feuilledetail_basculer",
+      "label": "basculer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "basculer()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L141"
+    },
+    {
+      "id": "components_tresorerie_du_feuilledetail_basculerresultat",
+      "label": "basculerResultat()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "basculerresultat()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L150"
+    },
+    {
+      "id": "components_tresorerie_du_feuilledetail_supprimer",
+      "label": "supprimer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "supprimer()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L107"
+    },
+    {
+      "id": "components_tresorerie_du_feuilleprevision_enregistrer",
+      "label": "enregistrer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "enregistrer()",
+      "source_file": "components/tresorerie/du.js",
+      "source_location": "L664"
+    },
+    {
+      "id": "lib_cheques_attacherlignes",
+      "label": "attacherLignes()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "attacherlignes()",
+      "source_file": "lib/cheques.js",
+      "source_location": "L49"
+    },
+    {
+      "id": "lib_cheques_elementscheques",
+      "label": "elementsCheques()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "elementscheques()",
+      "source_file": "lib/cheques.js",
+      "source_location": "L173"
+    },
+    {
+      "id": "lib_direction_repartissable",
+      "label": "repartissable()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "repartissable()",
+      "source_file": "lib/direction.js",
+      "source_location": "L78"
+    },
+    {
+      "id": "lib_direction_variationsfond",
+      "label": "variationsFond()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "variationsfond()",
+      "source_file": "lib/direction.js",
+      "source_location": "L69"
+    },
+    {
+      "id": "lib_droitsancienstravailleursdb_ajuster",
+      "label": "ajuster()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "ajuster()",
+      "source_file": "lib/droitsAnciensTravailleursDb.js",
+      "source_location": "L44"
+    },
+    {
+      "id": "lib_droitsancienstravailleursdb_creerdroitancien",
+      "label": "creerDroitAncien()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "creerdroitancien()",
+      "source_file": "lib/droitsAnciensTravailleursDb.js",
+      "source_location": "L57"
+    },
+    {
+      "id": "lib_droitsancienstravailleursdb_modifierdroitancien",
+      "label": "modifierDroitAncien()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "modifierdroitancien()",
+      "source_file": "lib/droitsAnciensTravailleursDb.js",
+      "source_location": "L72"
+    },
+    {
+      "id": "lib_droitsancienstravailleursdb_remplaceranciennefiche",
+      "label": "remplacerAncienneFiche()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "remplaceranciennefiche()",
+      "source_file": "lib/droitsAnciensTravailleursDb.js",
+      "source_location": "L85"
+    },
+    {
+      "id": "lib_droitsancienstravailleursdb_traduire",
+      "label": "traduire()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "traduire()",
+      "source_file": "lib/droitsAnciensTravailleursDb.js",
+      "source_location": "L13"
     },
     {
       "id": "lib_journal_journaliser",
@@ -35831,6 +35963,54 @@
       "norm_label": "journaliser()",
       "source_file": "lib/journal.js",
       "source_location": "L50"
+    },
+    {
+      "id": "lib_rappelstresorerie_elementsdujour",
+      "label": "elementsDuJour()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "elementsdujour()",
+      "source_file": "lib/rappelsTresorerie.js",
+      "source_location": "L40"
+    },
+    {
+      "id": "lib_rappelstresorerie_nomligne",
+      "label": "nomLigne()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "nomligne()",
+      "source_file": "lib/rappelsTresorerie.js",
+      "source_location": "L31"
+    },
+    {
+      "id": "lib_tresorerie_aujourdhuiiso",
+      "label": "aujourdhuiISO()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "aujourdhuiiso()",
+      "source_file": "lib/tresorerie.js",
+      "source_location": "L167"
+    },
+    {
+      "id": "lib_tresorerie_sanschargesadministratives",
+      "label": "sansChargesAdministratives()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "sanschargesadministratives()",
+      "source_file": "lib/tresorerie.js",
+      "source_location": "L22"
     },
     {
       "id": "lib_tresoreriedb_ajouteradette",
@@ -35857,18 +36037,6 @@
       "source_location": "L974"
     },
     {
-      "id": "lib_tresoreriedb_ajoutermouvement",
-      "label": "ajouterMouvement()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "ajoutermouvement()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L189"
-    },
-    {
       "id": "lib_tresoreriedb_ajouterprevision",
       "label": "ajouterPrevision()",
       "_callable": true,
@@ -35881,18 +36049,6 @@
       "source_location": "L694"
     },
     {
-      "id": "lib_tresoreriedb_ajouterpubs",
-      "label": "ajouterPubs()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "ajouterpubs()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L814"
-    },
-    {
       "id": "lib_tresoreriedb_annulercheque",
       "label": "annulerCheque()",
       "_callable": true,
@@ -35903,18 +36059,6 @@
       "norm_label": "annulercheque()",
       "source_file": "lib/tresorerieDb.js",
       "source_location": "L684"
-    },
-    {
-      "id": "lib_tresoreriedb_annulercotisation",
-      "label": "annulerCotisation()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "annulercotisation()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L267"
     },
     {
       "id": "lib_tresoreriedb_annulercotisationsdes",
@@ -35989,18 +36133,6 @@
       "source_location": "L891"
     },
     {
-      "id": "lib_tresoreriedb_appliquerplandus",
-      "label": "appliquerPlanDus()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "appliquerplandus()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L562"
-    },
-    {
       "id": "lib_tresoreriedb_appliquerplanmois",
       "label": "appliquerPlanMois()",
       "_callable": true,
@@ -36037,18 +36169,6 @@
       "source_location": "L1047"
     },
     {
-      "id": "lib_tresoreriedb_chargerdroits",
-      "label": "chargerDroits()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "chargerdroits()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L77"
-    },
-    {
       "id": "lib_tresoreriedb_chargerdusloyer",
       "label": "chargerDusLoyer()",
       "_callable": true,
@@ -36071,6 +36191,18 @@
       "norm_label": "chargerdusmois()",
       "source_file": "lib/tresorerieDb.js",
       "source_location": "L410"
+    },
+    {
+      "id": "lib_tresoreriedb_chargertresorerie",
+      "label": "chargerTresorerie()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "chargertresorerie()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L85"
     },
     {
       "id": "lib_tresoreriedb_chargerutilisateursadmin",
@@ -36145,18 +36277,6 @@
       "source_location": "L666"
     },
     {
-      "id": "lib_tresoreriedb_enregistreralias",
-      "label": "enregistrerAlias()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "enregistreralias()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L785"
-    },
-    {
       "id": "lib_tresoreriedb_enregistrerchargefixe",
       "label": "enregistrerChargeFixe()",
       "_callable": true,
@@ -36205,42 +36325,6 @@
       "source_location": "L538"
     },
     {
-      "id": "lib_tresoreriedb_enregistrerloyer",
-      "label": "enregistrerLoyer()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "enregistrerloyer()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L455"
-    },
-    {
-      "id": "lib_tresoreriedb_enregistrermoischarge",
-      "label": "enregistrerMoisCharge()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "enregistrermoischarge()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L476"
-    },
-    {
-      "id": "lib_tresoreriedb_enregistrerreglagepartenaire",
-      "label": "enregistrerReglagePartenaire()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "enregistrerreglagepartenaire()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L776"
-    },
-    {
       "id": "lib_tresoreriedb_entreeespeces",
       "label": "entreeEspeces()",
       "_callable": true,
@@ -36277,18 +36361,6 @@
       "source_location": "L633"
     },
     {
-      "id": "lib_tresoreriedb_importerexport",
-      "label": "importerExport()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "importerexport()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L794"
-    },
-    {
       "id": "lib_tresoreriedb_insererabsents",
       "label": "insererAbsents()",
       "_callable": true,
@@ -36299,6 +36371,18 @@
       "norm_label": "insererabsents()",
       "source_file": "lib/tresorerieDb.js",
       "source_location": "L53"
+    },
+    {
+      "id": "lib_tresoreriedb_lirereglage",
+      "label": "lireReglage()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "lirereglage()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L72"
     },
     {
       "id": "lib_tresoreriedb_mettreajourdus",
@@ -36323,6 +36407,18 @@
       "norm_label": "modifierdepensedirection()",
       "source_file": "lib/tresorerieDb.js",
       "source_location": "L989"
+    },
+    {
+      "id": "lib_tresoreriedb_notifierprevisionsdeclenchees",
+      "label": "notifierPrevisionsDeclenchees()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "notifierprevisionsdeclenchees()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L850"
     },
     {
       "id": "lib_tresoreriedb_operationcoffre",
@@ -36371,42 +36467,6 @@
       "norm_label": "payerfournisseuradmindirection()",
       "source_file": "lib/tresorerieDb.js",
       "source_location": "L1028"
-    },
-    {
-      "id": "lib_tresoreriedb_recevoir",
-      "label": "recevoir()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "recevoir()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L835"
-    },
-    {
-      "id": "lib_tresoreriedb_recevoircotisation",
-      "label": "recevoirCotisation()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "recevoircotisation()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L212"
-    },
-    {
-      "id": "lib_tresoreriedb_recevoirdetaille",
-      "label": "recevoirDetaille()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "recevoirdetaille()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L877"
     },
     {
       "id": "lib_tresoreriedb_rembourseremprunt",
@@ -36505,18 +36565,6 @@
       "source_location": "L827"
     },
     {
-      "id": "lib_tresoreriedb_supprimermouvement",
-      "label": "supprimerMouvement()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "supprimermouvement()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L339"
-    },
-    {
       "id": "lib_tresoreriedb_supprimerprevision",
       "label": "supprimerPrevision()",
       "_callable": true,
@@ -36539,18 +36587,6 @@
       "norm_label": "verifiertable()",
       "source_file": "lib/tresorerieDb.js",
       "source_location": "L34"
-    },
-    {
-      "id": "lib_tresoreriedb_virement",
-      "label": "virement()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 78,
-      "community_name": "journaliser",
-      "file_type": "code",
-      "norm_label": "virement()",
-      "source_file": "lib/tresorerieDb.js",
-      "source_location": "L329"
     },
     {
       "id": "app_tresorerie_partenaires_cartepartenaire",
@@ -36587,6 +36623,18 @@
       "norm_label": "choisir()",
       "source_file": "app/tresorerie-partenaires.js",
       "source_location": "L863"
+    },
+    {
+      "id": "app_tresorerie_partenaires_feuilleimport_confirmer",
+      "label": "confirmer()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tresorerie-partenaires.js",
+      "file_type": "code",
+      "norm_label": "confirmer()",
+      "source_file": "app/tresorerie-partenaires.js",
+      "source_location": "L895"
     },
     {
       "id": "app_tresorerie_partenaires_feuilleimport_ecoute",
@@ -36935,6 +36983,78 @@
       "norm_label": "liremontant()",
       "source_file": "lib/tresorerie.js",
       "source_location": "L596"
+    },
+    {
+      "id": "lib_tresoreriedb_ajouterpubs",
+      "label": "ajouterPubs()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tresorerie-partenaires.js",
+      "file_type": "code",
+      "norm_label": "ajouterpubs()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L814"
+    },
+    {
+      "id": "lib_tresoreriedb_enregistreralias",
+      "label": "enregistrerAlias()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tresorerie-partenaires.js",
+      "file_type": "code",
+      "norm_label": "enregistreralias()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L785"
+    },
+    {
+      "id": "lib_tresoreriedb_enregistrerreglagepartenaire",
+      "label": "enregistrerReglagePartenaire()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tresorerie-partenaires.js",
+      "file_type": "code",
+      "norm_label": "enregistrerreglagepartenaire()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L776"
+    },
+    {
+      "id": "lib_tresoreriedb_importerexport",
+      "label": "importerExport()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tresorerie-partenaires.js",
+      "file_type": "code",
+      "norm_label": "importerexport()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L794"
+    },
+    {
+      "id": "lib_tresoreriedb_recevoir",
+      "label": "recevoir()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tresorerie-partenaires.js",
+      "file_type": "code",
+      "norm_label": "recevoir()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L835"
+    },
+    {
+      "id": "lib_tresoreriedb_recevoirdetaille",
+      "label": "recevoirDetaille()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 8,
+      "community_name": "tresorerie-partenaires.js",
+      "file_type": "code",
+      "norm_label": "recevoirdetaille()",
+      "source_file": "lib/tresorerieDb.js",
+      "source_location": "L877"
     },
     {
       "id": "lib_ventesyangofavori_messagevalide",
@@ -37597,18 +37717,6 @@
       "source_location": "L304"
     },
     {
-      "id": "components_champdate_calendrierperiode",
-      "label": "CalendrierPeriode()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 88,
-      "community_name": "EcranDashboard.js",
-      "file_type": "code",
-      "norm_label": "calendrierperiode()",
-      "source_file": "components/ChampDate.js",
-      "source_location": "L184"
-    },
-    {
       "id": "components_dashboard_ecrandashboard_dashboardscreen_chargercouts",
       "label": "chargerCouts()",
       "_callable": true,
@@ -37705,6 +37813,54 @@
       "source_location": "L72"
     },
     {
+      "id": "components_ui_ventedouble_fcfa",
+      "label": "fcfa()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 88,
+      "community_name": "EcranDashboard.js",
+      "file_type": "code",
+      "norm_label": "fcfa()",
+      "source_file": "components/ui/VenteDouble.js",
+      "source_location": "L12"
+    },
+    {
+      "id": "components_ui_ventedouble_signe",
+      "label": "signe()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 88,
+      "community_name": "EcranDashboard.js",
+      "file_type": "code",
+      "norm_label": "signe()",
+      "source_file": "components/ui/VenteDouble.js",
+      "source_location": "L13"
+    },
+    {
+      "id": "components_ui_ventedouble_textetheorique",
+      "label": "TexteTheorique()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 88,
+      "community_name": "EcranDashboard.js",
+      "file_type": "code",
+      "norm_label": "textetheorique()",
+      "source_file": "components/ui/VenteDouble.js",
+      "source_location": "L17"
+    },
+    {
+      "id": "components_ui_ventedouble_ventedouble",
+      "label": "VenteDouble()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 88,
+      "community_name": "EcranDashboard.js",
+      "file_type": "code",
+      "norm_label": "ventedouble()",
+      "source_file": "components/ui/VenteDouble.js",
+      "source_location": "L27"
+    },
+    {
       "id": "lib_api_getdepensesperiode",
       "label": "getDepensesPeriode()",
       "_callable": true,
@@ -37751,90 +37907,6 @@
       "norm_label": "getpresencesperiode()",
       "source_file": "lib/api.js",
       "source_location": "L431"
-    },
-    {
-      "id": "lib_calendrierperiode_dernierjourmois",
-      "label": "dernierJourMois()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 88,
-      "community_name": "EcranDashboard.js",
-      "file_type": "code",
-      "norm_label": "dernierjourmois()",
-      "source_file": "lib/calendrierPeriode.js",
-      "source_location": "L14"
-    },
-    {
-      "id": "lib_calendrierperiode_deux",
-      "label": "deux()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 88,
-      "community_name": "EcranDashboard.js",
-      "file_type": "code",
-      "norm_label": "deux()",
-      "source_file": "lib/calendrierPeriode.js",
-      "source_location": "L11"
-    },
-    {
-      "id": "lib_calendrierperiode_joursentre",
-      "label": "joursEntre()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 88,
-      "community_name": "EcranDashboard.js",
-      "file_type": "code",
-      "norm_label": "joursentre()",
-      "source_file": "lib/calendrierPeriode.js",
-      "source_location": "L55"
-    },
-    {
-      "id": "lib_calendrierperiode_moisdelaperiode",
-      "label": "moisDeLaPeriode()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 88,
-      "community_name": "EcranDashboard.js",
-      "file_type": "code",
-      "norm_label": "moisdelaperiode()",
-      "source_file": "lib/calendrierPeriode.js",
-      "source_location": "L48"
-    },
-    {
-      "id": "lib_calendrierperiode_moishorsbornes",
-      "label": "moisHorsBornes()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 88,
-      "community_name": "EcranDashboard.js",
-      "file_type": "code",
-      "norm_label": "moishorsbornes()",
-      "source_file": "lib/calendrierPeriode.js",
-      "source_location": "L33"
-    },
-    {
-      "id": "lib_calendrierperiode_periodemois",
-      "label": "periodeMois()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 88,
-      "community_name": "EcranDashboard.js",
-      "file_type": "code",
-      "norm_label": "periodemois()",
-      "source_file": "lib/calendrierPeriode.js",
-      "source_location": "L23"
-    },
-    {
-      "id": "lib_calendrierperiode_toucherjour",
-      "label": "toucherJour()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 88,
-      "community_name": "EcranDashboard.js",
-      "file_type": "code",
-      "norm_label": "toucherjour()",
-      "source_file": "lib/calendrierPeriode.js",
-      "source_location": "L41"
     },
     {
       "id": "lib_chargesmois_chargerchargesmois",
@@ -38089,6 +38161,30 @@
       "source_location": "L1595"
     },
     {
+      "id": "app_verification_verificationscreen_changermois",
+      "label": "changerMois()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 9,
+      "community_name": "VerificationScreen",
+      "file_type": "code",
+      "norm_label": "changermois()",
+      "source_file": "app/verification.js",
+      "source_location": "L247"
+    },
+    {
+      "id": "app_verification_verificationscreen_changerresto",
+      "label": "changerResto()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 9,
+      "community_name": "VerificationScreen",
+      "file_type": "code",
+      "norm_label": "changerresto()",
+      "source_file": "app/verification.js",
+      "source_location": "L259"
+    },
+    {
       "id": "app_verification_verificationscreen_chargerinventaire",
       "label": "chargerInventaire()",
       "_callable": true,
@@ -38099,6 +38195,18 @@
       "norm_label": "chargerinventaire()",
       "source_file": "app/verification.js",
       "source_location": "L660"
+    },
+    {
+      "id": "app_verification_verificationscreen_chargerpointsresto",
+      "label": "chargerPointsResto()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 9,
+      "community_name": "VerificationScreen",
+      "file_type": "code",
+      "norm_label": "chargerpointsresto()",
+      "source_file": "app/verification.js",
+      "source_location": "L231"
     },
     {
       "id": "app_verification_verificationscreen_chargerventesinventaire",
@@ -38125,18 +38233,6 @@
       "source_location": "L908"
     },
     {
-      "id": "app_verification_verificationscreen_confirmerannulationmachine",
-      "label": "confirmerAnnulationMachine()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 9,
-      "community_name": "VerificationScreen",
-      "file_type": "code",
-      "norm_label": "confirmerannulationmachine()",
-      "source_file": "app/verification.js",
-      "source_location": "L1464"
-    },
-    {
       "id": "app_verification_verificationscreen_confirmerrefuscloturepos",
       "label": "confirmerRefusCloturePOS()",
       "_callable": true,
@@ -38147,18 +38243,6 @@
       "norm_label": "confirmerrefuscloturepos()",
       "source_file": "app/verification.js",
       "source_location": "L1402"
-    },
-    {
-      "id": "app_verification_verificationscreen_confirmerretourdecisionmachine",
-      "label": "confirmerRetourDecisionMachine()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 9,
-      "community_name": "VerificationScreen",
-      "file_type": "code",
-      "norm_label": "confirmerretourdecisionmachine()",
-      "source_file": "app/verification.js",
-      "source_location": "L1660"
     },
     {
       "id": "app_verification_verificationscreen_confirmerretourdecisionpos",
@@ -38197,28 +38281,16 @@
       "source_location": "L541"
     },
     {
-      "id": "app_verification_verificationscreen_demandercorrection",
-      "label": "demanderCorrection()",
+      "id": "app_verification_verificationscreen_enregistrerlitige",
+      "label": "enregistrerLitige()",
       "_callable": true,
       "_origin": "ast",
       "community": 9,
       "community_name": "VerificationScreen",
       "file_type": "code",
-      "norm_label": "demandercorrection()",
+      "norm_label": "enregistrerlitige()",
       "source_file": "app/verification.js",
-      "source_location": "L1204"
-    },
-    {
-      "id": "app_verification_verificationscreen_ecartmachinetexte",
-      "label": "ecartMachineTexte()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 9,
-      "community_name": "VerificationScreen",
-      "file_type": "code",
-      "norm_label": "ecartmachinetexte()",
-      "source_file": "app/verification.js",
-      "source_location": "L1332"
+      "source_location": "L956"
     },
     {
       "id": "app_verification_verificationscreen_enregistrerrepartition",
@@ -38245,30 +38317,6 @@
       "source_location": "L1395"
     },
     {
-      "id": "app_verification_verificationscreen_fermercorrectionfacture",
-      "label": "fermerCorrectionFacture()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 9,
-      "community_name": "VerificationScreen",
-      "file_type": "code",
-      "norm_label": "fermercorrectionfacture()",
-      "source_file": "app/verification.js",
-      "source_location": "L1100"
-    },
-    {
-      "id": "app_verification_verificationscreen_fmt",
-      "label": "fmt()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 9,
-      "community_name": "VerificationScreen",
-      "file_type": "code",
-      "norm_label": "fmt()",
-      "source_file": "app/verification.js",
-      "source_location": "L600"
-    },
-    {
       "id": "app_verification_verificationscreen_fmtcourt",
       "label": "fmtCourt()",
       "_callable": true,
@@ -38279,18 +38327,6 @@
       "norm_label": "fmtcourt()",
       "source_file": "app/verification.js",
       "source_location": "L616"
-    },
-    {
-      "id": "app_verification_verificationscreen_formatdate",
-      "label": "formatDate()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 9,
-      "community_name": "VerificationScreen",
-      "file_type": "code",
-      "norm_label": "formatdate()",
-      "source_file": "app/verification.js",
-      "source_location": "L633"
     },
     {
       "id": "app_verification_verificationscreen_formatjour",
@@ -38341,18 +38377,6 @@
       "source_location": "L526"
     },
     {
-      "id": "app_verification_verificationscreen_lignecorrigerfacture",
-      "label": "LigneCorrigerFacture()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 9,
-      "community_name": "VerificationScreen",
-      "file_type": "code",
-      "norm_label": "lignecorrigerfacture()",
-      "source_file": "app/verification.js",
-      "source_location": "L1821"
-    },
-    {
       "id": "app_verification_verificationscreen_lireentreespos",
       "label": "lireEntreesPOS()",
       "_callable": true,
@@ -38375,6 +38399,30 @@
       "norm_label": "majmontant()",
       "source_file": "app/verification.js",
       "source_location": "L826"
+    },
+    {
+      "id": "app_verification_verificationscreen_nb",
+      "label": "nb()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 9,
+      "community_name": "VerificationScreen",
+      "file_type": "code",
+      "norm_label": "nb()",
+      "source_file": "app/verification.js",
+      "source_location": "L611"
+    },
+    {
+      "id": "app_verification_verificationscreen_onrefresh",
+      "label": "onRefresh()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 9,
+      "community_name": "VerificationScreen",
+      "file_type": "code",
+      "norm_label": "onrefresh()",
+      "source_file": "app/verification.js",
+      "source_location": "L253"
     },
     {
       "id": "app_verification_verificationscreen_ouvrigalerie",
@@ -38435,18 +38483,6 @@
       "norm_label": "ouvrircorrectionentree()",
       "source_file": "app/verification.js",
       "source_location": "L305"
-    },
-    {
-      "id": "app_verification_verificationscreen_ouvrircorrectionfacture",
-      "label": "ouvrirCorrectionFacture()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 9,
-      "community_name": "VerificationScreen",
-      "file_type": "code",
-      "norm_label": "ouvrircorrectionfacture()",
-      "source_file": "app/verification.js",
-      "source_location": "L1094"
     },
     {
       "id": "app_verification_verificationscreen_ouvrirdecisioncloturepos",
@@ -38533,18 +38569,6 @@
       "source_location": "L834"
     },
     {
-      "id": "app_verification_verificationscreen_revenirsurdecisionmachine",
-      "label": "revenirSurDecisionMachine()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 9,
-      "community_name": "VerificationScreen",
-      "file_type": "code",
-      "norm_label": "revenirsurdecisionmachine()",
-      "source_file": "app/verification.js",
-      "source_location": "L1689"
-    },
-    {
       "id": "app_verification_verificationscreen_revenirsurdecisionpos",
       "label": "revenirSurDecisionPOS()",
       "_callable": true,
@@ -38569,18 +38593,6 @@
       "source_location": "L312"
     },
     {
-      "id": "app_verification_verificationscreen_sauvegardercorrectionfacture",
-      "label": "sauvegarderCorrectionFacture()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 9,
-      "community_name": "VerificationScreen",
-      "file_type": "code",
-      "norm_label": "sauvegardercorrectionfacture()",
-      "source_file": "app/verification.js",
-      "source_location": "L1106"
-    },
-    {
       "id": "app_verification_verificationscreen_statutpresencebadge",
       "label": "statutPresenceBadge()",
       "_callable": true,
@@ -38591,30 +38603,6 @@
       "norm_label": "statutpresencebadge()",
       "source_file": "app/verification.js",
       "source_location": "L1869"
-    },
-    {
-      "id": "app_verification_verificationscreen_telechargerpdf",
-      "label": "telechargerPdf()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 9,
-      "community_name": "VerificationScreen",
-      "file_type": "code",
-      "norm_label": "telechargerpdf()",
-      "source_file": "app/verification.js",
-      "source_location": "L509"
-    },
-    {
-      "id": "app_verification_verificationscreen_telechargerpdfecarts",
-      "label": "telechargerPdfEcarts()",
-      "_callable": true,
-      "_origin": "ast",
-      "community": 9,
-      "community_name": "VerificationScreen",
-      "file_type": "code",
-      "norm_label": "telechargerpdfecarts()",
-      "source_file": "app/verification.js",
-      "source_location": "L1770"
     },
     {
       "id": "app_verification_verificationscreen_togglesection",
@@ -38651,6 +38639,18 @@
       "norm_label": "corrigerentreeinventaire()",
       "source_file": "lib/api.js",
       "source_location": "L1013"
+    },
+    {
+      "id": "lib_api_fixerlitigesurplus",
+      "label": "fixerLitigeSurplus()",
+      "_callable": true,
+      "_origin": "ast",
+      "community": 9,
+      "community_name": "VerificationScreen",
+      "file_type": "code",
+      "norm_label": "fixerlitigesurplus()",
+      "source_file": "lib/api.js",
+      "source_location": "L1046"
     },
     {
       "id": "lib_deductionsverification_repartitionvalide",
@@ -40044,7 +40044,7 @@
       "label": "direction.js",
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "direction.js",
       "source_file": "lib/direction.js",
@@ -40055,7 +40055,7 @@
       "label": "CATEGORIES_CHARGE_A_PAYER",
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "categories_charge_a_payer",
       "source_file": "lib/direction.js",
@@ -40066,7 +40066,7 @@
       "label": "CATEGORIES_DIRECTION",
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "categories_direction",
       "source_file": "lib/direction.js",
@@ -40077,7 +40077,7 @@
       "label": "direction.test.mjs",
       "_origin": "ast",
       "community": 104,
-      "community_name": "aujourdhuiISO",
+      "community_name": "direction.js",
       "file_type": "code",
       "norm_label": "direction.test.mjs",
       "source_file": "lib/direction.test.mjs",
@@ -44084,116 +44084,6 @@
       "source_location": "L13"
     },
     {
-      "id": "lib_rappelstresorerie",
-      "label": "rappelsTresorerie.js",
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "rappelstresorerie.js",
-      "source_file": "lib/rappelsTresorerie.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "lib_rappelstresorerie_mois_courts",
-      "label": "MOIS_COURTS",
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "mois_courts",
-      "source_file": "lib/rappelsTresorerie.js",
-      "source_location": "L26"
-    },
-    {
-      "id": "lib_rappelstresorerie_noms",
-      "label": "NOMS",
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "noms",
-      "source_file": "lib/rappelsTresorerie.js",
-      "source_location": "L27"
-    },
-    {
-      "id": "lib_rappelstresorerie_test",
-      "label": "rappelsTresorerie.test.mjs",
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "rappelstresorerie.test.mjs",
-      "source_file": "lib/rappelsTresorerie.test.mjs",
-      "source_location": "L1"
-    },
-    {
-      "id": "lib_rappelstresorerie_test_base",
-      "label": "base",
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "base",
-      "source_file": "lib/rappelsTresorerie.test.mjs",
-      "source_location": "L16"
-    },
-    {
-      "id": "lib_rappelstresorerie_test_loyerlav",
-      "label": "loyerLav",
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "loyerlav",
-      "source_file": "lib/rappelsTresorerie.test.mjs",
-      "source_location": "L14"
-    },
-    {
-      "id": "lib_rappelstresorerie_test_salkms",
-      "label": "salKms",
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "salkms",
-      "source_file": "lib/rappelsTresorerie.test.mjs",
-      "source_location": "L15"
-    },
-    {
-      "id": "lib_rappelstresorerie_types_par_niveau",
-      "label": "TYPES_PAR_NIVEAU",
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "types_par_niveau",
-      "source_file": "lib/rappelsTresorerie.js",
-      "source_location": "L90"
-    },
-    {
-      "id": "supabase_functions_rappels_tresorerie_index",
-      "label": "rappels-tresorerie/index.ts",
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "rappels-tresorerie/index.ts",
-      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
-      "source_location": "L1"
-    },
-    {
-      "id": "supabase_functions_rappels_tresorerie_index_admin",
-      "label": "admin",
-      "_origin": "ast",
-      "community": 17,
-      "community_name": "cheques.js",
-      "file_type": "code",
-      "norm_label": "admin",
-      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
-      "source_location": "L25"
-    },
-    {
       "id": "lib_erreurslisibles",
       "label": "erreursLisibles.js",
       "_origin": "ast",
@@ -46550,39 +46440,6 @@
       "source_location": "L50"
     },
     {
-      "id": "lib_entreesverification",
-      "label": "entreesVerification.js",
-      "_origin": "ast",
-      "community": 201,
-      "community_name": "verification.js",
-      "file_type": "code",
-      "norm_label": "entreesverification.js",
-      "source_file": "lib/entreesVerification.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "lib_entreesverification_libelles_shift",
-      "label": "LIBELLES_SHIFT",
-      "_origin": "ast",
-      "community": 201,
-      "community_name": "verification.js",
-      "file_type": "code",
-      "norm_label": "libelles_shift",
-      "source_file": "lib/entreesVerification.js",
-      "source_location": "L3"
-    },
-    {
-      "id": "lib_entreesverification_test",
-      "label": "entreesVerification.test.mjs",
-      "_origin": "ast",
-      "community": 201,
-      "community_name": "verification.js",
-      "file_type": "code",
-      "norm_label": "entreesverification.test.mjs",
-      "source_file": "lib/entreesVerification.test.mjs",
-      "source_location": "L1"
-    },
-    {
       "id": "lib_litigesurplus",
       "label": "litigeSurplus.js",
       "_origin": "ast",
@@ -46635,6 +46492,39 @@
       "file_type": "code",
       "norm_label": "photosverification.test.mjs",
       "source_file": "lib/photosVerification.test.mjs",
+      "source_location": "L1"
+    },
+    {
+      "id": "lib_verificationliste",
+      "label": "verificationListe.js",
+      "_origin": "ast",
+      "community": 201,
+      "community_name": "verification.js",
+      "file_type": "code",
+      "norm_label": "verificationliste.js",
+      "source_file": "lib/verificationListe.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "lib_verificationliste_mois",
+      "label": "MOIS",
+      "_origin": "ast",
+      "community": 201,
+      "community_name": "verification.js",
+      "file_type": "code",
+      "norm_label": "mois",
+      "source_file": "lib/verificationListe.js",
+      "source_location": "L12"
+    },
+    {
+      "id": "lib_verificationliste_test",
+      "label": "verificationListe.test.mjs",
+      "_origin": "ast",
+      "community": 201,
+      "community_name": "verification.js",
+      "file_type": "code",
+      "norm_label": "verificationliste.test.mjs",
+      "source_file": "lib/verificationListe.test.mjs",
       "source_location": "L1"
     },
     {
@@ -49836,50 +49726,6 @@
       "source_location": "L47"
     },
     {
-      "id": "components_rapports_ongletanalyse",
-      "label": "OngletAnalyse.js",
-      "_origin": "ast",
-      "community": 23,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "ongletanalyse.js",
-      "source_file": "components/rapports/OngletAnalyse.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "components_ui_texteajuste",
-      "label": "TexteAjuste.js",
-      "_origin": "ast",
-      "community": 23,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "texteajuste.js",
-      "source_file": "components/ui/TexteAjuste.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "components_ui_ventedouble",
-      "label": "VenteDouble.js",
-      "_origin": "ast",
-      "community": 23,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "ventedouble.js",
-      "source_file": "components/ui/VenteDouble.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "components_ui_ventedouble_largeur_cote_a_cote",
-      "label": "LARGEUR_COTE_A_COTE",
-      "_origin": "ast",
-      "community": 23,
-      "community_name": "dashboard-global.js",
-      "file_type": "code",
-      "norm_label": "largeur_cote_a_cote",
-      "source_file": "components/ui/VenteDouble.js",
-      "source_location": "L10"
-    },
-    {
       "id": "lib_dashboardglobal_canaux",
       "label": "CANAUX",
       "_origin": "ast",
@@ -50268,7 +50114,7 @@
       "label": "commentaireVerification.js",
       "_origin": "ast",
       "community": 235,
-      "community_name": "ciblesVerification",
+      "community_name": "fmt",
       "file_type": "code",
       "norm_label": "commentaireverification.js",
       "source_file": "lib/commentaireVerification.js",
@@ -50279,7 +50125,7 @@
       "label": "COMMENTAIRE_MAX",
       "_origin": "ast",
       "community": 235,
-      "community_name": "ciblesVerification",
+      "community_name": "fmt",
       "file_type": "code",
       "norm_label": "commentaire_max",
       "source_file": "lib/commentaireVerification.js",
@@ -50290,7 +50136,7 @@
       "label": "commentaireVerification.test.mjs",
       "_origin": "ast",
       "community": 235,
-      "community_name": "ciblesVerification",
+      "community_name": "fmt",
       "file_type": "code",
       "norm_label": "commentaireverification.test.mjs",
       "source_file": "lib/commentaireVerification.test.mjs",
@@ -56857,6 +56703,17 @@
       "source_location": "L14"
     },
     {
+      "id": "package_dependencies_expo",
+      "label": "expo",
+      "_origin": "ast",
+      "community": 31,
+      "community_name": "dependencies",
+      "file_type": "code",
+      "norm_label": "expo",
+      "source_file": "package.json",
+      "source_location": "L24"
+    },
+    {
       "id": "package_dependencies_expo_constants",
       "label": "expo-constants",
       "_origin": "ast",
@@ -56923,17 +56780,6 @@
       "source_location": "L46"
     },
     {
-      "id": "package_dependencies_pptxgenjs",
-      "label": "pptxgenjs",
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "dependencies",
-      "file_type": "code",
-      "norm_label": "pptxgenjs",
-      "source_file": "package.json",
-      "source_location": "L48"
-    },
-    {
       "id": "package_dependencies_react_dom",
       "label": "react-dom",
       "_origin": "ast",
@@ -56976,6 +56822,17 @@
       "norm_label": "@supabase/supabase-js",
       "source_file": "package.json",
       "source_location": "L22"
+    },
+    {
+      "id": "expo",
+      "label": "expo",
+      "_origin": "ast",
+      "community": 31,
+      "community_name": "dependencies",
+      "file_type": "concept",
+      "norm_label": "expo",
+      "source_file": "package.json",
+      "source_location": "L24"
     },
     {
       "id": "expo_constants",
@@ -57042,17 +56899,6 @@
       "norm_label": "jspdf",
       "source_file": "package.json",
       "source_location": "L46"
-    },
-    {
-      "id": "package_json_pptxgenjs",
-      "label": "pptxgenjs",
-      "_origin": "ast",
-      "community": 31,
-      "community_name": "dependencies",
-      "file_type": "concept",
-      "norm_label": "pptxgenjs",
-      "source_file": "package.json",
-      "source_location": "L48"
     },
     {
       "id": "react_dom",
@@ -60668,37 +60514,70 @@
       "source_location": null
     },
     {
-      "id": "lib_verificationliste",
-      "label": "verificationListe.js",
+      "id": "lib_rappelstresorerie_test",
+      "label": "rappelsTresorerie.test.mjs",
       "_origin": "ast",
       "community": 359,
-      "community_name": "verificationListe.js",
+      "community_name": "rappels-tresorerie/index.ts",
       "file_type": "code",
-      "norm_label": "verificationliste.js",
-      "source_file": "lib/verificationListe.js",
+      "norm_label": "rappelstresorerie.test.mjs",
+      "source_file": "lib/rappelsTresorerie.test.mjs",
       "source_location": "L1"
     },
     {
-      "id": "lib_verificationliste_mois",
-      "label": "MOIS",
+      "id": "lib_rappelstresorerie_test_base",
+      "label": "base",
       "_origin": "ast",
       "community": 359,
-      "community_name": "verificationListe.js",
+      "community_name": "rappels-tresorerie/index.ts",
       "file_type": "code",
-      "norm_label": "mois",
-      "source_file": "lib/verificationListe.js",
-      "source_location": "L12"
+      "norm_label": "base",
+      "source_file": "lib/rappelsTresorerie.test.mjs",
+      "source_location": "L16"
     },
     {
-      "id": "lib_verificationliste_test",
-      "label": "verificationListe.test.mjs",
+      "id": "lib_rappelstresorerie_test_loyerlav",
+      "label": "loyerLav",
       "_origin": "ast",
       "community": 359,
-      "community_name": "verificationListe.js",
+      "community_name": "rappels-tresorerie/index.ts",
       "file_type": "code",
-      "norm_label": "verificationliste.test.mjs",
-      "source_file": "lib/verificationListe.test.mjs",
+      "norm_label": "loyerlav",
+      "source_file": "lib/rappelsTresorerie.test.mjs",
+      "source_location": "L14"
+    },
+    {
+      "id": "lib_rappelstresorerie_test_salkms",
+      "label": "salKms",
+      "_origin": "ast",
+      "community": 359,
+      "community_name": "rappels-tresorerie/index.ts",
+      "file_type": "code",
+      "norm_label": "salkms",
+      "source_file": "lib/rappelsTresorerie.test.mjs",
+      "source_location": "L15"
+    },
+    {
+      "id": "supabase_functions_rappels_tresorerie_index",
+      "label": "rappels-tresorerie/index.ts",
+      "_origin": "ast",
+      "community": 359,
+      "community_name": "rappels-tresorerie/index.ts",
+      "file_type": "code",
+      "norm_label": "rappels-tresorerie/index.ts",
+      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
       "source_location": "L1"
+    },
+    {
+      "id": "supabase_functions_rappels_tresorerie_index_admin",
+      "label": "admin",
+      "_origin": "ast",
+      "community": 359,
+      "community_name": "rappels-tresorerie/index.ts",
+      "file_type": "code",
+      "norm_label": "admin",
+      "source_file": "supabase/functions/rappels-tresorerie/index.ts",
+      "source_location": "L25"
     },
     {
       "id": "supabase_cotisations_banque",
@@ -61218,14 +61097,25 @@
       "source_location": "L17"
     },
     {
-      "id": "lib_droitsancienstravailleursdb",
-      "label": "droitsAnciensTravailleursDb.js",
+      "id": "lib_calendrierperiode",
+      "label": "calendrierPeriode.js",
       "_origin": "ast",
       "community": 374,
-      "community_name": "droitsAnciensTravailleursDb.js",
+      "community_name": "CalendrierPeriode",
       "file_type": "code",
-      "norm_label": "droitsancienstravailleursdb.js",
-      "source_file": "lib/droitsAnciensTravailleursDb.js",
+      "norm_label": "calendrierperiode.js",
+      "source_file": "lib/calendrierPeriode.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "lib_calendrierperiode_test",
+      "label": "calendrierPeriode.test.mjs",
+      "_origin": "ast",
+      "community": 374,
+      "community_name": "CalendrierPeriode",
+      "file_type": "code",
+      "norm_label": "calendrierperiode.test.mjs",
+      "source_file": "lib/calendrierPeriode.test.mjs",
       "source_location": "L1"
     },
     {
@@ -64073,26 +63963,81 @@
       "source_location": "L42"
     },
     {
-      "id": "package_dependencies_expo",
-      "label": "expo",
+      "id": "lib_retenuelitiges",
+      "label": "retenueLitiges.js",
       "_origin": "ast",
       "community": 427,
-      "community_name": "expo",
+      "community_name": "SectionRetenueLitiges",
       "file_type": "code",
-      "norm_label": "expo",
-      "source_file": "package.json",
-      "source_location": "L24"
+      "norm_label": "retenuelitiges.js",
+      "source_file": "lib/retenueLitiges.js",
+      "source_location": "L1"
     },
     {
-      "id": "expo",
-      "label": "expo",
+      "id": "lib_retenuelitiges_test",
+      "label": "retenueLitiges.test.mjs",
       "_origin": "ast",
       "community": 427,
-      "community_name": "expo",
-      "file_type": "concept",
-      "norm_label": "expo",
+      "community_name": "SectionRetenueLitiges",
+      "file_type": "code",
+      "norm_label": "retenuelitiges.test.mjs",
+      "source_file": "lib/retenueLitiges.test.mjs",
+      "source_location": "L1"
+    },
+    {
+      "id": "lib_entreesverification",
+      "label": "entreesVerification.js",
+      "_origin": "ast",
+      "community": 428,
+      "community_name": "entreesVerification.js",
+      "file_type": "code",
+      "norm_label": "entreesverification.js",
+      "source_file": "lib/entreesVerification.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "lib_entreesverification_libelles_shift",
+      "label": "LIBELLES_SHIFT",
+      "_origin": "ast",
+      "community": 428,
+      "community_name": "entreesVerification.js",
+      "file_type": "code",
+      "norm_label": "libelles_shift",
+      "source_file": "lib/entreesVerification.js",
+      "source_location": "L3"
+    },
+    {
+      "id": "lib_entreesverification_test",
+      "label": "entreesVerification.test.mjs",
+      "_origin": "ast",
+      "community": 428,
+      "community_name": "entreesVerification.js",
+      "file_type": "code",
+      "norm_label": "entreesverification.test.mjs",
+      "source_file": "lib/entreesVerification.test.mjs",
+      "source_location": "L1"
+    },
+    {
+      "id": "package_dependencies_pptxgenjs",
+      "label": "pptxgenjs",
+      "_origin": "ast",
+      "community": 429,
+      "community_name": "pptxgenjs",
+      "file_type": "code",
+      "norm_label": "pptxgenjs",
       "source_file": "package.json",
-      "source_location": "L24"
+      "source_location": "L48"
+    },
+    {
+      "id": "package_json_pptxgenjs",
+      "label": "pptxgenjs",
+      "_origin": "ast",
+      "community": 429,
+      "community_name": "pptxgenjs",
+      "file_type": "concept",
+      "norm_label": "pptxgenjs",
+      "source_file": "package.json",
+      "source_location": "L48"
     },
     {
       "id": "doc_avis_plateformes",
@@ -65408,6 +65353,28 @@
       "norm_label": "marges",
       "source_file": "components/graphiques.js",
       "source_location": "L135"
+    },
+    {
+      "id": "components_rapports_ongletanalyse",
+      "label": "OngletAnalyse.js",
+      "_origin": "ast",
+      "community": 53,
+      "community_name": "components/graphiques.js",
+      "file_type": "code",
+      "norm_label": "ongletanalyse.js",
+      "source_file": "components/rapports/OngletAnalyse.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "components_ui_texteajuste",
+      "label": "TexteAjuste.js",
+      "_origin": "ast",
+      "community": 53,
+      "community_name": "components/graphiques.js",
+      "file_type": "code",
+      "norm_label": "texteajuste.js",
+      "source_file": "components/ui/TexteAjuste.js",
+      "source_location": "L1"
     },
     {
       "id": "lib_graphiques",
@@ -68152,28 +68119,6 @@
       "source_location": "L1"
     },
     {
-      "id": "lib_retenuelitiges",
-      "label": "retenueLitiges.js",
-      "_origin": "ast",
-      "community": 74,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "retenuelitiges.js",
-      "source_file": "lib/retenueLitiges.js",
-      "source_location": "L1"
-    },
-    {
-      "id": "lib_retenuelitiges_test",
-      "label": "retenueLitiges.test.mjs",
-      "_origin": "ast",
-      "community": 74,
-      "community_name": "useStylesTreso",
-      "file_type": "code",
-      "norm_label": "retenuelitiges.test.mjs",
-      "source_file": "lib/retenueLitiges.test.mjs",
-      "source_location": "L1"
-    },
-    {
       "id": "lib_tresorerie_categories_serie",
       "label": "CATEGORIES_SERIE",
       "_origin": "ast",
@@ -68491,6 +68436,61 @@
       "norm_label": "feuillepaiementdirection.js",
       "source_file": "components/fournisseurs/FeuillePaiementDirection.js",
       "source_location": "L1"
+    },
+    {
+      "id": "lib_droitsancienstravailleursdb",
+      "label": "droitsAnciensTravailleursDb.js",
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "droitsancienstravailleursdb.js",
+      "source_file": "lib/droitsAnciensTravailleursDb.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "lib_rappelstresorerie",
+      "label": "rappelsTresorerie.js",
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "rappelstresorerie.js",
+      "source_file": "lib/rappelsTresorerie.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "lib_rappelstresorerie_mois_courts",
+      "label": "MOIS_COURTS",
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "mois_courts",
+      "source_file": "lib/rappelsTresorerie.js",
+      "source_location": "L26"
+    },
+    {
+      "id": "lib_rappelstresorerie_noms",
+      "label": "NOMS",
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "noms",
+      "source_file": "lib/rappelsTresorerie.js",
+      "source_location": "L27"
+    },
+    {
+      "id": "lib_rappelstresorerie_types_par_niveau",
+      "label": "TYPES_PAR_NIVEAU",
+      "_origin": "ast",
+      "community": 78,
+      "community_name": "journaliser",
+      "file_type": "code",
+      "norm_label": "types_par_niveau",
+      "source_file": "lib/rappelsTresorerie.js",
+      "source_location": "L90"
     },
     {
       "id": "lib_tresoreriedb",
@@ -69071,26 +69071,26 @@
       "source_location": "L1"
     },
     {
-      "id": "lib_calendrierperiode",
-      "label": "calendrierPeriode.js",
+      "id": "components_ui_ventedouble",
+      "label": "VenteDouble.js",
       "_origin": "ast",
       "community": 88,
       "community_name": "EcranDashboard.js",
       "file_type": "code",
-      "norm_label": "calendrierperiode.js",
-      "source_file": "lib/calendrierPeriode.js",
+      "norm_label": "ventedouble.js",
+      "source_file": "components/ui/VenteDouble.js",
       "source_location": "L1"
     },
     {
-      "id": "lib_calendrierperiode_test",
-      "label": "calendrierPeriode.test.mjs",
+      "id": "components_ui_ventedouble_largeur_cote_a_cote",
+      "label": "LARGEUR_COTE_A_COTE",
       "_origin": "ast",
       "community": 88,
       "community_name": "EcranDashboard.js",
       "file_type": "code",
-      "norm_label": "calendrierperiode.test.mjs",
-      "source_file": "lib/calendrierPeriode.test.mjs",
-      "source_location": "L1"
+      "norm_label": "largeur_cote_a_cote",
+      "source_file": "components/ui/VenteDouble.js",
+      "source_location": "L10"
     },
     {
       "id": "lib_constants_fournisseurs_labor",
@@ -83729,7 +83729,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/parametres.js",
-      "source_location": "L1772",
+      "source_location": "L1774",
       "weight": 1.0
     },
     {
@@ -83741,7 +83741,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/parametres.js",
-      "source_location": "L1947",
+      "source_location": "L1949",
       "weight": 1.0
     },
     {
@@ -83753,7 +83753,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/parametres.js",
-      "source_location": "L1950",
+      "source_location": "L1952",
       "weight": 1.0
     },
     {
@@ -84149,7 +84149,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/parametres.js",
-      "source_location": "L1106",
+      "source_location": "L1108",
       "weight": 1.0
     },
     {
@@ -84161,7 +84161,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/parametres.js",
-      "source_location": "L1131",
+      "source_location": "L1133",
       "weight": 1.0
     },
     {
@@ -84173,7 +84173,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/parametres.js",
-      "source_location": "L1140",
+      "source_location": "L1142",
       "weight": 1.0
     },
     {
@@ -84185,7 +84185,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/parametres.js",
-      "source_location": "L1328",
+      "source_location": "L1330",
       "weight": 1.0
     },
     {
@@ -84197,7 +84197,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/parametres.js",
-      "source_location": "L1515",
+      "source_location": "L1517",
       "weight": 1.0
     },
     {
@@ -84209,7 +84209,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/parametres.js",
-      "source_location": "L1518",
+      "source_location": "L1520",
       "weight": 1.0
     },
     {
@@ -84221,7 +84221,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/parametres.js",
-      "source_location": "L1554",
+      "source_location": "L1556",
       "weight": 1.0
     },
     {
@@ -84269,7 +84269,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/parametres.js",
-      "source_location": "L1662",
+      "source_location": "L1664",
       "weight": 1.0
     },
     {
@@ -84329,7 +84329,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/parametres.js",
-      "source_location": "L1024",
+      "source_location": "L1026",
       "weight": 1.0
     },
     {
@@ -84341,7 +84341,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/parametres.js",
-      "source_location": "L1071",
+      "source_location": "L1073",
       "weight": 1.0
     },
     {
@@ -84353,7 +84353,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/parametres.js",
-      "source_location": "L1078",
+      "source_location": "L1080",
       "weight": 1.0
     },
     {
@@ -84365,7 +84365,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/parametres.js",
-      "source_location": "L1087",
+      "source_location": "L1089",
       "weight": 1.0
     },
     {
@@ -136097,7 +136097,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/parametres.js",
-      "source_location": "L1100",
+      "source_location": "L1102",
       "weight": 1.0
     },
     {
@@ -136109,7 +136109,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/parametres.js",
-      "source_location": "L1151",
+      "source_location": "L1153",
       "weight": 1.0
     },
     {
@@ -136145,7 +136145,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "app/parametres.js",
-      "source_location": "L1649",
+      "source_location": "L1651",
       "weight": 1.0
     },
     {
@@ -203160,7 +203160,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "app/parametres.js",
-      "source_location": "L1974",
+      "source_location": "L1976",
       "weight": 1.0
     },
     {
@@ -254201,5 +254201,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "687721047e9c30a443d141498d89d6868bc8c343"
+  "built_at_commit": "b2c1c5e800d381ca871ee5bd77c0a73da631c946"
 }
