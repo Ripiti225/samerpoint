@@ -16,6 +16,7 @@ import {
 import { useApp } from '../context/AppContext'
 import { useTheme } from '../context/ThemeContext'
 import { bornesMois, etatMois, libelleMois, listeMois } from '../lib/clotureMois'
+import { exporterJournalCaisse } from '../lib/exportJournalCaisse'
 import { nomCourtResto } from '../lib/groupesAccueil'
 import { journaliser } from '../lib/journal'
 import { retour } from '../lib/navigation'
@@ -82,6 +83,9 @@ export default function ClotureMoisScreen() {
   const [confirmer, setConfirmer] = useState(false)
   const [motif, setMotif] = useState('')
   const [enCours, setEnCours] = useState(false)
+  const [exportResto, setExportResto] = useState(null)
+  const [exportMsg, setExportMsg] = useState('')
+  const [exportEnCours, setExportEnCours] = useState(false)
 
   const chargerTout = useCallback(async () => {
     const [{ data: restos }, c] = await Promise.all([
@@ -98,7 +102,7 @@ export default function ClotureMoisScreen() {
   useEffect(() => { chargerTout() }, [chargerTout])
 
   const ouvrirMois = useCallback(async m => {
-    setChoisi(m); setEtat(null); setErreur(null); setConfirmer(false); setMotif('')
+    setChoisi(m); setEtat(null); setErreur(null); setConfirmer(false); setMotif(''); setExportMsg('')
     setChargementMois(true)
     try {
       const points = await chargerPointsDuMois(m)
@@ -135,6 +139,23 @@ export default function ClotureMoisScreen() {
       setMotif('')
     }
     setEnCours(false)
+  }
+
+  // Journal de Caisse SYSCOHADA (lib/exportJournalCaisse.js) ; mois ouvert = PROVISOIRE.
+  async function exporter() {
+    setExportEnCours(true); setExportMsg(''); setErreur(null)
+    try {
+      const r = await exporterJournalCaisse({
+        mois: choisi, restaurantId: exportResto, provisoire: clotures[choisi]?.statut !== 'cloture', onProgres: setExportMsg,
+      })
+      const exclues = r.nbExclues ? `, ${r.nbExclues} journée(s) des anciens Sheets laissée(s) de côté` : ''
+      setExportMsg(`✅ ${r.nomFichier} : ${r.nbLignes} lignes${exclues}.`)
+    } catch (e) {
+      setExportMsg('')
+      setErreur(e?.message || 'Export impossible pour le moment.')
+    } finally {
+      setExportEnCours(false)
+    }
   }
 
   function ouvrirJournee(b) {
@@ -270,6 +291,29 @@ export default function ClotureMoisScreen() {
                     </>
                   )}
 
+                  {etat && (
+                    <View style={styles.export}>
+                      <Text style={styles.sousTitre}>
+                        📥 Export comptable{estCloture ? '' : ' — provisoire, le mois n’est pas clôturé'}
+                      </Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.puces}>
+                        {[{ id: null, nom: 'Tout le groupe' }, ...restaurants].map(r => {
+                          const choisiR = exportResto === r.id
+                          return (
+                            <TouchableOpacity key={r.id || 'groupe'} style={[styles.puce, choisiR && styles.puceActive]}
+                              onPress={() => setExportResto(r.id)} accessibilityRole="button" accessibilityState={{ selected: choisiR }}>
+                              <Text style={[styles.puceTxt, choisiR && styles.puceTxtActive]}>{r.nom}</Text>
+                            </TouchableOpacity>
+                          )
+                        })}
+                      </ScrollView>
+                      <TouchableOpacity style={[styles.btnSecondaire, exportEnCours && styles.btnInactif]} disabled={exportEnCours} onPress={exporter}>
+                        <Text style={styles.btnSecondaireTxt}>{exportEnCours ? (exportMsg || 'Export…') : '📥 Télécharger le journal de caisse (Excel)'}</Text>
+                      </TouchableOpacity>
+                      {!!exportMsg && !exportEnCours && <Text style={styles.info}>{exportMsg}</Text>}
+                    </View>
+                  )}
+
                   {erreur && <Text style={styles.erreur}>{erreur}</Text>}
                 </View>
               )}
@@ -316,5 +360,11 @@ function makeStyles(colors) {
     btnInactif: { opacity: 0.45 },
     champ: { marginTop: 10, minHeight: 64, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 10, color: colors.text, backgroundColor: colors.bg, fontSize: 14 },
     erreur: { marginTop: 10, fontSize: 13, color: colors.error, fontWeight: '600' },
+    export: { marginTop: 16, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 },
+    puces: { gap: 8, paddingVertical: 4 },
+    puce: { minHeight: 44, paddingHorizontal: 14, borderRadius: 22, borderWidth: 1, borderColor: colors.border, justifyContent: 'center', backgroundColor: colors.bg },
+    puceActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+    puceTxt: { fontSize: 13, color: colors.text },
+    puceTxtActive: { color: '#FFFFFF', fontWeight: '700' },
   })
 }
