@@ -141,7 +141,7 @@ export default function ClotureMoisScreen() {
     setEnCours(false)
   }
 
-  // Journal de Caisse SYSCOHADA (lib/exportJournalCaisse.js) ; mois ouvert = PROVISOIRE.
+  // Export comptable SYSCOHADA : Caisse, Banque, OD (lib/exportJournalCaisse.js) ; mois ouvert = PROVISOIRE.
   async function exporter() {
     setExportEnCours(true); setExportMsg(''); setErreur(null)
     try {
@@ -308,7 +308,7 @@ export default function ClotureMoisScreen() {
                         })}
                       </ScrollView>
                       <TouchableOpacity style={[styles.btnSecondaire, exportEnCours && styles.btnInactif]} disabled={exportEnCours} onPress={exporter}>
-                        <Text style={styles.btnSecondaireTxt}>{exportEnCours ? (exportMsg || 'Export…') : '📥 Télécharger le journal de caisse (Excel)'}</Text>
+                        <Text style={styles.btnSecondaireTxt}>{exportEnCours ? (exportMsg || 'Export…') : '📥 Télécharger l’export comptable (Excel)'}</Text>
                       </TouchableOpacity>
                       {!!exportMsg && !exportEnCours && <Text style={styles.info}>{exportMsg}</Text>}
                     </View>
