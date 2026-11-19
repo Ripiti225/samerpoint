@@ -4440,9 +4440,9 @@
     "semantic_hash": ""
   },
   "app/cloture-mois.js": {
-    "mtime": 1795112849.882165,
-    "seen": 1795112906.737705,
-    "ast_hash": "105e7bef9b0dacb70c454fa5dfba079f",
+    "mtime": 1795114014.031241,
+    "seen": 1795114080.7543209,
+    "ast_hash": "a50149675afc00b36cf2288827219ccb",
     "semantic_hash": ""
   },
   "lib/clotureMois.js": {
@@ -4473,6 +4473,42 @@
     "mtime": 1795112679.7740822,
     "seen": 1795112906.7380989,
     "ast_hash": "5a54b0450d3c97ee0fb907e2bd22b7bf",
+    "semantic_hash": ""
+  },
+  "lib/comptesSyscohada.js": {
+    "mtime": 1795113892.1140227,
+    "seen": 1795114080.7544498,
+    "ast_hash": "2ca6f2e413643945cfb4c64b63e9fadb",
+    "semantic_hash": ""
+  },
+  "lib/exportJournalCaisse.js": {
+    "mtime": 1795113980.6877909,
+    "seen": 1795114080.754483,
+    "ast_hash": "ceb66ab63f5bd4f250c58f15624cba1d",
+    "semantic_hash": ""
+  },
+  "lib/journalCaisse.js": {
+    "mtime": 1795113980.687929,
+    "seen": 1795114080.7545002,
+    "ast_hash": "4f752a1591dc238b3ddafc87e3f0e42e",
+    "semantic_hash": ""
+  },
+  "lib/journalCaisse.test.mjs": {
+    "mtime": 1795113989.9913943,
+    "seen": 1795114080.754501,
+    "ast_hash": "5f3ce64159d999fd24741890ea39bc5b",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-11-19-export-comptable-caisse.md": {
+    "mtime": 1795113814.0088193,
+    "seen": 1795114080.7546601,
+    "ast_hash": "fd1f5746ae0e58e3707caa9af631e8da",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/specs/2026-11-19-export-comptable-caisse-design.md": {
+    "mtime": 1795113923.4231575,
+    "seen": 1795114080.7546802,
+    "ast_hash": "129cb2a467fab3c11a819c94554b467c",
     "semantic_hash": ""
   }
 }
